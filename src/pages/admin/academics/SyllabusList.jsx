@@ -1,0 +1,616 @@
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
+import {
+  fetchSyllabusListApi,
+  fetchAcademicYearsApi,
+  fetchClassesApi,
+  deleteSyllabusApi,
+} from '../../../api/adminAcademic.api';
+
+const formatAcademicYear = (ay) => {
+  if (!ay) return '';
+  if (ay.start_date && ay.end_date) {
+    const sDate = new Date(ay.start_date);
+    const eDate = new Date(ay.end_date);
+    const sMonth = sDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const eMonth = eDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    return `${sMonth} - ${eMonth}`;
+  }
+  return ay.academic_year || `Year ${ay.id}`;
+};
+
+const getStatusBadge = (status) => {
+  const s = Number(status);
+  if (s === 3) {
+    return (
+      <span className="badge badge-soft-success d-inline-flex align-items-center mb-1">
+        <i className="ti ti-circle-filled fs-5 me-1"></i>Completed
+      </span>
+    );
+  }
+  if (s === 2) {
+    return (
+      <span className="badge badge-soft-info d-inline-flex align-items-center mb-1">
+        <i className="ti ti-circle-filled fs-5 me-1"></i>Progress
+      </span>
+    );
+  }
+  return (
+    <span className="badge badge-soft-danger d-inline-flex align-items-center mb-1">
+      <i className="ti ti-circle-filled fs-5 me-1"></i>Pending
+    </span>
+  );
+};
+
+const SyllabusList = () => {
+  const [academicYears, setAcademicYears] = useState([]);
+  const [classes, setClasses] = useState([]);
+  const [syllabusList, setSyllabusList] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Filters
+  const [selectedAcademicYear, setSelectedAcademicYear] = useState('');
+  const [selectedClass, setSelectedClass] = useState('');
+
+  // Server Pagination & Search State
+  const [search, setSearch] = useState('');
+  const [perPage, setPerPage] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalEntries, setTotalEntries] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  const searchTimerRef = useRef(null);
+
+  useEffect(() => {
+    loadFilters();
+  }, []);
+
+  const loadFilters = async () => {
+    try {
+      setLoading(true);
+      const [ayRes, clsRes] = await Promise.all([
+        fetchAcademicYearsApi().catch(() => ({ data: [] })),
+        fetchClassesApi().catch(() => ({ data: [] })),
+      ]);
+
+      const ayList = Array.isArray(ayRes?.data) ? ayRes.data : Array.isArray(ayRes) ? ayRes : [];
+      const clsList = Array.isArray(clsRes?.data) ? clsRes.data : Array.isArray(clsRes) ? clsRes : [];
+
+      setAcademicYears(ayList);
+      setClasses(clsList);
+
+      const currentAy = ayList.find((y) => y.is_current === 1) || ayList[0];
+      const defaultCls = clsList[0];
+
+      const initialAy = currentAy?.id ? String(currentAy.id) : '';
+      const initialCls = defaultCls?.id ? String(defaultCls.id) : '';
+
+      setSelectedAcademicYear(initialAy);
+      setSelectedClass(initialCls);
+
+      await fetchSyllabusFromServer({
+        ay: initialAy,
+        cls: initialCls,
+        page: 1,
+        limit: perPage,
+        query: search,
+      });
+    } catch (err) {
+      toast.error('Failed to load filter options.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchSyllabusFromServer = async ({
+    ay = selectedAcademicYear,
+    cls = selectedClass,
+    page = currentPage,
+    limit = perPage,
+    query = search,
+  } = {}) => {
+    try {
+      setLoading(true);
+      const res = await fetchSyllabusListApi({
+        academic_year: ay,
+        class_id: cls,
+        page,
+        limit,
+        search: query.trim(),
+      });
+
+      const responseData = res?.data || res || {};
+      const list = Array.isArray(responseData?.syllabus)
+        ? responseData.syllabus
+        : Array.isArray(responseData)
+        ? responseData
+        : [];
+      const total = typeof responseData.total === 'number' ? responseData.total : list.length;
+      const pages = typeof responseData.totalPages === 'number' ? responseData.totalPages : Math.ceil(total / limit) || 1;
+
+      setSyllabusList(list);
+      setTotalEntries(total);
+      setTotalPages(pages);
+      setSelectedIds([]);
+    } catch (err) {
+      toast.error('Failed to load syllabus records from server.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAcademicYearChange = (e) => {
+    const val = e.target.value;
+    setSelectedAcademicYear(val);
+    setCurrentPage(1);
+    fetchSyllabusFromServer({ ay: val, cls: selectedClass, page: 1, limit: perPage, query: search });
+  };
+
+  const handleClassChange = (e) => {
+    const val = e.target.value;
+    setSelectedClass(val);
+    setCurrentPage(1);
+    fetchSyllabusFromServer({ ay: selectedAcademicYear, cls: val, page: 1, limit: perPage, query: search });
+  };
+
+  const handleSearchChange = (e) => {
+    const val = e.target.value;
+    setSearch(val);
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => {
+      setCurrentPage(1);
+      fetchSyllabusFromServer({
+        ay: selectedAcademicYear,
+        cls: selectedClass,
+        page: 1,
+        limit: perPage,
+        query: val,
+      });
+    }, 350);
+  };
+
+  const handlePerPageChange = (e) => {
+    const newLimit = Number(e.target.value);
+    setPerPage(newLimit);
+    setCurrentPage(1);
+    fetchSyllabusFromServer({
+      ay: selectedAcademicYear,
+      cls: selectedClass,
+      page: 1,
+      limit: newLimit,
+      query: search,
+    });
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    setCurrentPage(newPage);
+    fetchSyllabusFromServer({
+      ay: selectedAcademicYear,
+      cls: selectedClass,
+      page: newPage,
+      limit: perPage,
+      query: search,
+    });
+  };
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this syllabus item?')) return;
+    try {
+      await deleteSyllabusApi(id);
+      toast.success('Syllabus item deleted successfully.');
+      fetchSyllabusFromServer();
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete syllabus item.');
+    }
+  };
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(syllabusList.map((s) => s.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectRow = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const handleExport = (type) => {
+    toast.info(`Exporting syllabus list as ${type.toUpperCase()}...`);
+  };
+
+  const startIndex = (currentPage - 1) * perPage;
+
+  return (
+    <div className="content">
+      {/* Page Header */}
+      <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
+        <div className="my-auto mb-2">
+          <h3 className="page-title mb-1">Syllabus List</h3>
+          <nav>
+            <ol className="breadcrumb mb-0">
+              <li className="breadcrumb-item">
+                <Link to="/admin/dashboard">Dashboard</Link>
+              </li>
+              <li className="breadcrumb-item">Class</li>
+              <li className="breadcrumb-item active" aria-current="page">
+                All Syllabus
+              </li>
+            </ol>
+          </nav>
+        </div>
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
+          <div className="pe-1 mb-2">
+            <button
+              type="button"
+              onClick={() => fetchSyllabusFromServer()}
+              className="btn btn-outline-light bg-white btn-icon me-1"
+              title="Refresh"
+            >
+              <i className="ti ti-refresh text-dark"></i>
+            </button>
+          </div>
+          <div className="pe-1 mb-2">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="btn btn-outline-light bg-white btn-icon me-1"
+              title="Print"
+            >
+              <i className="ti ti-printer text-dark"></i>
+            </button>
+          </div>
+          <div className="dropdown me-2 mb-2">
+            <button
+              className="dropdown-toggle btn btn-light fw-medium d-inline-flex align-items-center"
+              type="button"
+              data-bs-toggle="dropdown"
+              aria-expanded="false"
+            >
+              <i className="ti ti-file-export me-2"></i>Export
+            </button>
+            <ul className="dropdown-menu dropdown-menu-end p-3">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => handleExport('pdf')}
+                  className="dropdown-item rounded-1"
+                >
+                  <i className="ti ti-file-type-pdf me-2"></i>Export as PDF
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => handleExport('excel')}
+                  className="dropdown-item rounded-1"
+                >
+                  <i className="ti ti-file-type-xls me-2"></i>Export as Excel
+                </button>
+              </li>
+            </ul>
+          </div>
+          <div className="mb-2">
+            <Link
+              to="/admin/academics/syllabus/add"
+              className="btn btn-primary d-flex align-items-center"
+            >
+              <i className="ti ti-square-rounded-plus me-2"></i>Add Syllabus
+            </Link>
+          </div>
+        </div>
+      </div>
+      {/* /Page Header */}
+
+      {/* Filter Card */}
+      <div className="bg-white p-3 border rounded-1 d-flex align-items-center justify-content-between flex-wrap mb-4 pb-0">
+        <form
+          id="syllabusForm"
+          onSubmit={(e) => {
+            e.preventDefault();
+            fetchSyllabusFromServer({ page: 1 });
+          }}
+          className="row w-100"
+        >
+          <div className="col-md-3 col-sm-6">
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Academic Year</label>
+              <select
+                className="form-select select"
+                name="academic_year"
+                id="academic_year"
+                value={selectedAcademicYear}
+                onChange={handleAcademicYearChange}
+              >
+                {academicYears.map((ay) => (
+                  <option key={ay.id} value={ay.id}>
+                    {formatAcademicYear(ay)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="col-md-3 col-sm-6">
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Class</label>
+              <select
+                className="form-select select"
+                name="class_id"
+                id="class_id"
+                value={selectedClass}
+                onChange={handleClassChange}
+              >
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.class_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        </form>
+      </div>
+      {/* /Filter Card */}
+
+      {/* Syllabus List Card */}
+      <div className="card shadow-sm border-0">
+        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0">
+          <h4 className="mb-3 fw-bold text-dark">All Syllabus</h4>
+        </div>
+        <div className="card-body p-0 py-3" id="syllabusDiv">
+          <div className="custom-datatable-filter table-responsive">
+            <div
+              id="DataTables_Table_0_wrapper"
+              className="dataTables_wrapper dt-bootstrap5 no-footer px-3"
+            >
+              {/* Length and Search Controls */}
+              <div className="row mb-3 align-items-center">
+                <div className="col-sm-12 col-md-6 mb-2 mb-md-0">
+                  <div className="dataTables_length" id="DataTables_Table_0_length">
+                    <label className="d-flex align-items-center gap-2">
+                      <span>Row Per Page</span>
+                      <select
+                        name="DataTables_Table_0_length"
+                        aria-controls="DataTables_Table_0"
+                        className="form-select form-select-sm"
+                        style={{ width: '80px' }}
+                        value={perPage}
+                        onChange={handlePerPageChange}
+                      >
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                      </select>
+                      <span>Entries</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="col-sm-12 col-md-6 text-md-end">
+                  <div id="DataTables_Table_0_filter" className="dataTables_filter d-inline-block">
+                    <label className="d-flex align-items-center gap-2">
+                      <span>Search:</span>
+                      <input
+                        type="search"
+                        className="form-control form-control-sm"
+                        placeholder="Search Subject or Lesson..."
+                        aria-controls="DataTables_Table_0"
+                        value={search}
+                        onChange={handleSearchChange}
+                      />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="row dt-row">
+                <div className="col-sm-12 table-responsive">
+                  <table
+                    className="table datatable dataTable no-footer align-middle"
+                    id="DataTables_Table_0"
+                  >
+                    <thead className="thead-light">
+                      <tr>
+                        <th style={{ width: '50px' }} className="text-center">
+                          <div className="form-check form-check-md">
+                            <input
+                              className="form-check-input"
+                              type="checkbox"
+                              id="select-all"
+                              checked={
+                                syllabusList.length > 0 &&
+                                selectedIds.length === syllabusList.length
+                              }
+                              onChange={handleSelectAll}
+                            />
+                          </div>
+                        </th>
+                        <th style={{ width: '80px' }}>Sl No.</th>
+                        <th style={{ width: '160px' }}>Subject</th>
+                        <th>Lession</th>
+                        <th style={{ width: '150px' }}>Status</th>
+                        <th style={{ width: '90px' }} className="text-center">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {loading ? (
+                        <tr>
+                          <td colSpan="6" className="text-center py-5">
+                            <div className="spinner-border text-primary" role="status">
+                              <span className="visually-hidden">Loading...</span>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : syllabusList.length === 0 ? (
+                        <tr>
+                          <td colSpan="6" className="text-center py-5 text-muted">
+                            <i className="ti ti-notebook-off fs-24 mb-2 d-block text-muted"></i>
+                            No syllabus records found for this academic year and class.
+                          </td>
+                        </tr>
+                      ) : (
+                        syllabusList.map((item, idx) => {
+                          const slNo = startIndex + idx + 1;
+                          const encodedId = btoa(String(item.id));
+                          const isDropdownOpen = openDropdownId === item.id;
+
+                          return (
+                            <tr key={item.id} className={idx % 2 === 0 ? 'odd' : 'even'}>
+                              <td className="text-center">
+                                <div className="form-check form-check-md">
+                                  <input
+                                    className="form-check-input"
+                                    type="checkbox"
+                                    checked={selectedIds.includes(item.id)}
+                                    onChange={() => handleSelectRow(item.id)}
+                                  />
+                                </div>
+                              </td>
+                              <td className="fw-semibold text-dark">{slNo}</td>
+                              <td className="fw-medium text-dark">{item.subject_name || '—'}</td>
+                              <td className="text-wrap" style={{ maxWidth: '600px' }}>
+                                {item.lession}
+                              </td>
+                              <td>{getStatusBadge(item.status)}</td>
+                              <td className="text-center position-relative">
+                                <div className="dropdown d-inline-block">
+                                  <button
+                                    className="btn btn-white btn-icon btn-sm d-flex align-items-center justify-content-center rounded-circle p-0 border shadow-none"
+                                    type="button"
+                                    onClick={() =>
+                                      setOpenDropdownId(isDropdownOpen ? null : item.id)
+                                    }
+                                  >
+                                    <i className="ti ti-dots-vertical fs-14"></i>
+                                  </button>
+
+                                  {isDropdownOpen && (
+                                    <>
+                                      <div
+                                        className="position-fixed top-0 start-0 w-100 h-100"
+                                        style={{ zIndex: 100 }}
+                                        onClick={() => setOpenDropdownId(null)}
+                                      ></div>
+                                      <ul
+                                        className="dropdown-menu dropdown-menu-end p-2 show position-absolute shadow"
+                                        style={{
+                                          zIndex: 105,
+                                          right: 0,
+                                          top: '100%',
+                                          minWidth: '140px',
+                                        }}
+                                      >
+                                        <li>
+                                          <Link
+                                            className="dropdown-item rounded-1 d-flex align-items-center"
+                                            to={`/admin/academics/syllabus/edit/${encodedId}`}
+                                            onClick={() => setOpenDropdownId(null)}
+                                          >
+                                            <i className="ti ti-edit-circle me-2 text-primary"></i>
+                                            Edit
+                                          </Link>
+                                        </li>
+                                        <li>
+                                          <button
+                                            type="button"
+                                            className="dropdown-item rounded-1 text-danger d-flex align-items-center"
+                                            onClick={() => {
+                                              setOpenDropdownId(null);
+                                              handleDelete(item.id);
+                                            }}
+                                          >
+                                            <i className="ti ti-trash-x me-2"></i>Delete
+                                          </button>
+                                        </li>
+                                      </ul>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Server-Side Pagination */}
+              <div className="row align-items-center mt-3">
+                <div className="col-sm-12 col-md-5">
+                  <div className="dataTables_info text-muted fs-13">
+                    Showing {totalEntries === 0 ? 0 : startIndex + 1} to{' '}
+                    {Math.min(currentPage * perPage, totalEntries)} of {totalEntries} entries
+                  </div>
+                </div>
+                <div className="col-sm-12 col-md-7">
+                  <div className="dataTables_paginate paging_simple_numbers d-flex justify-content-md-end">
+                    <ul className="pagination pagination-sm mb-0">
+                      <li className={`paginate_button page-item previous ${currentPage === 1 ? 'disabled' : ''}`}>
+                        <button
+                          type="button"
+                          className="page-link"
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage === 1}
+                        >
+                          Prev
+                        </button>
+                      </li>
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                        <li
+                          key={pageNum}
+                          className={`paginate_button page-item ${currentPage === pageNum ? 'active' : ''}`}
+                        >
+                          <button
+                            type="button"
+                            className="page-link"
+                            onClick={() => handlePageChange(pageNum)}
+                          >
+                            {pageNum}
+                          </button>
+                        </li>
+                      ))}
+                      <li
+                        className={`paginate_button page-item next ${
+                          currentPage === totalPages || totalPages === 0 ? 'disabled' : ''
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          className="page-link"
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage === totalPages || totalPages === 0}
+                        >
+                          Next
+                        </button>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      {/* /Syllabus List Card */}
+    </div>
+  );
+};
+
+export default SyllabusList;
