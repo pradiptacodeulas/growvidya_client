@@ -7,26 +7,12 @@ import {
   createHouseApi,
   updateHouseApi,
 } from '../../../api/adminAcademic.api';
-
-// Helper to resolve base64 or normal numeric ID
-const resolveHouseId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64 encoded, return as is
-  }
-  return paramId;
-};
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditHouse = () => {
   const { id: rawId } = useParams();
   const navigate = useNavigate();
-  const id = resolveHouseId(rawId);
+  const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
   const [formData, setFormData] = useState({

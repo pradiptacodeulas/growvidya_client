@@ -1,62 +1,76 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, Link, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logoutAdmin } from '../../store/slices/authSlice';
 import logoDark from '../../assets/logo_dark.png';
 import logoSmall from '../../assets/logo-small.png';
+import schoolLogoDefault from '../../assets/school-logo.png';
+import { resolveImageUrl } from '../../utils/url.util';
 import Avatar from './Avatar';
 
-const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleSidebar }) => {
+const Sidebar = ({
+  isCollapsed,
+  isHovered,
+  onMouseEnter,
+  onMouseLeave,
+  onToggleSidebar,
+  isMobileMenuOpen,
+  onCloseMobileMenu,
+}) => {
   const dispatch = useDispatch();
   const location = useLocation();
   const { user } = useSelector((state) => state.auth);
 
-  // Submenu open states
-  const [openSubmenu, setOpenSubmenu] = useState({
-    ward: location.pathname.includes('/admin/students') || location.pathname.includes('/admin/parents'),
-    staff:
-      location.pathname.includes('/admin/teachers') ||
-      location.pathname.includes('/admin/staff') ||
-      location.pathname.includes('/admin/users'),
-    academic: location.pathname.includes('/admin/academics') || location.pathname.includes('/admin/academic'),
-    attendance: location.pathname.includes('/admin/attendance'),
-    examination: location.pathname.includes('/admin/examinations') || location.pathname.includes('/admin/examination'),
-    payroll: false,
-    leaves: location.pathname.includes('/admin/leaves'),
-    transport: location.pathname.includes('/admin/transport'),
-    hostel: false,
-    fees: location.pathname.includes('/admin/fees') || location.pathname.includes('feesmanagement'),
-    announcement: false,
-    certificate: false,
-    records: false,
-    report: location.pathname.includes('/admin/reports'),
-    settings: false,
+  const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogoDefault;
+  const schoolName = user?.schoolName || 'Growvidya School';
+
+  // Helper to determine the single active menu from current URL path
+  const getActiveMenuFromPath = (path) => {
+    if (path.includes('/admin/students') || path.includes('/admin/parents')) return 'ward';
+    if (
+      path.includes('/admin/teachers') ||
+      path.includes('/admin/staff') ||
+      path.includes('/admin/users')
+    )
+      return 'staff';
+    if (path.includes('/admin/academics') || path.includes('/admin/academic')) return 'academic';
+    if (path.includes('/admin/attendance')) return 'attendance';
+    if (path.includes('/admin/leaves')) return 'leaves';
+    if (path.includes('/admin/examinations') || path.includes('/admin/examination')) return 'examination';
+    if (path.includes('/admin/payroll')) return 'payroll';
+    if (path.includes('/admin/transport')) return 'transport';
+    if (path.includes('/admin/hostel') || path.includes('/hostel')) return 'hostel';
+    if (path.includes('/admin/announcement') || path.includes('/announcement')) return 'announcement';
+    if (path.includes('/admin/fees') || path.includes('feesmanagement')) return 'fees';
+    if (path.includes('/admin/certificates') || path.includes('/admin/manage-certificate')) return 'manageCertificate';
+    if (path.includes('/admin/records') || path.includes('/records/')) return 'records';
+    if (path.includes('/admin/reports')) return 'report';
+    if (path.includes('/admin/settings') || path.includes('/settings')) return 'settings';
+    return null;
+  };
+
+  // Submenu open states (only one key can be true at any time)
+  const [openSubmenu, setOpenSubmenu] = useState(() => {
+    const active = getActiveMenuFromPath(location.pathname);
+    return active ? { [active]: true } : {};
   });
 
+  // On route change, only keep the menu matching the current route expanded
   useEffect(() => {
-    setOpenSubmenu((prev) => ({
-      ...prev,
-      ward: prev.ward || location.pathname.includes('/admin/students') || location.pathname.includes('/admin/parents'),
-      staff:
-        prev.staff ||
-        location.pathname.includes('/admin/teachers') ||
-        location.pathname.includes('/admin/staff') ||
-        location.pathname.includes('/admin/users'),
-      academic: prev.academic || location.pathname.includes('/admin/academics') || location.pathname.includes('/admin/academic'),
-      attendance: prev.attendance || location.pathname.includes('/admin/attendance'),
-      examination: prev.examination || location.pathname.includes('/admin/examinations') || location.pathname.includes('/admin/examination'),
-      leaves: prev.leaves || location.pathname.includes('/admin/leaves'),
-      transport: prev.transport || location.pathname.includes('/admin/transport'),
-      fees: prev.fees || location.pathname.includes('/admin/fees') || location.pathname.includes('feesmanagement'),
-      report: prev.report || location.pathname.includes('/admin/reports'),
-    }));
+    const active = getActiveMenuFromPath(location.pathname);
+    if (active) {
+      setOpenSubmenu({ [active]: true });
+    } else {
+      setOpenSubmenu({});
+    }
   }, [location.pathname]);
 
+  // Accordion toggle: opening one menu closes all others
   const toggleSubmenu = (menuKey) => {
-    setOpenSubmenu((prev) => ({
-      ...prev,
-      [menuKey]: !prev[menuKey],
-    }));
+    setOpenSubmenu((prev) => {
+      const isCurrentlyOpen = Boolean(prev[menuKey]);
+      return isCurrentlyOpen ? {} : { [menuKey]: true };
+    });
   };
 
   const handleLogout = (e) => {
@@ -73,20 +87,24 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {/* Sidebar Top Header Element (App Logo & Hamburger Button) */}
-      <div className="sidebar-logo d-flex align-items-center justify-content-between px-3">
-        <a href="/admin/dashboard" className="d-flex align-items-center text-decoration-none">
+      {/* Sidebar Top Header Element (App Logo & Desktop Hamburger / Mobile Close Button) */}
+      <div className="sidebar-logo d-flex align-items-center justify-content-between ps-3 pe-2">
+        <Link to="/admin/dashboard" className="d-flex align-items-center text-decoration-none">
           <img
             src={showFullLogo ? logoDark : logoSmall}
             alt="Growvidya Logo"
             style={{
-              maxHeight: showFullLogo ? '38px' : '34px',
-              maxWidth: showFullLogo ? '140px' : '34px',
+              width: showFullLogo ? '185px' : '38px',
+              maxWidth: showFullLogo ? '195px' : '38px',
+              maxHeight: showFullLogo ? '50px' : '38px',
+              height: 'auto',
               objectFit: 'contain',
               transition: 'all 0.2s ease',
             }}
           />
-        </a>
+        </Link>
+
+        {/* Desktop Collapse Toggle Button */}
         <a
           id="toggle_btn"
           href="#"
@@ -94,29 +112,54 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
             e.preventDefault();
             onToggleSidebar();
           }}
-          className={`text-dark fs-20 d-flex align-items-center justify-content-center ${isCollapsed ? 'active' : ''}`}
+          className={`d-none d-lg-flex text-dark fs-20 align-items-center justify-content-center ${isCollapsed ? 'active' : ''}`}
           title={isCollapsed ? 'Permanently Expand Sidebar' : 'Collapse Sidebar'}
         >
           <i className="ti ti-menu-deep fs-20 text-dark"></i>
         </a>
+
+        {/* Mobile Close Button (shown on smaller screens < 992px) */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            if (onCloseMobileMenu) onCloseMobileMenu();
+          }}
+          className="d-flex d-lg-none btn btn-sm btn-icon btn-light rounded-circle text-dark align-items-center justify-content-center border"
+          title="Close Sidebar"
+          style={{ width: '32px', height: '32px' }}
+        >
+          <i className="ti ti-x fs-18 text-dark"></i>
+        </button>
       </div>
 
       {/* Sidebar Scrollable Menu Body */}
       <div className="sidebar-inner slimscroll flex-fill">
         <div id="sidebar-menu" className="sidebar-menu">
-          {/* User Profile / Header Widget */}
+          {/* School Profile / Header Widget */}
           <ul className="mb-3">
             <li>
-              <div className="d-flex align-items-center border bg-white rounded p-2 text-decoration-none cursor-pointer">
-                <Avatar
-                  src={user?.picture}
-                  name={user?.firstName || user?.schoolName || 'Admin'}
-                  size={32}
-                  rounded={true}
-                  className="flex-shrink-0"
-                />
-                <span className="text-dark ms-2 fw-semibold text-truncate">{user?.schoolName || 'Growvidya School'}</span>
-              </div>
+              <a
+                href="javascript:void(0);"
+                className="d-flex align-items-center border bg-white rounded p-2 text-decoration-none"
+              >
+                <span
+                  className="avatar avatar-md bg-transparent rounded flex-shrink-0 d-inline-flex align-items-center justify-content-center overflow-hidden"
+                  style={{ width: '32px', height: '32px', minWidth: '32px' }}
+                >
+                  <img
+                    src={schoolLogoSrc}
+                    alt={schoolName}
+                    className="img-fluid rounded"
+                    style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
+                    onError={(e) => {
+                      e.currentTarget.onerror = null;
+                      e.currentTarget.src = schoolLogoDefault;
+                    }}
+                  />
+                </span>
+                <span className="text-dark ms-2 fw-semibold text-truncate">{schoolName}</span>
+              </a>
             </li>
           </ul>
 
@@ -146,7 +189,7 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Ward</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.ward ? 'block' : 'none' }}>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.ward ? 'submenu-open' : ''}`}>
                     <li>
                       <NavLink to="/admin/students" className={({ isActive }) => (isActive ? 'active' : '')}>
                         <span>Students</span>
@@ -174,7 +217,7 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Staff</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.staff ? 'block' : 'none' }}>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.staff ? 'submenu-open' : ''}`}>
                     <li>
                       <NavLink to="/admin/teachers" className={({ isActive }) => (isActive ? 'active' : '')}>
                         <span>Teachers</span>
@@ -207,7 +250,7 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Academic</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.academic ? 'block' : 'none' }}>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.academic ? 'submenu-open' : ''}`}>
                     <li><NavLink to="/admin/academics/shifts" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/shifts') || location.pathname.startsWith('/admin/academic/shifts') || location.pathname.startsWith('/admin/academic/shift') ? 'active' : '')}><span>Shift</span></NavLink></li>
                     <li><NavLink to="/admin/academics/classes" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/classes') || location.pathname.startsWith('/admin/academic/classes') || location.pathname.startsWith('/admin/academic/class') ? 'active' : '')}><span>Class</span></NavLink></li>
                     <li><NavLink to="/admin/academics/days" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/days') || location.pathname.startsWith('/admin/academic/days') || location.pathname.startsWith('/admin/academic/day') ? 'active' : '')}><span>Days</span></NavLink></li>
@@ -239,7 +282,7 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Attendance</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.attendance ? 'block' : 'none' }}>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.attendance ? 'submenu-open' : ''}`}>
                     <li><NavLink to="/admin/attendance/student" className={({ isActive }) => (isActive ? 'active' : '')}><span>Student Attendance</span></NavLink></li>
                     <li><NavLink to="/admin/attendance/teacher" className={({ isActive }) => (isActive ? 'active' : '')}><span>Teacher Attendance</span></NavLink></li>
                     <li><NavLink to="/admin/attendance/staff" className={({ isActive }) => (isActive ? 'active' : '')}><span>Staff Attendance</span></NavLink></li>
@@ -260,7 +303,7 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Leaves Application</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.leaves ? 'block' : 'none' }}>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.leaves ? 'submenu-open' : ''}`}>
                     <li>
                       <NavLink
                         to="/admin/leaves/assign"
@@ -301,7 +344,7 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Examination</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.examination ? 'block' : 'none' }}>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.examination ? 'submenu-open' : ''}`}>
                     <li>
                       <NavLink
                         to="/admin/examinations/grades"
@@ -361,6 +404,78 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                   </ul>
                 </li>
 
+                {/* Media */}
+                <li>
+                  <NavLink
+                    to="/admin/media"
+                    className={({ isActive }) =>
+                      isActive || location.pathname.startsWith('/admin/media')
+                        ? 'active'
+                        : ''
+                    }
+                  >
+                    <i className="ti ti-photo"></i>
+                    <span>Media</span>
+                  </NavLink>
+                </li>
+
+                {/* Message */}
+                <li>
+                  <NavLink
+                    to="/admin/message"
+                    className={({ isActive }) =>
+                      isActive || location.pathname.startsWith('/admin/message') || location.pathname.startsWith('/admin/messages')
+                        ? 'active'
+                        : ''
+                    }
+                  >
+                    <i className="ti ti-message-dots"></i>
+                    <span>Message</span>
+                  </NavLink>
+                </li>
+
+                {/* Payroll */}
+                <li className={`submenu ${openSubmenu.payroll ? 'active' : ''}`}>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSubmenu('payroll');
+                    }}
+                    className={openSubmenu.payroll ? 'subdrop active' : ''}
+                  >
+                    <i className="ti ti-coins"></i>
+                    <span>Payroll</span>
+                    <span className="menu-arrow"></span>
+                  </a>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.payroll ? 'submenu-open' : ''}`}>
+                    <li>
+                      <NavLink
+                        to="/admin/payroll/beneficiaries"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/payroll/beneficiar')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Beneficiary Management</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/payroll/salary"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/payroll/salar')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Salary</span>
+                      </NavLink>
+                    </li>
+                  </ul>
+                </li>
+
                 {/* Transport */}
                 <li className={`submenu ${openSubmenu.transport ? 'active' : ''}`}>
                   <a
@@ -375,37 +490,158 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Transport</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.transport ? 'block' : 'none' }}>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.transport ? 'submenu-open' : ''}`}>
                     <li>
                       <NavLink
-                        to="/admin/transport/routes"
-                        className={({ isActive }) => (isActive ? 'active' : '')}
+                        to="/admin/transport/bus"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/transport/bus') ||
+                          location.pathname.startsWith('/admin/transport/vehicles')
+                            ? 'active'
+                            : ''
+                        }
                       >
-                        <span>Routes</span>
+                        <span>Bus</span>
                       </NavLink>
                     </li>
                     <li>
                       <NavLink
-                        to="/admin/transport/vehicles"
-                        className={({ isActive }) => (isActive ? 'active' : '')}
+                        to="/admin/transport/driver"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/transport/driver')
+                            ? 'active'
+                            : ''
+                        }
                       >
-                        <span>Vehicles</span>
+                        <span>Driver</span>
                       </NavLink>
                     </li>
                     <li>
                       <NavLink
-                        to="/admin/transport/drivers"
-                        className={({ isActive }) => (isActive ? 'active' : '')}
+                        to="/admin/transport/helper"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/transport/helper')
+                            ? 'active'
+                            : ''
+                        }
                       >
-                        <span>Drivers</span>
+                        <span>Helper</span>
                       </NavLink>
                     </li>
                     <li>
                       <NavLink
-                        to="/admin/transport/assign"
-                        className={({ isActive }) => (isActive ? 'active' : '')}
+                        to="/admin/transport/route"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/transport/route')
+                            ? 'active'
+                            : ''
+                        }
                       >
-                        <span>Assign Vehicle</span>
+                        <span>Route</span>
+                      </NavLink>
+                    </li>
+                  </ul>
+                </li>
+
+                {/* Hostel */}
+                <li className={`submenu ${openSubmenu.hostel ? 'active' : ''}`}>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSubmenu('hostel');
+                    }}
+                    className={openSubmenu.hostel ? 'subdrop active' : ''}
+                  >
+                    <i className="ti ti-building-community"></i>
+                    <span>Hostel</span>
+                    <span className="menu-arrow"></span>
+                  </a>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.hostel ? 'submenu-open' : ''}`}>
+                    <li>
+                      <NavLink
+                        to="/admin/hostel/list"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/hostel/list') ||
+                          location.pathname.startsWith('/admin/hostel/add') ||
+                          location.pathname.startsWith('/admin/hostel/edit')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Hostel List</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/hostel/rooms"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/hostel/rooms')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Hostel Rooms</span>
+                      </NavLink>
+                    </li>
+                  </ul>
+                </li>
+
+                {/* Announcement */}
+                <li className={`submenu ${openSubmenu.announcement ? 'active' : ''}`}>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSubmenu('announcement');
+                    }}
+                    className={openSubmenu.announcement ? 'subdrop active' : ''}
+                  >
+                    <i className="ti ti-speakerphone"></i>
+                    <span>Announcement</span>
+                    <span className="menu-arrow"></span>
+                  </a>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.announcement ? 'submenu-open' : ''}`}>
+                    <li>
+                      <NavLink
+                        to="/admin/announcement/notice"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/announcement/notice')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Notice</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/announcement/event"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/announcement/event')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Event</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/announcement/holiday"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/announcement/holiday')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Holiday</span>
                       </NavLink>
                     </li>
                   </ul>
@@ -425,7 +661,7 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Fees Management</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.fees ? 'block' : 'none' }}>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.fees ? 'submenu-open' : ''}`}>
                     <li>
                       <NavLink
                         to="/admin/fees/dashboard"
@@ -485,6 +721,133 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                   </ul>
                 </li>
 
+                {/* Records & Documents */}
+                <li className={`submenu ${openSubmenu.records ? 'active' : ''}`}>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSubmenu('records');
+                    }}
+                    className={openSubmenu.records ? 'subdrop active' : ''}
+                  >
+                    <i className="ti ti-id-badge-2"></i>
+                    <span>Records &amp; Documents</span>
+                    <span className="menu-arrow"></span>
+                  </a>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.records ? 'submenu-open' : ''}`}>
+                    <li>
+                      <NavLink
+                        to="/admin/records/admit-card"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/records/admit-card') ||
+                          location.pathname.startsWith('/admin/records/admitcard')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Admit Card</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/records/id-card"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/records/id-card') ||
+                          location.pathname.startsWith('/admin/records/idcard')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>ID Card</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/records/marksheet"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/records/marksheet') ||
+                          location.pathname.startsWith('/admin/records/mark-sheet')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Mark Sheet</span>
+                      </NavLink>
+                    </li>
+                  </ul>
+                </li>
+
+                {/* Manage Certificate */}
+                <li className={`submenu ${openSubmenu.manageCertificate ? 'active' : ''}`}>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSubmenu('manageCertificate');
+                    }}
+                    className={openSubmenu.manageCertificate ? 'subdrop active' : ''}
+                  >
+                    <i className="ti ti-certificate"></i>
+                    <span>Manage Certificate</span>
+                    <span className="menu-arrow"></span>
+                  </a>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.manageCertificate ? 'submenu-open' : ''}`}>
+                    <li>
+                      <NavLink
+                        to="/admin/certificates/category"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/certificates/categor')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Certificate Category</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/certificates/border"
+                        className={({ isActive }) =>
+                          isActive ||
+                          location.pathname.startsWith('/admin/certificates/border')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Certificate Border</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/certificates/template"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/certificates/template')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Certificate Template</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/certificates/create"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/certificates/create')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Certificate Create</span>
+                      </NavLink>
+                    </li>
+                  </ul>
+                </li>
+
                 {/* Reports */}
                 <li className={`submenu ${openSubmenu.report ? 'active' : ''}`}>
                   <a
@@ -499,10 +862,109 @@ const Sidebar = ({ isCollapsed, isHovered, onMouseEnter, onMouseLeave, onToggleS
                     <span>Reports</span>
                     <span className="menu-arrow"></span>
                   </a>
-                  <ul style={{ display: openSubmenu.report ? 'block' : 'none' }}>
-                    <li><NavLink to="/admin/reports"><span>Class Report</span></NavLink></li>
-                    <li><NavLink to="/admin/reports"><span>Student Report</span></NavLink></li>
-                    <li><NavLink to="/admin/reports"><span>Attendance Report</span></NavLink></li>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.report ? 'submenu-open' : ''}`}>
+                    <li>
+                      <NavLink
+                        to="/admin/reports/class-report"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/reports/class')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Class Report</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/reports/student-report"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/reports/student')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Student Report</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/reports/attendance-report"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/reports/attendance')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Attendance Report</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/reports/calendar-report"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/admin/reports/calendar')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Calendar Report</span>
+                      </NavLink>
+                    </li>
+                  </ul>
+                </li>
+
+                {/* Settings */}
+                <li className={`submenu ${openSubmenu.settings ? 'active' : ''}`}>
+                  <a
+                    href="#"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      toggleSubmenu('settings');
+                    }}
+                    className={openSubmenu.settings ? 'subdrop active' : ''}
+                  >
+                    <i className="ti ti-settings"></i>
+                    <span>Settings</span>
+                    <span className="menu-arrow"></span>
+                  </a>
+                  <ul className={`sidebar-submenu-list ${openSubmenu.settings ? 'submenu-open' : ''}`}>
+                    <li>
+                      <NavLink
+                        to="/admin/settings/misc-management"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.includes('misc') || location.pathname.includes('mics')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Mics Management</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/settings/general-setting"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.includes('general')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>General Setting</span>
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/admin/settings/salary-date"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.includes('salary-date') || location.pathname.includes('salarydate')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        <span>Salary Date</span>
+                      </NavLink>
+                    </li>
                   </ul>
                 </li>
 

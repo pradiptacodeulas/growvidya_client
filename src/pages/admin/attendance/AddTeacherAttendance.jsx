@@ -1,12 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import { getServerBaseUrl } from '../../../utils/url.util';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   fetchTeachersForAttendanceApi,
   saveTeacherAttendanceApi,
 } from '../../../api/adminAttendance.api';
+import Avatar from '../../../components/common/Avatar';
+import { getPaginationRange } from '../../../utils/pagination.util';
+import { encodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const AddTeacherAttendance = () => {
   const navigate = useNavigate();
@@ -19,34 +23,76 @@ const AddTeacherAttendance = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadTeachers = async (selectedDate) => {
-    try {
-      setLoading(true);
-      const res = await fetchTeachersForAttendanceApi({ date: selectedDate || targetDate });
-      const list = res?.data?.teachers || [];
-      setTeachers(list);
+  // Server-level Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-      const initialAttendance = {};
-      const initialNotes = {};
-      list.forEach((t) => {
-        initialAttendance[t.id] =
-          t.attendance !== null && t.attendance !== undefined ? Number(t.attendance) : 1;
-        initialNotes[t.id] = t.notes || '';
-      });
+  const loadTeachers = useCallback(
+    async (selectedDate = targetDate, targetPage = 1) => {
+      try {
+        setLoading(true);
+        const res = await fetchTeachersForAttendanceApi({
+          date: selectedDate,
+          page: targetPage,
+          limit: pageSize,
+        });
 
-      setAttendanceData(initialAttendance);
-      setNotesData(initialNotes);
-    } catch (err) {
-      console.error('Error fetching teachers for attendance:', err);
-      toast.error('Failed to load teachers roster.');
-    } finally {
-      setLoading(false);
-    }
-  };
+        const list = res?.data?.teachers || [];
+        setTeachers(list);
+
+        if (res?.data?.pagination) {
+          setTotalRecords(res.data.pagination.total || 0);
+          setTotalPages(res.data.pagination.totalPages || 1);
+          setCurrentPage(res.data.pagination.page || 1);
+        } else {
+          setTotalRecords(list.length);
+          setTotalPages(1);
+          setCurrentPage(1);
+        }
+
+        // Initialize / preserve attendance records (Default to Present = 1)
+        setAttendanceData((prev) => {
+          const next = { ...prev };
+          list.forEach((t) => {
+            if (next[t.id] === undefined) {
+              next[t.id] =
+                t.attendance !== null && t.attendance !== undefined ? Number(t.attendance) : 1;
+            }
+          });
+          return next;
+        });
+
+        setNotesData((prev) => {
+          const next = { ...prev };
+          list.forEach((t) => {
+            if (next[t.id] === undefined) {
+              next[t.id] = t.notes || '';
+            }
+          });
+          return next;
+        });
+      } catch (err) {
+        console.error('Error fetching teachers for attendance:', err);
+        toast.error('Failed to load teachers roster.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [targetDate, pageSize]
+  );
 
   useEffect(() => {
-    loadTeachers(targetDate);
-  }, []);
+    loadTeachers(targetDate, 1);
+  }, [targetDate]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+      loadTeachers(targetDate, newPage);
+    }
+  };
 
   const handleStatusChange = (teacherId, val) => {
     setAttendanceData((prev) => ({
@@ -65,17 +111,17 @@ const AddTeacherAttendance = () => {
   // Submit Attendance
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (teachers.length === 0) {
+    if (Object.keys(attendanceData).length === 0 && teachers.length === 0) {
       toast.warning('No teacher records to save.');
       return;
     }
 
     try {
       setSubmitting(true);
-      const attendanceRecords = teachers.map((t) => ({
-        teacher_id: t.id,
-        attendance: attendanceData[t.id] !== undefined ? attendanceData[t.id] : 1,
-        notes: notesData[t.id] || '',
+      const attendanceRecords = Object.keys(attendanceData).map((id) => ({
+        teacher_id: id,
+        attendance: attendanceData[id] !== undefined ? attendanceData[id] : 1,
+        notes: notesData[id] || '',
       }));
 
       await saveTeacherAttendanceApi({
@@ -119,7 +165,7 @@ const AddTeacherAttendance = () => {
             <button
               type="button"
               className="btn btn-outline-light bg-white btn-icon me-1"
-              onClick={() => loadTeachers(targetDate)}
+              onClick={() => loadTeachers(targetDate, currentPage)}
               title="Refresh"
             >
               <i className="ti ti-refresh"></i>
@@ -201,49 +247,28 @@ const AddTeacherAttendance = () => {
                   </thead>
                   <tbody>
                     {teachers.map((t) => {
-                      const pic = t.picture
-                        ? t.picture.startsWith('http') || t.picture.startsWith('data:')
-                          ? t.picture
-                          : `${SERVER_BASE_URL}/${t.picture.replace(/^\//, '')}`
-                        : t.gender_name === 'Female'
-                        ? `${SERVER_BASE_URL}/vidya_assets/images/female-user.png`
-                        : `${SERVER_BASE_URL}/vidya_assets/images/male-user.png`;
-
                       return (
                         <tr key={t.id}>
                           <td>
-                            <a
-                              href="#"
-                              onClick={(e) => e.preventDefault()}
+                            <Link
+                              to={`/admin/teachers/${encodeParam(t.id)}`}
                               className="link-primary"
                             >
                               {t.teacher_code || t.id}
-                            </a>
+                            </Link>
                           </td>
                           <td>
                             <div className="d-flex align-items-center">
-                              <a
-                                href="#"
-                                onClick={(e) => e.preventDefault()}
-                                className="avatar avatar-md"
-                              >
-                                <img
-                                  src={pic || `${SERVER_BASE_URL}/vidya_assets/images/male-user.png`}
-                                  className="img-fluid"
-                                  alt="img"
-                                  onError={(e) => {
-                                    e.target.src = `${SERVER_BASE_URL}/vidya_assets/images/male-user.png`;
-                                  }}
-                                />
-                              </a>
+                              <Avatar
+                                src={t.picture}
+                                name={`${t.first_name} ${t.last_name || ''}`}
+                                size={32}
+                                rounded={true}
+                                className="me-2 flex-shrink-0"
+                              />
                               <div className="ms-2">
                                 <p className="text-dark mb-0">
-                                  <a
-                                    href="#"
-                                    onClick={(e) => e.preventDefault()}
-                                  >
-                                    {t.first_name} {t.last_name}
-                                  </a>
+                                  {t.first_name} {t.last_name}
                                 </p>
                               </div>
                             </div>
@@ -313,6 +338,70 @@ const AddTeacherAttendance = () => {
                     })}
                   </tbody>
                 </table>
+
+                {/* Pagination Footer */}
+                {totalRecords > 0 && totalPages > 1 && (
+                  <div className="row px-3 mt-3 align-items-center">
+                    <div className="col-sm-12 col-md-5">
+                      <div className="dataTables_info text-muted small">
+                        Showing {(currentPage - 1) * pageSize + 1} to{' '}
+                        {Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} entries
+                      </div>
+                    </div>
+                    <div className="col-sm-12 col-md-7">
+                      <div className="dataTables_paginate paging_simple_numbers d-flex justify-content-md-end">
+                        <ul className="pagination mb-0">
+                          <li className={`paginate_button page-item previous ${currentPage === 1 ? 'disabled' : ''}`}>
+                            <button
+                              type="button"
+                              className="page-link"
+                              disabled={currentPage === 1}
+                              onClick={() => handlePageChange(currentPage - 1)}
+                            >
+                              Prev
+                            </button>
+                          </li>
+
+                          {getPaginationRange(currentPage, totalPages).map((p, pIdx) => {
+                            if (p === '...') {
+                              return (
+                                <li key={`ellipsis-${pIdx}`} className="paginate_button page-item disabled">
+                                  <span className="page-link">...</span>
+                                </li>
+                              );
+                            }
+                            return (
+                              <li
+                                key={p}
+                                className={`paginate_button page-item ${currentPage === p ? 'active' : ''}`}
+                              >
+                                <button
+                                  type="button"
+                                  className="page-link"
+                                  onClick={() => handlePageChange(p)}
+                                >
+                                  {p}
+                                </button>
+                              </li>
+                            );
+                          })}
+
+                          <li className={`paginate_button page-item next ${currentPage === totalPages ? 'disabled' : ''}`}>
+                            <button
+                              type="button"
+                              className="page-link"
+                              disabled={currentPage === totalPages}
+                              onClick={() => handlePageChange(currentPage + 1)}
+                            >
+                              Next
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <input
                   type="hidden"
                   name="attendanceDate"

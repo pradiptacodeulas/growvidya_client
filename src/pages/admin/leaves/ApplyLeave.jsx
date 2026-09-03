@@ -6,6 +6,10 @@ import {
   fetchStaffByRoleApi,
   createLeaveApi,
 } from '../../../api/adminLeave.api';
+import {
+  fetchTeacherLeaveTypesApi,
+  applyTeacherLeaveApi,
+} from '../../../api/teacherLeave.api';
 import apiClient from '../../../api/axios.config';
 
 const ApplyLeave = () => {
@@ -13,7 +17,10 @@ const ApplyLeave = () => {
   const fileInputRef = useRef(null);
   const todayStr = new Date().toISOString().split('T')[0];
 
-  const [role, setRole] = useState('1'); // 1 = Teacher, 2 = User
+  const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
+  const basePath = isTeacher ? '/teacher' : '/admin';
+
+  const [role, setRole] = useState(isTeacher ? '1' : '1'); // 1 = Teacher, 2 = User
   const [staffList, setStaffList] = useState([]);
   const [leaveTypes, setLeaveTypes] = useState([]);
 
@@ -40,32 +47,44 @@ const ApplyLeave = () => {
   const isDocumentRequired = Number(selectedLeaveType?.need_document) === 1;
 
   // Load staff & leave types when role changes
+  // Load staff & leave types when role changes
   useEffect(() => {
     const loadRoleData = async () => {
       try {
-        const [staffRes, typesRes] = await Promise.all([
-          fetchStaffByRoleApi(role),
-          fetchLeaveTypesApi({ role }),
-        ]);
+        if (isTeacher) {
+          const typesRes = await fetchTeacherLeaveTypesApi().catch(() => null);
+          const types = typesRes?.data?.types || [];
+          setLeaveTypes(types);
+          setForm((prev) => ({
+            ...prev,
+            staff_id: 'me',
+            leave_id: types.length > 0 ? String(types[0].id) : '',
+          }));
+        } else {
+          const [staffRes, typesRes] = await Promise.all([
+            fetchStaffByRoleApi(role),
+            fetchLeaveTypesApi({ role }),
+          ]);
 
-        const staffs = staffRes?.data?.staff || [];
-        const types = typesRes?.data?.types || [];
+          const staffs = staffRes?.data?.staff || [];
+          const types = typesRes?.data?.types || [];
 
-        setStaffList(staffs);
-        setLeaveTypes(types);
+          setStaffList(staffs);
+          setLeaveTypes(types);
 
-        setForm((prev) => ({
-          ...prev,
-          staff_id: staffs.length > 0 ? String(staffs[0].id) : '',
-          leave_id: types.length > 0 ? String(types[0].id) : '',
-        }));
+          setForm((prev) => ({
+            ...prev,
+            staff_id: staffs.length > 0 ? String(staffs[0].id) : '',
+            leave_id: types.length > 0 ? String(types[0].id) : '',
+          }));
+        }
       } catch (err) {
         console.error('Error loading role staff/types:', err);
       }
     };
 
     loadRoleData();
-  }, [role]);
+  }, [role, isTeacher]);
 
   // Handle Document upload
   const handleFileChange = (e) => {
@@ -115,7 +134,7 @@ const ApplyLeave = () => {
   const validate = () => {
     const newErrors = {};
 
-    if (!form.staff_id) newErrors.staff_id = 'Please select a staff member.';
+    if (!isTeacher && !form.staff_id) newErrors.staff_id = 'Please select a staff member.';
     if (!form.leave_id) newErrors.leave_id = 'Please select a leave type.';
     if (!form.duration) newErrors.duration = 'Please select leave duration.';
 
@@ -165,18 +184,29 @@ const ApplyLeave = () => {
         dates = getDatesInRange(form.startDate, form.endDate);
       }
 
-      await createLeaveApi({
-        role: Number(role),
-        staff_id: form.staff_id,
-        leave_id: form.leave_id,
-        duration: Number(form.duration),
-        document: uploadedDocPath,
-        leave_reason: form.leave_reason,
-        dates,
-      });
-
-      toast.success('Leave application submitted successfully!');
-      navigate('/admin/leaves');
+      if (isTeacher) {
+        await applyTeacherLeaveApi({
+          leave_id: form.leave_id,
+          duration: Number(form.duration),
+          document: uploadedDocPath,
+          leave_reason: form.leave_reason,
+          dates,
+        });
+        toast.success('Leave application submitted successfully!');
+        navigate('/teacher/leaves/my-leaves');
+      } else {
+        await createLeaveApi({
+          role: Number(role),
+          staff_id: form.staff_id,
+          leave_id: form.leave_id,
+          duration: Number(form.duration),
+          document: uploadedDocPath,
+          leave_reason: form.leave_reason,
+          dates,
+        });
+        toast.success('Leave application submitted successfully!');
+        navigate('/admin/leaves');
+      }
     } catch (err) {
       console.error('Error submitting leave application:', err);
       toast.error('Failed to submit leave application.');
@@ -194,10 +224,10 @@ const ApplyLeave = () => {
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
               <li className="breadcrumb-item">
-                <Link to="/admin/leaves">Leave</Link>
+                <Link to={isTeacher ? '/teacher/leaves/my-leaves' : '/admin/leaves'}>Leave</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
                 Apply Leave
@@ -221,58 +251,61 @@ const ApplyLeave = () => {
 
               <div className="card-body pb-1">
                 <div className="row row-cols-md-6">
-                  {/* Role */}
-                  <div className="col-md-3">
-                    <div className="mb-3">
-                      <label className="form-label">
-                        Role <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        className="select form-select"
-                        name="role"
-                        id="role"
-                        value={role}
-                        onChange={(e) => setRole(e.target.value)}
-                        required
-                      >
-                        <option value="">select</option>
-                        <option value="1">Teacher</option>
-                        <option value="2">User</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Staff */}
-                  <div className="col-md-3">
-                    <div className="mb-3">
-                      <label className="form-label">
-                        Staff <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        className={`select form-select ${errors.staff_id ? 'is-invalid border-danger' : ''}`}
-                        name="staff_id"
-                        id="staff_id"
-                        value={form.staff_id}
-                        onChange={(e) => {
-                          setForm({ ...form, staff_id: e.target.value });
-                          if (errors.staff_id) setErrors({ ...errors, staff_id: null });
-                        }}
-                        required
-                      >
-                        <option value="">select</option>
-                        {staffList.map((st) => (
-                          <option key={st.id} value={st.id}>
-                            {st.name} {st.code ? `(${st.code})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      {errors.staff_id && (
-                        <div className="invalid-feedback d-block text-danger fs-12 mt-1">
-                          {errors.staff_id}
+                  {/* Role & Staff (Admin only) */}
+                  {!isTeacher && (
+                    <>
+                      <div className="col-md-3">
+                        <div className="mb-3">
+                          <label className="form-label">
+                            Role <span className="text-danger">*</span>
+                          </label>
+                          <select
+                            className="select form-select"
+                            name="role"
+                            id="role"
+                            value={role}
+                            onChange={(e) => setRole(e.target.value)}
+                            required
+                          >
+                            <option value="">select</option>
+                            <option value="1">Teacher</option>
+                            <option value="2">User</option>
+                          </select>
                         </div>
-                      )}
-                    </div>
-                  </div>
+                      </div>
+
+                      <div className="col-md-3">
+                        <div className="mb-3">
+                          <label className="form-label">
+                            Staff <span className="text-danger">*</span>
+                          </label>
+                          <select
+                            className={`select form-select ${errors.staff_id ? 'is-invalid border-danger' : ''}`}
+                            name="staff_id"
+                            id="staff_id"
+                            value={form.staff_id}
+                            onChange={(e) => {
+                              setForm({ ...form, staff_id: e.target.value });
+                              if (errors.staff_id) setErrors({ ...errors, staff_id: null });
+                            }}
+                            required
+                          >
+                            <option value="">select</option>
+                            {staffList.map((st) => (
+                              <option key={st.id} value={st.id}>
+                                {st.name} {st.code ? `(${st.code})` : ''}
+                              </option>
+                            ))}
+                          </select>
+                          {errors.staff_id && (
+                            <div className="invalid-feedback d-block text-danger fs-12 mt-1">
+                              {errors.staff_id}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   {/* Leave Types */}
                   <div className="col-md-3">

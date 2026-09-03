@@ -6,25 +6,11 @@ import {
   fetchClassesApi,
   fetchSectionsApi,
 } from '../../../api/adminAcademic.api';
-
-// Helper to resolve base64 or normal numeric ID
-const resolveClassId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64
-  }
-  return paramId;
-};
+import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 const AssignmentSectionView = () => {
   const { classId: rawClassId } = useParams();
-  const classId = resolveClassId(rawClassId);
+  const classId = decodeParam(rawClassId);
 
   const [classInfo, setClassInfo] = useState(null);
   const [sections, setSections] = useState([]);
@@ -119,13 +105,10 @@ const AssignmentSectionView = () => {
               ) : (
                 <div className="row g-3">
                   {sections.map((sec) => {
-                    const encodedClassId = btoa(String(classId));
-                    const encodedSectionId = btoa(String(sec.id));
-
                     return (
                       <div key={sec.id} className="col-xl-3 col-lg-4 col-md-6">
                         <Link
-                          to={`/admin/academics/assignments/subject/${encodedClassId}/${encodedSectionId}`}
+                          to={`/admin/academics/assignments/subject/${encodeParam(classId)}/${encodeParam(sec.id)}`}
                           className="text-decoration-none"
                         >
                           <div className="class-card text-center p-4 border rounded shadow-sm bg-white hover-shadow transition-all">

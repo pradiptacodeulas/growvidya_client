@@ -1,21 +1,22 @@
 import React from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useSelector } from 'react-redux';
+import LoadingScreen from './LoadingScreen';
 
 const ProtectedRoute = ({ allowedRoles }) => {
   const { user, isAuthenticated, loading, checkingAuth } = useSelector((state) => state.auth);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
 
-  if (loading || checkingAuth) {
-    return (
-      <div className="d-flex justify-content-center align-items-center vh-100 bg-light">
-        <div className="spinner-border text-primary" role="status">
-          <span className="visually-hidden">Validating session...</span>
-        </div>
-      </div>
-    );
+  // While validating an existing session, always show loading screen and prevent redirection flicker
+  if (token && (loading || checkingAuth || !user || !isAuthenticated)) {
+    return <LoadingScreen message="Validating session..." />;
   }
 
-  if (!isAuthenticated || !user) {
+  if (loading || checkingAuth) {
+    return <LoadingScreen message="Validating session..." />;
+  }
+
+  if (!token || !isAuthenticated || !user) {
     return <Navigate to="/account/login/adminlogin" replace />;
   }
 

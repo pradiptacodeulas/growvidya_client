@@ -1,3 +1,4 @@
+import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -11,11 +12,13 @@ import {
   fetchStaffRoomsApi,
 } from '../../../api/adminStaff.api';
 import apiClient from '../../../api/axios.config';
+import { decodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const AddUser = () => {
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const navigate = useNavigate();
   const isEditMode = Boolean(id);
   const fileInputRef = useRef(null);
@@ -848,7 +851,7 @@ const AddUser = () => {
                           <option value="">Select</option>
                           {countries.map((c) => (
                             <option key={c.id} value={c.id}>
-                              {c.name}
+                              {c.name || c.country || c.country_name}
                             </option>
                           ))}
                         </select>

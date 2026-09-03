@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
+import { decodeParam } from '../../../utils/idHelper';
 
 const AddExam = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
   const [formData, setFormData] = useState({

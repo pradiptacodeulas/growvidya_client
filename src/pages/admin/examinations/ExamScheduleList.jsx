@@ -1,13 +1,37 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import DataTable from '../../../components/common/DataTable';
+import TableActionMenu from '../../../components/common/TableActionMenu';
 
 const ExamScheduleList = () => {
+  const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
+  const isTeacher = Boolean(
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher')) ||
+    (isTeacherAuth && teacher)
+  );
+  const basePath = isTeacher ? '/teacher' : '/admin';
+
+  const decodeParamId = (val) => {
+    if (!val) return '';
+    try {
+      const unescaped = decodeURIComponent(val);
+      const decoded = atob(unescaped);
+      if (/^\d+$/.test(decoded)) return decoded;
+    } catch (e) {}
+    return val;
+  };
+
   const [searchParams, setSearchParams] = useSearchParams();
-  const queryExamId = searchParams.get('exam_id') || '';
-  const queryClassId = searchParams.get('class_id') || '';
+  const queryExamId = decodeParamId(searchParams.get('exam_id'));
+  const queryClassId = decodeParamId(searchParams.get('class_id'));
+  const queryYearId = decodeParamId(searchParams.get('academic_year_id'));
+
+  const [academicYears, setAcademicYears] = useState([]);
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState(queryYearId);
 
   const [exams, setExams] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -29,15 +53,17 @@ const ExamScheduleList = () => {
   const fetchInitialExamsAndClasses = async () => {
     try {
       setInitialLoading(true);
-      const [exRes, clsRes] = await Promise.all([
-        adminExaminationApi.getAllExams({ status: 1 }),
-        adminAcademicApi.getAllClasses({ status: 1 }),
+      const [ayRes, clsRes] = await Promise.all([
+        adminAcademicApi.getAllAcademicYears().catch(() => ({ data: [] })),
+        adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
       ]);
 
-      const examsList = Array.isArray(exRes?.data?.exams)
-        ? exRes.data.exams
-        : Array.isArray(exRes?.data)
-        ? exRes.data
+      const ayList = Array.isArray(ayRes?.data)
+        ? ayRes.data
+        : Array.isArray(ayRes?.data?.academic_years)
+        ? ayRes.data.academic_years
+        : Array.isArray(ayRes)
+        ? ayRes
         : [];
 
       const classesList = Array.isArray(clsRes?.data)
@@ -48,322 +74,354 @@ const ExamScheduleList = () => {
         ? clsRes
         : [];
 
-      setExams(examsList);
+      setAcademicYears(ayList);
       setClasses(classesList);
 
-      const targetExam = queryExamId || (examsList.length > 0 ? examsList[0].id : '');
-      const targetClass = queryClassId || (classesList.length > 0 ? classesList[0].id : '');
-
-      setSelectedExamId(targetExam);
-      setSelectedClassId(targetClass);
-
-      if (targetExam && targetClass) {
-        loadSchedules(targetExam, targetClass);
+      let defaultYearId = selectedAcademicYearId;
+      if (!defaultYearId && ayList.length > 0) {
+        const currentYear = ayList.find(
+          (ay) => Number(ay.is_current) === 1 || String(ay.is_current) === '1'
+        );
+        defaultYearId = currentYear ? currentYear.id : ayList[0].id;
+        setSelectedAcademicYearId(defaultYearId);
       }
+
+      await fetchExamsForYear(defaultYearId);
+      await fetchSchedule(queryExamId, queryClassId, defaultYearId);
     } catch (err) {
-      console.error('Failed to load initial exams and classes:', err);
-      toast.error('Failed to load filter options');
+      toast.error('Failed to load filters');
     } finally {
       setInitialLoading(false);
     }
   };
 
-  const loadSchedules = async (examId, classId) => {
-    if (!examId || !classId) {
-      setSchedules([]);
-      return;
-    }
+  const fetchExamsForYear = async (academicYearId) => {
+    try {
+      const params = { status: 1 };
+      if (academicYearId) params.academic_year_id = academicYearId;
+      const exRes = await adminExaminationApi.getAllExams(params).catch(() => ({ data: [] }));
 
+      const examsList = Array.isArray(exRes?.data?.exams)
+        ? exRes.data.exams
+        : Array.isArray(exRes?.data)
+        ? exRes.data
+        : [];
+
+      setExams(examsList);
+    } catch (err) {
+      toast.error('Failed to load exams');
+    }
+  };
+
+  const fetchSchedule = async (examId = selectedExamId, classId = selectedClassId, yearId = selectedAcademicYearId) => {
     try {
       setLoading(true);
-      const res = await adminExaminationApi.getExamSchedules({
-        exam_id: examId,
-        class_id: classId,
-      });
+      const params = {};
+      if (examId) params.exam_id = examId;
+      if (classId) params.class_id = classId;
+      if (yearId) params.academic_year_id = yearId;
 
-      const list = res?.data?.schedules || [];
+      const res = await adminExaminationApi.getExamSchedules(params);
+      const list = Array.isArray(res?.data?.schedules)
+        ? res.data.schedules
+        : Array.isArray(res?.schedules)
+        ? res.schedules
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
       setSchedules(list);
     } catch (err) {
-      console.error('Failed to load exam schedules:', err);
       toast.error(err.message || 'Failed to load exam schedules');
+      setSchedules([]);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleAcademicYearChange = (e) => {
+    const val = e.target.value;
+    setSelectedAcademicYearId(val);
+    setSelectedExamId('');
+    fetchExamsForYear(val);
+    fetchSchedule(selectedExamId, selectedClassId, val);
+  };
+
   const handleExamChange = (e) => {
     const val = e.target.value;
     setSelectedExamId(val);
-    if (val && selectedClassId) {
-      loadSchedules(val, selectedClassId);
-    } else {
-      setSchedules([]);
-    }
+    fetchSchedule(val, selectedClassId, selectedAcademicYearId);
   };
 
   const handleClassChange = (e) => {
     const val = e.target.value;
     setSelectedClassId(val);
-    if (selectedExamId && val) {
-      loadSchedules(selectedExamId, val);
-    } else {
-      setSchedules([]);
-    }
+    fetchSchedule(selectedExamId, val, selectedAcademicYearId);
   };
 
-  const handleDelete = async () => {
+  const handleDeleteConfirm = async () => {
     if (!deleteId) return;
     try {
       setDeleting(true);
       await adminExaminationApi.deleteExamSchedule(deleteId);
       toast.success('Exam schedule item deleted successfully.');
       setDeleteId(null);
-      loadSchedules(selectedExamId, selectedClassId);
+      fetchSchedule(selectedExamId, selectedClassId, selectedAcademicYearId);
     } catch (err) {
-      console.error('Failed to delete exam schedule:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to delete schedule item.');
     } finally {
       setDeleting(false);
     }
   };
 
+  const columns = useMemo(
+    () => [
+      {
+        key: 'index',
+        header: 'Sl No.',
+        width: '70px',
+        align: 'center',
+        cell: ({ index }) => <span className="text-muted fw-medium">{index + 1}</span>,
+      },
+      {
+        accessorKey: 'exam_name',
+        header: 'Exam',
+        sortable: true,
+        cell: ({ value }) => (
+          <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2.5 py-1">
+            {value || '—'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'class_name',
+        header: 'Class',
+        sortable: true,
+        cell: ({ value }) => (
+          <span className="badge bg-light text-dark border px-2.5 py-1">
+            {value ? `Class ${value}` : '—'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'subject_name',
+        header: 'Subject',
+        sortable: true,
+        cell: ({ value }) => <span className="fw-semibold text-dark">{value || '—'}</span>,
+      },
+      {
+        accessorKey: 'date',
+        header: 'Date',
+        sortable: true,
+        cell: ({ value }) => (
+          <span className="badge bg-light text-dark border px-2.5 py-1.5">
+            <i className="ti ti-calendar me-1 text-primary"></i>
+            {value ? String(value).split('T')[0] : '-'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'start_time',
+        header: 'Start Time',
+        sortable: true,
+        cell: ({ value }) => (
+          <span className="text-dark">
+            <i className="ti ti-clock me-1 text-muted"></i>
+            {value ? String(value).substring(0, 5) : '-'}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'end_time',
+        header: 'End Time',
+        sortable: true,
+        cell: ({ value }) => (
+          <span className="text-dark">
+            <i className="ti ti-clock me-1 text-muted"></i>
+            {value ? String(value).substring(0, 5) : '-'}
+          </span>
+        ),
+      },
+      ...(!isTeacher
+        ? [
+            {
+              key: 'actions',
+              header: 'Action',
+              width: '90px',
+              align: 'center',
+              sortable: false,
+              cell: ({ row }) => (
+                <TableActionMenu
+                  items={[
+                    {
+                      label: 'Edit',
+                      icon: 'ti ti-edit-circle text-primary',
+                      to: `${basePath}/examinations/schedules/add?exam_id=${row.exam_id || selectedExamId}&class_id=${row.class_id || selectedClassId}`,
+                    },
+                    {
+                      label: 'Delete',
+                      icon: 'ti ti-trash-x',
+                      variant: 'danger',
+                      onClick: () => setDeleteId(row.id),
+                    },
+                  ]}
+                />
+              ),
+            },
+          ]
+        : []),
+    ],
+    [isTeacher, basePath, selectedExamId, selectedClassId]
+  );
+
   return (
     <div className="content">
       {/* Page Header */}
-      <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
+      <div className="d-md-flex d-block align-items-center justify-content-between mb-4">
         <div className="my-auto mb-2">
-          <h3 className="page-title mb-1">Exam Schedule List</h3>
+          <h3 className="page-title mb-1">Exam Schedule</h3>
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
-              <li className="breadcrumb-item">
-                Exam Schedule
-              </li>
+              <li className="breadcrumb-item">Examinations</li>
               <li className="breadcrumb-item active" aria-current="page">
-                All Exam Schedule List
+                Exam Schedule
               </li>
             </ol>
           </nav>
         </div>
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-          <div className="mb-2">
+        {!isTeacher && (
+          <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
             <Link
-              to={`/admin/examinations/schedules/add${
+              to={`${basePath}/examinations/schedules/add${
                 selectedExamId && selectedClassId
-                  ? `?exam_id=${selectedExamId}&class_id=${selectedClassId}`
+                  ? `?exam_id=${btoa(String(selectedExamId))}&class_id=${btoa(String(selectedClassId))}`
                   : ''
               }`}
               className="btn btn-primary d-flex align-items-center"
             >
-              <i className="ti ti-square-rounded-plus me-2"></i> Add
+              <i className="ti ti-square-rounded-plus me-2"></i>Add Schedule
             </Link>
           </div>
-        </div>
+        )}
       </div>
-      {/* /Page Header */}
 
-      {/* Main Schedule Card */}
-      <div className="card">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0">
-          <h4 className="mb-3">All Exam Schedule List</h4>
-        </div>
-        <div className="card-body p-0 py-3">
-          <form method="post" onSubmit={(e) => e.preventDefault()}>
-            <div className="p-3 d-flex align-items-center justify-content-between flex-wrap pb-0">
-              <div className="row w-100">
-                <div className="col-md-3">
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Exam <span className="text-danger">*</span>
-                    </label>
-                    <select
-                      className="form-select select"
-                      name="exam_id"
-                      id="exam_id"
-                      required
-                      value={selectedExamId}
-                      onChange={handleExamChange}
-                    >
-                      <option value="">Select</option>
-                      {exams.map((ex) => (
-                        <option key={ex.id} value={ex.id}>
-                          {ex.exam_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <div className="col-md-3">
-                  <div className="mb-3">
-                    <label className="form-label">
-                      Class <span className="text-danger">*</span>
-                    </label>
-                    <select
-                      className="form-select select"
-                      name="class_id"
-                      id="class_id"
-                      required
-                      value={selectedClassId}
-                      onChange={handleClassChange}
-                    >
-                      <option value="">Select</option>
-                      {classes.map((cls) => (
-                        <option key={cls.id} value={cls.id}>
-                          {cls.class_name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </form>
+      {/* Filter Bar */}
+      <div className="bg-white p-3 border rounded-3 d-flex align-items-center justify-content-between flex-wrap mb-4 shadow-2xs">
+        <div className="row g-3 w-100">
+          <div className="col-md-3">
+            <label className="form-label fw-semibold fs-13">Academic Year</label>
+            <select
+              className="form-select form-select-sm"
+              value={selectedAcademicYearId}
+              onChange={handleAcademicYearChange}
+            >
+              <option value="">All Academic Years</option>
+              {academicYears.map((ay) => (
+                <option key={ay.id} value={ay.id}>
+                  {ay.academic_year || ay.academic_year_name || ay.year}
+                  {Number(ay.is_current) === 1 || String(ay.is_current) === '1' ? ' (Current)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {/* Timetable Table */}
-          <div id="examScheduleTbody">
-            <div className="table-responsive">
-              <table className="table table-bordered table-hover" id="examSubjectTable">
-                <thead className="table-light text-center">
-                  <tr>
-                    <th rowSpan="2" className="text-center" style={{ width: '80px' }}>
-                      Sl No.
-                    </th>
-                    <th rowSpan="2" className="text-center">
-                      Subject
-                    </th>
-                    <th rowSpan="2" className="text-center" style={{ width: '220px' }}>
-                      Date
-                    </th>
-                    <th colSpan="2" className="text-center">
-                      Time
-                    </th>
-                    <th rowSpan="2" className="text-center" style={{ width: '100px' }}>
-                      Action
-                    </th>
-                  </tr>
-                  <tr>
-                    <th className="text-center" style={{ width: '160px' }}>
-                      Start
-                    </th>
-                    <th className="text-center" style={{ width: '160px' }}>
-                      End
-                    </th>
-                  </tr>
-                </thead>
-                <tbody id="examScheduleTbody">
-                  {initialLoading || loading ? (
-                    <tr>
-                      <td colSpan="6" className="text-center py-4">
-                        <div className="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
-                        Loading schedule...
-                      </td>
-                    </tr>
-                  ) : !selectedExamId || !selectedClassId ? (
-                    <tr>
-                      <td colSpan="6" className="text-center text-muted py-4">
-                        Please select Exam and Class to view the schedule.
-                      </td>
-                    </tr>
-                  ) : schedules.length === 0 ? (
-                    <tr>
-                      <td colSpan="6" className="text-center text-muted py-4">
-                        No schedule records available for this Exam and Class.
-                      </td>
-                    </tr>
-                  ) : (
-                    schedules.map((item, idx) => (
-                      <tr key={item.id || idx}>
-                        <td className="text-center">{idx + 1}</td>
-                        <td className="text-center fw-medium">{item.subject_name}</td>
-                        <td className="text-center">
-                          {item.date ? String(item.date).split('T')[0] : '-'}
-                        </td>
-                        <td className="text-center">
-                          {item.start_time ? String(item.start_time).substring(0, 5) : '-'}
-                        </td>
-                        <td className="text-center">
-                          {item.end_time ? String(item.end_time).substring(0, 5) : '-'}
-                        </td>
-                        <td className="text-center">
-                          <div className="dropdown">
-                            <button
-                              className="btn btn-light btn-sm"
-                              type="button"
-                              data-bs-toggle="dropdown"
-                            >
-                              <i className="fa fa-ellipsis-v"></i>
-                            </button>
-                            <ul className="dropdown-menu dropdown-menu-end shadow">
-                              <li>
-                                <Link
-                                  className="dropdown-item"
-                                  to={`/admin/examinations/schedules/add?exam_id=${selectedExamId}&class_id=${selectedClassId}`}
-                                >
-                                  <i className="fa fa-edit me-2"></i> Edit
-                                </Link>
-                              </li>
-                              <li>
-                                <button
-                                  type="button"
-                                  className="dropdown-item text-danger"
-                                  onClick={() => setDeleteId(item.id)}
-                                >
-                                  <i className="fa fa-trash me-2"></i> Delete
-                                </button>
-                              </li>
-                            </ul>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+          <div className="col-md-3">
+            <label className="form-label fw-semibold fs-13">Exam</label>
+            <select
+              className="form-select form-select-sm"
+              value={selectedExamId}
+              onChange={handleExamChange}
+            >
+              <option value="">All Exams</option>
+              {exams.map((ex) => (
+                <option key={ex.id} value={ex.id}>
+                  {ex.exam_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-md-3">
+            <label className="form-label fw-semibold fs-13">Class</label>
+            <select
+              className="form-select form-select-sm"
+              value={selectedClassId}
+              onChange={handleClassChange}
+            >
+              <option value="">All Classes</option>
+              {classes.map((cls) => (
+                <option key={cls.id} value={cls.id}>
+                  {cls.class_name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
+
+      {/* Main DataTable */}
+      <DataTable
+        title="Timetable Schedule"
+        subtitle="Subject exam dates, timings, and slot allocation."
+        columns={columns}
+        data={schedules}
+        loading={initialLoading || loading}
+        searchPlaceholder="Search subject or date..."
+        emptyMessage="No exam schedule entries found for the selected filters."
+      />
 
       {/* Delete Confirmation Modal */}
       {deleteId && (
         <div
           className="modal fade show d-block"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)' }}
           tabIndex="-1"
-          role="dialog"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
         >
-          <div className="modal-dialog modal-dialog-centered" role="document">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Confirm Delete</h5>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0">
+              <div className="modal-header border-0 pb-0">
                 <button
                   type="button"
                   className="btn-close"
                   onClick={() => setDeleteId(null)}
+                  disabled={deleting}
                 ></button>
               </div>
-              <div className="modal-body">
-                <p>Are you sure you want to delete this schedule entry?</p>
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-light"
-                  onClick={() => setDeleteId(null)}
-                  disabled={deleting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? 'Deleting...' : 'Delete'}
-                </button>
+              <div className="modal-body text-center pt-0 pb-4">
+                <div className="text-danger mb-3">
+                  <i className="ti ti-trash-x fs-48"></i>
+                </div>
+                <h4 className="mb-2">Delete Schedule Item</h4>
+                <p className="text-muted mb-4">
+                  Are you sure you want to delete this schedule entry? This action cannot be undone.
+                </p>
+                <div className="d-flex justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light px-4"
+                    onClick={() => setDeleteId(null)}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger px-4"
+                    onClick={handleDeleteConfirm}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete'
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

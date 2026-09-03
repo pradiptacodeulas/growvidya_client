@@ -8,26 +8,12 @@ import {
   createPeriodApi,
   updatePeriodApi,
 } from '../../../api/adminAcademic.api';
-
-// Helper to resolve base64 or normal numeric ID
-const resolvePeriodId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64 encoded, return as is
-  }
-  return paramId;
-};
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditPeriod = () => {
   const { id: rawId } = useParams();
   const navigate = useNavigate();
-  const id = resolvePeriodId(rawId);
+  const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
   const [shifts, setShifts] = useState([]);
@@ -118,7 +104,7 @@ const EditPeriod = () => {
       if (formattedEnd && formattedEnd.length === 5) formattedEnd += ':00';
 
       const payload = {
-        shift_id: Number(formData.shift_id),
+        shift_id: formData.shift_id,
         period_name: formData.period_name.trim(),
         start_time: formattedStart,
         end_time: formattedEnd,

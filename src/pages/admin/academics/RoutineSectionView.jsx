@@ -6,25 +6,11 @@ import {
   fetchClassesApi,
   fetchSectionsApi,
 } from '../../../api/adminAcademic.api';
-
-// Helper to resolve base64 or normal numeric ID
-const resolveClassId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64 encoded, return as is
-  }
-  return paramId;
-};
+import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 const RoutineSectionView = () => {
   const { classId: rawClassId } = useParams();
-  const classId = resolveClassId(rawClassId);
+  const classId = decodeParam(rawClassId);
 
   const [classInfo, setClassInfo] = useState(null);
   const [sections, setSections] = useState([]);
@@ -117,7 +103,7 @@ const RoutineSectionView = () => {
                   sections.map((sec) => (
                     <div key={sec.id} className="col-xl-3 col-lg-4 col-md-6">
                       <Link
-                        to={`/admin/academics/routines/list/${classId}/${sec.id}`}
+                        to={`/admin/academics/routines/list/${encodeParam(classId)}/${encodeParam(sec.id)}`}
                         className="text-decoration-none"
                       >
                         {/* Section / Class Card */}

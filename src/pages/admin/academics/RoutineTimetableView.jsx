@@ -18,21 +18,7 @@ import { fetchTeachersApi } from '../../../api/adminTeacher.api';
 import { apiFetch } from '../../../api/fetch.config';
 
 import Avatar from '../../../components/common/Avatar';
-
-// Helper to resolve base64 or normal numeric ID
-const resolveId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64 encoded, return as is
-  }
-  return paramId;
-};
+import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 // Format time string HH:MM:SS to HH:MM AM/PM
 const formatTime = (timeStr) => {
@@ -48,8 +34,8 @@ const formatTime = (timeStr) => {
 
 const RoutineTimetableView = () => {
   const { classId: rawClassId, sectionId: rawSectionId } = useParams();
-  const classId = resolveId(rawClassId);
-  const sectionId = resolveId(rawSectionId);
+  const classId = decodeParam(rawClassId);
+  const sectionId = decodeParam(rawSectionId);
 
   const [classInfo, setClassInfo] = useState(null);
   const [sectionInfo, setSectionInfo] = useState(null);
@@ -233,13 +219,13 @@ const RoutineTimetableView = () => {
     try {
       setSubmitting(true);
       const payload = {
-        class_id: Number(classId),
-        section_id: Number(sectionId),
-        day: Number(formData.day),
-        period_id: Number(formData.period_id),
-        subject_id: Number(formData.subject_id),
-        teacher_id: formData.teacher_id ? Number(formData.teacher_id) : null,
-        shift_id: classInfo?.shift_id || 1,
+        class_id: classId,
+        section_id: sectionId,
+        day: formData.day,
+        period_id: formData.period_id,
+        subject_id: formData.subject_id,
+        teacher_id: formData.teacher_id || null,
+        shift_id: classInfo?.shift_id || undefined,
       };
 
       if (editingRoutine) {
@@ -303,7 +289,7 @@ const RoutineTimetableView = () => {
                 <Link to="/admin/academics/routines">Class Routine</Link>
               </li>
               <li className="breadcrumb-item">
-                <Link to={`/admin/academics/routines/section/${classId}`}>
+                <Link to={`/admin/academics/routines/section/${encodeParam(classId)}`}>
                   Class {classInfo?.class_name || classId}
                 </Link>
               </li>
@@ -315,7 +301,7 @@ const RoutineTimetableView = () => {
         </div>
         <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
           <Link
-            to={`/admin/academics/routines/section/${classId}`}
+            to={`/admin/academics/routines/section/${encodeParam(classId)}`}
             className="btn btn-outline-secondary d-flex align-items-center"
           >
             <i className="ti ti-arrow-left me-1"></i> Back to Sections
@@ -344,6 +330,15 @@ const RoutineTimetableView = () => {
             <div className="p-5 text-center">
               <div className="spinner-border text-primary" role="status"></div>
               <p className="text-muted mt-2 mb-0">Loading routine schedule...</p>
+            </div>
+          ) : days.length === 0 ? (
+            <div className="text-center py-5">
+              <i className="ti ti-calendar-off fs-40 text-muted mb-2 d-block opacity-50"></i>
+              <h6 className="fw-bold text-dark mb-1">No Working Days Configured</h6>
+              <p className="text-muted fs-13 mb-3">Please configure academic working days first to set up the routine timetable.</p>
+              <Link to="/admin/academics/days" className="btn btn-sm btn-primary">
+                <i className="ti ti-plus me-1"></i> Add Working Days
+              </Link>
             </div>
           ) : (
             <div className="d-flex align-items-start overflow-auto pb-3" style={{ minHeight: '400px' }}>

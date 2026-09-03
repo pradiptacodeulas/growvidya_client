@@ -1,23 +1,47 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 
 const AddExamResult = () => {
+  const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
+  const isTeacher = Boolean(
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher')) ||
+    (isTeacherAuth && teacher)
+  );
+  const basePath = isTeacher ? '/teacher' : '/admin';
+
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const queryExamId = searchParams.get('exam_id') || '';
-  const queryClassId = searchParams.get('class_id') || '';
+  const decodeParamId = (val) => {
+    if (!val) return '';
+    try {
+      const unescaped = decodeURIComponent(val);
+      const decoded = atob(unescaped);
+      if (/^\d+$/.test(decoded)) return decoded;
+    } catch (e) {}
+    return val;
+  };
+
+  const queryExamId = decodeParamId(searchParams.get('exam_id'));
+  const queryClassId = decodeParamId(searchParams.get('class_id'));
+  const queryYearId = decodeParamId(searchParams.get('academic_year_id'));
+  const querySectionId = decodeParamId(searchParams.get('section_id'));
 
   const [exams, setExams] = useState([]);
   const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
   const [grades, setGrades] = useState([]);
+  const [academicYears, setAcademicYears] = useState([]);
 
   // Selection
+  const [selectedYear, setSelectedYear] = useState(queryYearId);
   const [selectedExam, setSelectedExam] = useState(queryExamId);
   const [selectedClass, setSelectedClass] = useState(queryClassId);
+  const [selectedSection, setSelectedSection] = useState(querySectionId);
 
   // Student Search Results
   const [students, setStudents] = useState([]);
@@ -45,13 +69,35 @@ const AddExamResult = () => {
     fetchInitialData();
   }, []);
 
+  const fetchSectionsForClass = async (classId) => {
+    if (!classId) {
+      setSections([]);
+      return;
+    }
+    try {
+      const res = await adminAcademicApi.fetchSectionsApi(classId);
+      const secList = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.sections)
+        ? res.data.sections
+        : Array.isArray(res)
+        ? res
+        : [];
+      setSections(secList);
+    } catch (err) {
+      console.error('Failed to load sections:', err);
+      setSections([]);
+    }
+  };
+
   const fetchInitialData = async () => {
     try {
       setInitialLoading(true);
-      const [exRes, clsRes, grRes] = await Promise.all([
+      const [exRes, clsRes, grRes, yrRes] = await Promise.all([
         adminExaminationApi.getAllExams({ status: 1 }),
         adminAcademicApi.getAllClasses({ status: 1 }),
         adminExaminationApi.getAllGrades({ status: 1 }),
+        adminAcademicApi.getAllAcademicYears(),
       ]);
 
       const examsList = Array.isArray(exRes?.data?.exams)
@@ -74,18 +120,37 @@ const AddExamResult = () => {
         ? grRes.data
         : [];
 
+      const yearsList = Array.isArray(yrRes?.data)
+        ? yrRes.data
+        : Array.isArray(yrRes?.data?.academicYears)
+        ? yrRes.data.academicYears
+        : Array.isArray(yrRes)
+        ? yrRes
+        : [];
+
       setExams(examsList);
       setClasses(classesList);
       setGrades(gradesList);
+      setAcademicYears(yearsList);
 
-      const targetExam = queryExamId || (examsList.length > 0 ? examsList[0].id : '');
-      const targetClass = queryClassId || (classesList.length > 0 ? classesList[0].id : '');
+      const targetYear =
+        queryYearId ||
+        (yearsList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent)?.id ||
+          yearsList[0]?.id ||
+          '');
+      const targetExam = queryExamId || (examsList.length > 0 ? String(examsList[0].id) : '');
+      const targetClass = queryClassId || (classesList.length > 0 ? String(classesList[0].id) : '');
 
-      setSelectedExam(targetExam);
-      setSelectedClass(targetClass);
+      setSelectedYear(targetYear ? String(targetYear) : '');
+      setSelectedExam(targetExam ? String(targetExam) : '');
+      setSelectedClass(targetClass ? String(targetClass) : '');
+
+      if (targetClass) {
+        await fetchSectionsForClass(targetClass);
+      }
 
       if (targetExam && targetClass) {
-        performSearch(targetExam, targetClass);
+        performSearch(targetExam, targetClass, targetYear, querySectionId);
       }
     } catch (err) {
       console.error('Failed to load initial data:', err);
@@ -95,7 +160,20 @@ const AddExamResult = () => {
     }
   };
 
-  const performSearch = async (examId, classId) => {
+  const handleClassChange = async (e) => {
+    const classId = e.target.value;
+    setSelectedClass(classId);
+    setSelectedSection('');
+    setStudents([]);
+    setHasSearched(false);
+    if (classId) {
+      await fetchSectionsForClass(classId);
+    } else {
+      setSections([]);
+    }
+  };
+
+  const performSearch = async (examId, classId, yearId = selectedYear, sectionId = selectedSection) => {
     if (!examId || !classId) {
       toast.warning('Please select Exam and Class.');
       return;
@@ -107,6 +185,8 @@ const AddExamResult = () => {
       const res = await adminExaminationApi.getStudentsForExamAttendance({
         exam_id: examId,
         class_id: classId,
+        section_id: sectionId || selectedSection || undefined,
+        academic_year_id: yearId || undefined,
       });
 
       const list = res?.data?.students || [];
@@ -122,7 +202,7 @@ const AddExamResult = () => {
 
   const handleSearchSubmit = (e) => {
     if (e) e.preventDefault();
-    performSearch(selectedExam, selectedClass);
+    performSearch(selectedExam, selectedClass, selectedYear, selectedSection);
   };
 
   const handleOpenMarksModal = async (student) => {
@@ -268,7 +348,7 @@ const AddExamResult = () => {
               subjectId: sub.subject_id,
               examTypeId: typeId,
               marks: parseFloat(mark),
-              gradeId: gradeId ? parseInt(gradeId, 10) : null,
+              gradeId: gradeId || null,
             });
           }
         }
@@ -283,9 +363,10 @@ const AddExamResult = () => {
     try {
       setSaving(true);
       await adminExaminationApi.saveStudentMarksBatch({
-        exam_id: parseInt(selectedExam, 10),
-        class_id: parseInt(selectedClass, 10),
-        student_id: parseInt(studentId, 10),
+        academic_year_id: selectedYear || undefined,
+        exam_id: selectedExam,
+        class_id: selectedClass,
+        student_id: studentId,
         items,
       });
 
@@ -331,7 +412,7 @@ const AddExamResult = () => {
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
               <li className="breadcrumb-item">
                 Examination
@@ -405,7 +486,31 @@ const AddExamResult = () => {
         <div className="bg-white p-3 border rounded-1 d-flex align-items-center justify-content-between flex-wrap mb-4 pb-0">
           <form onSubmit={handleSearchSubmit} className="w-100">
             <div className="row w-100">
-              <div className="col-md-2">
+              <div className="col-md-3">
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="academic_year_id">
+                    Academic Year <strong className="text-danger">*</strong>
+                  </label>
+                  <select
+                    className="form-select select"
+                    name="academic_year_id"
+                    id="academic_year_id"
+                    required
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(e.target.value)}
+                  >
+                    <option value="">Select Year</option>
+                    {academicYears.map((y) => (
+                      <option key={y.id} value={y.id}>
+                        {y.name || y.academic_year || `Year ${y.id}`}
+                        {y.is_current === 1 ? ' (Current)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="col-md-3">
                 <div className="mb-3">
                   <label className="form-label" htmlFor="exam_id">
                     Exam <strong className="text-danger">*</strong>
@@ -439,12 +544,40 @@ const AddExamResult = () => {
                     id="class_id"
                     required
                     value={selectedClass}
-                    onChange={(e) => setSelectedClass(e.target.value)}
+                    onChange={handleClassChange}
                   >
-                    <option value="">Select</option>
+                    <option value="">Select Class</option>
                     {classes.map((cls) => (
                       <option key={cls.id} value={cls.id}>
                         {cls.class_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="col-md-2">
+                <div className="mb-3">
+                  <label className="form-label" htmlFor="section_id">
+                    Section
+                  </label>
+                  <select
+                    className="form-select select"
+                    name="section_id"
+                    id="section_id"
+                    value={selectedSection}
+                    onChange={(e) => {
+                      const newSec = e.target.value;
+                      setSelectedSection(newSec);
+                      if (selectedExam && selectedClass) {
+                        performSearch(selectedExam, selectedClass, selectedYear, newSec);
+                      }
+                    }}
+                  >
+                    <option value="">All Sections</option>
+                    {sections.map((sec) => (
+                      <option key={sec.id} value={sec.id}>
+                        {sec.section_name}
                       </option>
                     ))}
                   </select>

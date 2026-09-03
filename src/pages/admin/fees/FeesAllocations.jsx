@@ -106,9 +106,12 @@ const FeesAllocations = () => {
   };
 
   const handleOpenAssignModal = () => {
+    const currentYear =
+      academicYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+      academicYears[0];
     setModalClassId(classes.length > 0 ? String(classes[0].id) : '');
     setModalStructureId(structures.length > 0 ? String(structures[0].id) : '');
-    setModalYearId(academicYears.length > 0 ? String(academicYears[0].id) : '');
+    setModalYearId(currentYear ? String(currentYear.id) : '');
     setAllowPartial(true);
     setShowModal(true);
 
@@ -173,8 +176,8 @@ const FeesAllocations = () => {
     try {
       setAllocating(true);
       const res = await adminFeesApi.allocateStructureToStudents({
-        fee_structure_id: parseInt(modalStructureId, 10),
-        academic_year_id: modalYearId ? parseInt(modalYearId, 10) : 1,
+        fee_structure_id: modalStructureId,
+        academic_year_id: modalYearId || undefined,
         student_ids: selectedStudentIds,
         allow_partial_payment: allowPartial ? 1 : 0,
       });
@@ -463,13 +466,13 @@ const FeesAllocations = () => {
           <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
             <div className="modal-content border-0 shadow-lg">
               <form onSubmit={handleAssignSubmit}>
-                <div className="modal-header bg-primary text-white">
-                  <h5 className="modal-title text-white fw-bold">
-                    <i className="ti ti-user-plus me-2"></i>Assign Fee Structure to Students
+                <div className="modal-header py-3 px-4 border-bottom">
+                  <h5 className="modal-title text-dark fw-bold">
+                    <i className="ti ti-user-plus me-2 text-primary"></i>Assign Fee Structure to Students
                   </h5>
                   <button
                     type="button"
-                    className="btn-close btn-close-white"
+                    className="btn-close"
                     onClick={() => setShowModal(false)}
                     aria-label="Close"
                   ></button>

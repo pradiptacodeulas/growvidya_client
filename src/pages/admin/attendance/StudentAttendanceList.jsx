@@ -1,15 +1,68 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
+import { getServerBaseUrl } from '../../../utils/url.util';
 import {
   fetchAttendanceMetaApi,
   fetchStudentAttendanceListApi,
 } from '../../../api/adminAttendance.api';
+import {
+  fetchTeacherAttendanceMetaApi,
+  fetchTeacherStudentAttendanceListApi,
+} from '../../../api/teacherAttendance.api';
 import Avatar from '../../../components/common/Avatar';
+import DataTable from '../../../components/common/DataTable';
+import TableActionMenu from '../../../components/common/TableActionMenu';
+import { encodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
+
+const getAttendanceBadge = (status) => {
+  const s = String(status !== null && status !== undefined ? status : '').toLowerCase().trim();
+  if (s === 'present' || s === '1') {
+    return (
+      <span className="badge-soft-success">
+        <i className="ti ti-circle-check fs-12 me-1"></i>Present
+      </span>
+    );
+  }
+  if (s === 'absent' || s === '0') {
+    return (
+      <span className="badge-soft-danger">
+        <i className="ti ti-circle-x fs-12 me-1"></i>Absent
+      </span>
+    );
+  }
+  if (s === 'late' || s === '2') {
+    return (
+      <span className="badge-soft-warning">
+        <i className="ti ti-clock fs-12 me-1"></i>Late
+      </span>
+    );
+  }
+  if (s === 'halfday' || s === 'half_day' || s === '3') {
+    return (
+      <span className="badge-soft-info">
+        <i className="ti ti-hourglass-empty fs-12 me-1"></i>Half Day
+      </span>
+    );
+  }
+  return (
+    <span className="badge-soft-secondary">
+      <i className="ti ti-minus fs-12 me-1"></i>Not Marked
+    </span>
+  );
+};
 
 const StudentAttendanceList = () => {
+  const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
+  const isTeacher = Boolean(
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher')) ||
+    (isTeacherAuth && teacher)
+  );
+  const basePath = isTeacher ? '/teacher' : '/admin';
+
   const [classes, setClasses] = useState([]);
   const [allSections, setAllSections] = useState([]);
   const [filteredSections, setFilteredSections] = useState([]);
@@ -27,108 +80,229 @@ const StudentAttendanceList = () => {
   const [studentList, setStudentList] = useState([]);
   const [loading, setLoading] = useState(false);
 
+  // Server-level Pagination & Search states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [search, setSearch] = useState('');
+
   // Load Meta Options
   useEffect(() => {
     const loadMeta = async () => {
       try {
-        const res = await fetchAttendanceMetaApi();
+        const fetchMeta = isTeacher ? fetchTeacherAttendanceMetaApi : fetchAttendanceMetaApi;
+        const res = await fetchMeta();
         if (res?.data) {
           const cls = res.data.classes || [];
           const secs = res.data.sections || [];
           const acYears = res.data.academicYears || [];
-
           setClasses(cls);
           setAllSections(secs);
           setAcademicYears(acYears);
 
-          const defaultClass = cls.length > 0 ? String(cls[0].id) : '';
-          const matchedSections = secs.filter((s) => String(s.class_id) === defaultClass);
-          setFilteredSections(matchedSections);
-          const defaultSection = matchedSections.length > 0 ? String(matchedSections[0].id) : '';
-          const defaultYear = acYears.length > 0 ? String(acYears[0].id) : '';
+          const defaultYear =
+            acYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+            acYears.find((y) => Number(y.status) === 1) ||
+            acYears[0];
+          const defaultClass = cls[0];
+
+          if (defaultClass) {
+            const classSecs = secs.filter((s) => String(s.class_id) === String(defaultClass.id));
+            setFilteredSections(classSecs);
+          }
 
           setFilter((prev) => ({
             ...prev,
-            class_id: defaultClass,
-            section_id: defaultSection,
-            academic_year: defaultYear,
+            class_id: defaultClass?.id || '',
+            academic_year: defaultYear?.id || '',
           }));
+
+          if (defaultClass) {
+            loadAttendance(
+              defaultClass.id,
+              '',
+              defaultYear?.id || '',
+              todayStr,
+              1,
+              10,
+              ''
+            );
+          }
         }
       } catch (err) {
-        console.error('Error loading attendance meta:', err);
+        toast.error('Failed to load academic meta options.');
       }
     };
-
     loadMeta();
-  }, []);
+  }, [isTeacher]);
 
-  // Handle Class Change to cascade Sections
+  const loadAttendance = useCallback(
+    async (
+      classId = filter.class_id,
+      sectionId = filter.section_id,
+      acYear = filter.academic_year,
+      date = filter.date,
+      page = currentPage,
+      limit = pageSize,
+      searchTerm = search
+    ) => {
+      if (!classId) return;
+      try {
+        setLoading(true);
+        const fetchList = isTeacher
+          ? fetchTeacherStudentAttendanceListApi
+          : fetchStudentAttendanceListApi;
+        const res = await fetchList({
+          class_id: classId,
+          section_id: sectionId,
+          academic_year: acYear,
+          date,
+          page,
+          limit,
+          search: searchTerm,
+        });
+
+        const list = res?.data?.students || [];
+        setStudentList(list);
+
+        if (res?.data?.pagination) {
+          setTotalRecords(res.data.pagination.total || 0);
+          setTotalPages(res.data.pagination.totalPages || 1);
+          setCurrentPage(res.data.pagination.page || 1);
+        } else {
+          setTotalRecords(list.length);
+          setTotalPages(1);
+        }
+      } catch (err) {
+        toast.error('Failed to load student attendance.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [filter, currentPage, pageSize, search, isTeacher]
+  );
+
   const handleClassChange = (classId) => {
-    const matched = allSections.filter((s) => String(s.class_id) === String(classId));
-    setFilteredSections(matched);
+    const classSecs = allSections.filter((s) => String(s.class_id) === String(classId));
+    setFilteredSections(classSecs);
     setFilter((prev) => ({
       ...prev,
       class_id: classId,
-      section_id: matched.length > 0 ? String(matched[0].id) : '',
+      section_id: '',
     }));
   };
 
-  // Fetch Attendance Log
-  const loadAttendance = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetchStudentAttendanceListApi({
-        class_id: filter.class_id,
-        section_id: filter.section_id,
-        academic_year: filter.academic_year,
-        date: filter.date,
-      });
-
-      setStudentList(res?.data?.students || []);
-    } catch (err) {
-      console.error('Error loading student attendance:', err);
-      toast.error('Failed to load student attendance list.');
-    } finally {
-      setLoading(false);
-    }
-  }, [filter.class_id, filter.section_id, filter.academic_year, filter.date]);
-
-  useEffect(() => {
-    if (filter.class_id) {
-      loadAttendance();
-    }
-  }, [filter.class_id, filter.section_id, filter.date, loadAttendance]);
-
-  const handleSearch = (e) => {
+  const handleFilterSubmit = (e) => {
     e.preventDefault();
-    loadAttendance();
+    if (!filter.class_id) {
+      toast.warning('Please select a class.');
+      return;
+    }
+    setCurrentPage(1);
+    loadAttendance(filter.class_id, filter.section_id, filter.academic_year, filter.date, 1, pageSize, search);
   };
 
-  const getAttendanceBadge = (status) => {
-    switch (Number(status)) {
-      case 1:
-        return <span className="badge bg-soft-success text-success fw-medium">Present</span>;
-      case 2:
-        return <span className="badge bg-soft-warning text-warning fw-medium">Late</span>;
-      case 0:
-        return <span className="badge bg-soft-danger text-danger fw-medium">Absent</span>;
-      case 3:
-        return <span className="badge bg-soft-info text-info fw-medium">Half Day</span>;
-      default:
-        return <span className="badge bg-soft-secondary text-secondary fw-medium">Not Marked</span>;
-    }
+  const handleSearchChange = (val) => {
+    setSearch(val);
+    setCurrentPage(1);
+    loadAttendance(filter.class_id, filter.section_id, filter.academic_year, filter.date, 1, pageSize, val);
   };
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    loadAttendance(filter.class_id, filter.section_id, filter.academic_year, filter.date, page, pageSize, search);
+  };
+
+  const handlePageSizeChange = (size) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    loadAttendance(filter.class_id, filter.section_id, filter.academic_year, filter.date, 1, size, search);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: 'admission_number',
+        header: 'Admission No',
+        sortable: true,
+        cell: ({ value, row }) => (
+          <Link
+            to={`/admin/students/${encodeParam(row.student_id)}`}
+            className="fw-semibold text-primary text-decoration-none"
+          >
+            {value || 'N/A'}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: 'roll_number',
+        header: 'Roll No',
+        sortable: true,
+        width: '90px',
+        align: 'center',
+        cell: ({ value }) => <span className="badge bg-light text-secondary border">{value || '—'}</span>,
+      },
+      {
+        accessorKey: 'full_name',
+        header: 'Name',
+        sortable: true,
+        cell: ({ value, row }) => (
+          <div className="d-flex align-items-center">
+            <Avatar
+              src={row.picture}
+              name={value}
+              size={32}
+              rounded={true}
+              className="me-2 flex-shrink-0"
+            />
+            <span className="fw-medium text-dark">{value}</span>
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'class_name',
+        header: 'Class',
+        sortable: true,
+        cell: ({ value }) => <span className="text-dark">{value || '—'}</span>,
+      },
+      {
+        accessorKey: 'section_name',
+        header: 'Section',
+        sortable: true,
+        cell: ({ value }) => <span className="text-dark">{value || '—'}</span>,
+      },
+      {
+        accessorKey: 'attendance',
+        header: 'Attendance',
+        width: '140px',
+        align: 'center',
+        sortable: true,
+        cell: ({ value }) => getAttendanceBadge(value),
+      },
+      {
+        accessorKey: 'notes',
+        header: 'Notes',
+        cell: ({ value }) => <span className="text-muted fs-13">{value || '—'}</span>,
+      },
+    ],
+    []
+  );
 
   return (
-    <div className="content content-two">
+    <div className="content">
       {/* Page Header */}
-      <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
+      <div className="d-md-flex d-block align-items-center justify-content-between mb-4">
         <div className="my-auto mb-2">
-          <h3 className="page-title mb-1">Students Attendance</h3>
+          <h3 className="page-title mb-1">Student Attendance</h3>
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
               <li className="breadcrumb-item">Attendance</li>
               <li className="breadcrumb-item active" aria-current="page">
@@ -137,231 +311,123 @@ const StudentAttendanceList = () => {
             </ol>
           </nav>
         </div>
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={() => loadAttendance()}
+            title="Refresh"
+          >
+            <i className="ti ti-refresh"></i>
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={handlePrint}
+            title="Print"
+          >
+            <i className="ti ti-printer"></i>
+          </button>
 
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              onClick={loadAttendance}
-              title="Refresh"
-            >
-              <i className="ti ti-refresh"></i>
-            </button>
-          </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              onClick={() => window.print()}
-              title="Print"
-            >
-              <i className="ti ti-printer"></i>
-            </button>
-          </div>
-          <div className="dropdown me-2 mb-2">
-            <button
-              className="dropdown-toggle btn btn-light fw-medium d-inline-flex align-items-center"
-              data-bs-toggle="dropdown"
-              type="button"
-            >
-              <i className="ti ti-file-export me-2"></i>Export
-            </button>
-            <ul className="dropdown-menu dropdown-menu-end p-2">
-              <li>
-                <button
-                  type="button"
-                  className="dropdown-item rounded-1"
-                  onClick={() => toast.info('Export as PDF')}
-                >
-                  <i className="ti ti-file-type-pdf me-2 text-danger"></i>Export as PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="dropdown-item rounded-1"
-                  onClick={() => toast.info('Export as Excel')}
-                >
-                  <i className="ti ti-file-type-xls me-2 text-success"></i>Export as Excel
-                </button>
-              </li>
-            </ul>
-          </div>
-          <div className="mb-2">
-            <Link
-              to="/admin/attendance/student/add"
-              className="btn btn-primary d-flex align-items-center"
-            >
-              <i className="ti ti-square-rounded-plus me-2"></i>Add Attendance
-            </Link>
-          </div>
+          <Link
+            to={`${basePath}/attendance/student/add`}
+            className="btn btn-primary d-flex align-items-center"
+          >
+            <i className="ti ti-square-rounded-plus me-2"></i>Add Attendance
+          </Link>
         </div>
       </div>
-      {/* /Page Header */}
 
-      {/* Main Attendance Card */}
-      <div className="card shadow-sm border">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0 bg-white">
-          <h4 className="mb-3 fw-bold">Students Attendance</h4>
-        </div>
-
-        {/* Filter Bar */}
-        <div className="bg-white p-3 border-bottom">
-          <form onSubmit={handleSearch}>
-            <div className="row g-3 align-items-end">
-              <div className="col-md-3 col-sm-6">
-                <label className="form-label fw-medium fs-13 mb-1" htmlFor="section_class">
-                  Class
-                </label>
-                <select
-                  className="form-select form-select-sm"
-                  name="section_class"
-                  id="section_class"
-                  value={filter.class_id}
-                  onChange={(e) => handleClassChange(e.target.value)}
-                  required
-                >
-                  <option value="">Select Class</option>
-                  {classes.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.class_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-md-3 col-sm-6">
-                <label className="form-label fw-medium fs-13 mb-1" htmlFor="section_student">
-                  Section
-                </label>
-                <select
-                  className="form-select form-select-sm"
-                  name="section_student"
-                  id="section_student"
-                  value={filter.section_id}
-                  onChange={(e) => setFilter({ ...filter, section_id: e.target.value })}
-                >
-                  <option value="">All Sections</option>
-                  {filteredSections.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.section_name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-md-2 col-sm-6">
-                <label className="form-label fw-medium fs-13 mb-1" htmlFor="academic_year">
-                  Academic Year
-                </label>
-                <select
-                  className="form-select form-select-sm"
-                  name="academic_year"
-                  id="academic_year"
-                  value={filter.academic_year}
-                  onChange={(e) => setFilter({ ...filter, academic_year: e.target.value })}
-                >
-                  {academicYears.map((y) => (
-                    <option key={y.id} value={y.id}>
-                      {y.academic_year}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="col-md-2 col-sm-6">
-                <label className="form-label fw-medium fs-13 mb-1">Date</label>
-                <input
-                  type="date"
-                  className="form-control form-control-sm"
-                  name="attendDate"
-                  id="attendDate"
-                  value={filter.date}
-                  onChange={(e) => setFilter({ ...filter, date: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="col-md-2 col-sm-12">
-                <button className="btn btn-outline-primary btn-sm w-100" type="submit">
-                  <i className="ti ti-search me-1"></i> Search
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-
-        {/* Student Attendance Table */}
-        <div className="card-body p-0">
-          <div className="custom-datatable-filter table-responsive">
-            <table className="table table-hover mb-0">
-              <thead className="thead-light">
-                <tr>
-                  <th style={{ width: '130px' }}>Admission No</th>
-                  <th style={{ width: '90px' }}>Roll No</th>
-                  <th>Name</th>
-                  <th>Class</th>
-                  <th>Section</th>
-                  <th className="text-center" style={{ width: '140px' }}>
-                    Attendance
-                  </th>
-                  <th style={{ minWidth: '200px' }}>Notes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan="7" className="text-center py-4">
-                      <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                      <span className="text-muted">Loading attendance data...</span>
-                    </td>
-                  </tr>
-                ) : studentList.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="text-center py-5 text-muted">
-                      <i className="ti ti-clipboard-off fs-32 d-block mb-2 opacity-50"></i>
-                      No student attendance records found for the selected criteria.
-                    </td>
-                  </tr>
-                ) : (
-                  studentList.map((st) => {
-                    return (
-                      <tr key={st.student_id}>
-                        <td>
-                          <Link
-                            to={`/admin/students/${st.student_id}`}
-                            className="link-primary fw-medium"
-                          >
-                            {st.admission_number || 'N/A'}
-                          </Link>
-                        </td>
-                        <td>{st.roll_number || '—'}</td>
-                        <td>
-                          <div className="d-flex align-items-center">
-                            <Avatar
-                              src={st.picture}
-                              name={st.full_name}
-                              size={32}
-                              rounded={true}
-                              className="me-2 flex-shrink-0"
-                            />
-                            <span className="fw-medium text-dark">{st.full_name}</span>
-                          </div>
-                        </td>
-                        <td>{st.class_name || '—'}</td>
-                        <td>{st.section_name || '—'}</td>
-                        <td className="text-center">{getAttendanceBadge(st.attendance)}</td>
-                        <td className="text-muted fs-13">{st.notes || '—'}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
+      {/* Filter Bar */}
+      <div className="bg-white p-3 border rounded-3 d-flex align-items-center justify-content-between flex-wrap mb-4 shadow-2xs">
+        <form onSubmit={handleFilterSubmit} className="row g-3 align-items-end w-100">
+          <div className="col-md-3 col-sm-6">
+            <label className="form-label fw-semibold fs-13 mb-1">Class</label>
+            <select
+              className="form-select form-select-sm"
+              value={filter.class_id}
+              onChange={(e) => handleClassChange(e.target.value)}
+              required
+            >
+              <option value="">Select Class</option>
+              {classes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.class_name}
+                </option>
+              ))}
+            </select>
           </div>
-        </div>
+
+          <div className="col-md-3 col-sm-6">
+            <label className="form-label fw-semibold fs-13 mb-1">Section</label>
+            <select
+              className="form-select form-select-sm"
+              value={filter.section_id}
+              onChange={(e) => setFilter({ ...filter, section_id: e.target.value })}
+            >
+              <option value="">All Sections</option>
+              {filteredSections.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.section_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-md-2 col-sm-6">
+            <label className="form-label fw-semibold fs-13 mb-1">Academic Year</label>
+            <select
+              className="form-select form-select-sm"
+              value={filter.academic_year}
+              onChange={(e) => setFilter({ ...filter, academic_year: e.target.value })}
+            >
+              {academicYears.map((y) => (
+                <option key={y.id} value={y.id}>
+                  {y.academic_year}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="col-md-2 col-sm-6">
+            <label className="form-label fw-semibold fs-13 mb-1">Date</label>
+            <input
+              type="date"
+              className="form-control form-control-sm"
+              value={filter.date}
+              onChange={(e) => setFilter({ ...filter, date: e.target.value })}
+              required
+            />
+          </div>
+
+          <div className="col-md-2 col-sm-12">
+            <button className="btn btn-outline-primary btn-sm w-100" type="submit">
+              <i className="ti ti-search me-1"></i> Filter
+            </button>
+          </div>
+        </form>
       </div>
+
+      {/* Main DataTable */}
+      <DataTable
+        title="Student Attendance Records"
+        subtitle={`Viewing daily rollcall for class on ${filter.date}.`}
+        columns={columns}
+        data={studentList}
+        loading={loading}
+        pagination={{
+          page: currentPage,
+          limit: pageSize,
+          total: totalRecords,
+          totalPages: totalPages,
+          onPageChange: handlePageChange,
+          onLimitChange: handlePageSizeChange,
+        }}
+        searchValue={search}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="Search student by name or admission no..."
+        emptyMessage="No student attendance records found for the selected criteria."
+      />
     </div>
   );
 };

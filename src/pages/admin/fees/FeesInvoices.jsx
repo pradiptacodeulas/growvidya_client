@@ -189,7 +189,10 @@ const FeesInvoices = () => {
 
   // Open Generate Batch Invoices Modal
   const handleOpenGenerateModal = () => {
-    const defaultYear = academicYears.length > 0 ? academicYears[0].id : '';
+    const currentYear =
+      academicYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+      academicYears[0];
+    const defaultYear = currentYear ? currentYear.id : '';
     setGenFormData({
       class_id: classes.length > 0 ? classes[0].id : '',
       section_id: '',
@@ -242,12 +245,10 @@ const FeesInvoices = () => {
       setGenerating(true);
       const res = await adminFeesApi.generateInvoices({
         ...genFormData,
-        class_id: parseInt(genFormData.class_id, 10),
-        section_id: genFormData.section_id ? parseInt(genFormData.section_id, 10) : undefined,
-        fee_structure_id: parseInt(genFormData.fee_structure_id, 10),
-        academic_year_id: genFormData.academic_year_id
-          ? parseInt(genFormData.academic_year_id, 10)
-          : 1,
+        class_id: genFormData.class_id,
+        section_id: genFormData.section_id || undefined,
+        fee_structure_id: genFormData.fee_structure_id,
+        academic_year_id: genFormData.academic_year_id || undefined,
       });
 
       toast.success(res?.message || 'Invoices generated successfully.');
@@ -263,7 +264,10 @@ const FeesInvoices = () => {
 
   // Open Bulk Generate Invoices Modal
   const handleOpenBulkGenerateModal = () => {
-    const defaultYear = academicYears.length > 0 ? academicYears[0].id : '';
+    const currentYear =
+      academicYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+      academicYears[0];
+    const defaultYear = currentYear ? currentYear.id : '';
     setBulkFormData({
       academic_year_id: defaultYear,
       title: `${new Date().toLocaleString('default', { month: 'long' })} ${new Date().getFullYear()} Monthly Fees`,
@@ -336,7 +340,7 @@ const FeesInvoices = () => {
     <div className="content">
       {/* Page Header */}
       <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
-        <div>
+        <div className="my-auto mb-2">
           <h3 className="page-title mb-1">
             <i className="ti ti-file-invoice me-2 text-primary"></i>Fee Invoices &amp; Demands
           </h3>
@@ -348,15 +352,23 @@ const FeesInvoices = () => {
               <li className="breadcrumb-item">
                 <Link to="/admin/fees/dashboard">Fees</Link>
               </li>
-              <li className="breadcrumb-item active">Invoices</li>
+              <li className="breadcrumb-item active" aria-current="page">Invoices</li>
             </ol>
           </nav>
         </div>
-        <div className="d-flex gap-2">
-          <button className="btn btn-outline-primary" onClick={handleOpenBulkGenerateModal}>
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-outline-primary d-flex align-items-center"
+            onClick={handleOpenBulkGenerateModal}
+          >
             <i className="ti ti-files me-1"></i>Bulk Generate Invoices
           </button>
-          <button className="btn btn-primary" onClick={handleOpenGenerateModal}>
+          <button
+            type="button"
+            className="btn btn-primary d-flex align-items-center"
+            onClick={handleOpenGenerateModal}
+          >
             <i className="ti ti-plus me-1"></i>Generate Batch Invoices
           </button>
         </div>
@@ -364,7 +376,7 @@ const FeesInvoices = () => {
       {/* /Page Header */}
 
       {/* Filters Card */}
-      <div className="card border-0 shadow-sm mb-4">
+      <div className="card shadow-sm border mb-4">
         <div className="card-header bg-white py-3">
           <h5 className="mb-0 text-dark fw-bold">
             <i className="ti ti-filter me-2 text-primary"></i>Filter Invoices
@@ -372,7 +384,7 @@ const FeesInvoices = () => {
         </div>
         <div className="card-body py-3">
           <form onSubmit={handleFilterSubmit} className="row g-3 align-items-end">
-            <div className="col-md-2">
+            <div className="col-12 col-sm-6 col-md-4 col-xl-2">
               <label className="form-label fw-bold fs-13 mb-1">
                 <i className="ti ti-calendar me-1"></i>Academic Year
               </label>
@@ -394,7 +406,7 @@ const FeesInvoices = () => {
               </select>
             </div>
 
-            <div className="col-md-2">
+            <div className="col-12 col-sm-6 col-md-4 col-xl-2">
               <label className="form-label fw-bold fs-13 mb-1">
                 <i className="ti ti-school me-1"></i>Class
               </label>
@@ -414,7 +426,7 @@ const FeesInvoices = () => {
               </select>
             </div>
 
-            <div className="col-md-2">
+            <div className="col-12 col-sm-6 col-md-4 col-xl-2">
               <label className="form-label fw-bold fs-13 mb-1">
                 <i className="ti ti-layout-grid me-1"></i>Section
               </label>
@@ -437,7 +449,7 @@ const FeesInvoices = () => {
               </select>
             </div>
 
-            <div className="col-md-2">
+            <div className="col-12 col-sm-6 col-md-4 col-xl-2">
               <label className="form-label fw-bold fs-13 mb-1">
                 <i className="ti ti-layers-difference me-1"></i>Fee Structure
               </label>
@@ -459,7 +471,7 @@ const FeesInvoices = () => {
               </select>
             </div>
 
-            <div className="col-md-2">
+            <div className="col-12 col-sm-6 col-md-4 col-xl-2">
               <label className="form-label fw-bold fs-13 mb-1">
                 <i className="ti ti-chart-pie me-1"></i>Status
               </label>
@@ -480,14 +492,17 @@ const FeesInvoices = () => {
               </select>
             </div>
 
-            <div className="col-md-2 d-flex gap-2">
-              <button type="submit" className="btn btn-sm btn-primary w-100">
+            <div className="col-12 col-sm-6 col-md-4 col-xl-2 d-flex gap-2">
+              <button
+                type="submit"
+                className="btn btn-sm btn-primary w-100 d-flex align-items-center justify-content-center"
+              >
                 <i className="ti ti-search me-1"></i>Filter
               </button>
               <button
                 type="button"
                 onClick={handleResetFilters}
-                className="btn btn-sm btn-light border w-100"
+                className="btn btn-sm btn-light border w-100 d-flex align-items-center justify-content-center"
               >
                 <i className="ti ti-refresh me-1"></i>Reset
               </button>
@@ -497,12 +512,12 @@ const FeesInvoices = () => {
       </div>
 
       {/* Invoices List Card */}
-      <div className="card border-0 shadow-sm">
+      <div className="card shadow-sm border">
         <div className="card-header bg-white py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
           <h5 className="mb-0 text-dark fw-bold">
             <i className="ti ti-list-details me-2 text-primary"></i>All Student Invoices
           </h5>
-          <div className="btn-group btn-group-sm">
+          <div className="btn-group btn-group-sm flex-wrap">
             <button
               type="button"
               className={`btn btn-outline-secondary ${activeTabStatus === '' ? 'active' : ''}`}
@@ -534,18 +549,19 @@ const FeesInvoices = () => {
           </div>
         </div>
 
-        <div className="card-body p-3">
-          <div className="custom-datatable-filter table-responsive">
+        <div className="card-body p-0 py-3">
+          <div className="custom-datatable-filter">
             <div id="DataTables_Table_0_wrapper" className="dataTables_wrapper dt-bootstrap5 no-footer">
-              <div className="row mb-3 align-items-center">
-                <div className="col-sm-12 col-md-6">
-                  <div className="dataTables_length d-flex align-items-center gap-2">
-                    <label className="d-flex align-items-center gap-2 fs-13 mb-0">
+              <div className="row px-3 mb-3 align-items-center">
+                <div className="col-sm-12 col-md-6 mb-2 mb-md-0">
+                  <div className="dataTables_length" id="DataTables_Table_0_length">
+                    <label className="d-inline-flex align-items-center gap-2 mb-0 fs-13">
                       Row Per Page
                       <select
                         name="DataTables_Table_0_length"
+                        aria-controls="DataTables_Table_0"
                         className="form-select form-select-sm"
-                        style={{ width: '80px' }}
+                        style={{ width: '80px', display: 'inline-block' }}
                         value={pageSize}
                         onChange={(e) => {
                           setPageSize(parseInt(e.target.value, 10));
@@ -561,14 +577,16 @@ const FeesInvoices = () => {
                     </label>
                   </div>
                 </div>
-                <div className="col-sm-12 col-md-6 text-md-end mt-2 mt-md-0">
-                  <div className="dataTables_filter d-inline-block">
-                    <label className="d-flex align-items-center gap-1 fs-13 mb-0">
+                <div className="col-sm-12 col-md-6 d-flex justify-content-md-end">
+                  <div id="DataTables_Table_0_filter" className="dataTables_filter w-100 w-md-auto">
+                    <label className="d-flex align-items-center gap-2 mb-0 fs-13 justify-content-md-end">
+                      <span className="d-none d-sm-inline">Search:</span>
                       <input
                         type="search"
                         className="form-control form-control-sm"
                         placeholder="Search invoice or student..."
-                        style={{ width: '220px' }}
+                        aria-controls="DataTables_Table_0"
+                        style={{ maxWidth: '250px' }}
                         value={searchTerm}
                         onChange={(e) => {
                           setSearchTerm(e.target.value);
@@ -583,41 +601,40 @@ const FeesInvoices = () => {
               <div className="row dt-row">
                 <div className="col-sm-12 table-responsive">
                   <table className="table datatable table-hover align-middle mb-0 dataTable no-footer">
-                    <thead className="table-light">
+                    <thead className="thead-light">
                       <tr>
-                        <th style={{ width: '135px' }}>Invoice #</th>
-                        <th style={{ width: '185px' }}>Student</th>
-                        <th style={{ width: '90px' }}>Class &amp; Sec</th>
-                        <th style={{ width: '210px' }}>Title</th>
-                        <th style={{ width: '90px' }}>Issue Date</th>
-                        <th style={{ width: '90px' }}>Due Date</th>
-                        <th style={{ width: '80px' }}>Total</th>
-                        <th style={{ width: '75px' }}>Paid</th>
-                        <th style={{ width: '90px' }}>Balance Due</th>
-                        <th style={{ width: '75px' }}>Status</th>
-                        <th className="text-end" style={{ width: '75px' }}>
-                          Action
-                        </th>
+                        <th className="text-nowrap" style={{ minWidth: '130px' }}>Invoice #</th>
+                        <th className="text-nowrap" style={{ minWidth: '170px' }}>Student</th>
+                        <th className="text-nowrap" style={{ minWidth: '110px' }}>Class &amp; Sec</th>
+                        <th className="text-nowrap" style={{ minWidth: '160px' }}>Fee Title</th>
+                        <th className="text-nowrap" style={{ minWidth: '105px' }}>Issue Date</th>
+                        <th className="text-nowrap" style={{ minWidth: '105px' }}>Due Date</th>
+                        <th className="text-end text-nowrap" style={{ minWidth: '100px' }}>Total Amount</th>
+                        <th className="text-end text-nowrap" style={{ minWidth: '100px' }}>Paid</th>
+                        <th className="text-end text-nowrap" style={{ minWidth: '110px' }}>Balance Due</th>
+                        <th className="text-center text-nowrap" style={{ minWidth: '90px' }}>Status</th>
+                        <th className="text-center text-nowrap" style={{ minWidth: '90px' }}>Action</th>
                       </tr>
                     </thead>
                     <tbody>
                       {loading ? (
                         <tr>
-                          <td colSpan="11" className="text-center py-4 text-muted">
-                            <div className="spinner-border text-primary spinner-border-sm me-2"></div>
-                            Loading invoices...
+                          <td colSpan="11" className="text-center py-5 text-muted">
+                            <div className="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
+                            <span>Loading invoices...</span>
                           </td>
                         </tr>
                       ) : invoices.length === 0 ? (
                         <tr>
-                          <td colSpan="11" className="text-center py-4 text-muted">
-                            No invoices found for selected filters.
+                          <td colSpan="11" className="text-center py-5 text-muted">
+                            <i className="ti ti-file-invoice fs-28 mb-2 d-block opacity-50"></i>
+                            No invoices found matching the selected filters.
                           </td>
                         </tr>
                       ) : (
                         invoices.map((inv, idx) => (
                           <tr key={inv.id} className={idx % 2 === 0 ? 'odd' : 'even'}>
-                            <td className="fw-bold text-primary">
+                            <td className="fw-bold text-nowrap">
                               <Link
                                 to={`/admin/fees/invoices/view/${inv.id}`}
                                 className="text-primary text-decoration-none"
@@ -625,29 +642,41 @@ const FeesInvoices = () => {
                                 {inv.invoice_no}
                               </Link>
                             </td>
-                            <td className="fw-semibold">
-                              {inv.first_name} {inv.last_name || ''}
-                              <br />
-                              <small className="text-muted">
+                            <td className="text-nowrap">
+                              <span className="fw-semibold text-dark d-block">
+                                {inv.first_name} {inv.last_name || ''}
+                              </span>
+                              <small className="text-muted d-block fs-12">
                                 Adm: {inv.admission_number || 'N/A'}
                               </small>
                             </td>
-                            <td>
-                              {inv.class_name || '-'} {inv.section_name && `- ${inv.section_name}`}
+                            <td className="text-nowrap">
+                              <span className="badge bg-light text-dark border">
+                                {inv.class_name || '-'}{inv.section_name ? ` (${inv.section_name})` : ''}
+                              </span>
                             </td>
-                            <td>{inv.title || 'Tuition Fees'}</td>
-                            <td>{formatDate(inv.issue_date)}</td>
-                            <td>{formatDate(inv.due_date)}</td>
-                            <td className="fw-bold">{formatCurrency(inv.total_amount)}</td>
-                            <td className="text-success">{formatCurrency(inv.paid_amount)}</td>
-                            <td className="text-danger fw-bold">
+                            <td className="text-nowrap text-muted fs-13">
+                              {inv.title || 'Tuition Fees'}
+                            </td>
+                            <td className="text-nowrap fs-13">{formatDate(inv.issue_date)}</td>
+                            <td className="text-nowrap fs-13">{formatDate(inv.due_date)}</td>
+                            <td className="text-end fw-bold text-dark text-nowrap">
+                              {formatCurrency(inv.total_amount)}
+                            </td>
+                            <td className="text-end text-success fw-semibold text-nowrap">
+                              {formatCurrency(inv.paid_amount)}
+                            </td>
+                            <td className="text-end text-danger fw-bold text-nowrap">
                               {formatCurrency(inv.due_amount)}
                             </td>
-                            <td>{getStatusBadge(inv.status)}</td>
-                            <td className="text-end">
+                            <td className="text-center text-nowrap">
+                              {getStatusBadge(inv.status)}
+                            </td>
+                            <td className="text-center text-nowrap">
                               <Link
                                 to={`/admin/fees/invoices/view/${inv.id}`}
-                                className="btn btn-sm btn-outline-secondary"
+                                className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center"
+                                title="View Invoice"
                               >
                                 <i className="ti ti-eye me-1"></i>View
                               </Link>
@@ -662,16 +691,16 @@ const FeesInvoices = () => {
 
               {/* Bottom Pagination */}
               {totalRecords > 0 && (
-                <div className="row mt-3 align-items-center">
-                  <div className="col-sm-12 col-md-5">
+                <div className="row px-3 mt-3 align-items-center">
+                  <div className="col-sm-12 col-md-5 mb-2 mb-md-0 text-center text-md-start">
                     <span className="text-muted fs-13">
                       Showing {(currentPage - 1) * pageSize + 1} to{' '}
                       {Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} entries
                     </span>
                   </div>
                   <div className="col-sm-12 col-md-7">
-                    <div className="dataTables_paginate paging_simple_numbers d-flex justify-content-md-end">
-                      <ul className="pagination pagination-sm mb-0">
+                    <div className="dataTables_paginate paging_simple_numbers d-flex justify-content-center justify-content-md-end">
+                      <ul className="pagination pagination-sm mb-0 flex-wrap justify-content-center">
                         <li className={`paginate_button page-item previous ${currentPage === 1 ? 'disabled' : ''}`}>
                           <button
                             className="page-link"
@@ -727,13 +756,13 @@ const FeesInvoices = () => {
           <div className="modal-dialog modal-dialog-centered" role="document">
             <div className="modal-content border-0 shadow-lg">
               <form onSubmit={handleGenerateSubmit}>
-                <div className="modal-header bg-primary text-white">
-                  <h5 className="modal-title text-white fw-bold">
-                    <i className="ti ti-files me-2"></i>Generate Batch Invoices
+                <div className="modal-header py-3 px-4 border-bottom">
+                  <h5 className="modal-title text-dark fw-bold">
+                    <i className="ti ti-files me-2 text-primary"></i>Generate Batch Invoices
                   </h5>
                   <button
                     type="button"
-                    className="btn-close btn-close-white"
+                    className="btn-close"
                     onClick={() => setShowGenModal(false)}
                     aria-label="Close"
                   ></button>
@@ -902,13 +931,13 @@ const FeesInvoices = () => {
           <div className="modal-dialog modal-dialog-centered" role="document">
             <div className="modal-content border-0 shadow-lg">
               <form onSubmit={handleBulkGenerateSubmit}>
-                <div className="modal-header bg-primary text-white">
-                  <h5 className="modal-title text-white fw-bold">
-                    <i className="ti ti-files me-2"></i>Bulk Auto-Generate Invoices
+                <div className="modal-header py-3 px-4 border-bottom">
+                  <h5 className="modal-title text-dark fw-bold">
+                    <i className="ti ti-files me-2 text-primary"></i>Bulk Auto-Generate Invoices
                   </h5>
                   <button
                     type="button"
-                    className="btn-close btn-close-white"
+                    className="btn-close"
                     onClick={() => setShowBulkGenModal(false)}
                     aria-label="Close"
                   ></button>

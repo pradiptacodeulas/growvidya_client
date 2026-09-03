@@ -121,7 +121,7 @@ const FeesStructures = () => {
     setCurrentId(null);
 
     const defaultYear =
-      academicYears.find((a) => a.is_current === 1)?.id ||
+      academicYears.find((a) => Number(a.is_current) === 1 || String(a.is_current) === '1' || a.isCurrent)?.id ||
       (academicYears.length > 0 ? academicYears[0].id : '');
 
     setFormData({
@@ -585,8 +585,8 @@ const FeesStructures = () => {
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
             <div className="modal-content border-0 shadow-lg">
               <form onSubmit={handleSubmit}>
-                <div className="modal-header bg-primary text-white py-3">
-                  <h5 className="modal-title text-white fw-bold" id="structureModalTitle">
+                <div className="modal-header py-3 px-4 border-bottom">
+                  <h5 className="modal-title text-dark fw-bold" id="structureModalTitle">
                     {modalMode === 'add'
                       ? 'Create Master Fee Structure'
                       : formData.is_published === 1
@@ -595,7 +595,7 @@ const FeesStructures = () => {
                   </h5>
                   <button
                     type="button"
-                    className="btn-close btn-close-white"
+                    className="btn-close"
                     onClick={() => setShowModal(false)}
                     aria-label="Close"
                   ></button>

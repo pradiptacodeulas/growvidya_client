@@ -1,3 +1,4 @@
+import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -10,15 +11,17 @@ import {
 import { fetchClassesApi, fetchSectionsApi, fetchSubjectsApi } from '../../../api/adminAcademic.api';
 import maleUser from '../../../assets/male-user.png';
 import Avatar from '../../../components/common/Avatar';
+import TableActionMenu from '../../../components/common/TableActionMenu';
+import { encodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const TeacherList = () => {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [limit, setLimit] = useState(12);
+  const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
 
   // Dropdown options
@@ -64,9 +67,6 @@ const TeacherList = () => {
     status: 1,
   });
 
-  // Infinite Scroll Sentinel Ref
-  const sentinelRef = useRef(null);
-
   const loadAcademicMasters = async () => {
     try {
       const [cRes, sRes, subRes] = await Promise.all([
@@ -82,89 +82,112 @@ const TeacherList = () => {
     }
   };
 
-  const fetchTeacherBatch = async (pageNumber, filters, isNewSearch = false) => {
+  const fetchTeacherBatch = async (pageNumber = 1, currentFilters = appliedFilters, currentLimit = limit) => {
     try {
-      if (isNewSearch) {
-        setLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
-
+      setLoading(true);
       const res = await fetchTeachersApi({
         page: pageNumber,
-        limit: 12,
-        search: filters.search,
-        email: filters.email,
-        status: filters.status,
+        limit: currentLimit,
+        search: currentFilters.search || '',
+        email: currentFilters.email || '',
+        status: currentFilters.status !== undefined ? currentFilters.status : '',
       });
 
       const list = res?.data?.teachers || res?.data || [];
       const total = res?.data?.total !== undefined ? res?.data?.total : list.length;
-      const more = res?.data?.hasMore !== undefined ? res?.data?.hasMore : list.length >= 12;
+      const pages = res?.data?.totalPages || Math.ceil(total / currentLimit) || 1;
 
+      // Ensure unique teachers by ID to prevent repeating data
+      const uniqueList = [];
+      const seenIds = new Set();
+      (Array.isArray(list) ? list : []).forEach((t) => {
+        if (t && t.id && !seenIds.has(t.id)) {
+          seenIds.add(t.id);
+          uniqueList.push(t);
+        }
+      });
+
+      setTeachers(uniqueList);
       setTotalCount(total);
-      setHasMore(more);
+      setTotalPages(pages);
       setPage(pageNumber);
-
-      if (isNewSearch) {
-        setTeachers(Array.isArray(list) ? list : []);
-      } else {
-        setTeachers((prev) => {
-          const existingIds = new Set(prev.map((t) => t.id));
-          const newUnique = (Array.isArray(list) ? list : []).filter((t) => !existingIds.has(t.id));
-          return [...prev, ...newUnique];
-        });
-      }
     } catch (err) {
       console.error('Failed to fetch teachers:', err);
       toast.error('Failed to load teachers.');
     } finally {
       setLoading(false);
-      setLoadingMore(false);
     }
   };
 
+  // Initial load
   useEffect(() => {
     loadAcademicMasters();
-    fetchTeacherBatch(1, appliedFilters, true);
+    fetchTeacherBatch(1, appliedFilters, limit);
 
     const handleOutsideClick = () => setActiveDropdown(null);
     window.addEventListener('click', handleOutsideClick);
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  // Intersection Observer for Infinite Scrolling
+  // Debounced auto-search when filters change
+  const isFirstRender = useRef(true);
   useEffect(() => {
-    if (loading || loadingMore || !hasMore) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loading && !loadingMore) {
-          fetchTeacherBatch(page + 1, appliedFilters, false);
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    const currentSentinel = sentinelRef.current;
-    if (currentSentinel) {
-      observer.observe(currentSentinel);
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
     }
 
-    return () => {
-      if (currentSentinel) observer.unobserve(currentSentinel);
-    };
-  }, [page, hasMore, loading, loadingMore, appliedFilters]);
+    const timer = setTimeout(() => {
+      const newFilters = {
+        search: searchName.trim(),
+        email: searchEmail.trim(),
+        status: statusFilter,
+      };
+      setAppliedFilters(newFilters);
+      fetchTeacherBatch(1, newFilters, limit);
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchName, searchEmail, statusFilter, limit]);
 
   const handleSearchSubmit = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) e.preventDefault();
     const newFilters = {
       search: searchName.trim(),
       email: searchEmail.trim(),
       status: statusFilter,
     };
     setAppliedFilters(newFilters);
-    fetchTeacherBatch(1, newFilters, true);
+    fetchTeacherBatch(1, newFilters, limit);
+  };
+
+  const handleResetFilters = () => {
+    setSearchName('');
+    setSearchEmail('');
+    setStatusFilter('');
+    const resetFilters = {
+      search: '',
+      email: '',
+      status: '',
+    };
+    setAppliedFilters(resetFilters);
+    fetchTeacherBatch(1, resetFilters, limit);
+  };
+
+  const handleStatusChange = (newStatus) => {
+    setStatusFilter(newStatus);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== page) {
+      fetchTeacherBatch(newPage, appliedFilters, limit);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const handleLimitChange = (newLimit) => {
+    setLimit(Number(newLimit));
+    fetchTeacherBatch(1, appliedFilters, Number(newLimit));
   };
 
   const getTeacherAvatarUrl = (t) => {
@@ -230,6 +253,14 @@ const TeacherList = () => {
     setEditingTeacherId(t.id);
     setImageFile(null);
     setImagePreview(t.picture ? getTeacherAvatarUrl(t) : '');
+
+    const rawGender = t.gender_id !== undefined ? t.gender_id : t.gender;
+    const genderVal = (rawGender === '2' || rawGender === 2 || String(rawGender).toLowerCase().includes('fem'))
+      ? '2'
+      : (rawGender === '3' || rawGender === 3 || String(rawGender).toLowerCase().includes('oth'))
+      ? '3'
+      : '1';
+
     setFormData({
       first_name: t.first_name || '',
       last_name: t.last_name || '',
@@ -240,7 +271,7 @@ const TeacherList = () => {
       section_id: t.section ? String(t.section) : '',
       subject_id: t.subject ? String(t.subject) : '',
       qualification: t.qualification || 'B.Ed',
-      gender: String(t.gender || '1'),
+      gender: genderVal,
       status: t.status !== undefined ? t.status : 1,
     });
     setShowModal(true);
@@ -274,17 +305,16 @@ const TeacherList = () => {
       }
 
       setShowModal(false);
-      fetchTeacherBatch(1, appliedFilters, true);
+      fetchTeacherBatch(page, appliedFilters, limit);
     } catch (err) {
       console.error(err);
       toast.error(err.response?.data?.message || err.message || 'Operation failed.');
     }
   };
 
-  const toggleTeacherStatus = async (id, newStatus, currentTeacher) => {
+  const toggleTeacherStatus = async (id, newStatus) => {
     try {
       await updateTeacherApi(id, {
-        ...(currentTeacher || {}),
         status: newStatus,
       });
       toast.success(newStatus === 1 ? 'Teacher marked Active.' : 'Teacher marked Inactive.');
@@ -302,7 +332,7 @@ const TeacherList = () => {
     try {
       await deleteTeacherApi(id);
       toast.success('Teacher record deleted.');
-      fetchTeacherBatch(1, appliedFilters, true);
+      fetchTeacherBatch(page, appliedFilters, limit);
     } catch (err) {
       console.error(err);
       toast.error('Failed to delete teacher.');
@@ -344,37 +374,52 @@ const TeacherList = () => {
       {/* Filter and Search Bar */}
       <div className="bg-white p-3 border rounded-1 d-flex align-items-center justify-content-between flex-wrap mb-4 pb-0 shadow-sm">
         <form className="row w-100" onSubmit={handleSearchSubmit}>
-          <div className="col-md-3">
+          <div className="col-md-5 col-lg-4">
             <div className="mb-3">
-              <label className="form-label">Search Teacher</label>
+              <label className="form-label fw-semibold">Search Teacher</label>
+              <div className="input-group">
+                <span className="input-group-text bg-light border-end-0">
+                  <i className="ti ti-search text-muted"></i>
+                </span>
+                <input
+                  type="text"
+                  className="form-control border-start-0 ps-0"
+                  placeholder="Search by Name, ID, or Phone..."
+                  value={searchName}
+                  onChange={(e) => setSearchName(e.target.value)}
+                />
+                {searchName && (
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary border-start-0"
+                    onClick={() => setSearchName('')}
+                    title="Clear search"
+                  >
+                    <i className="ti ti-x"></i>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="col-md-4 col-lg-3">
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Email Address</label>
               <input
                 type="text"
                 className="form-control"
-                placeholder="Teacher Name / ID / Phone"
-                value={searchName}
-                onChange={(e) => setSearchName(e.target.value)}
-              />
-            </div>
-          </div>
-          <div className="col-md-3">
-            <div className="mb-3">
-              <label className="form-label">Email</label>
-              <input
-                type="email"
-                className="form-control"
-                placeholder="Teacher Email"
+                placeholder="Search by Email..."
                 value={searchEmail}
                 onChange={(e) => setSearchEmail(e.target.value)}
               />
             </div>
           </div>
-          <div className="col-md-3">
+          <div className="col-md-3 col-lg-2">
             <div className="mb-3">
-              <label className="form-label">Status</label>
+              <label className="form-label fw-semibold">Status</label>
               <select
                 className="form-select"
                 value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
+                onChange={(e) => handleStatusChange(e.target.value)}
               >
                 <option value="">All Status</option>
                 <option value="1">Active</option>
@@ -382,23 +427,59 @@ const TeacherList = () => {
               </select>
             </div>
           </div>
-          <div className="col-md-3 d-flex align-items-center">
+          <div className="col-md-12 col-lg-3 d-flex align-items-center">
             <div className="mb-3 w-100">
               <label className="form-label d-block">&nbsp;</label>
-              <button type="submit" className="btn btn-outline-primary w-100">
-                <i className="ti ti-search me-1"></i> Search
-              </button>
+              <div className="d-flex gap-2">
+                <button type="submit" className="btn btn-primary flex-fill d-flex align-items-center justify-content-center">
+                  <i className="ti ti-search me-1"></i> Search
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary d-flex align-items-center justify-content-center"
+                  onClick={handleResetFilters}
+                  title="Reset all filters"
+                >
+                  <i className="ti ti-refresh me-1"></i> Reset
+                </button>
+              </div>
             </div>
           </div>
         </form>
       </div>
 
+      {/* Summary Info Banner */}
+      <div className="d-flex align-items-center justify-content-between mb-3 px-1 flex-wrap gap-2">
+        <div className="text-muted small">
+          Showing <span className="fw-bold text-dark">{teachers.length}</span> of <span className="fw-bold text-dark">{totalCount}</span> Teachers
+          {(appliedFilters.search || appliedFilters.email || appliedFilters.status) && (
+            <span className="ms-2 badge bg-primary-subtle text-primary">Filtered</span>
+          )}
+        </div>
+        <div className="d-flex align-items-center gap-2">
+          <label className="form-label text-muted small mb-0">Per Page:</label>
+          <select
+            className="form-select form-select-sm"
+            style={{ width: '80px' }}
+            value={limit}
+            onChange={(e) => handleLimitChange(e.target.value)}
+          >
+            <option value={12}>12</option>
+            <option value={24}>24</option>
+            <option value={48}>48</option>
+            <option value={100}>100</option>
+          </select>
+        </div>
+      </div>
+
       {/* Teacher Grid Container */}
       <div className="row" id="teacherCardDiv">
-        {loading && teachers.length === 0 ? (
+        {loading ? (
           <div className="col-12 text-center py-5">
-            <div className="spinner-border text-primary" role="status"></div>
-            <p className="mt-2 text-muted">Loading teachers...</p>
+            <div className="spinner-border text-primary" role="status" style={{ width: '2.5rem', height: '2.5rem' }}>
+              <span className="visually-hidden">Loading...</span>
+            </div>
+            <p className="mt-2 text-muted fw-semibold">Loading teachers...</p>
           </div>
         ) : teachers.length === 0 ? (
           <div className="col-12">
@@ -411,9 +492,16 @@ const TeacherList = () => {
                     ? 'Try adjusting your search criteria or filters.'
                     : 'Get started by adding your first teacher.'}
                 </p>
-                <button className="btn btn-primary" onClick={handleOpenAddModal}>
-                  <i className="ti ti-square-rounded-plus me-2"></i>Add Teacher
-                </button>
+                <div className="d-flex justify-content-center gap-2">
+                  {appliedFilters.search || appliedFilters.email || appliedFilters.status ? (
+                    <button className="btn btn-outline-secondary" onClick={handleResetFilters}>
+                      <i className="ti ti-refresh me-1"></i>Reset Filters
+                    </button>
+                  ) : null}
+                  <Link to="/admin/teachers/add" className="btn btn-primary">
+                    <i className="ti ti-square-rounded-plus me-2"></i>Add Teacher
+                  </Link>
+                </div>
               </div>
             </div>
           </div>
@@ -428,8 +516,10 @@ const TeacherList = () => {
                 {/* Card Header */}
                 <div className="card-header d-flex align-items-center justify-content-between">
                   <Link
-                    to={`/admin/teachers/${teacher.id}`}
-                    className="link-primary fw-bold"
+                    to={`/admin/teachers/${encodeParam(teacher.id)}`}
+                    className="link-primary fw-bold text-truncate"
+                    style={{ maxWidth: '140px' }}
+                    title={teacher.teacher_id || `CPS00${teacher.id}`}
                   >
                     {teacher.teacher_id || `CPS00${teacher.id}`}
                   </Link>
@@ -445,8 +535,7 @@ const TeacherList = () => {
                       onClick={() =>
                         toggleTeacherStatus(
                           teacher.id,
-                          teacher.status === 1 ? 2 : 1,
-                          teacher
+                          teacher.status === 1 ? 2 : 1
                         )
                       }
                       title="Click to toggle status"
@@ -455,100 +544,37 @@ const TeacherList = () => {
                       {teacher.status === 1 ? 'Active' : 'Inactive'}
                     </span>
 
-                    <div className="dropdown position-relative">
-                      <button
-                        className="btn btn-icon btn-sm btn-white border-0"
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setActiveDropdown(
-                            activeDropdown === teacher.id ? null : teacher.id
-                          );
-                        }}
-                        aria-expanded={activeDropdown === teacher.id}
-                      >
-                        <i className="ti ti-dots-vertical fs-16"></i>
-                      </button>
-                    {activeDropdown === teacher.id && (
-                      <>
-                        <div
-                          className="position-fixed top-0 start-0 w-100 h-100"
-                          style={{ zIndex: 1040 }}
-                          onClick={() => setActiveDropdown(null)}
-                        />
-                        <ul
-                          className="dropdown-menu dropdown-menu-right show p-2 shadow-sm border position-absolute"
-                          style={{
-                            right: 0,
-                            top: '100%',
-                            zIndex: 1050,
-                            display: 'block',
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <li>
-                            <Link
-                              className="dropdown-item rounded-1 py-2"
-                              to={`/admin/teachers/${teacher.id}`}
-                              onClick={() => setActiveDropdown(null)}
-                            >
-                              <i className="ti ti-eye me-2 text-info"></i>View Details
-                            </Link>
-                          </li>
-                          <li>
-                            <Link
-                              className="dropdown-item rounded-1 py-2"
-                              to={`/admin/teachers/edit/${teacher.id}`}
-                              onClick={() => setActiveDropdown(null)}
-                            >
-                              <i className="ti ti-edit-circle me-2 text-primary"></i>Edit
-                            </Link>
-                          </li>
-                          <li>
-                            <button
-                              type="button"
-                              className={`dropdown-item rounded-1 py-2 toggle-btn-${teacher.id}`}
-                              onClick={() => {
-                                setActiveDropdown(null);
-                                toggleTeacherStatus(
-                                  teacher.id,
-                                  teacher.status === 1 ? 2 : 1,
-                                  teacher
-                                );
-                              }}
-                            >
-                              <i
-                                className={`ti ${
-                                  teacher.status === 1
-                                    ? 'ti-toggle-right text-warning'
-                                    : 'ti-toggle-left text-success'
-                                } me-2`}
-                              ></i>
-                              {teacher.status === 1 ? 'Mark Inactive' : 'Mark Active'}
-                            </button>
-                          </li>
-                          <li>
-                            <hr className="dropdown-divider my-1" />
-                          </li>
-                          <li>
-                            <button
-                              type="button"
-                              className="dropdown-item rounded-1 text-danger py-2"
-                              onClick={() => {
-                                setActiveDropdown(null);
-                                handleDeleteTeacher(
-                                  teacher.id,
-                                  `${teacher.first_name} ${teacher.last_name}`
-                                );
-                              }}
-                            >
-                              <i className="ti ti-trash-x me-2"></i>Delete
-                            </button>
-                          </li>
-                        </ul>
-                      </>
-                    )}
-                    </div>
+                    <TableActionMenu
+                      items={[
+                        {
+                          label: 'View Details',
+                          icon: 'ti ti-eye text-info',
+                          to: `/admin/teachers/${encodeParam(teacher.id)}`,
+                        },
+                        {
+                          label: 'Edit Full Details',
+                          icon: 'ti ti-edit-circle text-primary',
+                          to: `/admin/teachers/edit/${encodeParam(teacher.id)}`,
+                        },
+                        {
+                          label: 'Quick Edit',
+                          icon: 'ti ti-pencil text-warning',
+                          onClick: () => handleOpenEditModal(teacher),
+                        },
+                        {
+                          label: teacher.status === 1 ? 'Mark Inactive' : 'Mark Active',
+                          icon: teacher.status === 1 ? 'ti ti-toggle-right text-warning' : 'ti ti-toggle-left text-success',
+                          onClick: () => toggleTeacherStatus(teacher.id, teacher.status === 1 ? 2 : 1),
+                        },
+                        { divider: true },
+                        {
+                          label: 'Delete',
+                          icon: 'ti ti-trash-x',
+                          variant: 'danger',
+                          onClick: () => handleDeleteTeacher(teacher.id, `${teacher.first_name} ${teacher.last_name || ''}`),
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -557,7 +583,7 @@ const TeacherList = () => {
                   <div className="bg-light-300 rounded-2 p-3 mb-3">
                     <div className="d-flex align-items-center">
                       <Link
-                        to={`/admin/teachers/${teacher.id}`}
+                        to={`/admin/teachers/${encodeParam(teacher.id)}`}
                         className="text-decoration-none flex-shrink-0"
                       >
                         <Avatar
@@ -570,7 +596,7 @@ const TeacherList = () => {
                       <div className="ms-2 overflow-hidden">
                         <h6 className="text-dark text-truncate mb-0 fw-bold">
                           <Link
-                            to={`/admin/teachers/${teacher.id}`}
+                            to={`/admin/teachers/${encodeParam(teacher.id)}`}
                             className="text-dark"
                           >
                             {teacher.first_name} {teacher.last_name}
@@ -603,12 +629,19 @@ const TeacherList = () => {
                 </div>
 
                 {/* Card Footer */}
-                <div className="card-footer d-flex align-items-center justify-content-end bg-transparent border-top-0 pt-0 pb-3">
+                <div className="card-footer d-flex align-items-center justify-content-between bg-transparent border-top-0 pt-0 pb-3">
+                  <button
+                    type="button"
+                    className="btn btn-outline-primary btn-sm fw-semibold"
+                    onClick={() => handleOpenDetails(teacher)}
+                  >
+                    Quick View
+                  </button>
                   <Link
-                    to={`/admin/teachers/${teacher.id}`}
+                    to={`/admin/teachers/${encodeParam(teacher.id)}`}
                     className="btn btn-outline-success btn-sm fw-semibold"
                   >
-                    View Details
+                    Full Details
                   </Link>
                 </div>
               </div>
@@ -617,27 +650,62 @@ const TeacherList = () => {
         )}
       </div>
 
-      {/* Infinite Scroll Bottom Sentinel & Loader */}
-      <div
-        ref={sentinelRef}
-        id="loadingDiv"
-        className={loadingMore ? 'd-block' : hasMore && teachers.length > 0 ? 'd-block' : 'd-none'}
-        style={{ margin: '30px auto 40px auto', width: '100%', textAlign: 'center' }}
-      >
-        {loadingMore && (
-          <div className="d-flex flex-column align-items-center justify-content-center">
-            <div className="spinner-border text-primary" role="status" style={{ width: '2rem', height: '2rem' }}>
-              <span className="visually-hidden">Loading more teachers...</span>
-            </div>
-            <small className="text-muted mt-2">Loading more teachers...</small>
+      {/* Pagination Controls */}
+      {!loading && totalPages > 1 && (
+        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mt-3 mb-5 px-1">
+          <div className="text-muted small">
+            Page <span className="fw-bold text-dark">{page}</span> of <span className="fw-bold text-dark">{totalPages}</span> ({totalCount} total teachers)
           </div>
-        )}
-        {!hasMore && teachers.length > 0 && (
-          <p className="text-muted fs-13 mb-0">You've reached the end of the teacher directory ({totalCount} total).</p>
-        )}
-      </div>
+          <nav aria-label="Teachers pagination">
+            <ul className="pagination mb-0">
+              <li className={`page-item ${page <= 1 ? 'disabled' : ''}`}>
+                <button
+                  className="page-link"
+                  onClick={() => handlePageChange(page - 1)}
+                  disabled={page <= 1}
+                >
+                  <i className="ti ti-chevron-left me-1"></i> Prev
+                </button>
+              </li>
 
-      {/* Add / Edit Teacher Modal */}
+              {Array.from({ length: totalPages }, (_, idx) => idx + 1)
+                .filter((p) => p === 1 || p === totalPages || (p >= page - 2 && p <= page + 2))
+                .map((p, idx, arr) => {
+                  const showEllipsisBefore = idx > 0 && p - arr[idx - 1] > 1;
+                  return (
+                    <React.Fragment key={p}>
+                      {showEllipsisBefore && (
+                        <li className="page-item disabled">
+                          <span className="page-link">...</span>
+                        </li>
+                      )}
+                      <li className={`page-item ${page === p ? 'active' : ''}`}>
+                        <button
+                          className="page-link"
+                          onClick={() => handlePageChange(p)}
+                        >
+                          {p}
+                        </button>
+                      </li>
+                    </React.Fragment>
+                  );
+                })}
+
+              <li className={`page-item ${page >= totalPages ? 'disabled' : ''}`}>
+                <button
+                  className="page-link"
+                  onClick={() => handlePageChange(page + 1)}
+                  disabled={page >= totalPages}
+                >
+                  Next <i className="ti ti-chevron-right ms-1"></i>
+                </button>
+              </li>
+            </ul>
+          </nav>
+        </div>
+      )}
+
+      {/* Add / Quick Edit Teacher Modal */}
       {showModal && (
         <div
           className="modal fade show d-block"
@@ -648,7 +716,7 @@ const TeacherList = () => {
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title fw-bold">
-                  {editingTeacherId ? 'Edit Teacher Record' : 'Register New Teacher'}
+                  {editingTeacherId ? 'Quick Edit Teacher Record' : 'Register New Teacher'}
                 </h5>
                 <button
                   type="button"
@@ -823,6 +891,7 @@ const TeacherList = () => {
                       >
                         <option value="1">Male</option>
                         <option value="2">Female</option>
+                        <option value="3">Others</option>
                       </select>
                     </div>
 
@@ -839,18 +908,29 @@ const TeacherList = () => {
                     </div>
                   </div>
                 </div>
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-light"
-                    onClick={() => setShowModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary">
-                    <i className="ti ti-check me-1"></i>
-                    {editingTeacherId ? 'Update Teacher' : 'Save Teacher'}
-                  </button>
+                <div className="modal-footer d-flex justify-content-between">
+                  {editingTeacherId && (
+                    <Link
+                      to={`/admin/teachers/edit/${encodeParam(editingTeacherId)}`}
+                      className="btn btn-outline-info"
+                      onClick={() => setShowModal(false)}
+                    >
+                      <i className="ti ti-edit me-1"></i>Open Full Edit Form
+                    </Link>
+                  )}
+                  <div className="d-flex gap-2 ms-auto">
+                    <button
+                      type="button"
+                      className="btn btn-light"
+                      onClick={() => setShowModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button type="submit" className="btn btn-primary">
+                      <i className="ti ti-check me-1"></i>
+                      {editingTeacherId ? 'Update Teacher' : 'Save Teacher'}
+                    </button>
+                  </div>
                 </div>
               </form>
             </div>
@@ -929,7 +1009,7 @@ const TeacherList = () => {
                   <div className="col-6">
                     <small className="text-muted d-block">Gender</small>
                     <p className="fw-semibold mb-0">
-                      {selectedTeacher.gender === '2' || selectedTeacher.gender === 2 ? 'Female' : 'Male'}
+                      {selectedTeacher.gender_name || (selectedTeacher.gender === '2' || selectedTeacher.gender === 2 ? 'Female' : selectedTeacher.gender === '3' || selectedTeacher.gender === 3 ? 'Others' : 'Male')}
                     </p>
                   </div>
                 </div>
@@ -942,16 +1022,20 @@ const TeacherList = () => {
                 >
                   Close
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    setShowDetailsModal(false);
-                    handleOpenEditModal(selectedTeacher);
-                  }}
+                <Link
+                  to={`/admin/teachers/${encodeParam(selectedTeacher.id)}`}
+                  className="btn btn-outline-info"
+                  onClick={() => setShowDetailsModal(false)}
                 >
-                  <i className="ti ti-edit me-1"></i>Edit Teacher
-                </button>
+                  <i className="ti ti-eye me-1"></i>View Full Profile
+                </Link>
+                <Link
+                  to={`/admin/teachers/edit/${encodeParam(selectedTeacher.id)}`}
+                  className="btn btn-primary"
+                  onClick={() => setShowDetailsModal(false)}
+                >
+                  <i className="ti ti-edit me-1"></i>Edit Full Details
+                </Link>
               </div>
             </div>
           </div>

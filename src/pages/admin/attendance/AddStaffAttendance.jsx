@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import { getServerBaseUrl } from '../../../utils/url.util';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   fetchStaffForAttendanceApi,
   saveStaffAttendanceApi,
 } from '../../../api/adminAttendance.api';
+import Avatar from '../../../components/common/Avatar';
+import { getPaginationRange } from '../../../utils/pagination.util';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const AddStaffAttendance = () => {
   const navigate = useNavigate();
@@ -19,35 +22,76 @@ const AddStaffAttendance = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const loadStaffs = async (selectedDate) => {
-    try {
-      setLoading(true);
-      const res = await fetchStaffForAttendanceApi({ date: selectedDate || targetDate });
-      const list = res?.data?.staffs || [];
-      setStaffs(list);
+  // Server-level Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
 
-      const initialAttendance = {};
-      const initialNotes = {};
-      list.forEach((s) => {
-        // Default to Present (1) if not marked or if attendance is 1
-        initialAttendance[s.id] =
-          s.attendance !== null && s.attendance !== undefined ? Number(s.attendance) : 1;
-        initialNotes[s.id] = s.notes || '';
-      });
+  const loadStaffs = useCallback(
+    async (selectedDate = targetDate, targetPage = 1) => {
+      try {
+        setLoading(true);
+        const res = await fetchStaffForAttendanceApi({
+          date: selectedDate,
+          page: targetPage,
+          limit: pageSize,
+        });
 
-      setAttendanceData(initialAttendance);
-      setNotesData(initialNotes);
-    } catch (err) {
-      console.error('Error fetching staff for attendance:', err);
-      toast.error('Failed to load staff roster.');
-    } finally {
-      setLoading(false);
-    }
-  };
+        const list = res?.data?.staffs || [];
+        setStaffs(list);
+
+        if (res?.data?.pagination) {
+          setTotalRecords(res.data.pagination.total || 0);
+          setTotalPages(res.data.pagination.totalPages || 1);
+          setCurrentPage(res.data.pagination.page || 1);
+        } else {
+          setTotalRecords(list.length);
+          setTotalPages(1);
+          setCurrentPage(1);
+        }
+
+        // Initialize / preserve attendance records (Default to Present = 1)
+        setAttendanceData((prev) => {
+          const next = { ...prev };
+          list.forEach((s) => {
+            if (next[s.id] === undefined) {
+              next[s.id] =
+                s.attendance !== null && s.attendance !== undefined ? Number(s.attendance) : 1;
+            }
+          });
+          return next;
+        });
+
+        setNotesData((prev) => {
+          const next = { ...prev };
+          list.forEach((s) => {
+            if (next[s.id] === undefined) {
+              next[s.id] = s.notes || '';
+            }
+          });
+          return next;
+        });
+      } catch (err) {
+        console.error('Error fetching staff for attendance:', err);
+        toast.error('Failed to load staff roster.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [targetDate, pageSize]
+  );
 
   useEffect(() => {
-    loadStaffs(targetDate);
-  }, []);
+    loadStaffs(targetDate, 1);
+  }, [targetDate]);
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= totalPages && newPage !== currentPage) {
+      setCurrentPage(newPage);
+      loadStaffs(targetDate, newPage);
+    }
+  };
 
   const handleStatusChange = (staffId, val) => {
     setAttendanceData((prev) => ({
@@ -66,17 +110,17 @@ const AddStaffAttendance = () => {
   // Submit Attendance
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (staffs.length === 0) {
+    if (Object.keys(attendanceData).length === 0 && staffs.length === 0) {
       toast.warning('No staff records to save.');
       return;
     }
 
     try {
       setSubmitting(true);
-      const attendanceRecords = staffs.map((s) => ({
-        user_id: s.id,
-        attendance: attendanceData[s.id] !== undefined ? attendanceData[s.id] : 1,
-        notes: notesData[s.id] || '',
+      const attendanceRecords = Object.keys(attendanceData).map((id) => ({
+        user_id: id,
+        attendance: attendanceData[id] !== undefined ? attendanceData[id] : 1,
+        notes: notesData[id] || '',
       }));
 
       await saveStaffAttendanceApi({
@@ -120,7 +164,7 @@ const AddStaffAttendance = () => {
             <button
               type="button"
               className="btn btn-outline-light bg-white btn-icon me-1"
-              onClick={() => loadStaffs(targetDate)}
+              onClick={() => loadStaffs(targetDate, currentPage)}
               title="Refresh"
             >
               <i className="ti ti-refresh"></i>
@@ -169,7 +213,7 @@ const AddStaffAttendance = () => {
       </div>
       {/* /Page Header */}
 
-      {/* Student / Staff List Card */}
+      {/* Staff List Card */}
       <div className="card">
         <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0">
           <h4 className="mb-3">Add Staff Attendance</h4>
@@ -179,12 +223,12 @@ const AddStaffAttendance = () => {
           {loading ? (
             <div className="text-center py-5">
               <div className="spinner-border text-primary" role="status"></div>
-              <p className="mt-2 text-muted">Loading staff list...</p>
+              <p className="mt-2 text-muted">Fetching staff members...</p>
             </div>
           ) : staffs.length === 0 ? (
             <div className="text-center py-5 text-muted">
-              <i className="ti ti-users-off fs-36 d-block mb-2 opacity-50"></i>
-              No staff members found.
+              <i className="ti ti-users-minus fs-36 d-block mb-2 opacity-50"></i>
+              No active staff members found in the system.
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
@@ -192,63 +236,44 @@ const AddStaffAttendance = () => {
                 <table className="table">
                   <thead className="thead-light">
                     <tr>
-                      <th>Staff Id</th>
+                      <th style={{ width: '80px' }} className="text-center">
+                        Sl No.
+                      </th>
                       <th>Name</th>
-                      <th>Gender </th>
+                      <th>Role</th>
+                      <th>Email</th>
+                      <th>Phone Number</th>
                       <th>Attendance</th>
-                      <th style={{ minWidth: '200px' }}>Notes</th>
+                      <th style={{ minWidth: '180px' }}>Notes</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {staffs.map((s) => {
-                      const pic = s.picture
-                        ? s.picture.startsWith('http') || s.picture.startsWith('data:')
-                          ? s.picture
-                          : `${SERVER_BASE_URL}/${s.picture.replace(/^\//, '')}`
-                        : s.gender_name === 'Female'
-                        ? `${SERVER_BASE_URL}/vidya_assets/images/female-user.png`
-                        : `${SERVER_BASE_URL}/vidya_assets/images/male-user.png`;
-
+                    {staffs.map((s, idx) => {
+                      const displayIndex = (currentPage - 1) * pageSize + idx + 1;
                       return (
                         <tr key={s.id}>
-                          <td>
-                            <a
-                              href="#"
-                              onClick={(e) => e.preventDefault()}
-                              className="link-primary"
-                            >
-                              {s.id}
-                            </a>
-                          </td>
+                          <td className="text-center">{displayIndex}</td>
                           <td>
                             <div className="d-flex align-items-center">
-                              <a
-                                href="#"
-                                onClick={(e) => e.preventDefault()}
-                                className="avatar avatar-md"
-                              >
-                                <img
-                                  src={pic || `${SERVER_BASE_URL}/vidya_assets/images/male-user.png`}
-                                  className="img-fluid"
-                                  alt="img"
-                                  onError={(e) => {
-                                    e.target.src = `${SERVER_BASE_URL}/vidya_assets/images/male-user.png`;
-                                  }}
-                                />
-                              </a>
+                              <Avatar
+                                src={s.picture}
+                                name={`${s.first_name} ${s.last_name || ''}`}
+                                size={32}
+                                rounded={true}
+                                className="me-2 flex-shrink-0"
+                              />
                               <div className="ms-2">
                                 <p className="text-dark mb-0">
-                                  <a
-                                    href="#"
-                                    onClick={(e) => e.preventDefault()}
-                                  >
-                                    {s.first_name} {s.last_name}
-                                  </a>
+                                  {s.first_name} {s.last_name}
                                 </p>
                               </div>
                             </div>
                           </td>
-                          <td>{s.gender_name || s.gender || 'Male'}</td>
+                          <td>
+                            <span className="badge bg-light text-dark">{s.role_name || 'Staff'}</span>
+                          </td>
+                          <td>{s.email || '—'}</td>
+                          <td>{s.phone || '—'}</td>
                           <td>
                             <div className="d-flex align-items-center check-radio-group flex-nowrap">
                               <label className="custom-radio">
@@ -312,6 +337,70 @@ const AddStaffAttendance = () => {
                     })}
                   </tbody>
                 </table>
+
+                {/* Pagination Footer */}
+                {totalRecords > 0 && totalPages > 1 && (
+                  <div className="row px-3 mt-3 align-items-center">
+                    <div className="col-sm-12 col-md-5">
+                      <div className="dataTables_info text-muted small">
+                        Showing {(currentPage - 1) * pageSize + 1} to{' '}
+                        {Math.min(currentPage * pageSize, totalRecords)} of {totalRecords} entries
+                      </div>
+                    </div>
+                    <div className="col-sm-12 col-md-7">
+                      <div className="dataTables_paginate paging_simple_numbers d-flex justify-content-md-end">
+                        <ul className="pagination mb-0">
+                          <li className={`paginate_button page-item previous ${currentPage === 1 ? 'disabled' : ''}`}>
+                            <button
+                              type="button"
+                              className="page-link"
+                              disabled={currentPage === 1}
+                              onClick={() => handlePageChange(currentPage - 1)}
+                            >
+                              Prev
+                            </button>
+                          </li>
+
+                          {getPaginationRange(currentPage, totalPages).map((p, pIdx) => {
+                            if (p === '...') {
+                              return (
+                                <li key={`ellipsis-${pIdx}`} className="paginate_button page-item disabled">
+                                  <span className="page-link">...</span>
+                                </li>
+                              );
+                            }
+                            return (
+                              <li
+                                key={p}
+                                className={`paginate_button page-item ${currentPage === p ? 'active' : ''}`}
+                              >
+                                <button
+                                  type="button"
+                                  className="page-link"
+                                  onClick={() => handlePageChange(p)}
+                                >
+                                  {p}
+                                </button>
+                              </li>
+                            );
+                          })}
+
+                          <li className={`paginate_button page-item next ${currentPage === totalPages ? 'disabled' : ''}`}>
+                            <button
+                              type="button"
+                              className="page-link"
+                              disabled={currentPage === totalPages}
+                              onClick={() => handlePageChange(currentPage + 1)}
+                            >
+                              Next
+                            </button>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <input
                   type="hidden"
                   name="attendanceDate"

@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminPermissionApi from '../../../api/adminPermission.api';
+import { decodeParam } from '../../../utils/idHelper';
 
 const RolePermissionForm = () => {
-  const { id: roleId } = useParams();
+  const { id: rawRoleId } = useParams();
+  const roleId = decodeParam(rawRoleId);
   const navigate = useNavigate();
   const isEditing = Boolean(roleId);
 

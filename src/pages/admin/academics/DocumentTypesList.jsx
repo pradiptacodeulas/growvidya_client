@@ -2,16 +2,14 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminAcademicApi, { deleteDocumentTypeApi } from '../../../api/adminAcademic.api';
+import DataTable from '../../../components/common/DataTable';
+import TableActionMenu from '../../../components/common/TableActionMenu';
+import { encodeParam } from '../../../utils/idHelper';
 
 const DocumentTypesList = () => {
   const [documentTypes, setDocumentTypes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [itemsPerPage, setItemsPerPage] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [sortField, setSortField] = useState('id');
-  const [sortAsc, setSortAsc] = useState(true);
 
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -35,57 +33,15 @@ const DocumentTypesList = () => {
     }
   };
 
-  const handleSort = (field) => {
-    if (sortField === field) {
-      setSortAsc(!sortAsc);
-    } else {
-      setSortField(field);
-      setSortAsc(true);
-    }
-  };
-
-  // Filtered and sorted records
-  const filteredDocs = useMemo(() => {
-    let result = documentTypes.filter((d) => {
-      const q = search.toLowerCase();
-      return (d.document_type_name || '').toLowerCase().includes(q);
-    });
-
-    result.sort((a, b) => {
-      let aVal = a[sortField];
-      let bVal = b[sortField];
-
-      if (sortField === 'status') {
-        aVal = a.status === 1 ? 'Active' : 'Inactive';
-        bVal = b.status === 1 ? 'Active' : 'Inactive';
-      }
-
-      if (typeof aVal === 'string') {
-        return sortAsc ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
-      }
-      return sortAsc ? (aVal > bVal ? 1 : -1) : aVal < bVal ? 1 : -1;
-    });
-
-    return result;
-  }, [documentTypes, search, sortField, sortAsc]);
-
-  const totalPages = Math.ceil(filteredDocs.length / itemsPerPage) || 1;
-
-  const currentRecords = useMemo(() => {
-    const start = (currentPage - 1) * itemsPerPage;
-    return filteredDocs.slice(start, start + itemsPerPage);
-  }, [filteredDocs, currentPage, itemsPerPage]);
-
-  // Checkbox selection handlers
-  const handleSelectAll = (e) => {
-    if (e.target.checked) {
-      setSelectedIds(currentRecords.map((d) => d.id));
-    } else {
+  const handleSelectAll = () => {
+    if (selectedIds.length === documentTypes.length) {
       setSelectedIds([]);
+    } else {
+      setSelectedIds(documentTypes.map((d) => d.id));
     }
   };
 
-  const handleSelectOne = (id) => {
+  const handleSelectRow = (id) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
@@ -95,7 +51,7 @@ const DocumentTypesList = () => {
     window.print();
   };
 
-  const handleExportExcel = () => {
+  const handleExportCSV = () => {
     if (documentTypes.length === 0) return toast.info('No document types to export');
     let csv = 'Sl No.,Document Type Name,Status\n';
     documentTypes.forEach((d, idx) => {
@@ -105,7 +61,7 @@ const DocumentTypesList = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `Document_Types_List_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = `Document_Types_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -131,367 +87,151 @@ const DocumentTypesList = () => {
     }
   };
 
+  const columns = useMemo(
+    () => [
+      {
+        key: 'index',
+        header: 'Sl No.',
+        width: '80px',
+        align: 'center',
+        cell: ({ index }) => <span className="text-muted fw-medium">{index + 1}</span>,
+      },
+      {
+        accessorKey: 'document_type_name',
+        header: 'Document Type Name',
+        sortable: true,
+        cell: ({ value, row }) => (
+          <Link
+            to={`/admin/academics/document-types/edit/${encodeParam(row.id)}`}
+            className="fw-semibold text-primary text-decoration-none"
+          >
+            {value}
+          </Link>
+        ),
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        width: '120px',
+        align: 'center',
+        sortable: true,
+        cell: ({ value }) => {
+          const isActive = value === 1 || value === '1' || value === true;
+          return (
+            <span className={isActive ? 'badge-soft-success' : 'badge-soft-danger'}>
+              <i className={`ti ${isActive ? 'ti-circle-check' : 'ti-circle-x'} fs-12 me-1`}></i>
+              {isActive ? 'Active' : 'Inactive'}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        header: 'Action',
+        width: '90px',
+        align: 'center',
+        sortable: false,
+        cell: ({ row }) => (
+          <TableActionMenu
+            items={[
+              {
+                label: 'Edit',
+                icon: 'ti ti-edit-circle',
+                to: `/admin/academics/document-types/edit/${encodeParam(row.id)}`,
+              },
+              {
+                label: 'Delete',
+                icon: 'ti ti-trash-x',
+                variant: 'danger',
+                onClick: () => confirmDelete(row),
+              },
+            ]}
+          />
+        ),
+      },
+    ],
+    []
+  );
+
   return (
     <div className="content">
       {/* Page Header */}
-      <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
+      <div className="d-md-flex d-block align-items-center justify-content-between mb-4">
         <div className="my-auto mb-2">
-          <h3 className="page-title mb-1">Document Type List</h3>
+          <h3 className="page-title mb-1">Document Types</h3>
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
                 <Link to="/admin/dashboard">Dashboard</Link>
               </li>
-              <li className="breadcrumb-item">
-                Document Type
-              </li>
+              <li className="breadcrumb-item">Academic</li>
               <li className="breadcrumb-item active" aria-current="page">
-                All Document Type
+                Document Types
               </li>
             </ol>
           </nav>
         </div>
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={fetchDocumentTypes}
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              data-bs-toggle="tooltip"
-              data-bs-placement="top"
-              aria-label="Refresh"
-              data-bs-original-title="Refresh"
-              title="Refresh"
-            >
-              <i className="ti ti-refresh"></i>
-            </button>
-          </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              data-bs-toggle="tooltip"
-              data-bs-placement="top"
-              aria-label="Print"
-              data-bs-original-title="Print"
-              title="Print"
-            >
-              <i className="ti ti-printer"></i>
-            </button>
-          </div>
-          <div className="dropdown me-2 mb-2">
-            <button
-              type="button"
-              className="dropdown-toggle btn btn-light fw-medium d-inline-flex align-items-center"
-              data-bs-toggle="dropdown"
-            >
-              <i className="ti ti-file-export me-2"></i>Export
-            </button>
-            <ul className="dropdown-menu dropdown-menu-end p-3">
-              <li>
-                <button
-                  type="button"
-                  className="dropdown-item rounded-1"
-                  onClick={handlePrint}
-                >
-                  <i className="ti ti-file-type-pdf me-2"></i>Export as PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="dropdown-item rounded-1"
-                  onClick={handleExportExcel}
-                >
-                  <i className="ti ti-file-type-xls me-2"></i>Export as Excel
-                </button>
-              </li>
-            </ul>
-          </div>
-          <div className="mb-2">
-            <Link
-              to="/admin/academics/document-types/add"
-              className="btn btn-primary d-flex align-items-center"
-            >
-              <i className="ti ti-square-rounded-plus me-2"></i>Add Document Type
-            </Link>
-          </div>
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={fetchDocumentTypes}
+            title="Refresh"
+          >
+            <i className="ti ti-refresh"></i>
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={handlePrint}
+            title="Print"
+          >
+            <i className="ti ti-printer"></i>
+          </button>
+
+          <TableActionMenu
+            trigger={
+              <span className="btn btn-light fw-medium d-inline-flex align-items-center">
+                <i className="ti ti-file-export me-2"></i>Export
+              </span>
+            }
+            items={[
+              {
+                label: 'Export as PDF',
+                icon: 'ti ti-file-type-pdf text-danger',
+                onClick: handlePrint,
+              },
+              {
+                label: 'Export as Excel',
+                icon: 'ti ti-file-type-xls text-success',
+                onClick: handleExportCSV,
+              },
+            ]}
+          />
+
+          <Link
+            to="/admin/academics/document-types/add"
+            className="btn btn-primary d-flex align-items-center"
+          >
+            <i className="ti ti-square-rounded-plus me-2"></i>Add Document Type
+          </Link>
         </div>
       </div>
-      {/* /Page Header */}
 
-      {/* Students List */}
-      <div className="card">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0">
-          <h4 className="mb-3">All Document Type</h4>
-        </div>
-        <div className="card-body p-0 py-3">
-          {/* Student List */}
-          <div className="custom-datatable-filter table-responsivee">
-            <div id="DataTables_Table_0_wrapper" className="dataTables_wrapper dt-bootstrap5 no-footer">
-              <div className="row px-3 mb-3 align-items-center">
-                <div className="col-sm-12 col-md-6">
-                  <div className="dataTables_length" id="DataTables_Table_0_length">
-                    <label className="d-flex align-items-center gap-2">
-                      <span>Row Per Page</span>
-                      <select
-                        name="DataTables_Table_0_length"
-                        aria-controls="DataTables_Table_0"
-                        className="form-select form-select-sm"
-                        style={{ width: '80px' }}
-                        value={itemsPerPage}
-                        onChange={(e) => {
-                          setItemsPerPage(Number(e.target.value));
-                          setCurrentPage(1);
-                        }}
-                      >
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                      </select>
-                      <span>Entries</span>
-                    </label>
-                  </div>
-                </div>
-                <div className="col-sm-12 col-md-6 d-flex justify-content-md-end">
-                  <div id="DataTables_Table_0_filter" className="dataTables_filter">
-                    <label className="d-flex align-items-center">
-                      <input
-                        type="search"
-                        className="form-control form-control-sm"
-                        placeholder="Search"
-                        aria-controls="DataTables_Table_0"
-                        value={search}
-                        onChange={(e) => {
-                          setSearch(e.target.value);
-                          setCurrentPage(1);
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div className="row dt-row">
-                <div className="col-sm-12 table-responsive">
-                  <table className="table datatable dataTable no-footer" id="DataTables_Table_0">
-                    <thead className="thead-light">
-                      <tr>
-                        <th
-                          className="no-sort text-center sorting sorting_asc"
-                          tabIndex="0"
-                          aria-controls="DataTables_Table_0"
-                          rowSpan="1"
-                          colSpan="1"
-                          style={{ width: '60px' }}
-                        >
-                          <div className="form-check form-check-md d-flex justify-content-center">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id="select-all"
-                              checked={
-                                currentRecords.length > 0 &&
-                                currentRecords.every((d) => selectedIds.includes(d.id))
-                              }
-                              onChange={handleSelectAll}
-                            />
-                          </div>
-                        </th>
-                        <th
-                          className="text-center sorting"
-                          tabIndex="0"
-                          aria-controls="DataTables_Table_0"
-                          rowSpan="1"
-                          colSpan="1"
-                          style={{ width: '80px', cursor: 'pointer' }}
-                          onClick={() => handleSort('id')}
-                        >
-                          Sl No.
-                        </th>
-                        <th
-                          className="text-center sorting"
-                          tabIndex="0"
-                          aria-controls="DataTables_Table_0"
-                          rowSpan="1"
-                          colSpan="1"
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => handleSort('document_type_name')}
-                        >
-                          Document Type Name
-                        </th>
-                        <th
-                          className="text-center sorting"
-                          tabIndex="0"
-                          aria-controls="DataTables_Table_0"
-                          rowSpan="1"
-                          colSpan="1"
-                          style={{ width: '120px', cursor: 'pointer' }}
-                          onClick={() => handleSort('status')}
-                        >
-                          Status
-                        </th>
-                        <th
-                          className="text-center sorting"
-                          tabIndex="0"
-                          aria-controls="DataTables_Table_0"
-                          rowSpan="1"
-                          colSpan="1"
-                          style={{ width: '80px' }}
-                        >
-                          Action
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {loading ? (
-                        <tr>
-                          <td colSpan="5" className="text-center py-5">
-                            <div className="spinner-border text-primary" role="status"></div>
-                          </td>
-                        </tr>
-                      ) : currentRecords.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="text-center py-5 text-muted">
-                            No document types found.
-                          </td>
-                        </tr>
-                      ) : (
-                        currentRecords.map((doc, idx) => {
-                          const slNo = (currentPage - 1) * itemsPerPage + idx + 1;
-                          const isEven = idx % 2 === 1;
-                          const isActive = Number(doc.status) === 1;
-
-                          return (
-                            <tr key={doc.id || idx} className={isEven ? 'even' : 'odd'}>
-                              <td className="text-center sorting_1">
-                                <div className="form-check form-check-md d-flex justify-content-center">
-                                  <input
-                                    className="form-check-input"
-                                    type="checkbox"
-                                    checked={selectedIds.includes(doc.id)}
-                                    onChange={() => handleSelectOne(doc.id)}
-                                  />
-                                </div>
-                              </td>
-                              <td className="text-center">{slNo}</td>
-                              <td className="text-center">{doc.document_type_name}</td>
-                              <td className="text-center">
-                                {isActive ? (
-                                  <span className="text-success">Active</span>
-                                ) : (
-                                  <span className="text-danger">Inactive</span>
-                                )}
-                              </td>
-                              <td className="d-flex justify-content-center">
-                                <div className="d-flex align-items-center">
-                                  <div className="dropdown">
-                                    <button
-                                      className="btn btn-white btn-icon btn-sm d-flex align-items-center justify-content-center rounded-circle p-0"
-                                      type="button"
-                                      data-bs-toggle="dropdown"
-                                      data-bs-boundary="body"
-                                      aria-expanded="false"
-                                    >
-                                      <i className="ti ti-dots-vertical fs-14"></i>
-                                    </button>
-
-                                    <ul className="dropdown-menu dropdown-menu-end p-3">
-                                      <li>
-                                        <Link
-                                          className="dropdown-item rounded-1"
-                                          to={`/admin/academics/document-types/edit/${doc.id}`}
-                                        >
-                                          <i className="ti ti-edit-circle me-2"></i>Edit
-                                        </Link>
-                                      </li>
-                                      <li>
-                                        <button
-                                          type="button"
-                                          className="dropdown-item rounded-1 text-danger"
-                                          onClick={() => confirmDelete(doc)}
-                                        >
-                                          <i className="ti ti-trash-x me-2"></i>Delete
-                                        </button>
-                                      </li>
-                                    </ul>
-                                  </div>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Pagination */}
-              <div className="row px-3 mt-3 align-items-center">
-                <div className="col-sm-12 col-md-5">
-                  <div className="dataTables_info">
-                    {filteredDocs.length > 0
-                      ? `Showing ${(currentPage - 1) * itemsPerPage + 1} to ${Math.min(
-                          currentPage * itemsPerPage,
-                          filteredDocs.length
-                        )} of ${filteredDocs.length} entries`
-                      : 'Showing 0 to 0 of 0 entries'}
-                  </div>
-                </div>
-                <div className="col-sm-12 col-md-7 d-flex justify-content-md-end">
-                  <div className="dataTables_paginate paging_simple_numbers" id="DataTables_Table_0_paginate">
-                    <ul className="pagination mb-0">
-                      <li className={`paginate_button page-item previous ${currentPage === 1 ? 'disabled' : ''}`}>
-                        <button
-                          type="button"
-                          className="page-link"
-                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                          disabled={currentPage === 1}
-                        >
-                          Prev
-                        </button>
-                      </li>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                        <li
-                          key={pageNum}
-                          className={`paginate_button page-item ${currentPage === pageNum ? 'active' : ''}`}
-                        >
-                          <button
-                            type="button"
-                            className="page-link"
-                            onClick={() => setCurrentPage(pageNum)}
-                          >
-                            {pageNum}
-                          </button>
-                        </li>
-                      ))}
-                      <li
-                        className={`paginate_button page-item next ${
-                          currentPage === totalPages || totalPages === 0 ? 'disabled' : ''
-                        }`}
-                      >
-                        <button
-                          type="button"
-                          className="page-link"
-                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                          disabled={currentPage === totalPages || totalPages === 0}
-                        >
-                          Next
-                        </button>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* /Student List */}
-        </div>
-      </div>
-      {/* /Students List */}
+      {/* Main DataTable */}
+      <DataTable
+        title="All Document Types"
+        subtitle="Manage student and staff mandatory document categories."
+        columns={columns}
+        data={documentTypes}
+        loading={loading}
+        selectable={true}
+        selectedIds={selectedIds}
+        onSelectRow={handleSelectRow}
+        onSelectAll={handleSelectAll}
+        searchPlaceholder="Search by document type..."
+        emptyMessage="No document types found in the system."
+      />
 
       {/* Delete Confirmation Modal */}
       {deleteModalOpen && (
@@ -503,53 +243,47 @@ const DocumentTypesList = () => {
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content">
               <div className="modal-header border-0 pb-0">
-                <h5 className="modal-title">Confirm Delete</h5>
                 <button
                   type="button"
                   className="btn-close"
-                  onClick={() => {
-                    setDeleteModalOpen(false);
-                    setDocToDelete(null);
-                  }}
+                  onClick={() => setDeleteModalOpen(false)}
+                  aria-label="Close"
                   disabled={deleting}
                 ></button>
               </div>
-              <div className="modal-body text-center py-4">
+              <div className="modal-body text-center pt-0 pb-4">
                 <div className="text-danger mb-3">
-                  <i className="ti ti-alert-triangle" style={{ fontSize: '48px' }}></i>
+                  <i className="ti ti-trash-x fs-48"></i>
                 </div>
-                <h4 className="mb-2">Are you sure?</h4>
-                <p className="text-muted mb-0">
-                  Do you really want to delete Document Type <strong>{docToDelete?.document_type_name}</strong>? This action cannot be undone.
+                <h4 className="mb-2">Delete Document Type</h4>
+                <p className="text-muted mb-4">
+                  Are you sure you want to delete <strong>{docToDelete?.document_type_name}</strong>? This action cannot be undone.
                 </p>
-              </div>
-              <div className="modal-footer border-0 justify-content-center pt-0 pb-4">
-                <button
-                  type="button"
-                  className="btn btn-light px-4"
-                  onClick={() => {
-                    setDeleteModalOpen(false);
-                    setDocToDelete(null);
-                  }}
-                  disabled={deleting}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-danger px-4"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-1"></span>
-                      Deleting...
-                    </>
-                  ) : (
-                    'Delete'
-                  )}
-                </button>
+                <div className="d-flex justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light px-4"
+                    onClick={() => setDeleteModalOpen(false)}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger px-4"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete'
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

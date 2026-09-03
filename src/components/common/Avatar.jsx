@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-
-const SERVER_BASE_URL = 'http://localhost:5000';
+import { getServerBaseUrl } from '../../utils/url.util';
 
 const getAvatarColors = (name) => {
   const palette = [
@@ -42,12 +41,13 @@ export const resolveImageUrl = (pic) => {
   if (clean.startsWith('data:') || clean.startsWith('http://') || clean.startsWith('https://')) {
     return clean;
   }
-  if (clean.startsWith('/upload/')) return `${SERVER_BASE_URL}${clean}`;
-  if (clean.startsWith('upload/')) return `${SERVER_BASE_URL}/${clean}`;
-  if (clean.startsWith('/vidya_assets/')) return `${SERVER_BASE_URL}${clean}`;
-  if (clean.startsWith('vidya_assets/')) return `${SERVER_BASE_URL}/${clean}`;
-  if (clean.startsWith('/')) return `${SERVER_BASE_URL}${clean}`;
-  return `${SERVER_BASE_URL}/upload/${clean}`;
+  const baseUrl = getServerBaseUrl();
+  if (clean.startsWith('/upload/')) return `${baseUrl}${clean}`;
+  if (clean.startsWith('upload/')) return `${baseUrl}/${clean}`;
+  if (clean.startsWith('/vidya_assets/')) return `${baseUrl}${clean}`;
+  if (clean.startsWith('vidya_assets/')) return `${baseUrl}/${clean}`;
+  if (clean.startsWith('/')) return `${baseUrl}${clean}`;
+  return `${baseUrl}/upload/${clean}`;
 };
 
 /**

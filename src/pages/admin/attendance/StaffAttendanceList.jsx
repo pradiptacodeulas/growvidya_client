@@ -1,10 +1,48 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { getServerBaseUrl } from '../../../utils/url.util';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchStaffAttendanceListApi } from '../../../api/adminAttendance.api';
 import Avatar from '../../../components/common/Avatar';
+import DataTable from '../../../components/common/DataTable';
+import TableActionMenu from '../../../components/common/TableActionMenu';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const getAttendanceBadge = (status) => {
+  const s = String(status !== null && status !== undefined ? status : '').toLowerCase().trim();
+  if (s === 'present' || s === '1') {
+    return (
+      <span className="badge-soft-success">
+        <i className="ti ti-circle-check fs-12 me-1"></i>Present
+      </span>
+    );
+  }
+  if (s === 'absent' || s === '0') {
+    return (
+      <span className="badge-soft-danger">
+        <i className="ti ti-circle-x fs-12 me-1"></i>Absent
+      </span>
+    );
+  }
+  if (s === 'late' || s === '2') {
+    return (
+      <span className="badge-soft-warning">
+        <i className="ti ti-clock fs-12 me-1"></i>Late
+      </span>
+    );
+  }
+  if (s === 'halfday' || s === 'half_day' || s === '3') {
+    return (
+      <span className="badge-soft-info">
+        <i className="ti ti-hourglass-empty fs-12 me-1"></i>Half Day
+      </span>
+    );
+  }
+  return (
+    <span className="badge-soft-secondary">
+      <i className="ti ti-minus fs-12 me-1"></i>Not Marked
+    </span>
+  );
+};
 
 const StaffAttendanceList = () => {
   const todayStr = new Date().toISOString().split('T')[0];
@@ -12,47 +50,140 @@ const StaffAttendanceList = () => {
   const [staffList, setStaffList] = useState([]);
   const [loading, setLoading] = useState(false);
 
-  const loadAttendance = useCallback(async () => {
-    try {
-      setLoading(true);
-      const res = await fetchStaffAttendanceListApi({ date: targetDate });
-      setStaffList(res?.data?.staffs || []);
-    } catch (err) {
-      console.error('Error loading staff attendance:', err);
-      toast.error('Failed to load staff attendance list.');
-    } finally {
-      setLoading(false);
-    }
-  }, [targetDate]);
+  // Server-level Pagination & Search states
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRecords] = useState(0);
+  const [search, setSearch] = useState('');
+
+  const loadAttendance = useCallback(
+    async (targetPage = currentPage, targetLimit = pageSize, targetSearch = search) => {
+      try {
+        setLoading(true);
+        const res = await fetchStaffAttendanceListApi({
+          date: targetDate,
+          page: targetPage,
+          limit: targetLimit,
+          search: targetSearch,
+        });
+
+        const list = res?.data?.staffs || [];
+        setStaffList(list);
+
+        if (res?.data?.pagination) {
+          setTotalRecords(res.data.pagination.total || 0);
+          setTotalPages(res.data.pagination.totalPages || 1);
+          setCurrentPage(res.data.pagination.page || 1);
+        } else {
+          setTotalRecords(list.length);
+          setTotalPages(1);
+        }
+      } catch (err) {
+        toast.error('Failed to load staff attendance list.');
+      } finally {
+        setLoading(false);
+      }
+    },
+    [targetDate, currentPage, pageSize, search]
+  );
 
   useEffect(() => {
-    loadAttendance();
-  }, [loadAttendance]);
+    loadAttendance(1, pageSize, search);
+  }, [targetDate]);
 
-  const handleSearch = (e) => {
-    e.preventDefault();
-    loadAttendance();
+  const handleSearchChange = (val) => {
+    setSearch(val);
+    setCurrentPage(1);
+    loadAttendance(1, pageSize, val);
   };
 
-  const getAttendanceBadge = (status) => {
-    switch (Number(status)) {
-      case 1:
-        return <span className="badge bg-soft-success text-success fw-medium">Present</span>;
-      case 2:
-        return <span className="badge bg-soft-warning text-warning fw-medium">Late</span>;
-      case 0:
-        return <span className="badge bg-soft-danger text-danger fw-medium">Absent</span>;
-      case 3:
-        return <span className="badge bg-soft-info text-info fw-medium">Half Day</span>;
-      default:
-        return <span className="badge bg-soft-secondary text-secondary fw-medium">Not Marked</span>;
-    }
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+    loadAttendance(page, pageSize, search);
   };
+
+  const handlePageSizeChange = (size) => {
+    setPageSize(size);
+    setCurrentPage(1);
+    loadAttendance(1, size, search);
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const columns = useMemo(
+    () => [
+      {
+        key: 'index',
+        header: 'Sl No.',
+        width: '70px',
+        align: 'center',
+        cell: ({ index }) => <span className="text-muted fw-medium">{index + 1}</span>,
+      },
+      {
+        accessorKey: 'staff_code',
+        header: 'Staff ID',
+        sortable: true,
+        cell: ({ value, row }) => (
+          <span className="fw-semibold text-primary">
+            {value || `STF${row.staff_id}`}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'full_name',
+        header: 'Name',
+        sortable: true,
+        cell: ({ value, row }) => (
+          <div className="d-flex align-items-center">
+            <Avatar
+              src={row.picture}
+              name={value}
+              size={32}
+              rounded={true}
+              className="me-2 flex-shrink-0"
+            />
+            <span className="fw-medium text-dark">{value}</span>
+          </div>
+        ),
+      },
+      {
+        accessorKey: 'department_name',
+        header: 'Department / Role',
+        sortable: true,
+        cell: ({ value }) => (
+          <span className="badge bg-light text-dark border px-2.5 py-1.5">{value || 'Staff'}</span>
+        ),
+      },
+      {
+        accessorKey: 'phone_number',
+        header: 'Phone Number',
+        sortable: true,
+        cell: ({ value }) => <span className="text-dark">{value || '—'}</span>,
+      },
+      {
+        accessorKey: 'attendance',
+        header: 'Attendance',
+        width: '140px',
+        align: 'center',
+        sortable: true,
+        cell: ({ value }) => getAttendanceBadge(value),
+      },
+      {
+        accessorKey: 'notes',
+        header: 'Note',
+        cell: ({ value }) => <span className="text-muted fs-13">{value || '—'}</span>,
+      },
+    ],
+    []
+  );
 
   return (
-    <div className="content content-two">
+    <div className="content">
       {/* Page Header */}
-      <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
+      <div className="d-md-flex d-block align-items-center justify-content-between mb-4">
         <div className="my-auto mb-2">
           <h3 className="page-title mb-1">Staff Attendance</h3>
           <nav>
@@ -67,168 +198,68 @@ const StaffAttendanceList = () => {
             </ol>
           </nav>
         </div>
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={() => loadAttendance(1, pageSize, search)}
+            title="Refresh"
+          >
+            <i className="ti ti-refresh"></i>
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={handlePrint}
+            title="Print"
+          >
+            <i className="ti ti-printer"></i>
+          </button>
 
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              onClick={loadAttendance}
-              title="Refresh"
-            >
-              <i className="ti ti-refresh"></i>
-            </button>
-          </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              onClick={() => window.print()}
-              title="Print"
-            >
-              <i className="ti ti-printer"></i>
-            </button>
-          </div>
-          <div className="dropdown me-2 mb-2">
-            <button
-              className="dropdown-toggle btn btn-light fw-medium d-inline-flex align-items-center"
-              data-bs-toggle="dropdown"
-              type="button"
-            >
-              <i className="ti ti-file-export me-2"></i>Export
-            </button>
-            <ul className="dropdown-menu dropdown-menu-end p-2">
-              <li>
-                <button
-                  type="button"
-                  className="dropdown-item rounded-1"
-                  onClick={() => toast.info('Export as PDF')}
-                >
-                  <i className="ti ti-file-type-pdf me-2 text-danger"></i>Export as PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  className="dropdown-item rounded-1"
-                  onClick={() => toast.info('Export as Excel')}
-                >
-                  <i className="ti ti-file-type-xls me-2 text-success"></i>Export as Excel
-                </button>
-              </li>
-            </ul>
-          </div>
-          <div className="mb-2">
-            <Link
-              to="/admin/attendance/staff/add"
-              className="btn btn-primary d-flex align-items-center"
-            >
-              <i className="ti ti-square-rounded-plus me-2"></i>Add Attendance
-            </Link>
+          <Link
+            to="/admin/attendance/staff/add"
+            className="btn btn-primary d-flex align-items-center"
+          >
+            <i className="ti ti-square-rounded-plus me-2"></i>Add Attendance
+          </Link>
+        </div>
+      </div>
+
+      {/* Date Filter Bar */}
+      <div className="bg-white p-3 border rounded-3 d-flex align-items-center justify-content-between flex-wrap mb-4 shadow-2xs">
+        <div className="row g-3 align-items-end w-100">
+          <div className="col-md-3 col-sm-6">
+            <label className="form-label fw-semibold fs-13 mb-1">Attendance Date</label>
+            <input
+              type="date"
+              className="form-control"
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+            />
           </div>
         </div>
       </div>
-      {/* /Page Header */}
 
-      {/* Main Card */}
-      <div className="card shadow-sm border">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0 bg-white">
-          <h4 className="mb-3 fw-bold">Staff Attendance</h4>
-        </div>
-
-        {/* Date Filter Bar */}
-        <div className="bg-white p-3 border-bottom">
-          <form onSubmit={handleSearch}>
-            <div className="row g-3 align-items-end">
-              <div className="col-md-3 col-sm-6">
-                <label className="form-label fw-medium fs-13 mb-1">From Date</label>
-                <input
-                  type="date"
-                  className="form-control form-control-sm"
-                  name="attendDate"
-                  id="attendDate"
-                  value={targetDate}
-                  onChange={(e) => setTargetDate(e.target.value)}
-                  required
-                />
-              </div>
-
-              <div className="col-md-2 col-sm-6">
-                <button className="btn btn-outline-primary btn-sm w-100" type="submit">
-                  <i className="ti ti-search me-1"></i> Search
-                </button>
-              </div>
-            </div>
-          </form>
-        </div>
-
-        {/* Table Content */}
-        <div className="card-body p-0">
-          <div className="custom-datatable-filter table-responsive">
-            <table className="table table-hover mb-0">
-              <thead className="thead-light">
-                <tr>
-                  <th style={{ width: '80px' }} className="text-center">
-                    Sl No.
-                  </th>
-                  <th>Name</th>
-                  <th>Role</th>
-                  <th>Email</th>
-                  <th>Phone Number</th>
-                  <th className="text-center" style={{ width: '140px' }}>
-                    Attendance
-                  </th>
-                  <th style={{ minWidth: '180px' }}>Note</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan="7" className="text-center py-4">
-                      <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
-                      <span className="text-muted">Loading staff attendance...</span>
-                    </td>
-                  </tr>
-                ) : staffList.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="text-center py-5 text-muted">
-                      <i className="ti ti-users fs-32 d-block mb-2 opacity-50"></i>
-                      No staff attendance records found for this date.
-                    </td>
-                  </tr>
-                ) : (
-                  staffList.map((s, idx) => {
-                    return (
-                      <tr key={s.user_id || idx}>
-                        <td className="text-center">{idx + 1}</td>
-                        <td>
-                          <div className="d-flex align-items-center">
-                            <Avatar
-                              src={s.picture}
-                              name={s.full_name}
-                              size={32}
-                              rounded={true}
-                              className="me-2 flex-shrink-0"
-                            />
-                            <span className="fw-medium text-dark">{s.full_name}</span>
-                          </div>
-                        </td>
-                        <td>
-                          <span className="badge bg-light text-dark">{s.role_name || 'Staff'}</span>
-                        </td>
-                        <td>{s.email || '—'}</td>
-                        <td>{s.phone || '—'}</td>
-                        <td className="text-center">{getAttendanceBadge(s.attendance)}</td>
-                        <td className="text-muted fs-13">{s.notes || '—'}</td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
+      {/* Main DataTable */}
+      <DataTable
+        title="Staff Attendance Sheet"
+        subtitle={`Showing daily rollcall logs for ${targetDate}.`}
+        columns={columns}
+        data={staffList}
+        loading={loading}
+        pagination={{
+          page: currentPage,
+          limit: pageSize,
+          total: totalRecords,
+          totalPages: totalPages,
+          onPageChange: handlePageChange,
+          onLimitChange: handlePageSizeChange,
+        }}
+        searchValue={search}
+        onSearchChange={handleSearchChange}
+        searchPlaceholder="Search staff by name or code..."
+        emptyMessage={`No staff attendance records found for ${targetDate}.`}
+      />
     </div>
   );
 };

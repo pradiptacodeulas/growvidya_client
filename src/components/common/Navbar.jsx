@@ -1,11 +1,76 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
+import { Link } from 'react-router-dom';
 import { logoutAdmin } from '../../store/slices/authSlice';
+import { fetchAcademicYearsApi } from '../../api/adminAcademic.api';
+import { fetchNoticesApi } from '../../api/adminAnnouncement.api';
 
-const Navbar = ({ onToggleMobileMenu }) => {
+const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const [darkMode, setDarkMode] = useState(false);
+  const [currentYearText, setCurrentYearText] = useState('2026');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [hasUnread, setHasUnread] = useState(true);
+  const notificationRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadNotices = async () => {
+      try {
+        const res = await fetchNoticesApi();
+        const list = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.notices)
+          ? res.notices
+          : Array.isArray(res)
+          ? res
+          : [];
+        setNotifications(list);
+      } catch (err) {
+        console.error('Failed to load notices for admin navbar:', err);
+      }
+    };
+    loadNotices();
+  }, []);
+
+  useEffect(() => {
+    const loadCurrentAcademicYear = async () => {
+      try {
+        const res = await fetchAcademicYearsApi();
+        const years = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.data?.academicYears)
+          ? res.data.academicYears
+          : Array.isArray(res)
+          ? res
+          : [];
+
+        const activeYear =
+          years.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+          years[0];
+        if (activeYear) {
+          setCurrentYearText(activeYear.academic_year || activeYear.name || '2026');
+        }
+      } catch (err) {
+        console.error('Failed to load current academic year for navbar:', err);
+      }
+    };
+
+    loadCurrentAcademicYear();
+  }, []);
 
   const handleLogout = (e) => {
     e.preventDefault();
@@ -22,55 +87,39 @@ const Navbar = ({ onToggleMobileMenu }) => {
 
   return (
     <div className="header">
-      {/* Mobile Hamburger Toggle Button */}
+      {/* Mobile Hamburger / Close Toggle Button */}
       <a
         id="mobile_btn"
-        className="mobile_btn"
+        className={`mobile_btn ${isMobileMenuOpen ? 'menu-opened' : ''}`}
         href="#sidebar"
         onClick={(e) => {
           e.preventDefault();
           onToggleMobileMenu();
         }}
+        title={isMobileMenuOpen ? 'Close Menu' : 'Open Menu'}
       >
-        <span className="bar-icon">
-          <span></span>
-          <span></span>
-          <span></span>
-        </span>
+        {isMobileMenuOpen ? (
+          <i className="ti ti-x fs-22 text-primary"></i>
+        ) : (
+          <span className="bar-icon">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        )}
       </a>
 
       {/* Header User Navigation Controls */}
       <div className="header-user">
         <div className="nav user-menu">
-          {/* Search Inputs */}
-          <div className="nav-item nav-search-inputs me-auto">
-            <div className="top-nav-search">
-              <a href="#" onClick={(e) => e.preventDefault()} className="responsive-search">
-                <i className="fa fa-search"></i>
-              </a>
-              <form action="#" className="dropdown" onSubmit={(e) => e.preventDefault()}>
-                <div className="searchinputs" id="dropdownMenuClickable">
-                  <input type="text" placeholder="Search" />
-                  <div className="search-addon">
-                    <button type="submit">
-                      <i className="ti ti-command"></i>
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </div>
-          </div>
+          {/* Left Spacer */}
+          <div className="me-auto"></div>
 
           <div className="d-flex align-items-center">
-            {/* Academic Year Dropdown */}
-            <div className="dropdown me-2">
-              <a href="#" className="btn btn-outline-light fw-normal bg-white d-flex align-items-center p-2" data-bs-toggle="dropdown" aria-expanded="false">
-                <i className="ti ti-calendar-due me-1"></i>Academic Year : 2025 / 2026
-              </a>
-              <div className="dropdown-menu dropdown-menu-right">
-                <button type="button" className="dropdown-item d-flex align-items-center active">Academic Year : 2025 / 2026</button>
-                <button type="button" className="dropdown-item d-flex align-items-center">Academic Year : 2024 / 2025</button>
-              </div>
+            {/* Current Academic Year Badge (No Dropdown) */}
+            <div className="me-2 d-none d-sm-flex align-items-center bg-white border rounded px-2 py-1 text-dark fw-medium fs-13 shadow-none">
+              <i className="ti ti-calendar-due me-1 text-primary"></i>
+              <span>Academic Year : <strong className="text-primary">{currentYearText}</strong></span>
             </div>
 
             {/* Add New Quick Button */}
@@ -125,12 +174,101 @@ const Navbar = ({ onToggleMobileMenu }) => {
               </a>
             </div>
 
-            {/* Notifications Icon */}
-            <div className="pe-1" id="notification_item">
-              <a href="#" className="btn btn-outline-light bg-white btn-icon position-relative me-1" id="notification_popup">
+            {/* Notifications Icon & Dropdown */}
+            <div
+              className={`pe-1 position-relative ${showNotifications ? 'notification-item-show' : ''}`}
+              id="notification_item"
+              ref={notificationRef}
+            >
+              <button
+                type="button"
+                className="btn btn-outline-light bg-white btn-icon position-relative me-1"
+                id="notification_popup"
+                onClick={() => setShowNotifications((prev) => !prev)}
+                title="Notifications"
+              >
                 <i className="ti ti-bell"></i>
-                <span className="notification-status-dot"></span>
-              </a>
+                {hasUnread && <span className="notification-status-dot"></span>}
+              </button>
+
+              {showNotifications && (
+                <div
+                  className="dropdown-menu dropdown-menu-end notification-dropdown p-3 shadow-lg border show"
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    right: 0,
+                    left: 'auto',
+                    minWidth: '340px',
+                    maxWidth: '380px',
+                    display: 'block',
+                    zIndex: 1050,
+                  }}
+                >
+                  <div className="d-flex align-items-center justify-content-between border-bottom pb-2 mb-3">
+                    <h5 className="notification-title mb-0 fs-15 fw-bold text-dark">
+                      Notifications {notifications.length > 0 ? `(${notifications.length})` : ''}
+                    </h5>
+                    {hasUnread && (
+                      <button
+                        type="button"
+                        onClick={() => setHasUnread(false)}
+                        className="btn btn-link text-primary p-0 fs-12 text-decoration-none fw-medium"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="noti-content" style={{ maxHeight: '280px', overflowY: 'auto' }}>
+                    {notifications.length > 0 ? (
+                      <div className="d-flex flex-column gap-2">
+                        {notifications.slice(0, 5).map((notice, idx) => (
+                          <div
+                            key={notice.id || idx}
+                            className="p-2 rounded border-bottom bg-light-300 transition-all hover-bg"
+                          >
+                            <div className="d-flex align-items-start gap-2">
+                              <span className="avatar avatar-sm bg-primary-transparent text-primary rounded-circle flex-shrink-0 mt-1 d-flex align-items-center justify-content-center">
+                                <i className="ti ti-note fs-14"></i>
+                              </span>
+                              <div className="overflow-hidden flex-fill">
+                                <p className="mb-1 fs-13 fw-semibold text-dark text-truncate">
+                                  {notice.title}
+                                </p>
+                                {notice.message && (
+                                  <p className="mb-1 fs-12 text-muted text-truncate">
+                                    {notice.message}
+                                  </p>
+                                )}
+                                <span className="fs-11 text-muted d-block">
+                                  <i className="ti ti-calendar me-1"></i>
+                                  {notice.publish_on || notice.notice_date || 'Recent Notice'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-4 text-muted">
+                        <i className="ti ti-bell-off fs-28 d-block mb-1 opacity-50"></i>
+                        <p className="mb-0 fs-12">No notifications found</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="pt-2 mt-2 border-top">
+                    <Link
+                      to="/admin/announcements"
+                      className="btn btn-primary btn-sm w-100 fw-medium"
+                      onClick={() => setShowNotifications(false)}
+                    >
+                      View All Notices
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Fullscreen Toggle */}

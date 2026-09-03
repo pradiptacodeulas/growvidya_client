@@ -1,3 +1,4 @@
+import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -7,11 +8,13 @@ import {
 } from '../../../api/adminTeacher.api';
 import maleUser from '../../../assets/male-user.png';
 import Avatar from '../../../components/common/Avatar';
+import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const TeacherDetails = () => {
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const navigate = useNavigate();
 
   const [teacher, setTeacher] = useState(null);
@@ -208,7 +211,7 @@ const TeacherDetails = () => {
                 <i className="ti ti-lock me-2"></i>Login Details
               </button>
               <Link
-                to={`/admin/teachers/edit/${teacher.id}`}
+                to={`/admin/teachers/edit/${encodeParam(teacher.id)}`}
                 className="btn btn-primary d-flex align-items-center mb-2"
               >
                 <i className="ti ti-edit-circle me-2"></i>Edit Teacher
@@ -275,7 +278,9 @@ const TeacherDetails = () => {
                   <dd className="col-6 mb-3 text-dark">{teacher.subject_name || 'N/A'}</dd>
 
                   <dt className="col-6 fw-medium text-dark mb-3">Gender</dt>
-                  <dd className="col-6 mb-3 text-dark">{teacher.gender_name || 'N/A'}</dd>
+                  <dd className="col-6 mb-3 text-dark">
+                    {teacher.gender_name || (teacher.gender_id === 2 || teacher.gender === '2' || teacher.gender === 2 ? 'Female' : teacher.gender_id === 3 || teacher.gender === '3' || teacher.gender === 3 ? 'Others' : 'Male')}
+                  </dd>
 
                   <dt className="col-6 fw-medium text-dark mb-3">Blood Group</dt>
                   <dd className="col-6 mb-3 text-dark">{teacher.blood_group_name || 'N/A'}</dd>

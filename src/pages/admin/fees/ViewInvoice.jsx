@@ -3,9 +3,11 @@ import { useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import { downloadPdfFromElement, printIsolatedTemplate, shareOrDownloadPdf } from '../../../utils/printPdf.util';
+import { decodeParam } from '../../../utils/idHelper';
 
 const ViewInvoice = () => {
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);

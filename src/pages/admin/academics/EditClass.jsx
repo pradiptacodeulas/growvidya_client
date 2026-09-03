@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchClassByIdApi, createClassApi, updateClassApi, fetchShiftsApi } from '../../../api/adminAcademic.api';
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditClass = () => {
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const navigate = useNavigate();
   const isEdit = Boolean(id);
 
@@ -81,7 +83,7 @@ const EditClass = () => {
     try {
       setSaving(true);
       const payload = {
-        shift_id: Number(formData.shift_id),
+        shift_id: formData.shift_id,
         class_name: formData.class_name.trim(),
         sort_order: Number(formData.sort_order) || 0,
         status: Number(formData.status),

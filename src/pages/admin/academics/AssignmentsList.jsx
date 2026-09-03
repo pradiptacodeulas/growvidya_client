@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchClassesApi, fetchShiftsApi } from '../../../api/adminAcademic.api';
+import { encodeParam } from '../../../utils/idHelper';
 
 const AssignmentsList = () => {
   const [shifts, setShifts] = useState([]);
@@ -102,11 +103,10 @@ const AssignmentsList = () => {
                   ) : (
                     <div className="row g-3">
                       {shift.classes.map((cls) => {
-                        const encodedClassId = btoa(String(cls.id));
                         return (
                           <div key={cls.id} className="col-xl-3 col-lg-4 col-md-6">
                             <Link
-                              to={`/admin/academics/assignments/section/${encodedClassId}`}
+                              to={`/admin/academics/assignments/section/${encodeParam(cls.id)}`}
                               className="text-decoration-none"
                             >
                               <div className="class-card text-center p-4 border rounded shadow-sm bg-white hover-shadow transition-all">
@@ -139,11 +139,10 @@ const AssignmentsList = () => {
                 <div className="card-body p-4">
                   <div className="row g-3">
                     {unassignedClasses.map((cls) => {
-                      const encodedClassId = btoa(String(cls.id));
                       return (
                         <div key={cls.id} className="col-xl-3 col-lg-4 col-md-6">
                           <Link
-                            to={`/admin/academics/assignments/section/${encodedClassId}`}
+                            to={`/admin/academics/assignments/section/${encodeParam(cls.id)}`}
                             className="text-decoration-none"
                           >
                             <div className="class-card text-center p-4 border rounded shadow-sm bg-white hover-shadow transition-all">

@@ -3,16 +3,20 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import { decodeParam } from '../../../utils/idHelper';
 
 const AddExamSubject = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const rawExamParam = searchParams.get('exam_id') || searchParams.get('examId') || '';
+  const rawClassParam = searchParams.get('class_id') || searchParams.get('classId') || '';
+
   const [exams, setExams] = useState([]);
   const [classes, setClasses] = useState([]);
 
-  const [selectedExamId, setSelectedExamId] = useState(searchParams.get('exam_id') || '');
-  const [selectedClassId, setSelectedClassId] = useState(searchParams.get('class_id') || '');
+  const [selectedExamId, setSelectedExamId] = useState(decodeParam(rawExamParam) || '');
+  const [selectedClassId, setSelectedClassId] = useState(decodeParam(rawClassParam) || '');
 
   const [loading, setLoading] = useState(false);
   const [matrixData, setMatrixData] = useState({

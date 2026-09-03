@@ -5,24 +5,11 @@ import {
   fetchSyllabusByIdApi,
   updateSyllabusApi,
 } from '../../../api/adminAcademic.api';
-
-const resolveId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64
-  }
-  return paramId;
-};
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditSyllabus = () => {
   const { id: rawId } = useParams();
-  const id = resolveId(rawId);
+  const id = decodeParam(rawId);
   const navigate = useNavigate();
 
   const [syllabus, setSyllabus] = useState(null);
@@ -174,7 +161,7 @@ const EditSyllabus = () => {
                       >
                         <option value="1">Pending</option>
                         <option value="2">Progress</option>
-                        <option value="3">Completed</option>
+                        <option value="3">Complete</option>
                       </select>
                     </div>
                   </div>

@@ -612,13 +612,13 @@ const FeesCollectionDashboard = () => {
           <div className="modal-dialog modal-dialog-centered" role="document">
             <div className="modal-content border-0 shadow-lg">
               <form onSubmit={handlePaySubmit}>
-                <div className="modal-header bg-primary text-white py-3">
-                  <h5 className="modal-title text-white fw-bold">
-                    <i className="ti ti-cash me-2"></i>Receive Fee Payment
+                <div className="modal-header py-3 px-4 border-bottom">
+                  <h5 className="modal-title text-dark fw-bold">
+                    <i className="ti ti-cash me-2 text-primary"></i>Receive Fee Payment
                   </h5>
                   <button
                     type="button"
-                    className="btn-close btn-close-white"
+                    className="btn-close"
                     onClick={() => setShowPayModal(false)}
                   ></button>
                 </div>

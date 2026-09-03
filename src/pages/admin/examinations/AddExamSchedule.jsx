@@ -1,15 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 
 const AddExamSchedule = () => {
+  const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
+  const isTeacher = Boolean(
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher')) ||
+    (isTeacherAuth && teacher)
+  );
+  const basePath = isTeacher ? '/teacher' : '/admin';
+
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  const queryExamId = searchParams.get('exam_id') || '';
-  const queryClassId = searchParams.get('class_id') || '';
+  const decodeParamId = (val) => {
+    if (!val) return '';
+    try {
+      const unescaped = decodeURIComponent(val);
+      const decoded = atob(unescaped);
+      if (/^\d+$/.test(decoded)) return decoded;
+    } catch (e) {}
+    return val;
+  };
+
+  const queryExamId = decodeParamId(searchParams.get('exam_id'));
+  const queryClassId = decodeParamId(searchParams.get('class_id'));
+  const queryYearId = decodeParamId(searchParams.get('academic_year_id'));
+
+  const [academicYears, setAcademicYears] = useState([]);
+  const [selectedAcademicYearId, setSelectedAcademicYearId] = useState(queryYearId);
 
   const [exams, setExams] = useState([]);
   const [classes, setClasses] = useState([]);
@@ -31,15 +53,17 @@ const AddExamSchedule = () => {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const [exRes, clsRes] = await Promise.all([
-        adminExaminationApi.getAllExams({ status: 1 }),
-        adminAcademicApi.getAllClasses({ status: 1 }),
+      const [ayRes, clsRes] = await Promise.all([
+        adminAcademicApi.getAllAcademicYears().catch(() => ({ data: [] })),
+        adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
       ]);
 
-      const examsList = Array.isArray(exRes?.data?.exams)
-        ? exRes.data.exams
-        : Array.isArray(exRes?.data)
-        ? exRes.data
+      const ayList = Array.isArray(ayRes?.data)
+        ? ayRes.data
+        : Array.isArray(ayRes?.data?.academic_years)
+        ? ayRes.data.academic_years
+        : Array.isArray(ayRes)
+        ? ayRes
         : [];
 
       const classesList = Array.isArray(clsRes?.data)
@@ -50,17 +74,36 @@ const AddExamSchedule = () => {
         ? clsRes
         : [];
 
-      setExams(examsList);
+      setAcademicYears(ayList);
       setClasses(classesList);
 
-      const targetExam = selectedExamId || (examsList.length > 0 ? examsList[0].id : '');
-      const targetClass = selectedClassId || (classesList.length > 0 ? classesList[0].id : '');
+      const currentYr =
+        ayList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+        ayList[0];
+      const targetYear = queryYearId || (currentYr ? String(currentYr.id) : '');
+      setSelectedAcademicYearId(targetYear);
+
+      const exRes = await adminExaminationApi.getAllExams({
+        academic_year: targetYear,
+        status: 1,
+      }).catch(() => ({ data: [] }));
+
+      const examsList = Array.isArray(exRes?.data?.exams)
+        ? exRes.data.exams
+        : Array.isArray(exRes?.data)
+        ? exRes.data
+        : [];
+
+      setExams(examsList);
+
+      const targetExam = selectedExamId || (examsList.length > 0 ? String(examsList[0].id) : '');
+      const targetClass = selectedClassId || (classesList.length > 0 ? String(classesList[0].id) : '');
 
       setSelectedExamId(targetExam);
       setSelectedClassId(targetClass);
 
       if (targetExam && targetClass) {
-        loadScheduleMatrix(targetExam, targetClass);
+        loadScheduleMatrix(targetExam, targetClass, targetYear);
       }
     } catch (err) {
       console.error('Failed to load initial data:', err);
@@ -70,7 +113,7 @@ const AddExamSchedule = () => {
     }
   };
 
-  const loadScheduleMatrix = async (examId, classId) => {
+  const loadScheduleMatrix = async (examId, classId, yearId = selectedAcademicYearId) => {
     if (!examId || !classId) {
       setSubjects([]);
       setScheduleEntries({});
@@ -81,7 +124,7 @@ const AddExamSchedule = () => {
       setTableLoading(true);
       const [configRes, schRes] = await Promise.all([
         adminExaminationApi.getExamSubjectConfig({ exam_id: examId, class_id: classId }),
-        adminExaminationApi.getExamSchedules({ exam_id: examId, class_id: classId }),
+        adminExaminationApi.getExamSchedules({ exam_id: examId, class_id: classId, academic_year_id: yearId }),
       ]);
 
       const subs = configRes?.data?.subjects || [];
@@ -119,11 +162,46 @@ const AddExamSchedule = () => {
     }
   };
 
+  const handleAcademicYearChange = async (e) => {
+    const yearId = e.target.value;
+    setSelectedAcademicYearId(yearId);
+
+    try {
+      setTableLoading(true);
+      const exRes = await adminExaminationApi.getAllExams({
+        academic_year: yearId,
+        status: 1,
+      }).catch(() => ({ data: [] }));
+
+      const examsList = Array.isArray(exRes?.data?.exams)
+        ? exRes.data.exams
+        : Array.isArray(exRes?.data)
+        ? exRes.data
+        : [];
+
+      setExams(examsList);
+
+      const nextExamId = examsList.length > 0 ? String(examsList[0].id) : '';
+      setSelectedExamId(nextExamId);
+
+      if (nextExamId && selectedClassId) {
+        loadScheduleMatrix(nextExamId, selectedClassId, yearId);
+      } else {
+        setSubjects([]);
+        setScheduleEntries({});
+      }
+    } catch (err) {
+      console.error('Failed to reload exams for academic year:', err);
+    } finally {
+      setTableLoading(false);
+    }
+  };
+
   const handleExamChange = (e) => {
     const val = e.target.value;
     setSelectedExamId(val);
     if (val && selectedClassId) {
-      loadScheduleMatrix(val, selectedClassId);
+      loadScheduleMatrix(val, selectedClassId, selectedAcademicYearId);
     }
   };
 
@@ -131,7 +209,7 @@ const AddExamSchedule = () => {
     const val = e.target.value;
     setSelectedClassId(val);
     if (selectedExamId && val) {
-      loadScheduleMatrix(selectedExamId, val);
+      loadScheduleMatrix(selectedExamId, val, selectedAcademicYearId);
     }
   };
 
@@ -174,11 +252,12 @@ const AddExamSchedule = () => {
       await adminExaminationApi.createExamSchedule({
         exam_id: selectedExamId,
         class_id: selectedClassId,
+        academic_year_id: selectedAcademicYearId,
         items,
       });
 
       toast.success('Exam schedule saved successfully!');
-      navigate('/admin/examinations/schedules');
+      navigate(`${basePath}/examinations/schedules`);
     } catch (err) {
       console.error('Failed to save exam schedule:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to save exam schedule.');
@@ -198,10 +277,10 @@ const AddExamSchedule = () => {
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
               <li className="breadcrumb-item">
-                <Link to="/admin/examinations/schedules">Exam Schedule</Link>
+                <Link to={`${basePath}/examinations/schedules`}>Exam Schedule</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
                 {existingScheduleCount > 0 ? 'Edit Exam Schedule' : 'Add Exam Schedule'}
@@ -228,6 +307,29 @@ const AddExamSchedule = () => {
                   <div className="col-md-3">
                     <div className="mb-3">
                       <label className="form-label">
+                        Academic Year <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="form-select select"
+                        name="academic_year_id"
+                        id="academic_year_id"
+                        required
+                        value={selectedAcademicYearId}
+                        onChange={handleAcademicYearChange}
+                      >
+                        <option value="">Select Academic Year</option>
+                        {academicYears.map((ay) => (
+                          <option key={ay.id} value={ay.id}>
+                            {ay.academic_year || ay.academic_year_name || ay.year}
+                            {Number(ay.is_current) === 1 || String(ay.is_current) === '1' ? ' (Current)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="col-md-3">
+                    <div className="mb-3">
+                      <label className="form-label">
                         Exam <span className="text-danger">*</span>
                       </label>
                       <select
@@ -238,7 +340,7 @@ const AddExamSchedule = () => {
                         value={selectedExamId}
                         onChange={handleExamChange}
                       >
-                        <option value="">Select</option>
+                        <option value="">Select Exam</option>
                         {exams.map((exam) => (
                           <option key={exam.id} value={exam.id}>
                             {exam.exam_name}
@@ -260,7 +362,7 @@ const AddExamSchedule = () => {
                         value={selectedClassId}
                         onChange={handleClassChange}
                       >
-                        <option value="">Select</option>
+                        <option value="">Select Class</option>
                         {classes.map((cls) => (
                           <option key={cls.id} value={cls.id}>
                             {cls.class_name}
@@ -379,7 +481,7 @@ const AddExamSchedule = () => {
                 <div className="text-end mb-2 mt-4">
                   <button
                     type="button"
-                    onClick={() => navigate('/admin/examinations/schedules')}
+                    onClick={() => navigate(`${basePath}/examinations/schedules`)}
                     className="btn btn-light me-3"
                   >
                     Cancel

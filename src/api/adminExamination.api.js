@@ -106,6 +106,11 @@ const adminExaminationApi = {
     return res.data;
   },
 
+  getExamSchedulesList: async (params) => {
+    const res = await apiClient.get('/admin/examinations/schedules', { params });
+    return res.data;
+  },
+
   getExamScheduleById: async (id) => {
     const res = await apiClient.get(`/admin/examinations/schedules/${id}`);
     return res.data;
@@ -132,6 +137,16 @@ const adminExaminationApi = {
     return res.data;
   },
 
+  getExamAttendanceList: async (params) => {
+    const res = await apiClient.get('/admin/examinations/attendance', { params });
+    return res.data;
+  },
+
+  getExamAttendance: async (params) => {
+    const res = await apiClient.get('/admin/examinations/attendance', { params });
+    return res.data;
+  },
+
   saveExamAttendanceBatch: async (data) => {
     const res = await apiClient.post('/admin/examinations/attendance', data);
     return res.data;
@@ -154,6 +169,36 @@ const adminExaminationApi = {
 
   saveStudentMarksBatch: async (data) => {
     const res = await apiClient.post('/admin/examinations/results/save-marks', data);
+    return res.data;
+  },
+
+  // 7. A4 Portrait Marksheet PDF & Student Search
+  getMarksheetStudents: async (params) => {
+    const res = await apiClient.get('/admin/examinations/marksheet/students', { params });
+    return res.data;
+  },
+
+  downloadMarksheetPdf: async (dataOrParams) => {
+    const isPost = dataOrParams && Array.isArray(dataOrParams.studentIds);
+    const config = {
+      responseType: 'blob',
+    };
+    if (isPost) {
+      const res = await apiClient.post('/admin/examinations/marksheet/pdf', dataOrParams, config);
+      return res.data;
+    }
+    const res = await apiClient.get('/admin/examinations/marksheet/pdf', {
+      params: dataOrParams,
+      ...config,
+    });
+    return res.data;
+  },
+
+  downloadStudentMarksheetPdf: async (studentId, params = {}) => {
+    const res = await apiClient.get(`/admin/examinations/marksheet/pdf/${studentId}`, {
+      params,
+      responseType: 'blob',
+    });
     return res.data;
   },
 };

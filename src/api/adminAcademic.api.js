@@ -5,21 +5,47 @@ export const fetchAcademicOverviewApi = async () => {
 };
 
 // Academic Years
-export const fetchAcademicYearsApi = async () => await apiFetch('/admin/academics/years');
+export const fetchAcademicYearsApi = async (params = {}) => {
+  if (typeof params === 'object' && params !== null) {
+    const query = new URLSearchParams(params).toString();
+    return await apiFetch(`/admin/academics/years${query ? `?${query}` : ''}`);
+  }
+  return await apiFetch('/admin/academics/years');
+};
 export const fetchAcademicYearByIdApi = async (id) => await apiFetch(`/admin/academics/years/${id}`);
 export const createAcademicYearApi = async (data) => await apiFetch('/admin/academics/years', { method: 'POST', body: JSON.stringify(data) });
 export const updateAcademicYearApi = async (id, data) => await apiFetch(`/admin/academics/years/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteAcademicYearApi = async (id) => await apiFetch(`/admin/academics/years/${id}`, { method: 'DELETE' });
 
 // Classes
-export const fetchClassesApi = async () => await apiFetch('/admin/academics/classes');
+export const fetchClassesApi = async (params = {}) => {
+  if (typeof params === 'object' && params !== null) {
+    const query = new URLSearchParams(params).toString();
+    return await apiFetch(`/admin/academics/classes${query ? `?${query}` : ''}`);
+  }
+  return await apiFetch('/admin/academics/classes');
+};
 export const fetchClassByIdApi = async (id) => await apiFetch(`/admin/academics/classes/${id}`);
 export const createClassApi = async (data) => await apiFetch('/admin/academics/classes', { method: 'POST', body: JSON.stringify(data) });
 export const updateClassApi = async (id, data) => await apiFetch(`/admin/academics/classes/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteClassApi = async (id) => await apiFetch(`/admin/academics/classes/${id}`, { method: 'DELETE' });
 
 // Sections
-export const fetchSectionsApi = async (classId = null) => await apiFetch(`/admin/academics/sections${classId ? `?classId=${classId}` : ''}`);
+export const fetchSectionsApi = async (paramsOrClassId = null) => {
+  if (typeof paramsOrClassId === 'object' && paramsOrClassId !== null) {
+    const query = new URLSearchParams();
+    const classId = paramsOrClassId.class_id ?? paramsOrClassId.classId;
+    if (classId) {
+      query.set('class_id', classId);
+      query.set('classId', classId);
+    }
+    if (paramsOrClassId.status !== undefined) query.set('status', paramsOrClassId.status);
+    if (paramsOrClassId.activeOnly !== undefined) query.set('activeOnly', paramsOrClassId.activeOnly);
+    const qs = query.toString();
+    return await apiFetch(`/admin/academics/sections${qs ? `?${qs}` : ''}`);
+  }
+  return await apiFetch(`/admin/academics/sections${paramsOrClassId ? `?class_id=${paramsOrClassId}&classId=${paramsOrClassId}` : ''}`);
+};
 export const fetchSectionByIdApi = async (id) => await apiFetch(`/admin/academics/sections/detail/${id}`);
 export const createSectionApi = async (data) => await apiFetch('/admin/academics/sections', { method: 'POST', body: JSON.stringify(data) });
 export const updateSectionApi = async (id, data) => await apiFetch(`/admin/academics/sections/${id}`, { method: 'PUT', body: JSON.stringify(data) });
@@ -91,6 +117,7 @@ export const fetchSyllabusListApi = async (params = {}) => {
 export const fetchSyllabusByIdApi = async (id) => await apiFetch(`/admin/academics/syllabus/${id}`);
 export const createSyllabusApi = async (data) => await apiFetch('/admin/academics/syllabus', { method: 'POST', body: JSON.stringify(data) });
 export const updateSyllabusApi = async (id, data) => await apiFetch(`/admin/academics/syllabus/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const updateSyllabusStatusApi = async (id, status) => await apiFetch(`/admin/academics/syllabus/${id}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
 export const deleteSyllabusApi = async (id) => await apiFetch(`/admin/academics/syllabus/${id}`, { method: 'DELETE' });
 
 // Lessons / Syllabus (legacy)
@@ -117,7 +144,28 @@ export const fetchAssignmentByIdApi = async (id) => await apiFetch(`/admin/acade
 export const fetchAssignmentQuestionsApi = async (id) => await apiFetch(`/admin/academics/assignments/${id}/questions`);
 export const publishAssignmentApi = async (id) => await apiFetch(`/admin/academics/assignments/${id}/publish`, { method: 'POST' });
 export const createAssignmentApi = async (data) => await apiFetch('/admin/academics/assignments', { method: 'POST', body: JSON.stringify(data) });
+export const updateAssignmentApi = async (id, data) => await apiFetch(`/admin/academics/assignments/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteAssignmentApi = async (id) => await apiFetch(`/admin/academics/assignments/${id}`, { method: 'DELETE' });
+
+// Study Materials & Types
+export const fetchMaterialTypesApi = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return await apiFetch(`/admin/academics/material-types${query ? `?${query}` : ''}`);
+};
+export const fetchMaterialTypeByIdApi = async (id) => await apiFetch(`/admin/academics/material-types/${id}`);
+export const createMaterialTypeApi = async (data) => await apiFetch('/admin/academics/material-types', { method: 'POST', body: JSON.stringify(data) });
+export const updateMaterialTypeApi = async (id, data) => await apiFetch(`/admin/academics/material-types/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const deleteMaterialTypeApi = async (id) => await apiFetch(`/admin/academics/material-types/${id}`, { method: 'DELETE' });
+
+export const fetchStudyMaterialsApi = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return await apiFetch(`/admin/academics/study-materials${query ? `?${query}` : ''}`);
+};
+export const fetchStudyMaterialByIdApi = async (id) => await apiFetch(`/admin/academics/study-materials/${id}`);
+export const createStudyMaterialApi = async (data) => await apiFetch('/admin/academics/study-materials', { method: 'POST', body: JSON.stringify(data) });
+export const updateStudyMaterialApi = async (id, data) => await apiFetch(`/admin/academics/study-materials/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const toggleStudyMaterialStatusApi = async (id) => await apiFetch(`/admin/academics/study-materials/toggle_status/${id}`, { method: 'POST' });
+export const deleteStudyMaterialApi = async (id) => await apiFetch(`/admin/academics/study-materials/${id}`, { method: 'DELETE' });
 
 const adminAcademicApi = {
   fetchAcademicOverviewApi,
@@ -225,6 +273,7 @@ const adminAcademicApi = {
   fetchAssignmentQuestionsApi,
   publishAssignmentApi,
   createAssignmentApi,
+  updateAssignmentApi,
   deleteAssignmentApi,
   getAssignments: fetchAssignmentsApi,
 };

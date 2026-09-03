@@ -11,26 +11,12 @@ import {
   createAssignmentApi,
   deleteAssignmentApi,
 } from '../../../api/adminAcademic.api';
-
-// Helper to resolve base64 or normal numeric ID
-const resolveId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64
-  }
-  return paramId;
-};
+import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 const AssignmentSubjectView = () => {
   const { classId: rawClassId, sectionId: rawSectionId } = useParams();
-  const classId = resolveId(rawClassId);
-  const sectionId = resolveId(rawSectionId);
+  const classId = decodeParam(rawClassId);
+  const sectionId = decodeParam(rawSectionId);
 
   const [classInfo, setClassInfo] = useState(null);
   const [sectionInfo, setSectionInfo] = useState(null);
@@ -61,7 +47,7 @@ const AssignmentSubjectView = () => {
       setLoading(true);
       const [clsRes, secRes, subRes, asgRes, typRes] = await Promise.all([
         fetchClassByIdApi(classId).catch(() => null),
-        fetchSectionsApi().catch(() => ({ data: [] })),
+        fetchSectionsApi(classId).catch(() => ({ data: [] })),
         fetchSubjectsApi({ classId }).catch(() => ({ data: [] })),
         fetchAssignmentsApi({ class_id: classId, section_id: sectionId }).catch(() => ({ data: [] })),
         fetchAssignmentTypesApi().catch(() => ({ data: [] })),
@@ -76,16 +62,32 @@ const AssignmentSubjectView = () => {
       setClassInfo(clsData);
 
       const secList = Array.isArray(secRes?.data) ? secRes.data : Array.isArray(secRes) ? secRes : [];
-      const currentSec = secList.find((s) => String(s.id) === String(sectionId));
+      let currentSec = secList.find((s) => String(s.id) === String(sectionId));
+      if (!currentSec) {
+        const allSec = await fetchSectionsApi().catch(() => ({ data: [] }));
+        const allSecList = Array.isArray(allSec?.data) ? allSec.data : Array.isArray(allSec) ? allSec : [];
+        currentSec = allSecList.find((s) => String(s.id) === String(sectionId));
+      }
       setSectionInfo(currentSec);
 
-      const subList = Array.isArray(subRes?.data) ? subRes.data : Array.isArray(subRes) ? subRes : [];
+      let subList = Array.isArray(subRes?.data) ? subRes.data : Array.isArray(subRes) ? subRes : [];
+      if (subList.length === 0) {
+        const allSubs = await fetchSubjectsApi().catch(() => ({ data: [] }));
+        const allSubList = Array.isArray(allSubs?.data) ? allSubs.data : Array.isArray(allSubs) ? allSubs : [];
+        subList = allSubList;
+      }
       const classSubjects = subList.filter(
         (s) => String(s.class_id) === String(classId) && s.status !== 4
       );
-      setSubjects(classSubjects.length > 0 ? classSubjects : subList);
+      setSubjects(classSubjects.length > 0 ? classSubjects : subList.filter((s) => s.status !== 4));
 
-      const asgList = Array.isArray(asgRes?.data) ? asgRes.data : Array.isArray(asgRes) ? asgRes : [];
+      const asgList = Array.isArray(asgRes?.data)
+        ? asgRes.data
+        : Array.isArray(asgRes?.data?.assignments)
+        ? asgRes.data.assignments
+        : Array.isArray(asgRes)
+        ? asgRes
+        : [];
       setAssignments(asgList);
 
       const typesList = Array.isArray(typRes?.data?.assignment_types)
@@ -131,11 +133,11 @@ const AssignmentSubjectView = () => {
     try {
       setSubmitting(true);
       await createAssignmentApi({
-        assignment_type_id: Number(formData.assignment_type_id) || null,
+        assignment_type_id: formData.assignment_type_id || null,
         title: formData.title.trim(),
-        class_id: Number(classId),
-        section_id: Number(sectionId),
-        subject_id: Number(selectedSubject.id),
+        class_id: classId,
+        section_id: sectionId,
+        subject_id: selectedSubject.id,
         assigned_date: formData.assigned_date,
         due_date: formData.due_date,
       });
@@ -145,7 +147,13 @@ const AssignmentSubjectView = () => {
 
       // Reload assignments
       const asgRes = await fetchAssignmentsApi({ class_id: classId, section_id: sectionId });
-      const asgList = Array.isArray(asgRes?.data) ? asgRes.data : Array.isArray(asgRes) ? asgRes : [];
+      const asgList = Array.isArray(asgRes?.data)
+        ? asgRes.data
+        : Array.isArray(asgRes?.data?.assignments)
+        ? asgRes.data.assignments
+        : Array.isArray(asgRes)
+        ? asgRes
+        : [];
       setAssignments(asgList);
     } catch (err) {
       toast.error(err.message || 'Failed to create assignment.');
@@ -160,17 +168,28 @@ const AssignmentSubjectView = () => {
       await deleteAssignmentApi(asgId);
       toast.success('Assignment deleted.');
       const asgRes = await fetchAssignmentsApi({ class_id: classId, section_id: sectionId });
-      const asgList = Array.isArray(asgRes?.data) ? asgRes.data : Array.isArray(asgRes) ? asgRes : [];
+      const asgList = Array.isArray(asgRes?.data)
+        ? asgRes.data
+        : Array.isArray(asgRes?.data?.assignments)
+        ? asgRes.data.assignments
+        : Array.isArray(asgRes)
+        ? asgRes
+        : [];
       setAssignments(asgList);
     } catch (err) {
       toast.error(err.message || 'Failed to delete assignment.');
     }
   };
 
-  const encodedClassId = btoa(String(classId));
+  const getSubjectAssignmentCount = (subjectId) => {
+    return assignments.filter((a) => String(a.subject_id) === String(subjectId)).length;
+  };
+
+  const encodedClassId = encodeParam(classId);
+  const encodedSectionId = encodeParam(sectionId);
   const shiftTitle = classInfo?.shift_name ? `(${classInfo.shift_name.trim()} )` : '';
   const currentSubjectAssignments = selectedSubject
-    ? assignments.filter((a) => Number(a.subject_id) === Number(selectedSubject.id))
+    ? assignments.filter((a) => String(a.subject_id) === String(selectedSubject.id))
     : [];
 
   return (
@@ -186,6 +205,9 @@ const AssignmentSubjectView = () => {
               </li>
               <li className="breadcrumb-item">
                 <Link to="/admin/academics/assignments">Class Assignment</Link>
+              </li>
+              <li className="breadcrumb-item">
+                <Link to={`/admin/academics/assignments/section/${encodedClassId}`}>Sections</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
                 Subjects
@@ -212,39 +234,36 @@ const AssignmentSubjectView = () => {
             <p className="text-muted mb-0">Loading subjects and assignments...</p>
           </div>
         ) : (
-          <div className="card shift-card mb-4 shadow-sm border-0">
-            <div className="card-header bg-primary text-white d-flex align-items-center justify-content-between py-3 px-4">
-              <h5 className="mb-0 text-white fw-bold d-flex align-items-center">
-                <i className="ti ti-school me-2 fs-18"></i>
-                Class: {classInfo?.class_name || classId} {shiftTitle} - Section {sectionInfo?.section_name || sectionId}
+          <div className="card shift-card mb-4 shadow-sm border">
+            <div className="card-header shift-header bg-light d-flex align-items-center justify-content-between py-3 px-4 border-bottom">
+              <h5 className="mb-0 text-dark fw-bold d-flex align-items-center">
+                <i className="ti ti-school me-2 text-primary fs-20"></i>
+                Class : {classInfo?.class_name || classId} {shiftTitle} - Section {sectionInfo?.section_name || sectionId}
               </h5>
-              <span className="badge bg-white text-primary fw-semibold px-3 py-2 fs-13">
+              <span className="badge bg-white text-primary border px-3 py-2 fs-13 fw-semibold shadow-2xs">
                 <i className="ti ti-book me-1"></i> {subjects.length} Subjects Total
               </span>
             </div>
 
             <div className="card-body p-4">
               {subjects.length === 0 ? (
-                <div className="text-center py-5">
+                <div className="text-center py-4">
                   <p className="text-muted mb-0 fst-italic">No subjects found for this class.</p>
                 </div>
               ) : (
-                <div className="row g-4">
+                <div className="row g-3">
                   {subjects.map((sub) => {
-                    const subjectAssignments = assignments.filter(
-                      (a) => Number(a.subject_id) === Number(sub.id)
-                    );
-                    const count = subjectAssignments.length;
+                    const count = getSubjectAssignmentCount(sub.id);
 
                     return (
-                      <div key={sub.id} className="col-xl-4 col-lg-6 col-md-6">
-                        <div className="card h-100 border shadow-sm rounded-3 hover-shadow transition-all bg-white">
-                          <div className="card-body text-center p-4">
+                      <div key={sub.id} className="col-xl-3 col-lg-4 col-md-6">
+                        <div className="subject-card border rounded p-4 text-center h-100 d-flex flex-column justify-content-between shadow-sm bg-white hover-shadow transition-all">
+                          <div>
                             <div
-                              className="avatar avatar-xl bg-primary-subtle text-primary rounded-circle mb-3 mx-auto d-flex align-items-center justify-content-center"
-                              style={{ width: '60px', height: '60px' }}
+                              className="subject-icon mb-3 mx-auto bg-primary-subtle text-primary rounded-circle d-flex align-items-center justify-content-center"
+                              style={{ width: '56px', height: '56px' }}
                             >
-                              <i className="ti ti-book-2 fs-24"></i>
+                              <i className="ti ti-book fs-24"></i>
                             </div>
                             <h5 className="fw-bold text-dark mb-1">{sub.subject_name}</h5>
                             <p className="text-muted small mb-3">Code: {sub.subject_code || 'N/A'}</p>
@@ -257,13 +276,13 @@ const AssignmentSubjectView = () => {
 
                             <div className="d-flex justify-content-center gap-2 mt-3 pt-2 border-top">
                               <Link
-                                to={`/admin/academics/assignments/addForm/${btoa(String(sub.id))}/${encodedClassId}/${btoa(String(sectionId))}`}
+                                to={`/admin/academics/assignments/addForm/${encodeParam(sub.id)}/${encodeParam(classId)}/${encodeParam(sectionId)}`}
                                 className="btn btn-sm btn-primary rounded-pill px-3 d-flex align-items-center"
                               >
                                 <i className="ti ti-plus me-1"></i> Add New
                               </Link>
                               <Link
-                                to={`/admin/academics/assignments/viewAssignment/${btoa(String(sub.id))}/${encodedClassId}/${btoa(String(sectionId))}`}
+                                to={`/admin/academics/assignments/viewAssignment/${encodeParam(sub.id)}/${encodeParam(classId)}/${encodeParam(sectionId)}`}
                                 className="btn btn-sm btn-outline-success rounded-pill px-3 d-flex align-items-center"
                               >
                                 <i className="ti ti-eye me-1"></i> View All ({count})
@@ -286,10 +305,13 @@ const AssignmentSubjectView = () => {
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
           <div className="modal-dialog modal-dialog-centered">
             <div className="modal-content border-0 shadow">
-              <div className="modal-header">
-                <h5 className="modal-title fw-bold text-dark">
-                  Add Assignment - {selectedSubject?.subject_name}
-                </h5>
+              <div className="modal-header py-3 px-4 border-bottom bg-light">
+                <div className="d-flex align-items-center gap-2">
+                  <i className="ti ti-square-rounded-plus text-primary fs-20"></i>
+                  <h5 className="modal-title fw-bold text-dark mb-0">
+                    Add Assignment - {selectedSubject?.subject_name}
+                  </h5>
+                </div>
                 <button
                   type="button"
                   className="btn-close"
@@ -382,10 +404,13 @@ const AssignmentSubjectView = () => {
         <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
           <div className="modal-dialog modal-lg modal-dialog-centered">
             <div className="modal-content border-0 shadow">
-              <div className="modal-header">
-                <h5 className="modal-title fw-bold text-dark">
-                  {selectedSubject?.subject_name} Assignments ({currentSubjectAssignments.length})
-                </h5>
+              <div className="modal-header py-3 px-4 border-bottom bg-light">
+                <div className="d-flex align-items-center gap-2">
+                  <i className="ti ti-book-2 text-primary fs-20"></i>
+                  <h5 className="modal-title fw-bold text-dark mb-0">
+                    {selectedSubject?.subject_name} Assignments ({currentSubjectAssignments.length})
+                  </h5>
+                </div>
                 <button
                   type="button"
                   className="btn-close"

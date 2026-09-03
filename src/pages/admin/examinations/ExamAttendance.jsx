@@ -1,22 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import TableActionMenu from '../../../components/common/TableActionMenu';
+import { encodeParam, decodeParam } from '../../../utils/idHelper';
 
 const ExamAttendance = () => {
-  const [searchParams] = useSearchParams();
-  const queryExamId = searchParams.get('exam_id') || '';
-  const queryClassId = searchParams.get('class_id') || '';
+  const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
+  const isTeacher = Boolean(
+    (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher')) ||
+    (isTeacherAuth && teacher)
+  );
+  const basePath = isTeacher ? '/teacher' : '/admin';
 
+  const [searchParams] = useSearchParams();
+  const queryExamId = decodeParam(searchParams.get('exam_id'));
+  const queryClassId = decodeParam(searchParams.get('class_id'));
+  const queryYearId = decodeParam(searchParams.get('academic_year_id'));
+  const querySectionId = decodeParam(searchParams.get('section_id'));
+
+  const [academicYears, setAcademicYears] = useState([]);
   const [exams, setExams] = useState([]);
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
 
   // Filters
+  const [selectedYear, setSelectedYear] = useState(queryYearId);
   const [selectedExam, setSelectedExam] = useState(queryExamId);
   const [selectedClass, setSelectedClass] = useState(queryClassId);
-  const [selectedSection, setSelectedSection] = useState('');
+  const [selectedSection, setSelectedSection] = useState(querySectionId);
 
   // Results State
   const [subjects, setSubjects] = useState([]);
@@ -32,9 +46,10 @@ const ExamAttendance = () => {
   const fetchInitialData = async () => {
     try {
       setInitialLoading(true);
-      const [exRes, clsRes] = await Promise.all([
+      const [exRes, clsRes, yrRes] = await Promise.all([
         adminExaminationApi.getAllExams({ status: 1 }),
         adminAcademicApi.getAllClasses({ status: 1 }),
+        adminAcademicApi.getAllAcademicYears(),
       ]);
 
       const examsList = Array.isArray(exRes?.data?.exams)
@@ -51,25 +66,50 @@ const ExamAttendance = () => {
         ? clsRes
         : [];
 
+      const yearsList = Array.isArray(yrRes?.data)
+        ? yrRes.data
+        : Array.isArray(yrRes?.data?.academicYears)
+        ? yrRes.data.academicYears
+        : Array.isArray(yrRes?.data?.academic_years)
+        ? yrRes.data.academic_years
+        : Array.isArray(yrRes)
+        ? yrRes
+        : [];
+
       setExams(examsList);
       setClasses(classesList);
+      setAcademicYears(yearsList);
 
-      const targetExam = queryExamId || (examsList.length > 0 ? examsList[0].id : '');
-      const targetClass = queryClassId || (classesList.length > 0 ? classesList[0].id : '');
-
-      setSelectedExam(targetExam);
-      setSelectedClass(targetClass);
-
-      if (targetClass) {
-        fetchSectionsForClass(targetClass);
+      let defaultYear = selectedYear;
+      if (!defaultYear && yearsList.length > 0) {
+        const currentYear =
+          yearsList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+          yearsList[0];
+        defaultYear = currentYear ? String(currentYear.id) : '';
+        setSelectedYear(defaultYear);
       }
 
-      if (targetExam && targetClass) {
-        performSearch(targetExam, targetClass, '');
+      let defaultExam = selectedExam;
+      if (!defaultExam && examsList.length > 0) {
+        defaultExam = String(examsList[0].id);
+        setSelectedExam(defaultExam);
+      }
+
+      let defaultClass = selectedClass;
+      if (!defaultClass && classesList.length > 0) {
+        defaultClass = String(classesList[0].id);
+        setSelectedClass(defaultClass);
+      }
+
+      if (defaultClass) {
+        await fetchSectionsForClass(defaultClass);
+      }
+
+      if (defaultExam && defaultClass) {
+        fetchAttendance(defaultExam, defaultClass, querySectionId || '', defaultYear);
       }
     } catch (err) {
-      console.error('Failed to load initial exams and classes:', err);
-      toast.error('Failed to load filter options');
+      toast.error('Failed to load initial exam filters');
     } finally {
       setInitialLoading(false);
     }
@@ -81,359 +121,385 @@ const ExamAttendance = () => {
       return;
     }
     try {
-      const secRes = await adminAcademicApi.getAllSections(classId);
-      const list = Array.isArray(secRes?.data)
-        ? secRes.data
-        : Array.isArray(secRes?.data?.sections)
-        ? secRes.data.sections
-        : Array.isArray(secRes)
-        ? secRes
+      const res = await adminAcademicApi.fetchSectionsApi(classId);
+      const secList = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res?.data?.sections)
+        ? res.data.sections
+        : Array.isArray(res)
+        ? res
         : [];
-      setSections(list);
+      setSections(secList);
     } catch (err) {
-      console.error('Failed to load sections for class:', err);
+      console.error('Failed to load sections:', err);
+      setSections([]);
     }
   };
 
-  const handleClassChange = (e) => {
+  const handleClassChange = async (e) => {
     const classId = e.target.value;
     setSelectedClass(classId);
     setSelectedSection('');
     if (classId) {
-      fetchSectionsForClass(classId);
+      await fetchSectionsForClass(classId);
     } else {
       setSections([]);
     }
   };
 
-  const performSearch = async (examId, classId, sectionId) => {
+  const fetchAttendance = async (examId, classId, sectionId, yearId) => {
     if (!examId || !classId) {
-      toast.warning('Please select Exam and Class.');
+      toast.warning('Please select Exam and Class');
       return;
     }
 
     try {
       setLoading(true);
       setHasSearched(true);
-      const params = {
+      const res = await adminExaminationApi.getExamAttendanceList({
         exam_id: examId,
         class_id: classId,
-      };
-      if (sectionId) params.section_id = sectionId;
+        section_id: sectionId || undefined,
+        academic_year_id: yearId || selectedYear || undefined,
+      });
 
-      const res = await adminExaminationApi.getStudentsForExamAttendance(params);
       if (res?.data) {
         setSubjects(res.data.subjects || []);
         setStudents(res.data.students || []);
       }
     } catch (err) {
-      console.error('Failed to fetch exam attendance:', err);
-      toast.error(err.message || 'Failed to fetch exam attendance');
+      toast.error(err.response?.data?.message || err.message || 'Failed to load exam attendance');
+      setSubjects([]);
+      setStudents([]);
     } finally {
       setLoading(false);
     }
   };
 
   const handleSearch = (e) => {
-    if (e) e.preventDefault();
-    performSearch(selectedExam, selectedClass, selectedSection);
+    e.preventDefault();
+    fetchAttendance(selectedExam, selectedClass, selectedSection, selectedYear);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const exportExcel = () => {
-    toast.info('Exporting attendance report as Excel...');
-  };
-
-  const exportPDF = () => {
-    toast.info('Exporting attendance report as PDF...');
+    if (!students || students.length === 0) {
+      toast.info('No attendance data to export');
+      return;
+    }
+    let csv = `Sl No,Admission No,Student Name,Class,${subjects.map((s) => s.subject_name).join(',')}\n`;
+    students.forEach((st, idx) => {
+      const subCols = subjects
+        .map((s) => {
+          const val = st.subjectAttendance?.[s.subject_id];
+          return val === 1 || `${val}` === '1' ? 'Present' : 'Absent';
+        })
+        .join(',');
+      csv += `"${idx + 1}","${st.admission_no || ''}","${st.first_name} ${st.last_name || ''}","${st.class_name || ''}",${subCols}\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Exam_Attendance_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
     <div className="content">
       {/* Page Header */}
-      <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
+      <div className="d-md-flex d-block align-items-center justify-content-between mb-4">
         <div className="my-auto mb-2">
           <h3 className="page-title mb-1">Exam Attendance</h3>
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
-              <li className="breadcrumb-item">
-                Exam
-              </li>
+              <li className="breadcrumb-item">Examinations</li>
               <li className="breadcrumb-item active" aria-current="page">
-                <Link to="/admin/examinations/attendance">Exam Attendance</Link>
+                Exam Attendance
               </li>
             </ol>
           </nav>
         </div>
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={handleSearch}
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              title="Refresh"
-            >
-              <i className="ti ti-refresh"></i>
-            </button>
-          </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              title="Print"
-            >
-              <i className="ti ti-printer"></i>
-            </button>
-          </div>
-          <div className="dropdown me-2 mb-2">
-            <button
-              type="button"
-              className="dropdown-toggle btn btn-light fw-medium d-inline-flex align-items-center"
-              data-bs-toggle="dropdown"
-            >
-              <i className="ti ti-file-export me-2"></i>Export
-            </button>
-            <ul className="dropdown-menu dropdown-menu-end p-3">
-              <li>
-                <button
-                  type="button"
-                  onClick={exportPDF}
-                  className="dropdown-item rounded-1"
-                >
-                  <i className="ti ti-file-type-pdf me-2"></i>Export as PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={exportExcel}
-                  className="dropdown-item rounded-1"
-                >
-                  <i className="ti ti-file-type-xls me-2"></i>Export as Excel
-                </button>
-              </li>
-            </ul>
-          </div>
-          <div className="mb-2">
-            <Link
-              to={`/admin/examinations/attendance/add${
-                selectedExam && selectedClass
-                  ? `?exam_id=${selectedExam}&class_id=${selectedClass}`
-                  : ''
-              }`}
-              className="btn btn-primary d-flex align-items-center"
-            >
-              <i className="ti ti-square-rounded-plus me-2"></i>Add Attendance
-            </Link>
-          </div>
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={() => fetchAttendance(selectedExam, selectedClass, selectedSection)}
+            title="Refresh"
+          >
+            <i className="ti ti-refresh"></i>
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={handlePrint}
+            title="Print"
+          >
+            <i className="ti ti-printer"></i>
+          </button>
+
+          <TableActionMenu
+            trigger={
+              <span className="btn btn-light fw-medium d-inline-flex align-items-center">
+                <i className="ti ti-file-export me-2"></i>Export
+              </span>
+            }
+            items={[
+              {
+                label: 'Export as PDF',
+                icon: 'ti ti-file-type-pdf text-danger',
+                onClick: handlePrint,
+              },
+              {
+                label: 'Export as Excel',
+                icon: 'ti ti-file-type-xls text-success',
+                onClick: exportExcel,
+              },
+            ]}
+          />
+
+          <Link
+            to={`${basePath}/examinations/attendance/add${
+              selectedExam && selectedClass
+                ? `?exam_id=${encodeParam(selectedExam)}&class_id=${encodeParam(selectedClass)}${
+                    selectedYear ? `&academic_year_id=${encodeParam(selectedYear)}` : ''
+                  }${selectedSection ? `&section_id=${encodeParam(selectedSection)}` : ''}`
+                : ''
+            }`}
+            className="btn btn-primary d-flex align-items-center"
+          >
+            <i className="ti ti-square-rounded-plus me-2"></i>Add Attendance
+          </Link>
         </div>
       </div>
-      {/* /Page Header */}
 
-      {/* Main Attendance Card */}
-      <div className="card">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0">
-          <h4 className="mb-3">Exam Attendance</h4>
-        </div>
-        <div className="bg-white p-3 border rounded-1 d-flex align-items-center justify-content-between flex-wrap mb-5 pb-0">
-          <form onSubmit={handleSearch} className="w-100">
-            <div className="row w-100">
-              <div className="col-md-2">
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="exam_id">
-                    Exam <strong className="text-danger">*</strong>
-                  </label>
-                  <select
-                    className="form-select"
-                    name="exam_id"
-                    id="exam_id"
-                    required
-                    value={selectedExam}
-                    onChange={(e) => setSelectedExam(e.target.value)}
-                  >
-                    <option value="">Select </option>
-                    {exams.map((ex) => (
-                      <option key={ex.id} value={ex.id}>
-                        {ex.exam_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="col-md-2">
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="section_class">
-                    Class <strong className="text-danger">*</strong>
-                  </label>
-                  <select
-                    className="form-select"
-                    name="section_class"
-                    id="section_class"
-                    required
-                    value={selectedClass}
-                    onChange={handleClassChange}
-                  >
-                    <option value="">Select </option>
-                    {classes.map((cls) => (
-                      <option key={cls.id} value={cls.id}>
-                        {cls.class_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="col-md-2">
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="section_student">
-                    Section
-                  </label>
-                  <select
-                    className="form-select"
-                    name="section_student"
-                    id="section_student"
-                    value={selectedSection}
-                    onChange={(e) => setSelectedSection(e.target.value)}
-                  >
-                    <option value="">Select</option>
-                    {sections.map((sec) => (
-                      <option key={sec.id} value={sec.id}>
-                        {sec.section_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="col-md-2 d-flex align-items-center">
-                <button className="btn btn-outline-primary w-100" type="submit" disabled={loading}>
-                  {loading ? (
-                    <>
-                      <span className="spinner-border spinner-border-sm me-1"></span>
-                      Searching...
-                    </>
-                  ) : (
-                    'Search'
-                  )}
-                </button>
-              </div>
+      {/* Filter Card */}
+      <div className="bg-white p-3 border rounded-3 d-flex align-items-center justify-content-between flex-wrap mb-4 shadow-2xs">
+        <form onSubmit={handleSearch} className="w-100">
+          <div className="row g-3 align-items-end w-100">
+            <div className="col-12 col-sm-6 col-md-3">
+              <label className="form-label fw-semibold fs-13 mb-1">
+                Academic Year
+              </label>
+              <select
+                className="form-select form-select-sm"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(e.target.value)}
+              >
+                <option value="">All Academic Years</option>
+                {academicYears.map((ay) => (
+                  <option key={ay.id} value={ay.id}>
+                    {ay.academic_year || ay.name || `Year ${ay.id}`}{' '}
+                    {Number(ay.is_current) === 1 || String(ay.is_current) === '1' || ay.isCurrent
+                      ? '(Current)'
+                      : ''}
+                  </option>
+                ))}
+              </select>
             </div>
-          </form>
+
+            <div className="col-12 col-sm-6 col-md-3">
+              <label className="form-label fw-semibold fs-13 mb-1">
+                Exam <strong className="text-danger">*</strong>
+              </label>
+              <select
+                className="form-select form-select-sm"
+                required
+                value={selectedExam}
+                onChange={(e) => setSelectedExam(e.target.value)}
+              >
+                <option value="">Select Exam</option>
+                {exams.map((ex) => (
+                  <option key={ex.id} value={ex.id}>
+                    {ex.exam_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-12 col-sm-6 col-md-2">
+              <label className="form-label fw-semibold fs-13 mb-1">
+                Class <strong className="text-danger">*</strong>
+              </label>
+              <select
+                className="form-select form-select-sm"
+                required
+                value={selectedClass}
+                onChange={handleClassChange}
+              >
+                <option value="">Select Class</option>
+                {classes.map((cls) => (
+                  <option key={cls.id} value={cls.id}>
+                    {cls.class_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-12 col-sm-6 col-md-2">
+              <label className="form-label fw-semibold fs-13 mb-1">Section</label>
+              <select
+                className="form-select form-select-sm"
+                value={selectedSection}
+                onChange={(e) => setSelectedSection(e.target.value)}
+              >
+                <option value="">All Sections</option>
+                {sections.map((sec) => (
+                  <option key={sec.id} value={sec.id}>
+                    {sec.section_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="col-12 col-sm-12 col-md-2">
+              <button className="btn btn-outline-primary btn-sm w-100" type="submit" disabled={loading}>
+                {loading ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-1"></span>
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <i className="ti ti-search me-1"></i>Search Attendance
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </form>
+      </div>
+
+      {/* Main Table Card */}
+      <div className="datatable-card">
+        <div className="datatable-card-header d-flex align-items-center justify-content-between">
+          <div>
+            <h5 className="mb-0 fw-bold text-dark fs-16">Exam Attendance Sheet</h5>
+            <p className="text-muted fs-13 mb-0 mt-1">
+              Rollcall check per student and subject for the selected examination.
+            </p>
+          </div>
         </div>
 
-        {/* Table View */}
-        <div id="attendanceTableBody">
-          <div className="card-body p-0 py-3">
-            <div className="custom-datatable-filter table-responsive">
-              <table className="table datatable dataTable" id="examTable">
-                <thead className="thead-light">
-                  <tr>
-                    <th className="text-center" style={{ width: '80px' }}>Sl No</th>
-                    <th className="text-center" style={{ width: '160px' }}>Admission No</th>
-                    <th className="text-center">Student Name</th>
-                    <th className="text-center" style={{ width: '100px' }}>Class</th>
-                    {subjects.length > 0 ? (
-                      subjects.map((sub) => (
-                        <th key={sub.subject_id} className="text-center" style={{ width: '120px' }}>
-                          {sub.subject_name}
-                        </th>
-                      ))
-                    ) : (
-                      <th className="text-center" style={{ width: '120px' }}>Subject</th>
-                    )}
-                  </tr>
-                </thead>
-
-                <tbody id="examAttendanceTbody">
-                  {initialLoading || loading ? (
-                    <tr>
-                      <td colSpan={subjects.length > 0 ? subjects.length + 4 : 5} className="text-center py-4">
-                        <div className="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
-                        Loading attendance...
-                      </td>
-                    </tr>
-                  ) : !hasSearched && students.length === 0 ? (
-                    <tr>
-                      <td colSpan={subjects.length > 0 ? subjects.length + 4 : 5} className="text-center text-muted py-4">
-                        Please click Search to load attendance records.
-                      </td>
-                    </tr>
-                  ) : students.length === 0 ? (
-                    <tr>
-                      <td colSpan={subjects.length > 0 ? subjects.length + 4 : 5} className="text-center text-muted py-4">
-                        No students found for this Exam and Class.
-                      </td>
-                    </tr>
+        <div className="datatable-wrapper">
+          {initialLoading || loading ? (
+            <div className="text-center py-5">
+              <div className="spinner-border text-primary" role="status"></div>
+              <p className="mt-2 text-muted">Loading exam attendance...</p>
+            </div>
+          ) : students.length === 0 ? (
+            <div className="table-empty-state">
+              <div className="table-empty-icon">
+                <i className="ti ti-clipboard-x"></i>
+              </div>
+              <h6 className="fw-semibold text-dark mb-1">No Attendance Records Found</h6>
+              <p className="text-muted fs-13 mb-0">
+                Please select exam and class filters and click Search to load attendance records.
+              </p>
+            </div>
+          ) : (
+            <table className="table-modern table-hover">
+              <thead>
+                <tr>
+                  <th style={{ width: '70px', textAlign: 'center' }}>Sl No.</th>
+                  <th style={{ width: '140px' }}>Admission No</th>
+                  <th>Student Name</th>
+                  <th style={{ width: '100px', textAlign: 'center' }}>Class</th>
+                  {subjects.length > 0 ? (
+                    subjects.map((sub) => (
+                      <th key={sub.subject_id} style={{ width: '120px', textAlign: 'center' }}>
+                        {sub.subject_name}
+                      </th>
+                    ))
                   ) : (
-                    students.map((student, idx) => (
-                      <tr key={student.student_id || idx}>
-                        <td className="text-center">{idx + 1}</td>
-                        <td className="text-center">{student.admission_no || '-'}</td>
+                    <th style={{ width: '120px', textAlign: 'center' }}>Status</th>
+                  )}
+                </tr>
+              </thead>
 
-                        <td className="text-center align-middle">
-                          <div className="d-flex justify-content-center align-items-center">
-                            <span className="avatar avatar-md">
-                              <img
-                                src="/vidya_assets/images/male-user.png"
-                                className="img-fluid rounded-circle"
-                                alt="user"
-                                onError={(e) => {
-                                  e.target.onerror = null;
-                                  e.target.src = 'https://portal.growvidya.in/dev/vidya_assets/images/male-user.png';
-                                }}
-                              />
-                            </span>
+              <tbody>
+                {students.map((student, idx) => (
+                  <tr key={student.student_id || idx}>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="text-muted fw-medium">{idx + 1}</span>
+                    </td>
+                    <td>
+                      <span className="fw-semibold text-primary">{student.admission_no || 'N/A'}</span>
+                    </td>
+                    <td>
+                      <div className="d-flex align-items-center">
+                        <div className="avatar avatar-sm me-2">
+                          <img
+                            src="/vidya_assets/images/male-user.png"
+                            className="rounded-circle"
+                            style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                            alt="user"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = 'https://portal.growvidya.in/dev/vidya_assets/images/male-user.png';
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <p className="text-dark fw-medium mb-0 fs-13">
+                            {student.first_name} {student.last_name || ''}
+                          </p>
+                          <span className="text-muted fs-11">
+                            Roll No: {student.roll_no || '—'}
+                          </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <span className="badge bg-light text-dark border px-2 py-1">{student.class_name || '—'}</span>
+                    </td>
 
-                            <div className="ms-2 text-start">
-                              <p className="text-dark mb-0 fw-medium">
-                                {student.first_name} {student.last_name || ''}
-                              </p>
-                              <span className="fs-12 text-muted">
-                                Roll No : {student.roll_no || '-'}
+                    {subjects.length > 0 ? (
+                      subjects.map((sub) => {
+                        const status = student.subjectAttendance?.[sub.subject_id];
+                        const isPresent = status === 1 || `${status}` === '1' || status === 'present';
+                        const isAbsent = status === 2 || `${status}` === '2' || status === 0 || `${status}` === '0' || status === 'absent';
+                        return (
+                          <td key={sub.subject_id} style={{ textAlign: 'center' }}>
+                            {isPresent ? (
+                              <span className="badge-soft-success">
+                                <i className="ti ti-circle-check fs-12 me-1"></i>Present
                               </span>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td className="text-center">{student.class_name || '-'}</td>
-
-                        {subjects.length > 0 ? (
-                          subjects.map((sub) => {
-                            const status = student.subjectAttendance?.[sub.subject_id];
-                            return (
-                              <td key={sub.subject_id} className="text-center">
-                                {status === 1 || `${status}` === '1' || status === 'present' ? (
-                                  <i className="fa-solid fa-check text-success fs-16" title="Present"></i>
-                                ) : status === 2 || `${status}` === '2' || status === 0 || `${status}` === '0' || status === 'absent' ? (
-                                  <i className="fa-solid fa-xmark text-danger fs-16" title="Absent"></i>
-                                ) : (
-                                  <span className="text-muted">-</span>
-                                )}
-                              </td>
-                            );
-                          })
-                        ) : (
-                          <td className="text-center">
-                            {student.attendance_status === 1 || `${student.attendance_status}` === '1' ? (
-                              <i className="fa-solid fa-check text-success fs-16" title="Present"></i>
-                            ) : student.attendance_status === 2 || `${student.attendance_status}` === '2' || student.attendance_status === 0 || `${student.attendance_status}` === '0' ? (
-                              <i className="fa-solid fa-xmark text-danger fs-16" title="Absent"></i>
+                            ) : isAbsent ? (
+                              <span className="badge-soft-danger">
+                                <i className="ti ti-circle-x fs-12 me-1"></i>Absent
+                              </span>
                             ) : (
                               <span className="text-muted">-</span>
                             )}
                           </td>
+                        );
+                      })
+                    ) : (
+                      <td style={{ textAlign: 'center' }}>
+                        {student.attendance_status === 1 || `${student.attendance_status}` === '1' ? (
+                          <span className="badge-soft-success">
+                            <i className="ti ti-circle-check fs-12 me-1"></i>Present
+                          </span>
+                        ) : (
+                          <span className="badge-soft-danger">
+                            <i className="ti ti-circle-x fs-12 me-1"></i>Absent
+                          </span>
                         )}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>

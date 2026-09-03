@@ -1,10 +1,13 @@
+import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchParentsApi, fetchParentByIdApi, createParentApi, updateParentApi, deleteParentApi } from '../../../api/adminParent.api';
 import { fetchClassesApi, fetchSectionsApi } from '../../../api/adminAcademic.api';
 import { toast } from 'react-toastify';
+import TableActionMenu from '../../../components/common/TableActionMenu';
+import { encodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const ParentList = () => {
   const [parents, setParents] = useState([]);
@@ -309,8 +312,8 @@ const ParentList = () => {
                 onChange={(e) => handleClassChange(e.target.value)}
               >
                 <option value="">Select</option>
-                {classes.map((c) => (
-                  <option key={c.id} value={c.id}>
+                {classes.map((c, idx) => (
+                  <option key={`cls-${c.id || idx}-${idx}`} value={c.id}>
                     {c.class_name}
                   </option>
                 ))}
@@ -330,8 +333,8 @@ const ParentList = () => {
                 <option value="">
                   {filters.classId ? 'Select' : 'Select'}
                 </option>
-                {sections.map((s) => (
-                  <option key={s.id} value={s.id}>
+                {sections.map((s, idx) => (
+                  <option key={`sec-${s.id || idx}-${idx}`} value={s.id}>
                     {s.section_name}
                   </option>
                 ))}
@@ -359,8 +362,8 @@ const ParentList = () => {
             No parent records found.
           </div>
         ) : (
-          parents.map((p) => (
-            <div key={p.id} className="parent-grid col-xl-3 col-md-6 d-flex mb-4">
+          parents.map((p, idx) => (
+            <div key={`parent-card-${p.id || idx}-${idx}`} className="parent-grid col-xl-3 col-md-6 d-flex mb-4">
               <input type="hidden" name="parent" className="parentId" value={p.id} />
               <div className="card flex-fill">
                 <div className="card-header d-flex align-items-center justify-content-between">
@@ -374,33 +377,26 @@ const ParentList = () => {
                   >
                     {p.relation || (p.parent_type === 2 ? 'Mother' : p.parent_type === 1 ? 'Father' : 'Guardian')}
                   </a>
-                  <div className="d-flex align-items-center">
-                    <div className="dropdown">
-                      <button
-                        className="btn btn-white btn-icon btn-sm d-flex align-items-center justify-content-center rounded-circle p-0 border-0"
-                        type="button"
-                        data-bs-toggle="dropdown"
-                        aria-expanded="false"
-                      >
-                        <i className="ti ti-dots-vertical fs-14"></i>
-                      </button>
-                      <ul className="dropdown-menu dropdown-menu-right p-2 shadow-sm">
-                        <li>
-                          <button className="dropdown-item rounded-1" onClick={() => handleEditParent(p)}>
-                            <i className="ti ti-edit-circle me-2"></i>Edit
-                          </button>
-                        </li>
-                        <li>
-                          <button
-                            className="dropdown-item rounded-1 text-danger"
-                            onClick={() => handleDeleteParent(p.id)}
-                          >
-                            <i className="ti ti-trash-x me-2"></i>Delete
-                          </button>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
+                  <TableActionMenu
+                    items={[
+                      {
+                        label: 'View Details',
+                        icon: 'ti ti-eye text-info',
+                        onClick: () => handleViewDetails(p.id),
+                      },
+                      {
+                        label: 'Edit',
+                        icon: 'ti ti-edit-circle text-primary',
+                        onClick: () => handleEditParent(p),
+                      },
+                      {
+                        label: 'Delete',
+                        icon: 'ti ti-trash-x',
+                        variant: 'danger',
+                        onClick: () => handleDeleteParent(p.id),
+                      },
+                    ]}
+                  />
                 </div>
                 <div className="card-body">
                   <div className="bg-light-300 rounded-2 p-3 mb-3">
@@ -691,11 +687,11 @@ const ParentList = () => {
                     <h5 className="mb-3 fw-bold">Children Details</h5>
                     <div id="studentDiv">
                       {selectedParentDetails.children && selectedParentDetails.children.length > 0 ? (
-                        selectedParentDetails.children.map((child) => (
-                          <div key={child.student_id} className="border rounded p-4 pb-1 mb-3">
+                        Array.from(new Map(selectedParentDetails.children.map((c) => [c.student_id || c.id, c])).values()).map((child, idx) => (
+                          <div key={`admin-child-${child.student_id || child.id || idx}-${idx}`} className="border rounded p-4 pb-1 mb-3">
                             <div className="d-flex align-items-center justify-content-between flex-wrap pb-1 mb-3 border-bottom">
                               <Link
-                                to={`/admin/students/${child.student_id}`}
+                                to={`/admin/students/${encodeParam(child.student_id)}`}
                                 className="link-primary mb-2 fw-semibold"
                                 onClick={() => setShowDetailsModal(false)}
                               >
@@ -708,7 +704,7 @@ const ParentList = () => {
                             <div className="d-flex align-items-center justify-content-between flex-wrap">
                               <div className="d-flex align-items-center mb-3">
                                 <Link
-                                  to={`/admin/students/${child.student_id}`}
+                                  to={`/admin/students/${encodeParam(child.student_id)}`}
                                   className="avatar flex-shrink-0"
                                   onClick={() => setShowDetailsModal(false)}
                                 >
@@ -732,7 +728,7 @@ const ParentList = () => {
                                 <div className="ms-2">
                                   <p className="mb-0 fw-semibold">
                                     <Link
-                                      to={`/admin/students/${child.student_id}`}
+                                      to={`/admin/students/${encodeParam(child.student_id)}`}
                                       className="text-dark"
                                       onClick={() => setShowDetailsModal(false)}
                                     >
@@ -763,7 +759,7 @@ const ParentList = () => {
                               </ul>
                               <div className="d-flex align-items-center">
                                 <Link
-                                  to={`/admin/students/${child.student_id}`}
+                                  to={`/admin/students/${encodeParam(child.student_id)}`}
                                   className="btn btn-primary mb-3"
                                   onClick={() => setShowDetailsModal(false)}
                                 >

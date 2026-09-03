@@ -6,9 +6,11 @@ import {
   createLeaveTypeApi,
   updateLeaveTypeApi,
 } from '../../../api/adminLeave.api';
+import { decodeParam } from '../../../utils/idHelper';
 
 const AddLeaveAssign = () => {
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const navigate = useNavigate();
   const isEditMode = Boolean(id);
 

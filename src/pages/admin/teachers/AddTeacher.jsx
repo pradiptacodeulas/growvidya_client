@@ -1,3 +1,4 @@
+import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -9,8 +10,9 @@ import {
   fetchTeacherOptionsApi,
   checkTeacherEmailApi,
 } from '../../../api/adminTeacher.api';
+import { decodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const formatImageUrl = (pic) => {
   if (!pic) return '';
@@ -26,7 +28,8 @@ const formatImageUrl = (pic) => {
 
 const AddTeacher = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const isEditMode = Boolean(id);
 
   // Tabs List matching AddStudent structure
@@ -239,6 +242,16 @@ const AddTeacher = () => {
         return;
       }
 
+      const rawGender = t.gender_id !== undefined ? t.gender_id : t.gender;
+      let normGender = '1';
+      if (rawGender === '2' || rawGender === 2 || String(rawGender).toLowerCase().includes('fem')) {
+        normGender = '2';
+      } else if (rawGender === '3' || rawGender === 3 || String(rawGender).toLowerCase().includes('oth')) {
+        normGender = '3';
+      } else {
+        normGender = '1';
+      }
+
       setPersonalInfo({
         academic_year: t.academic_year ? String(t.academic_year) : '',
         teacher_id: t.teacher_id || '',
@@ -246,7 +259,7 @@ const AddTeacher = () => {
         last_name: t.last_name || '',
         class: t.class ? String(t.class) : '',
         section_student: t.section ? String(t.section) : '',
-        gender: t.gender ? String(t.gender) : '',
+        gender: normGender,
         primary_contact_number: t.primary_contact_number || '',
         email_address: t.email_address || '',
         blood_group: t.blood_group ? String(t.blood_group) : '',
@@ -262,7 +275,7 @@ const AddTeacher = () => {
         previous_school_address: t.previous_school_address || '',
         previous_school_phone: t.previous_school_phone || '',
         pan_number: t.pan_number || '',
-        status: String(t.status ?? '1'),
+        status: String(t.status !== undefined && t.status !== null ? t.status : '1'),
         notes: t.notes || '',
         take_attendance: String(t.take_attendance ?? '2'),
       });
@@ -1411,7 +1424,7 @@ const AddTeacher = () => {
                           }
                         >
                           <option value="1">Active</option>
-                          <option value="0">Inactive</option>
+                          <option value="2">Inactive</option>
                         </select>
                       </div>
 
@@ -1495,7 +1508,7 @@ const AddTeacher = () => {
                           <option value="">Select Country</option>
                           {countries.map((c) => (
                             <option key={c.id} value={c.id}>
-                              {c.name}
+                              {c.name || c.country || c.country_name}
                             </option>
                           ))}
                         </select>
@@ -1661,7 +1674,7 @@ const AddTeacher = () => {
                               <option value="">Select Country</option>
                               {countries.map((c) => (
                                 <option key={c.id} value={c.id}>
-                                  {c.name}
+                                  {c.name || c.country || c.country_name}
                                 </option>
                               ))}
                             </select>

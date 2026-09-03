@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginAdmin, clearAuthError } from '../../store/slices/authSlice';
 import { toast } from 'react-toastify';
+import LoadingScreen from '../../components/common/LoadingScreen';
 import logoDark from '../../assets/logo_dark.png';
 
 const AdminLogin = () => {
@@ -12,13 +13,9 @@ const AdminLogin = () => {
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { user, isAuthenticated, loading, error } = useSelector((state) => state.auth);
+  const { user, isAuthenticated, loading, checkingAuth, error } = useSelector((state) => state.auth);
 
-  useEffect(() => {
-    if (isAuthenticated || user) {
-      navigate('/admin/dashboard');
-    }
-  }, [isAuthenticated, user, navigate]);
+  const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
 
   useEffect(() => {
     if (error) {
@@ -27,13 +24,27 @@ const AdminLogin = () => {
     }
   }, [error, dispatch]);
 
+  useEffect(() => {
+    if (token && isAuthenticated && user) {
+      navigate('/admin/dashboard', { replace: true });
+    }
+  }, [token, isAuthenticated, user, navigate]);
+
+  if (token && (checkingAuth || (isAuthenticated && user))) {
+    return <LoadingScreen message="Checking session..." />;
+  }
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim() || !password.trim()) {
       toast.warning('Please enter both email address and password.');
       return;
     }
-    dispatch(loginAdmin({ email, password }));
+    const res = await dispatch(loginAdmin({ email, password }));
+    if (loginAdmin.fulfilled.match(res)) {
+      toast.success('Signed in successfully!');
+      navigate('/admin/dashboard', { replace: true });
+    }
   };
 
   return (

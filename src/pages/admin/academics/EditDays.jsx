@@ -2,26 +2,12 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchDayByIdApi, fetchDaysApi, updateDayApi, createDayApi } from '../../../api/adminAcademic.api';
-
-// Helper to resolve base64 or normal numeric ID
-const resolveDayId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64 encoded, return as is
-  }
-  return paramId;
-};
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditDays = () => {
   const { id: rawId } = useParams();
   const navigate = useNavigate();
-  const id = resolveDayId(rawId);
+  const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
   const [formData, setFormData] = useState({

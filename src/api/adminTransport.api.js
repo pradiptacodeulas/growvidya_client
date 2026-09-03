@@ -37,6 +37,7 @@ export const deleteRouteApi = async (id) => {
  */
 export const fetchVehiclesApi = async (params = {}) => {
   const response = await apiClient.get('/admin/transport/vehicles', { params });
+  console.log('fetchVehiclesApi response:', response.data);
   return response.data;
 };
 
@@ -92,7 +93,37 @@ export const deleteDriverApi = async (id) => {
 
 /**
  * ==========================================
- * 4. ALLOCATIONS / ASSIGN VEHICLE API
+ * 4. HELPERS API
+ * ==========================================
+ */
+export const fetchHelpersApi = async (params = {}) => {
+  const response = await apiClient.get('/admin/transport/helpers', { params });
+  return response.data;
+};
+
+export const fetchHelperByIdApi = async (id) => {
+  const response = await apiClient.get(`/admin/transport/helpers/${id}`);
+  return response.data;
+};
+
+export const createHelperApi = async (data) => {
+  const response = await apiClient.post('/admin/transport/helpers', data);
+  return response.data;
+};
+
+export const updateHelperApi = async (id, data) => {
+  const response = await apiClient.put(`/admin/transport/helpers/${id}`, data);
+  return response.data;
+};
+
+export const deleteHelperApi = async (id) => {
+  const response = await apiClient.delete(`/admin/transport/helpers/${id}`);
+  return response.data;
+};
+
+/**
+ * ==========================================
+ * 5. ALLOCATIONS / ASSIGN VEHICLE API
  * ==========================================
  */
 export const fetchAllocationsApi = async (params = {}) => {
@@ -119,3 +150,10 @@ export const deleteAllocationApi = async (id) => {
   const response = await apiClient.delete(`/admin/transport/allocations/${id}`);
   return response.data;
 };
+
+// Aliases
+export const fetchBusesApi = fetchVehiclesApi;
+export const fetchBusByIdApi = fetchVehicleByIdApi;
+export const createBusApi = createVehicleApi;
+export const updateBusApi = updateVehicleApi;
+export const deleteBusApi = deleteVehicleApi;

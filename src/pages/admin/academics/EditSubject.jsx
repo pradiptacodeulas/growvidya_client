@@ -8,26 +8,12 @@ import {
   updateSubjectApi,
   fetchClassesApi,
 } from '../../../api/adminAcademic.api';
-
-// Helper to resolve base64 or normal numeric ID
-const resolveSubjectId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64 encoded, return as is
-  }
-  return paramId;
-};
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditSubject = () => {
   const { id: rawId } = useParams();
   const navigate = useNavigate();
-  const id = resolveSubjectId(rawId);
+  const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
   const [classes, setClasses] = useState([]);
@@ -113,7 +99,7 @@ const EditSubject = () => {
     try {
       setSaving(true);
       const payload = {
-        class_id: Number(formData.class_id),
+        class_id: formData.class_id,
         subject_name: formData.subject_name.trim(),
         sort_order: Number(formData.sort_order) || 0,
         status: Number(formData.status),

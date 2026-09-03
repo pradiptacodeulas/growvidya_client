@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import adminAcademicApi, { fetchClassesApi, fetchShiftsApi } from '../../../api/adminAcademic.api';
+import { fetchClassesApi, fetchShiftsApi } from '../../../api/adminAcademic.api';
+import { encodeParam } from '../../../utils/idHelper';
 
 const RoutinesList = () => {
   const [shifts, setShifts] = useState([]);
@@ -90,6 +91,35 @@ const RoutinesList = () => {
             <div className="spinner-border text-primary mx-auto mb-3" role="status"></div>
             <p className="text-muted mb-0">Loading class routine structure...</p>
           </div>
+        ) : shifts.length === 0 && classes.length === 0 ? (
+          <div className="card shadow-sm border p-5 text-center">
+            <div className="py-4">
+              <div
+                className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle"
+                style={{
+                  width: '72px',
+                  height: '72px',
+                  backgroundColor: 'rgba(13, 110, 253, 0.08)',
+                  color: '#0d6efd',
+                  fontSize: '32px',
+                }}
+              >
+                <i className="ti ti-calendar-time"></i>
+              </div>
+              <h5 className="fw-bold text-dark mb-2">No Class Routines Configured</h5>
+              <p className="text-muted fs-14 mb-4 mx-auto" style={{ maxWidth: '460px' }}>
+                No shifts or classes have been set up yet. Create shifts and classes in Academics to start scheduling routines.
+              </p>
+              <div className="d-flex justify-content-center gap-2 flex-wrap">
+                <Link to="/admin/academics/classes" className="btn btn-primary">
+                  <i className="ti ti-school me-1"></i> Add Classes
+                </Link>
+                <Link to="/admin/academics/shifts" className="btn btn-outline-primary">
+                  <i className="ti ti-clock me-1"></i> Add Shifts
+                </Link>
+              </div>
+            </div>
+          </div>
         ) : (
           <>
             {groupedShifts.map((shift) => (
@@ -107,7 +137,7 @@ const RoutinesList = () => {
                       shift.classes.map((cls) => (
                         <div key={cls.id} className="col-xl-3 col-lg-4 col-md-6">
                           <Link
-                            to={`/admin/academics/routines/section/${cls.id}`}
+                            to={`/admin/academics/routines/section/${encodeParam(cls.id)}`}
                             className="text-decoration-none"
                           >
                             {/* Class Card */}
@@ -130,8 +160,11 @@ const RoutinesList = () => {
                         </div>
                       ))
                     ) : (
-                      <div className="col-12 py-3 text-muted">
-                        No classes currently mapped to this shift.
+                      <div className="col-12 py-3 text-muted text-center">
+                        <p className="mb-2">No classes currently mapped to this shift.</p>
+                        <Link to="/admin/academics/classes" className="btn btn-sm btn-outline-primary">
+                          <i className="ti ti-plus me-1"></i> Add / Map Classes
+                        </Link>
                       </div>
                     )}
                   </div>
@@ -153,7 +186,7 @@ const RoutinesList = () => {
                     {unassignedClasses.map((cls) => (
                       <div key={cls.id} className="col-xl-3 col-lg-4 col-md-6">
                         <Link
-                          to={`/admin/academics/routines/section/${cls.id}`}
+                          to={`/admin/academics/routines/section/${encodeParam(cls.id)}`}
                           className="text-decoration-none"
                         >
                           <div className="class-card text-center p-4 rounded-3 border bg-white shadow-sm transition-all hover-elevate">

@@ -1,9 +1,12 @@
+import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import apiClient from '../../../api/axios.config';
 import maleUser from '../../../assets/male-user.png';
 import Avatar from '../../../components/common/Avatar';
+import TableActionMenu from '../../../components/common/TableActionMenu';
+import { encodeParam } from '../../../utils/idHelper';
 
 const StudentList = () => {
   const navigate = useNavigate();
@@ -44,7 +47,7 @@ const StudentList = () => {
     blood_group: '',
   });
 
-  const SERVER_BASE_URL = 'http://localhost:5000';
+  const SERVER_BASE_URL = getServerBaseUrl();
 
   const getStudentImageUrl = (student) => {
     const pic = typeof student === 'object' ? student?.picture : student;
@@ -68,16 +71,16 @@ const StudentList = () => {
     return `${SERVER_BASE_URL}/upload/${cleanPic}`;
   };
 
-  const fetchStudents = async (pageNumber = 1) => {
+  const fetchStudents = async (pageNumber = 1, overrideSearch = search, overrideStatus = status, overrideClass = classId, overrideSection = sectionId, overrideDate = admissionDate) => {
     try {
       setLoading(true);
       const res = await apiClient.get('/admin/students', {
         params: {
-          search,
-          classId,
-          sectionId,
-          status,
-          admissionDate,
+          search: overrideSearch,
+          classId: overrideClass,
+          sectionId: overrideSection,
+          status: overrideStatus,
+          admissionDate: overrideDate,
           page: pageNumber,
           limit: pagination.limit,
         },
@@ -107,8 +110,15 @@ const StudentList = () => {
 
   useEffect(() => {
     fetchAcademicMasters();
-    fetchStudents(1);
   }, []);
+
+  // Debounced search on name/search input
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchStudents(1);
+    }, 350);
+    return () => clearTimeout(handler);
+  }, [search, status, classId, sectionId, admissionDate]);
 
   const handleClassChange = async (selectedClassId) => {
     setClassId(selectedClassId);
@@ -125,8 +135,17 @@ const StudentList = () => {
         setFilteredSections([]);
       }
     } else {
-      setFilteredSections([]); // Reset to empty when no class selected
+      setFilteredSections([]);
     }
+  };
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setClassId('');
+    setSectionId('');
+    setStatus('1');
+    setAdmissionDate('');
+    setFilteredSections([]);
   };
 
   const handleSearchSubmit = (e) => {
@@ -270,22 +289,37 @@ const StudentList = () => {
       {/* Filter */}
       <div className="bg-white p-3 border rounded-1 d-flex align-items-center justify-content-between flex-wrap mb-4 pb-0">
         <form onSubmit={handleSearchSubmit} className="row w-100">
-          <div className="col-md-2">
+          <div className="col-md-3 col-sm-6">
             <div className="mb-3">
-              <label className="form-label">Name</label>
-              <input
-                type="text"
-                name="name"
-                className="form-control"
-                placeholder="Student Name"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
+              <label className="form-label fw-semibold">Search</label>
+              <div className="input-group">
+                <span className="input-group-text bg-white border-end-0">
+                  <i className="ti ti-search text-muted"></i>
+                </span>
+                <input
+                  type="text"
+                  name="name"
+                  className="form-control border-start-0 ps-0"
+                  placeholder="Search by Full Name, ID, Phone..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary border-start-0"
+                    onClick={() => setSearch('')}
+                    title="Clear search"
+                  >
+                    <i className="ti ti-x"></i>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
-          <div className="col-md-2">
+          <div className="col-md-2 col-sm-6">
             <div className="mb-3">
-              <label className="form-label">Class</label>
+              <label className="form-label fw-semibold">Class</label>
               <select
                 className="form-select"
                 name="class"
@@ -293,16 +327,16 @@ const StudentList = () => {
                 value={classId}
                 onChange={(e) => handleClassChange(e.target.value)}
               >
-                <option value="">Select</option>
+                <option value="">All Classes</option>
                 {classList.map((c) => (
                   <option key={c.id} value={c.id}>{c.class_name}</option>
                 ))}
               </select>
             </div>
           </div>
-          <div className="col-md-2">
+          <div className="col-md-2 col-sm-6">
             <div className="mb-3">
-              <label className="form-label">Section</label>
+              <label className="form-label fw-semibold">Section</label>
               <select
                 className="form-select"
                 name="section"
@@ -310,30 +344,31 @@ const StudentList = () => {
                 value={sectionId}
                 onChange={(e) => setSectionId(e.target.value)}
               >
-                <option value="">Select</option>
+                <option value="">All Sections</option>
                 {filteredSections.map((s) => (
                   <option key={s.id} value={s.id}>{s.section_name}</option>
                 ))}
               </select>
             </div>
           </div>
-          <div className="col-md-2">
+          <div className="col-md-2 col-sm-6">
             <div className="mb-3">
-              <label className="form-label">Status</label>
+              <label className="form-label fw-semibold">Status</label>
               <select
                 className="form-select"
                 name="status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
               >
+                <option value="">All Status</option>
                 <option value="1">Active</option>
                 <option value="2">Inactive</option>
               </select>
             </div>
           </div>
-          <div className="col-md-2">
+          <div className="col-md-2 col-sm-6">
             <div className="mb-3">
-              <label className="form-label">Admission Date</label>
+              <label className="form-label fw-semibold">Admission Date</label>
               <input
                 type="date"
                 name="date"
@@ -344,8 +379,15 @@ const StudentList = () => {
               />
             </div>
           </div>
-          <div className="col-md-2 d-flex align-items-center mb-3">
-            <button type="submit" className="btn btn-outline-primary w-100">Search</button>
+          <div className="col-md-1 col-sm-6 d-flex align-items-center mb-3">
+            <button
+              type="button"
+              className="btn btn-outline-secondary w-100"
+              onClick={handleResetFilters}
+              title="Reset all filters"
+            >
+              <i className="ti ti-rotate-clockwise"></i>
+            </button>
           </div>
         </form>
       </div>
@@ -370,38 +412,30 @@ const StudentList = () => {
               <input type="hidden" name="student" className="studentId" value={student.id} />
               <div className="card flex-fill">
                 <div className="card-header d-flex align-items-center justify-content-between">
-                  <Link to={`/admin/students/${student.id}`} className="link-primary fw-semibold">
+                  <Link to={`/admin/students/${encodeParam(student.id)}`} className="link-primary fw-semibold">
                     {student.admission_number || `ADM-${student.id}`}
                   </Link>
                   <div className="d-flex align-items-center">
-                    <div className="dropdown position-relative">
-                      <button
-                        type="button"
-                        className="btn btn-white btn-icon btn-sm d-flex align-items-center justify-content-center rounded-circle p-0 border-0"
-                        onClick={(e) => toggleDropdown(student.id, e)}
-                      >
-                        <i className="ti ti-dots-vertical fs-14"></i>
-                      </button>
-                      {activeDropdown === student.id && (
-                        <ul className="dropdown-menu dropdown-menu-end show p-2 shadow-sm position-absolute top-100 end-0 z-3" style={{ minWidth: '160px' }}>
-                          <li>
-                            <Link className="dropdown-item rounded-1" to={`/admin/students/edit/${student.id}`}>
-                              <i className="ti ti-edit-circle me-2"></i>Edit
-                            </Link>
-                          </li>
-                          <li>
-                            <button className="dropdown-item rounded-1" onClick={() => toast.info('Promote student feature')}>
-                              <i className="ti ti-arrow-ramp-right-2 me-2"></i>Promote Student
-                            </button>
-                          </li>
-                          <li>
-                            <button className="dropdown-item rounded-1 text-danger" onClick={() => handleDelete(student.id)}>
-                              <i className="ti ti-trash-x me-2"></i>Delete
-                            </button>
-                          </li>
-                        </ul>
-                      )}
-                    </div>
+                    <TableActionMenu
+                      items={[
+                        {
+                          label: 'Edit',
+                          icon: 'ti ti-edit-circle',
+                          to: `/admin/students/edit/${encodeParam(student.id)}`,
+                        },
+                        {
+                          label: 'Promote Student',
+                          icon: 'ti ti-arrow-ramp-right-2',
+                          onClick: () => toast.info('Promote student feature'),
+                        },
+                        {
+                          label: 'Delete',
+                          icon: 'ti ti-trash-x',
+                          variant: 'danger',
+                          onClick: () => handleDelete(student.id),
+                        },
+                      ]}
+                    />
                   </div>
                 </div>
                 <div className="card-body">
@@ -416,7 +450,7 @@ const StudentList = () => {
                       />
                       <div className="ms-2">
                         <h5 className="mb-0 fs-15 font-weight-bold">
-                          <Link to={`/admin/students/${student.id}`} className="text-dark">
+                          <Link to={`/admin/students/${encodeParam(student.id)}`} className="text-dark">
                             {student.full_name}
                           </Link>
                         </h5>
@@ -443,7 +477,7 @@ const StudentList = () => {
                 </div>
                 <div className="card-footer d-flex align-items-center justify-content-end">
                   <Link
-                    to={`/admin/students/${student.id}`}
+                    to={`/admin/students/${encodeParam(student.id)}`}
                     className="btn btn-outline-success btn-sm fw-semibold"
                   >
                     View Details

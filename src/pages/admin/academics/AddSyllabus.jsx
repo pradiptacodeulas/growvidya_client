@@ -58,7 +58,9 @@ const AddSyllabus = () => {
       setClasses(clsList);
       setSubjects(subList);
 
-      const currentYear = ayList.find((y) => y.is_current === 1) || ayList[0];
+      const currentYear =
+        ayList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+        ayList[0];
       const defaultClass = clsList[0];
 
       setFormData((prev) => ({
@@ -86,9 +88,9 @@ const AddSyllabus = () => {
     try {
       setSubmitting(true);
       await createSyllabusApi({
-        academic_year: Number(formData.academic_year),
-        class_id: Number(formData.class_id),
-        subject_id: Number(formData.subject_id),
+        academic_year: formData.academic_year,
+        class_id: formData.class_id,
+        subject_id: formData.subject_id,
         status: Number(formData.status),
         lession: formData.lession.trim(),
       });
@@ -223,7 +225,7 @@ const AddSyllabus = () => {
                       >
                         <option value="1">Pending</option>
                         <option value="2">Progress</option>
-                        <option value="3">Completed</option>
+                        <option value="3">Complete</option>
                       </select>
                     </div>
                   </div>

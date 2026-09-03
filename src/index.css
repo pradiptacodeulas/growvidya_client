@@ -20,168 +20,277 @@ html, body, #root {
   position: relative !important;
 }
 
-/* Sidebar Top Container */
-.sidebar {
-  position: fixed !important;
-  top: 0 !important;
-  bottom: 0 !important;
-  left: 0 !important;
-  width: 252px !important;
-  background: #FFF !important;
-  border-right: 1px solid #E9EDF4 !important;
-  z-index: 1030 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  overflow: hidden !important;
-  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+/* =========================================================
+   DESKTOP LAYOUT (>= 992px)
+   ========================================================= */
+@media (min-width: 992px) {
+  /* Sidebar Top Container */
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 252px !important;
+    margin-left: 0 !important;
+    background: #FFF !important;
+    border-right: 1px solid #E9EDF4 !important;
+    z-index: 1030 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  .sidebar .sidebar-inner {
+    height: calc(100vh - 56px) !important;
+    max-height: calc(100vh - 56px) !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .sidebar-logo {
+    height: 56px !important;
+    min-height: 56px !important;
+    border-bottom: 1px solid #E9EDF4 !important;
+    background: #FFF !important;
+    transition: padding 0.25s ease !important;
+  }
+
+  /* Navbar Header Full Width Right of Sidebar */
+  .header {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    left: 252px !important;
+    width: calc(100% - 252px) !important;
+    max-width: calc(100% - 252px) !important;
+    height: 56px !important;
+    background: #FFF !important;
+    border-bottom: 1px solid #E9EDF4 !important;
+    margin: 0 !important;
+    z-index: 1000 !important;
+    transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  .header .mobile_btn {
+    display: none !important;
+  }
+
+  /* Page Wrapper Margin & Full 100% Edge-to-Edge Desktop Width */
+  .page-wrapper {
+    min-height: calc(100vh - 56px) !important;
+    padding: 24px !important;
+    margin-top: 56px !important;
+    margin-left: 252px !important;
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
+    width: calc(100% - 252px) !important;
+    max-width: calc(100% - 252px) !important;
+    background-color: #FBFBFD !important;
+    transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Permanently Open Mode (default when NOT .mini-sidebar) */
+  body:not(.mini-sidebar) .sidebar {
+    width: 252px !important;
+  }
+
+  body:not(.mini-sidebar) .header {
+    left: 252px !important;
+    width: calc(100% - 252px) !important;
+    max-width: calc(100% - 252px) !important;
+  }
+
+  body:not(.mini-sidebar) .page-wrapper {
+    margin-left: 252px !important;
+    width: calc(100% - 252px) !important;
+    max-width: calc(100% - 252px) !important;
+  }
+
+  /* Collapsed Mini-Sidebar Mode (when .mini-sidebar AND NOT .expand-menu) */
+  body.mini-sidebar:not(.expand-menu) .sidebar {
+    width: 80px !important;
+  }
+
+  body.mini-sidebar:not(.expand-menu) .sidebar-logo {
+    justify-content: center !important;
+    padding: 0 10px !important;
+  }
+
+  body.mini-sidebar:not(.expand-menu) .sidebar-logo #toggle_btn {
+    display: none !important;
+  }
+
+  body.mini-sidebar:not(.expand-menu) .sidebar .submenu-hdr,
+  body.mini-sidebar:not(.expand-menu) .sidebar .menu-arrow,
+  body.mini-sidebar:not(.expand-menu) .sidebar-menu ul li a span,
+  body.mini-sidebar:not(.expand-menu) .sidebar .student-profile-info {
+    display: none !important;
+  }
+
+  body.mini-sidebar:not(.expand-menu) .sidebar .student-sidebar-profile {
+    justify-content: center !important;
+    padding: 6px 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    margin-bottom: 15px !important;
+  }
+
+  body.mini-sidebar:not(.expand-menu) .sidebar .student-sidebar-profile img {
+    margin: 0 auto !important;
+    display: block !important;
+  }
+
+  body.mini-sidebar:not(.expand-menu) .header {
+    left: 80px !important;
+    width: calc(100% - 80px) !important;
+    max-width: calc(100% - 80px) !important;
+  }
+
+  body.mini-sidebar:not(.expand-menu) .page-wrapper {
+    margin-left: 80px !important;
+    width: calc(100% - 80px) !important;
+    max-width: calc(100% - 80px) !important;
+  }
+
+  /* Hover Expanded Mode (when .mini-sidebar AND .expand-menu) */
+  body.mini-sidebar.expand-menu .sidebar {
+    width: 252px !important;
+    z-index: 1035 !important;
+    box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15) !important;
+  }
+
+  body.mini-sidebar.expand-menu .sidebar-logo {
+    justify-content: space-between !important;
+    padding: 0 15px !important;
+  }
+
+  body.mini-sidebar.expand-menu .sidebar-logo #toggle_btn {
+    display: flex !important;
+  }
+
+  body.mini-sidebar.expand-menu .sidebar .submenu-hdr,
+  body.mini-sidebar.expand-menu .sidebar .menu-arrow,
+  body.mini-sidebar.expand-menu .sidebar-menu ul li a span,
+  body.mini-sidebar.expand-menu .sidebar .student-profile-info {
+    display: inline-block !important;
+  }
+
+  body.mini-sidebar.expand-menu .sidebar .student-sidebar-profile {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    padding: 8px !important;
+    border: 1px solid #e2e8f0 !important;
+    background-color: #ffffff !important;
+  }
+
+  body.mini-sidebar.expand-menu .header {
+    left: 80px !important;
+    width: calc(100% - 80px) !important;
+    max-width: calc(100% - 80px) !important;
+  }
+
+  body.mini-sidebar.expand-menu .page-wrapper {
+    margin-left: 80px !important;
+    width: calc(100% - 80px) !important;
+    max-width: calc(100% - 80px) !important;
+  }
 }
 
-.sidebar .sidebar-inner {
-  height: calc(100vh - 56px) !important;
-  max-height: calc(100vh - 56px) !important;
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch;
-}
+/* =========================================================
+   RESPONSIVE MOBILE & TABLET LAYOUT (< 992px)
+   ========================================================= */
+@media (max-width: 991.98px) {
+  .sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 260px !important;
+    margin-left: -270px !important;
+    background: #FFF !important;
+    border-right: 1px solid #E9EDF4 !important;
+    z-index: 1050 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+    transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: none !important;
+  }
 
-.sidebar .sidebar-inner::-webkit-scrollbar {
-  width: 5px;
-}
+  .main-wrapper.slide-nav .sidebar,
+  .slide-nav .sidebar {
+    margin-left: 0 !important;
+    box-shadow: 4px 0 25px rgba(0, 0, 0, 0.25) !important;
+  }
 
-.sidebar .sidebar-inner::-webkit-scrollbar-thumb {
-  background-color: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-}
+  .sidebar .sidebar-inner {
+    height: calc(100vh - 56px) !important;
+    max-height: calc(100vh - 56px) !important;
+    overflow-y: auto !important;
+  }
 
-.sidebar-logo {
-  height: 56px !important;
-  min-height: 56px !important;
-  border-bottom: 1px solid #E9EDF4 !important;
-  background: #FFF !important;
-  transition: padding 0.25s ease !important;
-}
+  .header {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 56px !important;
+    background: #FFF !important;
+    border-bottom: 1px solid #E9EDF4 !important;
+    margin: 0 !important;
+    z-index: 1020 !important;
+  }
 
-/* Navbar Header Full Width Right of Sidebar */
-.header {
-  position: fixed !important;
-  top: 0 !important;
-  right: 0 !important;
-  left: 252px !important;
-  width: calc(100% - 252px) !important;
-  max-width: calc(100% - 252px) !important;
-  height: 56px !important;
-  background: #FFF !important;
-  border-bottom: 1px solid #E9EDF4 !important;
-  margin: 0 !important;
-  z-index: 1000 !important;
-  transition: left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-}
+  .header .mobile_btn {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    position: absolute !important;
+    left: 10px !important;
+    top: 8px !important;
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 22px !important;
+    color: #3D5EE1 !important;
+    z-index: 1030 !important;
+    cursor: pointer !important;
+  }
 
-/* Page Wrapper Margin & Full 100% Edge-to-Edge Desktop Width */
-.page-wrapper {
-  min-height: calc(100vh - 56px) !important;
-  padding: 24px !important;
-  margin-top: 56px !important;
-  margin-left: 252px !important;
-  margin-right: 0 !important;
-  margin-bottom: 0 !important;
-  width: calc(100% - 252px) !important;
-  max-width: calc(100% - 252px) !important;
-  background-color: #FBFBFD !important;
-  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1), width 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  box-sizing: border-box !important;
+  .header .header-user {
+    margin-left: 45px !important;
+    width: calc(100% - 45px) !important;
+  }
+
+  .page-wrapper {
+    min-height: calc(100vh - 56px) !important;
+    padding: 16px !important;
+    margin-top: 56px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    margin-bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    background-color: #FBFBFD !important;
+    box-sizing: border-box !important;
+  }
 }
 
 /* Force Content & Bootstrap Containers to expand 100% without centering caps */
 .page-wrapper .content,
+.page-wrapper .content.content-two,
 .page-wrapper .container,
 .page-wrapper .container-fluid {
   padding: 0 !important;
   margin: 0 !important;
   width: 100% !important;
   max-width: 100% !important;
-}
-
-/* Permanently Open Mode (default when NOT .mini-sidebar) */
-body:not(.mini-sidebar) .sidebar {
-  width: 252px !important;
-}
-
-body:not(.mini-sidebar) .header {
-  left: 252px !important;
-  width: calc(100% - 252px) !important;
-  max-width: calc(100% - 252px) !important;
-}
-
-body:not(.mini-sidebar) .page-wrapper {
-  margin-left: 252px !important;
-  width: calc(100% - 252px) !important;
-  max-width: calc(100% - 252px) !important;
-}
-
-/* Collapsed Mini-Sidebar Mode (when .mini-sidebar AND NOT .expand-menu) */
-body.mini-sidebar:not(.expand-menu) .sidebar {
-  width: 80px !important;
-}
-
-body.mini-sidebar:not(.expand-menu) .sidebar-logo {
-  justify-content: center !important;
-  padding: 0 10px !important;
-}
-
-body.mini-sidebar:not(.expand-menu) .sidebar-logo #toggle_btn {
-  display: none !important;
-}
-
-body.mini-sidebar:not(.expand-menu) .sidebar .submenu-hdr,
-body.mini-sidebar:not(.expand-menu) .sidebar .menu-arrow,
-body.mini-sidebar:not(.expand-menu) .sidebar-menu ul li a span {
-  display: none !important;
-}
-
-body.mini-sidebar:not(.expand-menu) .header {
-  left: 80px !important;
-  width: calc(100% - 80px) !important;
-  max-width: calc(100% - 80px) !important;
-}
-
-body.mini-sidebar:not(.expand-menu) .page-wrapper {
-  margin-left: 80px !important;
-  width: calc(100% - 80px) !important;
-  max-width: calc(100% - 80px) !important;
-}
-
-/* Hover Expanded Mode (when .mini-sidebar AND .expand-menu) */
-body.mini-sidebar.expand-menu .sidebar {
-  width: 252px !important;
-  z-index: 1035 !important;
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15) !important;
-}
-
-body.mini-sidebar.expand-menu .sidebar-logo {
-  justify-content: space-between !important;
-  padding: 0 15px !important;
-}
-
-body.mini-sidebar.expand-menu .sidebar-logo #toggle_btn {
-  display: flex !important;
-}
-
-body.mini-sidebar.expand-menu .sidebar .submenu-hdr,
-body.mini-sidebar.expand-menu .sidebar .menu-arrow,
-body.mini-sidebar.expand-menu .sidebar-menu ul li a span {
-  display: inline-block !important;
-}
-
-body.mini-sidebar.expand-menu .header {
-  left: 80px !important;
-  width: calc(100% - 80px) !important;
-  max-width: calc(100% - 80px) !important;
-}
-
-body.mini-sidebar.expand-menu .page-wrapper {
-  margin-left: 80px !important;
-  width: calc(100% - 80px) !important;
-  max-width: calc(100% - 80px) !important;
+  box-sizing: border-box !important;
 }
 
 /* Mobile Slide Nav Overlay */
@@ -316,22 +425,17 @@ select.form-select::-webkit-scrollbar-thumb {
   border-radius: 4px;
 }
 
-/* Table Dropdown Menu Visibility - Prevent popup menus from being clipped/hidden in tables */
-.custom-datatable-filter,
-.table-responsive,
-.table-responsivee {
-  overflow: visible !important;
+/* Table Dropdown Menu & Responsive Scroll */
+.custom-datatable-filter {
   min-height: 180px;
 }
 
-.card,
-.card-body {
-  overflow: visible !important;
-}
-
-.table td .dropdown,
-.table th .dropdown {
-  position: relative;
+.table-responsive,
+.table-responsivee {
+  overflow-x: auto !important;
+  -webkit-overflow-scrolling: touch;
+  width: 100% !important;
+  max-width: 100% !important;
 }
 
 .dropdown-menu {
@@ -349,9 +453,18 @@ select.form-select::-webkit-scrollbar-thumb {
   padding: 6px 12px !important;
 }
 
+/* Responsive Card & Page Header Adjustments */
 @media (max-width: 767.98px) {
-  .table-responsive {
-    overflow-x: auto !important;
+  .page-title {
+    font-size: 17px !important;
+  }
+
+  .card-header {
+    padding: 12px 14px !important;
+  }
+
+  .card-body {
+    padding: 14px !important;
   }
 }
 
@@ -497,40 +610,240 @@ select.form-select::-webkit-scrollbar-thumb {
 }
 
 /* =========================================================
-   TEXT WRAPPING & OVERFLOW RULES
+   SIDEBAR MENU ITEM HORIZONTAL ALIGNMENT & PADDING RESET
    ========================================================= */
-/* Sidebar menu and submenu item text wrapping */
+.sidebar .sidebar-menu,
+.sidebar .sidebar-menu ul,
+.sidebar .sidebar-menu li {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  list-style: none !important;
+}
+
+.sidebar .sidebar-inner {
+  padding: 10px 8px !important;
+}
+
 .sidebar-menu ul li a {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  position: relative !important;
+  min-height: 40px !important;
   height: auto !important;
-  min-height: 38px !important;
+  padding: 9px 36px 9px 12px !important;
+  margin: 2px 0 !important;
+  border-radius: 6px !important;
+  box-sizing: border-box !important;
+  width: 100% !important;
 }
 
-.sidebar-menu ul li a span {
-  white-space: normal !important;
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
-  line-height: 1.3 !important;
+.sidebar-menu ul li a > i {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 20px !important;
+  min-width: 20px !important;
+  height: 20px !important;
+  font-size: 18px !important;
+  margin-right: 10px !important;
+  margin-left: 0 !important;
+  flex-shrink: 0 !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
 }
 
-.sidebar-menu ul ul li a {
-  padding-top: 7px !important;
-  padding-bottom: 7px !important;
-  align-items: flex-start !important;
+.sidebar-menu ul li a > span:not(.menu-arrow) {
+  flex: 1 1 auto !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  line-height: 1.4 !important;
+  font-size: 14px !important;
+  display: inline-block !important;
+  vertical-align: middle !important;
 }
 
-.sidebar-menu ul ul li a span {
-  white-space: normal !important;
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
-  line-height: 1.35 !important;
+.sidebar .sidebar-menu li.submenu > a > .menu-arrow {
+  position: absolute !important;
+  top: 50% !important;
+  right: 14px !important;
+  margin: 0 !important;
+  width: 16px !important;
+  height: 16px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transform: translateY(-50%) rotate(0deg) !important;
+  transform-origin: center center !important;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  pointer-events: none !important;
 }
 
-/* Table cells text wrapping */
+.sidebar .sidebar-menu li.submenu > a.subdrop > .menu-arrow {
+  transform: translateY(-50%) rotate(90deg) !important;
+  transform-origin: center center !important;
+}
+
+.sidebar-menu ul.sidebar-submenu-list li a {
+  padding: 7px 12px 7px 34px !important;
+  min-height: 34px !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.sidebar-menu ul.sidebar-submenu-list li a span {
+  font-size: 13.5px !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+/* =========================================================
+   RESPONSIVE TABLES & HORIZONTAL SCROLLING RULES
+   ========================================================= */
+/* Keep table headers and cells on a single clean line without awkward word breaking */
+table.table th,
 table.table td,
-table.table th {
-  white-space: normal !important;
-  word-break: break-word !important;
-  overflow-wrap: break-word !important;
+.dataTable th,
+.dataTable td {
+  white-space: nowrap !important;
+  word-break: normal !important;
+  overflow-wrap: normal !important;
+  vertical-align: middle !important;
 }
+
+/* Ensure table container scrolls horizontally smoothly on overflow */
+.table-responsive {
+  display: block !important;
+  width: 100% !important;
+  overflow-x: auto !important;
+  overflow-y: hidden !important;
+  -webkit-overflow-scrolling: touch !important;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+/* Custom modern scrollbar for table-responsive containers */
+.table-responsive::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+
+.table-responsive::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+
+.table-responsive::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Ensure data tables fill container width cleanly */
+table.dataTable,
+table.table {
+  width: 100% !important;
+  margin-bottom: 0 !important;
+  border-collapse: collapse !important;
+}
+
+/* =========================================================
+   SIDEBAR SUBMENU ACCORDION SMOOTH EXPAND / COLLAPSE ANIMATION
+   ========================================================= */
+.sidebar .sidebar-menu li.submenu > ul.sidebar-submenu-list {
+  max-height: 0 !important;
+  opacity: 0 !important;
+  overflow: hidden !important;
+  visibility: hidden !important;
+  display: block !important;
+  transform: translateY(-4px);
+  transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+              opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+              visibility 0.35s ease !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.sidebar .sidebar-menu li.submenu > ul.sidebar-submenu-list.submenu-open {
+  max-height: 1200px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: translateY(0);
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+/* =========================================================
+   SALARY SLIP PRINT & LOGO STYLES
+   ========================================================= */
+#printable-salary-slip img {
+  max-height: 48px !important;
+  max-width: 180px !important;
+  width: auto !important;
+  height: auto !important;
+  object-fit: contain !important;
+  display: inline-block !important;
+}
+
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-salary-slip,
+  #printable-salary-slip * {
+    visibility: visible;
+  }
+  #printable-salary-slip {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 100vw;
+    height: auto;
+    margin: 0;
+    padding: 24px;
+    background: #fff;
+    border: none;
+    box-shadow: none;
+    z-index: 999999;
+  }
+  .modal,
+  .modal-backdrop {
+    position: static !important;
+    background: transparent !important;
+  }
+  .modal-header,
+  .modal-footer {
+    display: none !important;
+  }
+}
+
+/* =========================================================
+   PORTAL FOOTER STYLING
+   ========================================================= */
+.footer {
+  background-color: #ffffff !important;
+  border-top: 1px solid #e9ecef !important;
+  padding: 16px 20px !important;
+  margin-top: 24px !important;
+  width: 100% !important;
+  border-radius: 6px;
+  transition: all 0.2s ease-in-out;
+}
+
+.footer a {
+  color: #6c757d;
+  transition: color 0.15s ease-in-out;
+}
+
+.footer a:hover {
+  color: #0d6efd !important;
+}
+
 
 

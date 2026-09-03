@@ -5,24 +5,11 @@ import {
   fetchAssignmentTypeByIdApi,
   updateAssignmentTypeApi,
 } from '../../../api/adminAcademic.api';
-
-const resolveId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64
-  }
-  return paramId;
-};
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditAssignmentType = () => {
   const { id: rawId } = useParams();
-  const id = resolveId(rawId);
+  const id = decodeParam(rawId);
   const navigate = useNavigate();
 
   const [typeName, setTypeName] = useState('');

@@ -2,13 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
+import DataTable from '../../../components/common/DataTable';
+import TableActionMenu from '../../../components/common/TableActionMenu';
 
 const FeesComponents = () => {
   const [components, setComponents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [pageSize, setPageSize] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
@@ -23,6 +22,14 @@ const FeesComponents = () => {
     status: 1,
   });
 
+  // Delete modal state
+  const [deleteModal, setDeleteModal] = useState({
+    show: false,
+    id: null,
+    name: '',
+    processing: false,
+  });
+
   useEffect(() => {
     fetchComponents();
   }, []);
@@ -34,7 +41,6 @@ const FeesComponents = () => {
       const list = res?.data?.components || [];
       setComponents(list);
     } catch (err) {
-      console.error('Failed to load fee components:', err);
       toast.error(err.message || 'Failed to load fee components');
     } finally {
       setLoading(false);
@@ -67,72 +73,150 @@ const FeesComponents = () => {
     setShowModal(true);
   };
 
-  const handleSubmit = async (e) => {
+  const handleFormChange = (e) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'checkbox' ? (checked ? 1 : 0) : value,
+    }));
+  };
+
+  const handleSave = async (e) => {
     e.preventDefault();
     if (!formData.name.trim()) {
-      toast.warning('Please enter Component Name.');
+      toast.error('Component Name is required.');
       return;
     }
 
     try {
       setSaving(true);
-      if (modalMode === 'add') {
-        await adminFeesApi.createComponent(formData);
-        toast.success('Fee component created successfully.');
-      } else {
-        await adminFeesApi.updateComponent(currentId, formData);
-        toast.success('Fee component updated successfully.');
-      }
+      await adminFeesApi.saveComponent({ ...formData, id: currentId });
+      toast.success(
+        modalMode === 'add'
+          ? 'Fee component created successfully.'
+          : 'Fee component updated successfully.'
+      );
       setShowModal(false);
       fetchComponents();
     } catch (err) {
-      console.error('Failed to save component:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to save component.');
     } finally {
       setSaving(false);
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to delete "${name}"?`)) return;
-
+  const handleDeleteConfirm = async () => {
+    if (!deleteModal.id) return;
     try {
-      await adminFeesApi.deleteComponent(id);
+      setDeleteModal((prev) => ({ ...prev, processing: true }));
+      await adminFeesApi.deleteComponent(deleteModal.id);
       toast.success('Fee component deleted successfully.');
+      setDeleteModal({ show: false, id: null, name: '', processing: false });
       fetchComponents();
     } catch (err) {
-      console.error('Failed to delete component:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to delete component.');
+      setDeleteModal((prev) => ({ ...prev, processing: false }));
     }
   };
 
-  // Filter & Pagination
-  const filteredComponents = useMemo(() => {
-    if (!searchTerm.trim()) return components;
-    const term = searchTerm.toLowerCase();
-    return components.filter(
-      (c) =>
-        c.name?.toLowerCase().includes(term) ||
-        c.code?.toLowerCase().includes(term) ||
-        c.account_code?.toLowerCase().includes(term) ||
-        c.description?.toLowerCase().includes(term)
-    );
-  }, [components, searchTerm]);
-
-  const totalPages = Math.ceil(filteredComponents.length / pageSize) || 1;
-  const paginatedComponents = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredComponents.slice(start, start + pageSize);
-  }, [filteredComponents, currentPage, pageSize]);
+  const columns = useMemo(
+    () => [
+      {
+        key: 'index',
+        header: 'Sl No.',
+        width: '70px',
+        align: 'center',
+        cell: ({ index }) => <span className="text-muted fw-medium">{index + 1}</span>,
+      },
+      {
+        accessorKey: 'name',
+        header: 'Component Name',
+        sortable: true,
+        cell: ({ value, row }) => (
+          <span
+            onClick={() => handleOpenEditModal(row)}
+            className="fw-semibold text-primary cursor-pointer text-decoration-none"
+            style={{ cursor: 'pointer' }}
+          >
+            {value}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'code',
+        header: 'Code',
+        sortable: true,
+        cell: ({ value }) => (
+          <span className="badge bg-light text-dark border px-2.5 py-1.5">{value || '—'}</span>
+        ),
+      },
+      {
+        accessorKey: 'account_code',
+        header: 'Account Code',
+        sortable: true,
+        cell: ({ value }) => <code className="text-secondary">{value || '—'}</code>,
+      },
+      {
+        accessorKey: 'description',
+        header: 'Description',
+        cell: ({ value }) => <span className="text-muted fs-13">{value || '—'}</span>,
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        width: '120px',
+        align: 'center',
+        sortable: true,
+        cell: ({ value }) => {
+          const isActive = Number(value) === 1;
+          return (
+            <span className={isActive ? 'badge-soft-success' : 'badge-soft-danger'}>
+              <i className={`ti ${isActive ? 'ti-circle-check' : 'ti-circle-x'} fs-12 me-1`}></i>
+              {isActive ? 'Active' : 'Inactive'}
+            </span>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        header: 'Action',
+        width: '90px',
+        align: 'center',
+        sortable: false,
+        cell: ({ row }) => (
+          <TableActionMenu
+            items={[
+              {
+                label: 'Edit',
+                icon: 'ti ti-edit-circle text-primary',
+                onClick: () => handleOpenEditModal(row),
+              },
+              {
+                label: 'Delete',
+                icon: 'ti ti-trash-x',
+                variant: 'danger',
+                onClick: () =>
+                  setDeleteModal({
+                    show: true,
+                    id: row.id,
+                    name: row.name,
+                    processing: false,
+                  }),
+              },
+            ]}
+          />
+        ),
+      },
+    ],
+    []
+  );
 
   return (
     <div className="content">
       {/* Page Header */}
-      <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
+      <div className="d-md-flex d-block align-items-center justify-content-between mb-4">
         <div className="my-auto mb-2">
-          <h3 className="page-title mb-1">
-            <i className="ti ti-list-details me-2 text-primary"></i>Fee Components (Headings)
-          </h3>
+          <h3 className="page-title mb-1">Fee Components</h3>
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
@@ -147,252 +231,129 @@ const FeesComponents = () => {
             </ol>
           </nav>
         </div>
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={fetchComponents}
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              title="Refresh"
-            >
-              <i className="ti ti-refresh"></i>
-            </button>
-          </div>
-          <div className="mb-2">
-            <button
-              type="button"
-              className="btn btn-primary d-flex align-items-center"
-              onClick={handleOpenAddModal}
-            >
-              <i className="ti ti-plus me-1"></i> Add Fee Head / Component
-            </button>
-          </div>
-        </div>
-      </div>
-      {/* /Page Header */}
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <button
+            type="button"
+            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
+            onClick={fetchComponents}
+            title="Refresh"
+          >
+            <i className="ti ti-refresh"></i>
+          </button>
 
-      {/* Main Card */}
-      <div className="card border-0 shadow-sm">
-        <div className="card-header bg-white py-3 d-flex align-items-center justify-content-between flex-wrap gap-2">
-          <h5 className="mb-0 text-dark fw-bold">Individual Line Items / Billable Headings</h5>
-          <div className="d-flex align-items-center gap-2">
-            <input
-              type="search"
-              className="form-control form-control-sm"
-              placeholder="Search components..."
-              style={{ width: '220px' }}
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-            />
-          </div>
-        </div>
-
-        <div className="card-body p-0">
-          <div className="table-responsive">
-            <table className="table table-hover align-middle mb-0">
-              <thead className="table-light">
-                <tr>
-                  <th style={{ width: '60px' }}>#</th>
-                  <th>Component Name</th>
-                  <th>Code</th>
-                  <th>Account Code</th>
-                  <th>Description</th>
-                  <th>Status</th>
-                  <th style={{ width: '150px' }} className="text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan="7" className="text-center py-4 text-muted">
-                      <div className="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
-                      Loading fee components...
-                    </td>
-                  </tr>
-                ) : paginatedComponents.length === 0 ? (
-                  <tr>
-                    <td colSpan="7" className="text-center py-4 text-muted">
-                      No fee components configured yet. Click "Add Fee Head" to create one.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedComponents.map((comp, idx) => (
-                    <tr key={comp.id}>
-                      <td>{(currentPage - 1) * pageSize + idx + 1}</td>
-                      <td className="fw-bold text-dark">{comp.name}</td>
-                      <td>
-                        <span className="badge bg-light text-dark border">
-                          {comp.code || '-'}
-                        </span>
-                      </td>
-                      <td>
-                        <code>{comp.account_code || '-'}</code>
-                      </td>
-                      <td>
-                        <small className="text-muted">{comp.description || '-'}</small>
-                      </td>
-                      <td>
-                        {comp.status === 1 ? (
-                          <span className="badge bg-success">Active</span>
-                        ) : (
-                          <span className="badge bg-secondary">Inactive</span>
-                        )}
-                      </td>
-                      <td className="text-center">
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-primary me-1"
-                          onClick={() => handleOpenEditModal(comp)}
-                          title="Edit"
-                        >
-                          <i className="ti ti-edit"></i> Edit
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => handleDelete(comp.id, comp.name)}
-                          title="Delete"
-                        >
-                          <i className="ti ti-trash"></i>
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Footer */}
-          {filteredComponents.length > pageSize && (
-            <div className="p-3 border-top d-flex justify-content-between align-items-center flex-wrap">
-              <span className="text-muted fs-13">
-                Showing {(currentPage - 1) * pageSize + 1} to{' '}
-                {Math.min(currentPage * pageSize, filteredComponents.length)} of{' '}
-                {filteredComponents.length} entries
-              </span>
-              <ul className="pagination pagination-sm mb-0">
-                <li className={`page-item ${currentPage === 1 ? 'disabled' : ''}`}>
-                  <button
-                    className="page-link"
-                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  >
-                    Prev
-                  </button>
-                </li>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-                  <li key={p} className={`page-item ${currentPage === p ? 'active' : ''}`}>
-                    <button className="page-link" onClick={() => setCurrentPage(p)}>
-                      {p}
-                    </button>
-                  </li>
-                ))}
-                <li className={`page-item ${currentPage === totalPages ? 'disabled' : ''}`}>
-                  <button
-                    className="page-link"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  >
-                    Next
-                  </button>
-                </li>
-              </ul>
-            </div>
-          )}
+          <button className="btn btn-primary d-flex align-items-center" onClick={handleOpenAddModal}>
+            <i className="ti ti-square-rounded-plus me-2"></i>Add Fee Head
+          </button>
         </div>
       </div>
 
-      {/* Add / Edit Component Modal */}
+      {/* Main DataTable */}
+      <DataTable
+        title="Fee Heads & Components"
+        subtitle="Manage master fee line items (Tuition, Library, Exam, Sports, etc.)."
+        columns={columns}
+        data={components}
+        loading={loading}
+        searchPlaceholder="Search fee components..."
+        emptyMessage="No fee components configured yet. Click 'Add Fee Head' to create one."
+      />
+
+      {/* Modal for Add / Edit */}
       {showModal && (
         <div
           className="modal fade show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
           tabIndex="-1"
-          role="dialog"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
         >
-          <div className="modal-dialog modal-dialog-centered" role="document">
-            <div className="modal-content border-0 shadow-lg">
-              <form onSubmit={handleSubmit}>
-                <div className="modal-header bg-primary text-white">
-                  <h5 className="modal-title text-white fw-bold">
-                    <i className="ti ti-list-details me-2"></i>
-                    {modalMode === 'add' ? 'Add Fee Component' : 'Edit Fee Component'}
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close btn-close-white"
-                    onClick={() => setShowModal(false)}
-                  ></button>
-                </div>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold">
+                  {modalMode === 'add' ? 'Add Fee Component' : 'Edit Fee Component'}
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setShowModal(false)}
+                  disabled={saving}
+                ></button>
+              </div>
 
-                <div className="modal-body p-4">
+              <form onSubmit={handleSave}>
+                <div className="modal-body">
                   <div className="mb-3">
                     <label className="form-label fw-semibold">
                       Component Name <span className="text-danger">*</span>
                     </label>
                     <input
                       type="text"
+                      name="name"
                       className="form-control"
-                      placeholder="e.g. Tuition Fee, Transport Fee, Lab Charges"
-                      required
+                      placeholder="e.g. Tuition Fee, Library Fee, Lab Fee"
                       value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      onChange={handleFormChange}
+                      required
                     />
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">Code / Short Alias</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. TFEE, LAB, ADM"
-                      value={formData.code}
-                      onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-                    />
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">Account / Ledger Code</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. 10100, ACC-401"
-                      value={formData.account_code}
-                      onChange={(e) => setFormData({ ...formData, account_code: e.target.value })}
-                    />
+                  <div className="row g-2 mb-3">
+                    <div className="col-6">
+                      <label className="form-label fw-semibold">Short Code</label>
+                      <input
+                        type="text"
+                        name="code"
+                        className="form-control text-uppercase"
+                        placeholder="e.g. TF, LF"
+                        value={formData.code}
+                        onChange={handleFormChange}
+                      />
+                    </div>
+                    <div className="col-6">
+                      <label className="form-label fw-semibold">Ledger / Account Code</label>
+                      <input
+                        type="text"
+                        name="account_code"
+                        className="form-control"
+                        placeholder="e.g. ACC-101"
+                        value={formData.account_code}
+                        onChange={handleFormChange}
+                      />
+                    </div>
                   </div>
 
                   <div className="mb-3">
                     <label className="form-label fw-semibold">Description</label>
                     <textarea
+                      name="description"
                       className="form-control"
-                      rows="2"
-                      placeholder="Brief note about this line item..."
+                      rows="3"
+                      placeholder="Optional notes or details..."
                       value={formData.description}
-                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                      onChange={handleFormChange}
                     ></textarea>
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">Status</label>
-                    <select
-                      className="form-select"
-                      value={formData.status}
-                      onChange={(e) => setFormData({ ...formData, status: parseInt(e.target.value, 10) })}
-                    >
-                      <option value="1">Active</option>
-                      <option value="2">Inactive</option>
-                    </select>
+                  <div className="form-check form-switch">
+                    <input
+                      className="form-check-input"
+                      type="checkbox"
+                      name="status"
+                      id="statusSwitch"
+                      checked={formData.status === 1}
+                      onChange={handleFormChange}
+                    />
+                    <label className="form-check-label fw-semibold" htmlFor="statusSwitch">
+                      Active Component
+                    </label>
                   </div>
                 </div>
 
-                <div className="modal-footer bg-light">
+                <div className="modal-footer">
                   <button
                     type="button"
-                    className="btn btn-secondary"
+                    className="btn btn-light"
                     onClick={() => setShowModal(false)}
+                    disabled={saving}
                   >
                     Cancel
                   </button>
@@ -402,14 +363,70 @@ const FeesComponents = () => {
                         <span className="spinner-border spinner-border-sm me-1" role="status"></span>
                         Saving...
                       </>
+                    ) : modalMode === 'add' ? (
+                      'Create Component'
                     ) : (
-                      <>
-                        <i className="ti ti-check me-1"></i> Save Component
-                      </>
+                      'Save Changes'
                     )}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.show && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0">
+              <div className="modal-header border-0 pb-0">
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setDeleteModal({ show: false, id: null, name: '', processing: false })}
+                  disabled={deleteModal.processing}
+                ></button>
+              </div>
+              <div className="modal-body text-center pt-0 pb-4">
+                <div className="text-danger mb-3">
+                  <i className="ti ti-trash-x fs-48"></i>
+                </div>
+                <h4 className="mb-2">Delete Fee Component</h4>
+                <p className="text-muted mb-4">
+                  Are you sure you want to delete <strong>{deleteModal.name}</strong>? This action cannot be undone.
+                </p>
+                <div className="d-flex justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light px-4"
+                    onClick={() => setDeleteModal({ show: false, id: null, name: '', processing: false })}
+                    disabled={deleteModal.processing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger px-4"
+                    onClick={handleDeleteConfirm}
+                    disabled={deleteModal.processing}
+                  >
+                    {deleteModal.processing ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete'
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

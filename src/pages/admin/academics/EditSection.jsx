@@ -8,26 +8,12 @@ import {
   createSectionApi,
   updateSectionApi,
 } from '../../../api/adminAcademic.api';
-
-// Helper to resolve base64 or normal numeric ID
-const resolveSectionId = (paramId) => {
-  if (!paramId) return null;
-  try {
-    const unescaped = decodeURIComponent(paramId);
-    const decoded = atob(unescaped);
-    if (!isNaN(Number(decoded)) && Number(decoded) > 0) {
-      return decoded;
-    }
-  } catch (e) {
-    // Not base64 encoded, return as is
-  }
-  return paramId;
-};
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditSection = () => {
   const { id: rawId } = useParams();
   const navigate = useNavigate();
-  const id = resolveSectionId(rawId);
+  const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
   const [classes, setClasses] = useState([]);
@@ -112,7 +98,7 @@ const EditSection = () => {
     try {
       setSaving(true);
       const payload = {
-        class_id: Number(formData.class_id),
+        class_id: formData.class_id,
         section_name: formData.section_name.trim(),
         capacity: Number(formData.capacity) || 0,
         note: formData.note.trim(),

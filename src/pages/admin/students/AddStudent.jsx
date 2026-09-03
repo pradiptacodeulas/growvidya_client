@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { getServerBaseUrl } from '../../../utils/url.util';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import apiClient from '../../../api/axios.config';
+import { decodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const formatImageUrl = (pic) => {
   if (!pic) return '';
@@ -15,7 +17,8 @@ const formatImageUrl = (pic) => {
 
 const AddStudent = () => {
   const navigate = useNavigate();
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const isEditMode = Boolean(id);
 
   // Tab State
@@ -74,6 +77,11 @@ const AddStudent = () => {
       return updated;
     });
   };
+
+  // Duplicate Email Validation State
+  const [emailError, setEmailError] = useState('');
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+  const emailCheckTimerRef = useRef(null);
 
   // Tab 1: Personal Info State
   const [personalImgPreview, setPersonalImgPreview] = useState('');
@@ -752,12 +760,14 @@ const AddStudent = () => {
     }
   };
 
-  // Image Upload Previews
+  // Image Upload Previews (Restricted to max 100 KB)
+  const MAX_IMAGE_SIZE = 100 * 1024; // 100 KB
   const handleImageUpload = (e, setFileFn, setPreviewFn) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.size > 4 * 1024 * 1024) {
-        toast.error('Image size must be less than 4MB');
+      if (file.size > MAX_IMAGE_SIZE) {
+        toast.error('Image size must be less than 100 KB. Please choose a smaller image.');
+        e.target.value = '';
         return;
       }
       setFileFn(file);
@@ -772,6 +782,64 @@ const AddStudent = () => {
   const removeImage = (setFileFn, setPreviewFn) => {
     setFileFn(null);
     setPreviewFn('');
+  };
+
+  // Live Email Duplicate Check
+  const checkDuplicateEmail = async (emailVal) => {
+    const trimmed = String(emailVal || '').trim();
+    if (!trimmed) {
+      setEmailError('');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmed)) {
+      setEmailError('');
+      return;
+    }
+
+    try {
+      setIsCheckingEmail(true);
+      const res = await apiClient.get('/admin/students/check-email', {
+        params: {
+          email: trimmed,
+          studentId: isEditMode && id ? id : undefined,
+        },
+      });
+
+      if (res.data?.data?.isDuplicate) {
+        setEmailError('This email is already registered to another student.');
+      } else {
+        setEmailError('');
+      }
+    } catch (err) {
+      console.error('Error checking duplicate email:', err);
+    } finally {
+      setIsCheckingEmail(false);
+    }
+  };
+
+  const handleEmailChange = (e) => {
+    const val = e.target.value;
+    setPersonalInfo((prev) => ({ ...prev, email_address: val }));
+    clearError('email_address');
+    setEmailError('');
+
+    if (emailCheckTimerRef.current) {
+      clearTimeout(emailCheckTimerRef.current);
+    }
+
+    emailCheckTimerRef.current = setTimeout(() => {
+      checkDuplicateEmail(val);
+    }, 400);
+  };
+
+  const handleEmailBlur = (e) => {
+    const val = e.target.value;
+    if (emailCheckTimerRef.current) {
+      clearTimeout(emailCheckTimerRef.current);
+    }
+    checkDuplicateEmail(val);
   };
 
   // Parent Search
@@ -932,7 +1000,11 @@ const AddStudent = () => {
       if (!personalInfo.blood_group) newErrors.blood_group = true;
       if (!personalInfo.category) newErrors.category = true;
       if (!personalInfo.primary_contact_number) newErrors.primary_contact_number = true;
-      if (!personalInfo.email_address?.trim()) newErrors.email_address = true;
+      if (!personalInfo.email_address?.trim()) {
+        newErrors.email_address = true;
+      } else if (emailError) {
+        newErrors.email_address = true;
+      }
       if (!personalInfo.mother_tongue) newErrors.mother_tongue = true;
     }
 
@@ -1042,6 +1114,28 @@ const AddStudent = () => {
     if (e) e.preventDefault();
     if (!validateAllTabs()) return;
 
+    if (personalImgFile && personalImgFile.size > MAX_IMAGE_SIZE) {
+      toast.error('Student profile picture exceeds 100 KB. Please upload an image under 100 KB.');
+      setActiveTab('personal');
+      return;
+    }
+    if (fatherImgFile && fatherImgFile.size > MAX_IMAGE_SIZE) {
+      toast.error("Father's profile picture exceeds 100 KB. Please upload an image under 100 KB.");
+      setActiveTab('parents');
+      return;
+    }
+    if (motherImgFile && motherImgFile.size > MAX_IMAGE_SIZE) {
+      toast.error("Mother's profile picture exceeds 100 KB. Please upload an image under 100 KB.");
+      setActiveTab('parents');
+      return;
+    }
+
+    if (emailError) {
+      toast.error(emailError);
+      setActiveTab('personal');
+      return;
+    }
+
     try {
       setSubmitting(true);
       const payload = {
@@ -1091,7 +1185,12 @@ const AddStudent = () => {
         }
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to submit student form.');
+      const errMsg = error.response?.data?.message || 'Failed to submit student form.';
+      if (errMsg.toLowerCase().includes('email')) {
+        setEmailError(errMsg);
+        setActiveTab('personal');
+      }
+      toast.error(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -1193,7 +1292,7 @@ const AddStudent = () => {
                                 Remove
                               </button>
                             </div>
-                            <p className="fs-12 text-muted mb-0">Upload image size 4MB, Format JPG, PNG, JPEG</p>
+                            <p className="fs-12 text-muted mb-0">Upload image size max 100 KB, Format JPG, PNG, JPEG</p>
                           </div>
                         </div>
                       </div>
@@ -1490,18 +1589,32 @@ const AddStudent = () => {
                       </div>
 
                       <div className="col-xl-3 col-md-6 mb-3">
-                        <label className="form-label">
-                          Email Address <span className="text-danger">*</span>
+                        <label className="form-label d-flex justify-content-between align-items-center mb-1">
+                          <span>Email Address <span className="text-danger">*</span></span>
+                          {isCheckingEmail && (
+                            <span className="fs-11 text-muted fw-normal">
+                              <span className="spinner-border spinner-border-sm me-1" style={{ width: '10px', height: '10px' }} />
+                              Checking...
+                            </span>
+                          )}
                         </label>
                         <input
                           type="email"
-                          className={`form-control ${errors.email_address ? 'is-invalid border-danger' : ''}`}
+                          className={`form-control ${errors.email_address || emailError ? 'is-invalid border-danger' : ''}`}
                           value={personalInfo.email_address}
-                          onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, email_address: e.target.value });
-                            clearError('email_address');
-                          }}
+                          onChange={handleEmailChange}
+                          onBlur={handleEmailBlur}
+                          placeholder="e.g. student@example.com"
                         />
+                        {emailError ? (
+                          <div className="text-danger fs-12 mt-1">
+                            {emailError}
+                          </div>
+                        ) : errors.email_address ? (
+                          <div className="text-danger fs-12 mt-1">
+                            Email address is required.
+                          </div>
+                        ) : null}
                       </div>
 
 
@@ -1651,7 +1764,7 @@ const AddStudent = () => {
                                   Remove
                                 </button>
                               </div>
-                              <p className="fs-12 text-muted mb-0">Upload image size 4MB, Format JPG, PNG, JPEG</p>
+                              <p className="fs-12 text-muted mb-0">Upload image size max 100 KB, Format JPG, PNG, JPEG</p>
                             </div>
                           </div>
                         </div>
@@ -1731,7 +1844,7 @@ const AddStudent = () => {
                             <option value="">Select Country</option>
                             {countries.map((c) => (
                               <option key={c.id} value={c.id}>
-                                {c.country}
+                                {c.name || c.country || c.country_name}
                               </option>
                             ))}
                           </select>
@@ -1853,7 +1966,7 @@ const AddStudent = () => {
                                   Remove
                                 </button>
                               </div>
-                              <p className="fs-12 text-muted mb-0">Upload image size 4MB, Format JPG, PNG, JPEG</p>
+                              <p className="fs-12 text-muted mb-0">Upload image size max 100 KB, Format JPG, PNG, JPEG</p>
                             </div>
                           </div>
                         </div>
@@ -1933,7 +2046,7 @@ const AddStudent = () => {
                             <option value="">Select Country</option>
                             {countries.map((c) => (
                               <option key={c.id} value={c.id}>
-                                {c.country}
+                                {c.name || c.country || c.country_name}
                               </option>
                             ))}
                           </select>
@@ -2264,7 +2377,7 @@ const AddStudent = () => {
                           <option value="">Select Country</option>
                           {countries.map((c) => (
                             <option key={c.id} value={c.id}>
-                              {c.country}
+                              {c.name || c.country || c.country_name}
                             </option>
                           ))}
                         </select>
@@ -2402,7 +2515,7 @@ const AddStudent = () => {
                               <option value="">Select Country</option>
                               {countries.map((c) => (
                                 <option key={c.id} value={c.id}>
-                                  {c.country}
+                                  {c.name || c.country || c.country_name}
                                 </option>
                               ))}
                             </select>
@@ -3013,7 +3126,7 @@ const AddStudent = () => {
                           <option value="">Select Country</option>
                           {countries.map((c) => (
                             <option key={c.id} value={c.id}>
-                              {c.country}
+                              {c.name || c.country || c.country_name}
                             </option>
                           ))}
                         </select>

@@ -1,5 +1,6 @@
+import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   fetchStudentByIdApi,
   addStudentActivityApi,
@@ -7,12 +8,16 @@ import {
 } from '../../../api/adminStudent.api';
 import { toast } from 'react-toastify';
 import Avatar from '../../../components/common/Avatar';
+import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const StudentDetails = () => {
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const navigate = useNavigate();
+  const location = useLocation();
+  const isTeacherPortal = location.pathname.startsWith('/teacher');
 
   const [student, setStudent] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -90,18 +95,18 @@ const StudentDetails = () => {
           setStudent(res.data.student);
         } else {
           toast.error('Student record not found.');
-          navigate('/admin/students');
+          navigate(isTeacherPortal ? '/teacher/students' : '/admin/students');
         }
       } catch (err) {
         toast.error(err.message || 'Failed to load student details.');
-        navigate('/admin/students');
+        navigate(isTeacherPortal ? '/teacher/students' : '/admin/students');
       } finally {
         setLoading(false);
       }
     };
 
     if (id) loadStudentDetails();
-  }, [id, navigate]);
+  }, [id, navigate, isTeacherPortal]);
 
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -243,10 +248,10 @@ const StudentDetails = () => {
               <nav>
                 <ol className="breadcrumb mb-0">
                   <li className="breadcrumb-item">
-                    <Link to="/admin/dashboard">Dashboard</Link>
+                    <Link to={isTeacherPortal ? '/teacher/dashboard' : '/admin/dashboard'}>Dashboard</Link>
                   </li>
                   <li className="breadcrumb-item">
-                    <Link to="/admin/students">Student</Link>
+                    <Link to={isTeacherPortal ? '/teacher/students' : '/admin/students'}>Students</Link>
                   </li>
                   <li className="breadcrumb-item active" aria-current="page">
                     Student Details
@@ -255,12 +260,20 @@ const StudentDetails = () => {
               </nav>
             </div>
             <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-              <a href="#" onClick={(e) => e.preventDefault()} className="btn btn-light me-2 mb-2">
-                <i className="ti ti-lock me-2"></i>Login Details
-              </a>
-              <Link to={`/admin/students/edit/${id}`} className="btn btn-primary d-flex align-items-center mb-2">
-                <i className="ti ti-edit-circle me-2"></i>Edit Student
-              </Link>
+              {!isTeacherPortal ? (
+                <>
+                  <a href="#" onClick={(e) => e.preventDefault()} className="btn btn-light me-2 mb-2">
+                    <i className="ti ti-lock me-2"></i>Login Details
+                  </a>
+                  <Link to={`/admin/students/edit/${encodeParam(id)}`} className="btn btn-primary d-flex align-items-center mb-2">
+                    <i className="ti ti-edit-circle me-2"></i>Edit Student
+                  </Link>
+                </>
+              ) : (
+                <Link to="/teacher/students" className="btn btn-light d-flex align-items-center mb-2">
+                  <i className="ti ti-arrow-left me-2"></i>Back to Students
+                </Link>
+              )}
             </div>
           </div>
         </div>
@@ -346,9 +359,6 @@ const StudentDetails = () => {
                     ))}
                   </dd>
                 </dl>
-                <a href="#" className="btn btn-primary btn-sm w-100">
-                  Add Fees
-                </a>
               </div>
               {/* /Basic Information */}
             </div>
@@ -531,7 +541,7 @@ const StudentDetails = () => {
                           <div className="col-md-4">
                             <div className="mb-3">
                               <p className="text-dark fw-medium mb-1">Academic Year</p>
-                              <p>January 2026 - November 2026</p>
+                              <p>{student.academic_year_name || student.academic_year || (student.academic_year_id ? `Academic Year ${student.academic_year_id}` : '—')}</p>
                             </div>
                           </div>
                           <div className="col-md-4">

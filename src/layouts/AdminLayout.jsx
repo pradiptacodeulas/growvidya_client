@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from '../components/common/Navbar';
 import Sidebar from '../components/common/Sidebar';
+import Footer from '../components/common/Footer';
 
 const AdminLayout = () => {
+  const location = useLocation();
+
   // Initialize collapsed state from localStorage so state persists across reloads
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const savedState = localStorage.getItem('sidebar_collapsed');
@@ -11,6 +14,11 @@ const AdminLayout = () => {
   });
   const [isHovered, setIsHovered] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // Close mobile menu on route change
+  useEffect(() => {
+    setIsMobileMenuOpen(false);
+  }, [location.pathname]);
 
   // Toggle permanent collapsed vs open mode via hamburger click and persist to localStorage
   const toggleSidebar = () => {
@@ -24,6 +32,10 @@ const AdminLayout = () => {
 
   const toggleMobileMenu = () => {
     setIsMobileMenuOpen((prev) => !prev);
+  };
+
+  const closeMobileMenu = () => {
+    setIsMobileMenuOpen(false);
   };
 
   // Expand temporarily on mouse enter when collapsed
@@ -62,25 +74,31 @@ const AdminLayout = () => {
         isCollapsed && isHovered ? 'expand-menu' : ''
       } ${isMobileMenuOpen ? 'slide-nav' : ''}`}
     >
-      <Navbar onToggleMobileMenu={toggleMobileMenu} />
+      <Navbar
+        onToggleMobileMenu={toggleMobileMenu}
+        isMobileMenuOpen={isMobileMenuOpen}
+      />
       <Sidebar
         isCollapsed={isCollapsed}
         isHovered={isHovered}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
         onToggleSidebar={toggleSidebar}
+        isMobileMenuOpen={isMobileMenuOpen}
+        onCloseMobileMenu={closeMobileMenu}
       />
-      <div className="page-wrapper">
-        <div className="content">
+      <div className="page-wrapper d-flex flex-column justify-content-between">
+        <div className="flex-grow-1">
           <Outlet />
         </div>
+        <Footer />
       </div>
 
       {/* Mobile Backdrop Overlay */}
       {isMobileMenuOpen && (
         <div
           className="sidebar-overlay opened"
-          onClick={() => setIsMobileMenuOpen(false)}
+          onClick={closeMobileMenu}
         ></div>
       )}
     </div>

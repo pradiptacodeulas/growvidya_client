@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -7,6 +7,7 @@ import {
   fetchClassesApi,
   deleteSyllabusApi,
 } from '../../../api/adminAcademic.api';
+import { encodeParam } from '../../../utils/idHelper';
 
 const formatAcademicYear = (ay) => {
   if (!ay) return '';
@@ -25,7 +26,7 @@ const getStatusBadge = (status) => {
   if (s === 3) {
     return (
       <span className="badge badge-soft-success d-inline-flex align-items-center mb-1">
-        <i className="ti ti-circle-filled fs-5 me-1"></i>Completed
+        <i className="ti ti-circle-filled fs-5 me-1"></i>Complete
       </span>
     );
   }
@@ -52,6 +53,7 @@ const SyllabusList = () => {
   // Filters
   const [selectedAcademicYear, setSelectedAcademicYear] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
+  const [selectedStatus, setSelectedStatus] = useState('');
 
   // Server Pagination & Search State
   const [search, setSearch] = useState('');
@@ -62,6 +64,11 @@ const SyllabusList = () => {
 
   const [selectedIds, setSelectedIds] = useState([]);
   const [openDropdownId, setOpenDropdownId] = useState(null);
+
+  // Delete modal state
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [syllabusToDelete, setSyllabusToDelete] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   const searchTimerRef = useRef(null);
 
@@ -95,6 +102,7 @@ const SyllabusList = () => {
       await fetchSyllabusFromServer({
         ay: initialAy,
         cls: initialCls,
+        statusVal: '',
         page: 1,
         limit: perPage,
         query: search,
@@ -109,19 +117,30 @@ const SyllabusList = () => {
   const fetchSyllabusFromServer = async ({
     ay = selectedAcademicYear,
     cls = selectedClass,
+    statusVal = selectedStatus,
     page = currentPage,
     limit = perPage,
     query = search,
   } = {}) => {
     try {
       setLoading(true);
-      const res = await fetchSyllabusListApi({
-        academic_year: ay,
-        class_id: cls,
+      const params = {
         page,
         limit,
         search: query.trim(),
-      });
+      };
+      if (ay) {
+        params.academic_year_id = ay;
+        params.academic_year = ay;
+      }
+      if (cls) {
+        params.class_id = cls;
+      }
+      if (statusVal !== undefined && statusVal !== null && statusVal !== '' && statusVal !== 'all') {
+        params.status = statusVal;
+      }
+
+      const res = await fetchSyllabusListApi(params);
 
       const responseData = res?.data || res || {};
       const list = Array.isArray(responseData?.syllabus)
@@ -130,7 +149,10 @@ const SyllabusList = () => {
         ? responseData
         : [];
       const total = typeof responseData.total === 'number' ? responseData.total : list.length;
-      const pages = typeof responseData.totalPages === 'number' ? responseData.totalPages : Math.ceil(total / limit) || 1;
+      const pages =
+        typeof responseData.totalPages === 'number'
+          ? responseData.totalPages
+          : Math.ceil(total / limit) || 1;
 
       setSyllabusList(list);
       setTotalEntries(total);
@@ -147,18 +169,45 @@ const SyllabusList = () => {
     const val = e.target.value;
     setSelectedAcademicYear(val);
     setCurrentPage(1);
-    fetchSyllabusFromServer({ ay: val, cls: selectedClass, page: 1, limit: perPage, query: search });
+    fetchSyllabusFromServer({
+      ay: val,
+      cls: selectedClass,
+      statusVal: selectedStatus,
+      page: 1,
+      limit: perPage,
+      query: search,
+    });
   };
 
   const handleClassChange = (e) => {
     const val = e.target.value;
     setSelectedClass(val);
     setCurrentPage(1);
-    fetchSyllabusFromServer({ ay: selectedAcademicYear, cls: val, page: 1, limit: perPage, query: search });
+    fetchSyllabusFromServer({
+      ay: selectedAcademicYear,
+      cls: val,
+      statusVal: selectedStatus,
+      page: 1,
+      limit: perPage,
+      query: search,
+    });
   };
 
-  const handleSearchChange = (e) => {
+  const handleStatusFilterChange = (e) => {
     const val = e.target.value;
+    setSelectedStatus(val);
+    setCurrentPage(1);
+    fetchSyllabusFromServer({
+      ay: selectedAcademicYear,
+      cls: selectedClass,
+      statusVal: val,
+      page: 1,
+      limit: perPage,
+      query: search,
+    });
+  };
+
+  const handleSearchChange = (val) => {
     setSearch(val);
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(() => {
@@ -166,6 +215,7 @@ const SyllabusList = () => {
       fetchSyllabusFromServer({
         ay: selectedAcademicYear,
         cls: selectedClass,
+        statusVal: selectedStatus,
         page: 1,
         limit: perPage,
         query: val,
@@ -180,6 +230,7 @@ const SyllabusList = () => {
     fetchSyllabusFromServer({
       ay: selectedAcademicYear,
       cls: selectedClass,
+      statusVal: selectedStatus,
       page: 1,
       limit: newLimit,
       query: search,
@@ -192,20 +243,32 @@ const SyllabusList = () => {
     fetchSyllabusFromServer({
       ay: selectedAcademicYear,
       cls: selectedClass,
+      statusVal: selectedStatus,
       page: newPage,
       limit: perPage,
       query: search,
     });
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this syllabus item?')) return;
+  const confirmDelete = (item) => {
+    setSyllabusToDelete(item);
+    setDeleteModalOpen(true);
+    setOpenDropdownId(null);
+  };
+
+  const handleDelete = async () => {
+    if (!syllabusToDelete) return;
     try {
-      await deleteSyllabusApi(id);
+      setDeleting(true);
+      await deleteSyllabusApi(syllabusToDelete.id);
       toast.success('Syllabus item deleted successfully.');
+      setDeleteModalOpen(false);
+      setSyllabusToDelete(null);
       fetchSyllabusFromServer();
     } catch (err) {
       toast.error(err.message || 'Failed to delete syllabus item.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -227,8 +290,25 @@ const SyllabusList = () => {
     window.print();
   };
 
-  const handleExport = (type) => {
-    toast.info(`Exporting syllabus list as ${type.toUpperCase()}...`);
+  const handleExportCSV = () => {
+    if (syllabusList.length === 0) return toast.info('No syllabus to export');
+    let csv = 'Sl No.,Subject,Lesson,Status\n';
+    syllabusList.forEach((s, idx) => {
+      const statusText =
+        Number(s.status) === 3
+          ? 'Complete'
+          : Number(s.status) === 2
+          ? 'Progress'
+          : 'Pending';
+      csv += `"${idx + 1}","${s.subject_name || ''}","${(s.lession || '').replace(/"/g, '""')}","${statusText}"\n`;
+    });
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Syllabus_List_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const startIndex = (currentPage - 1) * perPage;
@@ -285,7 +365,7 @@ const SyllabusList = () => {
               <li>
                 <button
                   type="button"
-                  onClick={() => handleExport('pdf')}
+                  onClick={handlePrint}
                   className="dropdown-item rounded-1"
                 >
                   <i className="ti ti-file-type-pdf me-2"></i>Export as PDF
@@ -294,7 +374,7 @@ const SyllabusList = () => {
               <li>
                 <button
                   type="button"
-                  onClick={() => handleExport('excel')}
+                  onClick={handleExportCSV}
                   className="dropdown-item rounded-1"
                 >
                   <i className="ti ti-file-type-xls me-2"></i>Export as Excel
@@ -334,6 +414,7 @@ const SyllabusList = () => {
                 value={selectedAcademicYear}
                 onChange={handleAcademicYearChange}
               >
+                <option value="">All Academic Years</option>
                 {academicYears.map((ay) => (
                   <option key={ay.id} value={ay.id}>
                     {formatAcademicYear(ay)}
@@ -352,11 +433,29 @@ const SyllabusList = () => {
                 value={selectedClass}
                 onChange={handleClassChange}
               >
+                <option value="">All Classes</option>
                 {classes.map((cls) => (
                   <option key={cls.id} value={cls.id}>
                     {cls.class_name}
                   </option>
                 ))}
+              </select>
+            </div>
+          </div>
+          <div className="col-md-3 col-sm-6">
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Status</label>
+              <select
+                className="form-select select"
+                name="status"
+                id="status"
+                value={selectedStatus}
+                onChange={handleStatusFilterChange}
+              >
+                <option value="">All Status</option>
+                <option value="1">Pending</option>
+                <option value="2">Progress</option>
+                <option value="3">Complete</option>
               </select>
             </div>
           </div>
@@ -466,7 +565,7 @@ const SyllabusList = () => {
                       ) : (
                         syllabusList.map((item, idx) => {
                           const slNo = startIndex + idx + 1;
-                          const encodedId = btoa(String(item.id));
+                          const encodedId = encodeParam(item.id);
                           const isDropdownOpen = openDropdownId === item.id;
 
                           return (
@@ -529,10 +628,7 @@ const SyllabusList = () => {
                                           <button
                                             type="button"
                                             className="dropdown-item rounded-1 text-danger d-flex align-items-center"
-                                            onClick={() => {
-                                              setOpenDropdownId(null);
-                                              handleDelete(item.id);
-                                            }}
+                                            onClick={() => confirmDelete(item)}
                                           >
                                             <i className="ti ti-trash-x me-2"></i>Delete
                                           </button>
@@ -562,7 +658,11 @@ const SyllabusList = () => {
                 <div className="col-sm-12 col-md-7">
                   <div className="dataTables_paginate paging_simple_numbers d-flex justify-content-md-end">
                     <ul className="pagination pagination-sm mb-0">
-                      <li className={`paginate_button page-item previous ${currentPage === 1 ? 'disabled' : ''}`}>
+                      <li
+                        className={`paginate_button page-item previous ${
+                          currentPage === 1 ? 'disabled' : ''
+                        }`}
+                      >
                         <button
                           type="button"
                           className="page-link"
@@ -575,7 +675,9 @@ const SyllabusList = () => {
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                         <li
                           key={pageNum}
-                          className={`paginate_button page-item ${currentPage === pageNum ? 'active' : ''}`}
+                          className={`paginate_button page-item ${
+                            currentPage === pageNum ? 'active' : ''
+                          }`}
                         >
                           <button
                             type="button"
@@ -609,6 +711,63 @@ const SyllabusList = () => {
         </div>
       </div>
       {/* /Syllabus List Card */}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header border-0 pb-0">
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setDeleteModalOpen(false)}
+                  aria-label="Close"
+                  disabled={deleting}
+                ></button>
+              </div>
+              <div className="modal-body text-center pt-0 pb-4">
+                <div className="text-danger mb-3">
+                  <i className="ti ti-trash-x fs-48"></i>
+                </div>
+                <h4 className="mb-2">Delete Syllabus</h4>
+                <p className="text-muted mb-4">
+                  Are you sure you want to delete this syllabus entry? This action cannot be undone.
+                </p>
+                <div className="d-flex justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light px-4"
+                    onClick={() => setDeleteModalOpen(false)}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger px-4"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                  >
+                    {deleting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

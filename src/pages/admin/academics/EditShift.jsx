@@ -2,9 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchShiftByIdApi, updateShiftApi, createShiftApi } from '../../../api/adminAcademic.api';
+import { decodeParam } from '../../../utils/idHelper';
 
 const EditShift = () => {
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
   const navigate = useNavigate();
   const isEdit = Boolean(id);
 

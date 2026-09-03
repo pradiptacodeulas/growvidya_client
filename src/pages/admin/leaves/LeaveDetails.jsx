@@ -1,3 +1,4 @@
+import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -5,11 +6,14 @@ import {
   fetchLeaveByIdApi,
   updateLeaveDateStatusApi,
 } from '../../../api/adminLeave.api';
+import TableActionMenu from '../../../components/common/TableActionMenu';
+import { decodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = 'http://localhost:5000';
+const SERVER_BASE_URL = getServerBaseUrl();
 
 const LeaveDetails = () => {
-  const { id } = useParams();
+  const { id: rawId } = useParams();
+  const id = decodeParam(rawId);
 
   const [leave, setLeave] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -290,40 +294,21 @@ const LeaveDetails = () => {
                               </td>
                               <td className="text-center">
                                 {Number(d.status) !== 2 ? (
-                                  <div className="d-flex align-items-center justify-content-center">
-                                    <div className="dropdown">
-                                      <button
-                                        className="btn btn-white btn-icon btn-sm d-flex align-items-center justify-content-center rounded-circle p-0"
-                                        type="button"
-                                        data-bs-toggle="dropdown"
-                                        data-bs-boundary="body"
-                                        aria-expanded="false"
-                                      >
-                                        <i className="ti ti-dots-vertical fs-14"></i>
-                                      </button>
-
-                                      <ul className="dropdown-menu dropdown-menu-end p-3">
-                                        <li>
-                                          <button
-                                            type="button"
-                                            className="dropdown-item rounded-1"
-                                            onClick={() => handleDateStatusChange(d.id, 2)}
-                                          >
-                                            <i className="ti ti-check me-2 text-success"></i>Approved
-                                          </button>
-                                        </li>
-                                        <li>
-                                          <button
-                                            type="button"
-                                            className="dropdown-item rounded-1 text-danger"
-                                            onClick={() => handleDateStatusChange(d.id, 3)}
-                                          >
-                                            <i className="ti ti-circle-x me-2"></i>Reject
-                                          </button>
-                                        </li>
-                                      </ul>
-                                    </div>
-                                  </div>
+                                  <TableActionMenu
+                                    items={[
+                                      {
+                                        label: 'Approve',
+                                        icon: 'ti ti-check text-success',
+                                        onClick: () => handleDateStatusChange(d.id, 2),
+                                      },
+                                      {
+                                        label: 'Reject',
+                                        icon: 'ti ti-circle-x text-danger',
+                                        variant: 'danger',
+                                        onClick: () => handleDateStatusChange(d.id, 3),
+                                      },
+                                    ]}
+                                  />
                                 ) : (
                                   <span className="text-muted">—</span>
                                 )}
