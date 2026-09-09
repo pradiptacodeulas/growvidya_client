@@ -58,9 +58,9 @@ const FeesStructures = () => {
       setLoading(true);
       const [structRes, classRes, yearRes, compRes, routesRes] = await Promise.all([
         adminFeesApi.getAllStructures(),
-        adminAcademicApi.getAllClasses({ status: 1 }),
+        adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
         adminAcademicApi.getAllAcademicYears({ status: 1 }).catch(() => ({ data: [] })),
-        adminFeesApi.getAllComponents({ status: 1 }),
+        adminFeesApi.getAllComponents({ status: 1 }).catch(() => ({ data: { components: [] } })),
         fetchRoutesApi().catch(() => ({ data: [] })),
       ]);
 
@@ -77,7 +77,7 @@ const FeesStructures = () => {
         : Array.isArray(yearRes?.data)
         ? yearRes.data
         : [];
-      const compsList = compRes?.data?.components || [];
+      const compsList = compRes?.data?.components || (Array.isArray(compRes?.data) ? compRes.data : []);
       const routesList = Array.isArray(routesRes?.data)
         ? routesRes.data
         : Array.isArray(routesRes?.routes)

@@ -5,8 +5,10 @@ import adminAcademicApi, { deleteSectionApi } from '../../../api/adminAcademic.a
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
+import usePermission from '../../../hooks/usePermission';
 
 const SectionsList = () => {
+  const { can } = usePermission();
   const [sections, setSections] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -103,12 +105,16 @@ const SectionsList = () => {
         header: 'Section Name',
         sortable: true,
         cell: ({ value, row }) => (
-          <Link
-            to={`/admin/academics/sections/edit/${encodeParam(row.id)}`}
-            className="fw-semibold text-primary text-decoration-none"
-          >
-            {value}
-          </Link>
+          can('academic/sections', 'edit') ? (
+            <Link
+              to={`/admin/academics/sections/edit/${encodeParam(row.id)}`}
+              className="fw-semibold text-primary text-decoration-none"
+            >
+              {value}
+            </Link>
+          ) : (
+            <span className="fw-semibold text-dark">{value}</span>
+          )
         ),
       },
       {
@@ -152,12 +158,12 @@ const SectionsList = () => {
         cell: ({ row }) => (
           <TableActionMenu
             items={[
-              {
+              can('academic/sections', 'edit') && {
                 label: 'Edit',
                 icon: 'ti ti-edit-circle',
                 to: `/admin/academics/sections/edit/${encodeParam(row.id)}`,
               },
-              {
+              can('academic/sections', 'delete') && {
                 label: 'Delete',
                 icon: 'ti ti-trash-x',
                 variant: 'danger',
@@ -168,7 +174,7 @@ const SectionsList = () => {
         ),
       },
     ],
-    []
+    [can]
   );
 
   return (
@@ -227,12 +233,14 @@ const SectionsList = () => {
             ]}
           />
 
-          <Link
-            to="/admin/academics/sections/add"
-            className="btn btn-primary d-flex align-items-center"
-          >
-            <i className="ti ti-square-rounded-plus me-2"></i>Add Section
-          </Link>
+          {can('academic/sections', 'add') && (
+            <Link
+              to="/admin/academics/sections/add"
+              className="btn btn-primary d-flex align-items-center"
+            >
+              <i className="ti ti-square-rounded-plus me-2"></i>Add Section
+            </Link>
+          )}
         </div>
       </div>
 

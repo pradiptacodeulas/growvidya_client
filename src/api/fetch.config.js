@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from '../utils/url.util';
 import { encodeParam } from '../utils/idHelper';
+import { sortResponseDropdowns } from '../utils/dropdownSort.util';
 
 /**
  * Fetch API Client configured for Secure HTTP-Only Cookie + Bearer Token Authentication
@@ -53,8 +54,12 @@ export const apiFetch = async (endpoint, options = {}) => {
     throw new Error(errorMsg);
   }
 
+  // Automatically sort dropdown lists in descending order
+  sortResponseDropdowns(processedEndpoint, data);
+
   return data;
 };
+
 
 
 

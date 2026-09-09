@@ -79,7 +79,7 @@ const DriversList = () => {
       },
       {
         accessorKey: 'first_name',
-        header: 'Driver Name',
+        header: 'Name',
         sortable: true,
         cell: ({ row }) => {
           const fullName = `${row.first_name || ''} ${row.last_name || ''}`.trim() || '—';
@@ -94,8 +94,14 @@ const DriversList = () => {
         },
       },
       {
+        accessorKey: 'email',
+        header: 'Email',
+        sortable: true,
+        cell: ({ value }) => <span className="text-dark">{value || '—'}</span>,
+      },
+      {
         accessorKey: 'phone',
-        header: 'Phone Number',
+        header: 'Phone',
         sortable: true,
         cell: ({ value }) => <span className="text-dark">{value || '—'}</span>,
       },
@@ -106,14 +112,6 @@ const DriversList = () => {
         cell: ({ value }) => (
           <span className="badge bg-light text-dark border px-2.5 py-1.5">{value || '—'}</span>
         ),
-      },
-      {
-        accessorKey: 'gender',
-        header: 'Gender',
-        sortable: true,
-        width: '100px',
-        align: 'center',
-        cell: ({ value }) => <span className="text-muted">{value || '—'}</span>,
       },
       {
         accessorKey: 'status',
@@ -215,7 +213,7 @@ const DriversList = () => {
         selectedIds={selectedRows}
         onSelectRow={handleToggleRow}
         onSelectAll={handleSelectAll}
-        searchPlaceholder="Search by name, phone, or license..."
+        searchPlaceholder="Search by name, email, phone, or license..."
         emptyMessage="No drivers registered in the system."
       />
 

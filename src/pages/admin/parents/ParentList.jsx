@@ -1,7 +1,16 @@
 import { getServerBaseUrl } from '../../../utils/url.util';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchParentsApi, fetchParentByIdApi, createParentApi, updateParentApi, deleteParentApi } from '../../../api/adminParent.api';
+import {
+  fetchParentsApi,
+  fetchParentByIdApi,
+  createParentApi,
+  updateParentApi,
+  deleteParentApi,
+  checkParentEmailApi,
+  checkParentPhoneApi,
+  checkParentDuplicateApi,
+} from '../../../api/adminParent.api';
 import { fetchClassesApi, fetchSectionsApi } from '../../../api/adminAcademic.api';
 import { toast } from 'react-toastify';
 import TableActionMenu from '../../../components/common/TableActionMenu';
@@ -12,6 +21,7 @@ const SERVER_BASE_URL = getServerBaseUrl();
 const ParentList = () => {
   const [parents, setParents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 12, totalPages: 1, total: 0 });
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
 
@@ -29,6 +39,7 @@ const ParentList = () => {
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedParentDetails, setSelectedParentDetails] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
 
   // Form State
   const [imageFile, setImageFile] = useState(null);
@@ -99,20 +110,27 @@ const ParentList = () => {
     }
   };
 
-  // Fetch Parent List
-  const loadParents = async () => {
-    setLoading(true);
+  // Fetch Parent List (Server-Level Pagination)
+  const fetchParents = async (pageNumber = 1, overrideFilters = null) => {
     try {
-      const res = await fetchParentsApi({
-        email: filters.email,
-        name: filters.name,
-        classId: filters.classId,
-        sectionId: filters.sectionId,
-      });
-      if (res.success && res.data) {
+      setLoading(true);
+      const activeFilters = overrideFilters || filters;
+      const params = {
+        page: pageNumber,
+        limit: pagination.limit || 12,
+      };
+      if (activeFilters.email?.trim()) params.email = activeFilters.email.trim();
+      if (activeFilters.name?.trim()) params.name = activeFilters.name.trim();
+      if (activeFilters.classId) params.classId = activeFilters.classId;
+      if (activeFilters.sectionId) params.sectionId = activeFilters.sectionId;
+
+      const res = await fetchParentsApi(params);
+      if (res?.success && res.data) {
         setParents(res.data.parents || []);
+        setPagination(res.data.pagination || { page: pageNumber, limit: 12, totalPages: 1, total: 0 });
       }
     } catch (err) {
+      console.error('Failed to load parents:', err);
       toast.error(err.message || 'Failed to load parents.');
     } finally {
       setLoading(false);
@@ -120,12 +138,79 @@ const ParentList = () => {
   };
 
   useEffect(() => {
-    loadParents();
+    fetchParents(1);
   }, []);
 
   const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    loadParents();
+    if (e && e.preventDefault) e.preventDefault();
+    fetchParents(1);
+  };
+
+  const handleResetFilters = () => {
+    const defaultFilters = { email: '', name: '', classId: '', sectionId: '' };
+    setFilters(defaultFilters);
+    setSections([]);
+    fetchParents(1, defaultFilters);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages && newPage !== pagination.page) {
+      fetchParents(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const getPageNumbers = () => {
+    const { page, totalPages } = pagination;
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (page <= 4) {
+      return [1, 2, 3, 4, 5, '...', totalPages];
+    }
+    if (page >= totalPages - 3) {
+      return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, '...', page - 1, page, page + 1, '...', totalPages];
+  };
+
+  // Live Phone & Email Checks
+  const handlePhoneBlur = async (phone) => {
+    const trimmed = String(phone || '').trim();
+    if (!trimmed) return;
+    try {
+      const res = await checkParentPhoneApi(trimmed, editingParentId || null);
+      if (res?.data?.exists) {
+        setFormErrors((prev) => ({ ...prev, phone: 'Mobile number already registered.' }));
+      } else {
+        setFormErrors((prev) => {
+          const next = { ...prev };
+          delete next.phone;
+          return next;
+        });
+      }
+    } catch {
+      // Ignore network errors on blur
+    }
+  };
+
+  const handleEmailBlur = async (email) => {
+    const trimmed = String(email || '').trim();
+    if (!trimmed || !trimmed.includes('@')) return;
+    try {
+      const res = await checkParentEmailApi(trimmed, editingParentId || null);
+      if (res?.data?.exists) {
+        setFormErrors((prev) => ({ ...prev, email: 'Email address already registered.' }));
+      } else {
+        setFormErrors((prev) => {
+          const next = { ...prev };
+          delete next.email;
+          return next;
+        });
+      }
+    } catch {
+      // Ignore network errors on blur
+    }
   };
 
   // Save (Create / Update) Parent
@@ -135,7 +220,38 @@ const ParentList = () => {
       return toast.warning('Please enter First Name.');
     }
 
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(formData.email).trim())) {
+      setFormErrors((prev) => ({ ...prev, email: 'Please enter a valid email address.' }));
+      return toast.warning('Please enter a valid email address.');
+    }
+
     try {
+      // Pre-submission duplicate check
+      try {
+        const dupRes = await checkParentDuplicateApi(
+          {
+            email: String(formData.email || '').trim(),
+            phone: String(formData.phone || '').trim(),
+          },
+          editingParentId || null
+        );
+
+        if (dupRes?.data?.isEmailDuplicate || dupRes?.data?.isPhoneDuplicate) {
+          const errors = {};
+          if (dupRes.data.isEmailDuplicate) {
+            errors.email = 'Email address already registered.';
+          }
+          if (dupRes.data.isPhoneDuplicate) {
+            errors.phone = 'Mobile number already registered.';
+          }
+          setFormErrors((prev) => ({ ...prev, ...errors }));
+          toast.error(dupRes.data.message || 'Duplicate email or mobile number detected.');
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Pre-submit parent duplicate check warning:', checkErr);
+      }
+
       if (editingParentId) {
         await updateParentApi(editingParentId, formData);
         toast.success('Parent profile updated successfully!');
@@ -145,15 +261,23 @@ const ParentList = () => {
       }
       setShowAddModal(false);
       resetForm();
-      loadParents();
+      fetchParents(pagination.page);
     } catch (err) {
-      toast.error(err.message || 'Operation failed.');
+      const serverMsg = err.message || 'Operation failed.';
+      const msgLower = serverMsg.toLowerCase();
+      if (msgLower.includes('email')) {
+        setFormErrors((prev) => ({ ...prev, email: serverMsg }));
+      } else if (msgLower.includes('mobile') || msgLower.includes('phone')) {
+        setFormErrors((prev) => ({ ...prev, phone: serverMsg }));
+      }
+      toast.error(serverMsg);
     }
   };
 
   // Open Edit Modal
   const handleEditParent = (parent) => {
     setEditingParentId(parent.id);
+    setFormErrors({});
     setFormData({
       first_name: parent.first_name || '',
       last_name: parent.last_name || '',
@@ -175,7 +299,7 @@ const ParentList = () => {
     try {
       await deleteParentApi(id);
       toast.success('Parent record deleted.');
-      loadParents();
+      fetchParents(1);
     } catch (err) {
       toast.error(err.message);
     }
@@ -199,6 +323,7 @@ const ParentList = () => {
 
   const resetForm = () => {
     setEditingParentId(null);
+    setFormErrors({});
     setImageFile(null);
     setImagePreview('');
     setFormData({
@@ -341,9 +466,17 @@ const ParentList = () => {
               </select>
             </div>
           </div>
-          <div className="col-md-2 d-flex align-items-center mb-3">
-            <button type="submit" className="btn btn-outline-primary w-100">
+          <div className="col-md-2 d-flex align-items-center mb-3 gap-2">
+            <button type="submit" className="btn btn-outline-primary flex-fill">
               Search
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={handleResetFilters}
+              title="Reset all filters"
+            >
+              <i className="ti ti-rotate-clockwise"></i>
             </button>
           </div>
         </form>
@@ -463,7 +596,56 @@ const ParentList = () => {
             </div>
           ))
         )}
+
       </div>
+
+      {/* Pagination Footer */}
+      {!loading && parents.length > 0 && (
+        <div className="d-flex align-items-center justify-content-between my-4 px-2 flex-wrap gap-2">
+          <div className="fs-14 text-muted">
+            Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} parents
+          </div>
+          <ul className="pagination pagination-sm m-0">
+            <li className={`page-item ${pagination.page === 1 ? 'disabled' : ''}`}>
+              <button
+                type="button"
+                className="page-link"
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page === 1}
+              >
+                Previous
+              </button>
+            </li>
+            {getPageNumbers().map((p, idx) =>
+              p === '...' ? (
+                <li key={`ellipsis-${idx}`} className="page-item disabled">
+                  <span className="page-link">…</span>
+                </li>
+              ) : (
+                <li key={p} className={`page-item ${pagination.page === p ? 'active' : ''}`}>
+                  <button
+                    type="button"
+                    className="page-link"
+                    onClick={() => handlePageChange(p)}
+                  >
+                    {p}
+                  </button>
+                </li>
+              )
+            )}
+            <li className={`page-item ${pagination.page === pagination.totalPages ? 'disabled' : ''}`}>
+              <button
+                type="button"
+                className="page-link"
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page === pagination.totalPages}
+              >
+                Next
+              </button>
+            </li>
+          </ul>
+        </div>
+      )}
 
       {/* Add / Edit Parent Modal */}
       {showAddModal && (
@@ -564,28 +746,48 @@ const ParentList = () => {
                         <label className="form-label">Phone Number</label>
                         <input
                           type="text"
-                          className="form-control"
+                          className={`form-control ${formErrors.phone ? 'is-invalid border-danger' : ''}`}
                           placeholder="Enter Phone Number"
                           name="phone"
                           id="phone"
                           value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          required
+                          onChange={(e) => {
+                            setFormData({ ...formData, phone: e.target.value });
+                            if (formErrors.phone) {
+                              setFormErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.phone;
+                                return copy;
+                              });
+                            }
+                          }}
+                          onBlur={(e) => handlePhoneBlur(e.target.value)}
                         />
+                        {formErrors.phone && <div className="invalid-feedback">{formErrors.phone}</div>}
                       </div>
 
                       <div className="mb-3">
                         <label className="form-label">Email Address</label>
                         <input
-                          type="text"
-                          className="form-control"
+                          type="email"
+                          className={`form-control ${formErrors.email ? 'is-invalid border-danger' : ''}`}
                           placeholder="Enter Email Address"
                           name="email"
                           id="email"
                           value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          required
+                          onChange={(e) => {
+                            setFormData({ ...formData, email: e.target.value });
+                            if (formErrors.email) {
+                              setFormErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.email;
+                                return copy;
+                              });
+                            }
+                          }}
+                          onBlur={(e) => handleEmailBlur(e.target.value)}
                         />
+                        {formErrors.email && <div className="invalid-feedback">{formErrors.email}</div>}
                       </div>
                     </div>
                   </div>

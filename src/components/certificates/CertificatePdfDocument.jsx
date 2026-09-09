@@ -338,10 +338,10 @@ export const CertificatePdfDocument = ({
   schoolInfo = {},
 }) => {
   const {
-    schoolName = 'CIBL School',
-    affiliation = '(Affiliated to CBSE)',
-    schoolAddress = '09/245, Kalyani, Nadia',
-    schoolCode = 'School Code-SK005',
+    schoolName = '',
+    affiliation = '',
+    schoolAddress = '',
+    schoolCode = '',
     schoolLogoSrc,
   } = schoolInfo;
 

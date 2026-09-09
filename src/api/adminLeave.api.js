@@ -1,4 +1,5 @@
 import apiClient from './axios.config';
+import { sortDropdownDesc } from '../utils/dropdownSort.util';
 
 /**
  * Fetch all applied leaves with optional filters (name, role, date, status)
@@ -53,7 +54,10 @@ export const deleteLeaveApi = async (id) => {
  */
 export const fetchLeaveTypesApi = async (params = {}) => {
   const response = await apiClient.get('/admin/leaves/types', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.leaveTypes)) data.leaveTypes = sortDropdownDesc(data.leaveTypes);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 /**
@@ -88,10 +92,15 @@ export const deleteLeaveTypeApi = async (id) => {
   return response.data;
 };
 
-/**
- * Fetch staff members / teachers list by role
- */
 export const fetchStaffByRoleApi = async (role) => {
   const response = await apiClient.get(`/admin/leaves/staff/${role}`);
+  if (Array.isArray(response?.data?.staff)) {
+    response.data.staff = sortDropdownDesc(response.data.staff);
+  } else if (Array.isArray(response?.data?.data)) {
+    response.data.data = sortDropdownDesc(response.data.data);
+  } else if (Array.isArray(response?.data)) {
+    response.data = sortDropdownDesc(response.data);
+  }
   return response.data;
 };
+

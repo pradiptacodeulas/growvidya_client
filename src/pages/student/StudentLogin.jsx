@@ -93,7 +93,7 @@ const StudentLogin = () => {
                         <input
                           type="text"
                           className="form-control border-start-0 ps-1"
-                          placeholder="e.g. AD123456 or 895321"
+                          placeholder="Enter admission number, email or phone"
                           value={identifier}
                           onChange={(e) => setIdentifier(e.target.value)}
                           required
@@ -115,7 +115,7 @@ const StudentLogin = () => {
                         <input
                           type={showPassword ? 'text' : 'password'}
                           className="form-control border-start-0 border-end-0 ps-1"
-                          placeholder="Enter your password"
+                          placeholder="Enter password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required

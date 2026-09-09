@@ -1,9 +1,13 @@
 import axiosInstance from './axios.config';
+import { sortDropdownDesc } from '../utils/dropdownSort.util';
 
 // ================= CATEGORIES =================
 export const fetchCertificateCategoriesApi = async (params = {}) => {
   const response = await axiosInstance.get('/admin/certificates/categories', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.categories)) data.categories = sortDropdownDesc(data.categories);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchCertificateCategoryByIdApi = async (id) => {
@@ -29,7 +33,10 @@ export const deleteCertificateCategoryApi = async (id) => {
 // ================= TEMPLATES =================
 export const fetchCertificateTemplatesApi = async (params = {}) => {
   const response = await axiosInstance.get('/admin/certificates/templates', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.templates)) data.templates = sortDropdownDesc(data.templates);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchCertificateTemplateByIdApi = async (id) => {
@@ -55,7 +62,10 @@ export const deleteCertificateTemplateApi = async (id) => {
 // ================= BORDERS =================
 export const fetchCertificateBordersApi = async (params = {}) => {
   const response = await axiosInstance.get('/admin/certificates/borders', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.borders)) data.borders = sortDropdownDesc(data.borders);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchCertificateBorderByIdApi = async (id) => {

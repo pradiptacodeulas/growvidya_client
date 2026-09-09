@@ -1,17 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import { decodeParam } from '../../../utils/idHelper';
+import { sortExamsDesc } from '../../../utils/dropdownSort.util';
 
 const AddExamType = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const preselectedExamId = searchParams.get('exam_id') ? decodeParam(searchParams.get('exam_id')) : null;
+
   const { id: rawId } = useParams();
   const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
   const [exams, setExams] = useState([]);
-  const [selectedExamId, setSelectedExamId] = useState('');
+  const [selectedExamId, setSelectedExamId] = useState(preselectedExamId || '');
   const [examNameDisplay, setExamNameDisplay] = useState('');
 
   // For Add mode: Dynamic array of exam type rows
@@ -39,11 +43,17 @@ const AddExamType = () => {
       setLoading(true);
       const exRes = await adminExaminationApi.getAllExams({ status: 1 });
       if (exRes?.data?.exams) {
-        setExams(exRes.data.exams);
-        if (!isEdit && exRes.data.exams.length > 0) {
-          setSelectedExamId(exRes.data.exams[0].id);
+        const sortedExams = sortExamsDesc(exRes.data.exams);
+        setExams(sortedExams);
+        if (!isEdit && sortedExams.length > 0) {
+          if (preselectedExamId && sortedExams.some((e) => String(e.id) === String(preselectedExamId))) {
+            setSelectedExamId(preselectedExamId);
+          } else if (!selectedExamId) {
+            setSelectedExamId(sortedExams[0].id);
+          }
         }
       }
+
 
       if (isEdit) {
         const etRes = await adminExaminationApi.getExamTypeById(id);

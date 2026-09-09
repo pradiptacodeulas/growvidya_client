@@ -1,12 +1,33 @@
 import apiClient from './axios.config';
+import {
+  sortAcademicYearsDesc,
+  sortClassesDesc,
+  sortSectionsDesc,
+  sortDropdownDesc,
+} from '../utils/dropdownSort.util';
 
 /**
  * Fetches dropdown options (academic years, shifts, classes, sections) for report filters
  */
 export const getClassReportOptionsApi = async () => {
   const response = await apiClient.get('/admin/reports/class-report/options');
+  if (response?.data?.data) {
+    if (Array.isArray(response.data.data.academicYears)) {
+      response.data.data.academicYears = sortAcademicYearsDesc(response.data.data.academicYears);
+    }
+    if (Array.isArray(response.data.data.shifts)) {
+      response.data.data.shifts = sortDropdownDesc(response.data.data.shifts, 'shift_name');
+    }
+    if (Array.isArray(response.data.data.classes)) {
+      response.data.data.classes = sortClassesDesc(response.data.data.classes);
+    }
+    if (Array.isArray(response.data.data.sections)) {
+      response.data.data.sections = sortSectionsDesc(response.data.data.sections);
+    }
+  }
   return response.data;
 };
+
 
 /**
  * Fetches Class Report students and summary metadata

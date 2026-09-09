@@ -232,10 +232,13 @@ const StudentDetails = () => {
 
   const motherTongueStr = getMotherTongueName(student.mother_tongue);
 
-  const rawLang = student.language_known ? String(student.language_known) : motherTongueStr;
+  const rawLang = student.language_known ? String(student.language_known) : null;
   const languages = rawLang
-    ? rawLang.split(',').map((l) => getMotherTongueName(l.trim()))
-    : [motherTongueStr];
+    ? rawLang
+        .split(',')
+        .map((l) => getMotherTongueName(l.trim()))
+        .filter((l) => l && l !== 'N/A')
+    : [];
 
   return (
     <div className="content">
@@ -350,13 +353,16 @@ const StudentDetails = () => {
                   <dd className="col-6 mb-3">{student.mother_tongue_name || motherTongueStr || 'N/A'}</dd>
 
                   <dt className="col-6 fw-medium text-dark mb-3">Language</dt>
-                  <dd className="col-6 mb-3">{languages.join(', ') || 'N/A'}</dd>
                   <dd className="col-6 mb-3">
-                    {languages.map((lang, idx) => (
-                      <span key={idx} className="badge badge-light text-dark me-2">
-                        {lang}
-                      </span>
-                    ))}
+                    {languages.length > 0 ? (
+                      languages.map((lang, idx) => (
+                        <span key={idx} className="badge badge-light text-dark me-2">
+                          {lang}
+                        </span>
+                      ))
+                    ) : (
+                      'N/A'
+                    )}
                   </dd>
                 </dl>
               </div>
@@ -541,7 +547,7 @@ const StudentDetails = () => {
                           <div className="col-md-4">
                             <div className="mb-3">
                               <p className="text-dark fw-medium mb-1">Academic Year</p>
-                              <p>{student.academic_year_name || student.academic_year || (student.academic_year_id ? `Academic Year ${student.academic_year_id}` : '—')}</p>
+                              <p>{student.academic_year_range || student.academic_year_name || student.academic_year_display || (student.academic_year && !/^\d+$/.test(String(student.academic_year).trim()) ? student.academic_year : (student.academic_year_id ? `Academic Year ${student.academic_year_id}` : '—'))}</p>
                             </div>
                           </div>
                           <div className="col-md-4">
@@ -644,7 +650,7 @@ const StudentDetails = () => {
                           <div className="col-md-4">
                             <div className="mb-3">
                               <p className="text-dark fw-medium mb-1">Category</p>
-                              <p>{student.category_name || student.category || 'General'}</p>
+                              <p>{student.category_name || student.category || 'N/A'}</p>
                             </div>
                           </div>
                         </div>
@@ -665,7 +671,7 @@ const StudentDetails = () => {
                           <div className="col-md-6">
                             <div className="mb-3">
                               <p className="text-dark fw-medium mb-1">Language Known</p>
-                              <p>{student.language_known || 'Bengali, English'}</p>
+                              <p>{student.language_known || 'N/A'}</p>
                             </div>
                           </div>
                         </div>
@@ -720,79 +726,109 @@ const StudentDetails = () => {
                         <div className="tab-content">
                           {subTab === 'hostel' && (
                             <div className="p-3">
-                              <div className="d-flex align-items-center mb-3">
-                                <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
-                                  <i className="ti ti-building-fortress fs-16"></i>
-                                </span>
-                                <div>
-                                  <h6 className="fs-14 mb-1">Boys Hostel</h6>
-                                  <p className="text-primary mb-0">Room No : 22</p>
+                              {student.hostel_name || student.room_number ? (
+                                <div className="d-flex align-items-center mb-3">
+                                  <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
+                                    <i className="ti ti-building-fortress fs-16"></i>
+                                  </span>
+                                  <div>
+                                    <h6 className="fs-14 mb-1">{student.hostel_name || 'N/A'}</h6>
+                                    <p className="text-primary mb-0">Room No : {student.room_number || 'N/A'}</p>
+                                  </div>
                                 </div>
-                              </div>
+                              ) : (
+                                <div className="text-center p-3">
+                                  <img
+                                    src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                    }}
+                                    style={{ width: '45px' }}
+                                    alt="no data"
+                                  />
+                                  <h6 className="mt-2 text-muted">No Data Found!</h6>
+                                </div>
+                              )}
                             </div>
                           )}
 
                           {subTab === 'transport' && (
                             <div className="p-3">
-                              <div className="d-flex align-items-center mb-3">
-                                <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
-                                  <i className="ti ti-bus fs-16"></i>
-                                </span>
-                                <div>
-                                  <span className="fs-12 mb-1 d-block text-muted">Route</span>
-                                  <p className="text-dark mb-0 fw-semibold">Simurali-Chakdaha Main</p>
-                                </div>
-                              </div>
-
-                              <div className="row">
-                                <div className="col-sm-6">
+                              {student.transport_route || student.bus_name || student.vehicle_number || student.pickup_point || student.drop_point ? (
+                                <>
                                   <div className="d-flex align-items-center mb-3">
                                     <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
                                       <i className="ti ti-bus fs-16"></i>
                                     </span>
                                     <div>
-                                      <span className="fs-12 mb-1 d-block text-muted">Bus Name</span>
-                                      <p className="text-dark mb-0">Tata Bus</p>
+                                      <span className="fs-12 mb-1 d-block text-muted">Route</span>
+                                      <p className="text-dark mb-0 fw-semibold">{student.transport_route || 'N/A'}</p>
                                     </div>
                                   </div>
-                                </div>
-                                <div className="col-sm-6">
-                                  <div className="d-flex align-items-center mb-3">
-                                    <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
-                                      <i className="ti ti-bus fs-16"></i>
-                                    </span>
-                                    <div>
-                                      <span className="fs-12 mb-1 d-block text-muted">Bus Number</span>
-                                      <p className="text-dark mb-0">WB90H8957</p>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
 
-                              <div className="row">
-                                <div className="col-sm-6">
-                                  <div className="d-flex align-items-center mb-3">
-                                    <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
-                                      <i className="ti ti-location-pin fs-16"></i>
-                                    </span>
-                                    <div>
-                                      <span className="fs-12 mb-1 d-block text-muted">Pickup Point</span>
-                                      <p className="text-dark mb-0">Simurali Stn</p>
+                                  <div className="row">
+                                    <div className="col-sm-6">
+                                      <div className="d-flex align-items-center mb-3">
+                                        <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
+                                          <i className="ti ti-bus fs-16"></i>
+                                        </span>
+                                        <div>
+                                          <span className="fs-12 mb-1 d-block text-muted">Bus Name</span>
+                                          <p className="text-dark mb-0">{student.bus_name || 'N/A'}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="col-sm-6">
+                                      <div className="d-flex align-items-center mb-3">
+                                        <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
+                                          <i className="ti ti-bus fs-16"></i>
+                                        </span>
+                                        <div>
+                                          <span className="fs-12 mb-1 d-block text-muted">Bus Number</span>
+                                          <p className="text-dark mb-0">{student.vehicle_number || 'N/A'}</p>
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
-                                </div>
-                                <div className="col-sm-6">
-                                  <div className="d-flex align-items-center mb-3">
-                                    <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
-                                      <i className="ti ti-location-pin fs-16"></i>
-                                    </span>
-                                    <div>
-                                      <span className="fs-12 mb-1 d-block text-muted">Drop Point</span>
-                                      <p className="text-dark mb-0">School Gate</p>
+
+                                  <div className="row">
+                                    <div className="col-sm-6">
+                                      <div className="d-flex align-items-center mb-3">
+                                        <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
+                                          <i className="ti ti-location-pin fs-16"></i>
+                                        </span>
+                                        <div>
+                                          <span className="fs-12 mb-1 d-block text-muted">Pickup Point</span>
+                                          <p className="text-dark mb-0">{student.pickup_point || 'N/A'}</p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="col-sm-6">
+                                      <div className="d-flex align-items-center mb-3">
+                                        <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
+                                          <i className="ti ti-location-pin fs-16"></i>
+                                        </span>
+                                        <div>
+                                          <span className="fs-12 mb-1 d-block text-muted">Drop Point</span>
+                                          <p className="text-dark mb-0">{student.drop_point || 'N/A'}</p>
+                                        </div>
+                                      </div>
                                     </div>
                                   </div>
+                                </>
+                              ) : (
+                                <div className="text-center p-3">
+                                  <img
+                                    src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
+                                    onError={(e) => {
+                                      e.target.style.display = 'none';
+                                    }}
+                                    style={{ width: '45px' }}
+                                    alt="no data"
+                                  />
+                                  <h6 className="mt-2 text-muted">No Data Found!</h6>
                                 </div>
-                              </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1124,72 +1160,92 @@ const StudentDetails = () => {
               {/* Transport Information Tab */}
               {activeTab === 'transport' && (
                 <>
-                  <div className="col-xxl-12 d-flex">
-                    <div className="card w-100">
-                      <div className="card-body">
-                        <div className="border rounded p-3 pb-0 mb-3">
-                          <div className="row">
-                            <div className="col-sm-6 col-lg-4">
-                              <div className="mb-3">
-                                <p className="text-dark fw-medium mb-1">Route</p>
-                                <p className="mb-0">{student.transport_route || 'Simurali-Chakdaha Main'}</p>
-                              </div>
-                            </div>
-                            <div className="col-sm-6 col-lg-4">
-                              <div className="d-flex align-items-center justify-content-between">
-                                <div className="mb-3 overflow-hidden me-3">
-                                  <p className="text-dark fw-medium mb-1">Bus Name</p>
-                                  <p className="text-truncate mb-0">
-                                    <a className="text-dark">{student.bus_name || 'Tata Bus'}</a>
-                                  </p>
+                  {student.transport_route || student.bus_name || student.vehicle_number || student.pickup_point || student.drop_point ? (
+                    <>
+                      <div className="col-xxl-12 d-flex">
+                        <div className="card w-100">
+                          <div className="card-body">
+                            <div className="border rounded p-3 pb-0 mb-3">
+                              <div className="row">
+                                <div className="col-sm-6 col-lg-4">
+                                  <div className="mb-3">
+                                    <p className="text-dark fw-medium mb-1">Route</p>
+                                    <p className="mb-0">{student.transport_route || 'N/A'}</p>
+                                  </div>
                                 </div>
-                              </div>
-                            </div>
-                            <div className="col-sm-6 col-lg-4">
-                              <div className="d-flex align-items-center justify-content-between">
-                                <div className="mb-3 overflow-hidden me-3">
-                                  <p className="text-dark fw-medium mb-1">Bus Number</p>
-                                  <p className="text-truncate mb-0">
-                                    <a className="text-dark">{student.vehicle_number || 'WB90H8957'}</a>
-                                  </p>
+                                <div className="col-sm-6 col-lg-4">
+                                  <div className="d-flex align-items-center justify-content-between">
+                                    <div className="mb-3 overflow-hidden me-3">
+                                      <p className="text-dark fw-medium mb-1">Bus Name</p>
+                                      <p className="text-truncate mb-0">
+                                        <a className="text-dark">{student.bus_name || 'N/A'}</a>
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="col-sm-6 col-lg-4">
+                                  <div className="d-flex align-items-center justify-content-between">
+                                    <div className="mb-3 overflow-hidden me-3">
+                                      <p className="text-dark fw-medium mb-1">Bus Number</p>
+                                      <p className="text-truncate mb-0">
+                                        <a className="text-dark">{student.vehicle_number || 'N/A'}</a>
+                                      </p>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </div>
 
-                  <div className="col-xxl-12 d-flex">
-                    <div className="card flex-fill">
-                      <div className="card-header">
-                        <h5 className="mb-0">Address</h5>
-                      </div>
-                      <div className="card-body">
-                        <div className="row">
-                          <div className="col-md-6 d-flex align-items-center mb-3">
-                            <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
-                              <i className="ti ti-map-pin-up fs-16"></i>
-                            </span>
-                            <div>
-                              <p className="text-dark fw-medium mb-1">Pickup Point</p>
-                              <p className="mb-0">{student.pickup_point || 'Chakdah1'}</p>
-                            </div>
+                      <div className="col-xxl-12 d-flex">
+                        <div className="card flex-fill">
+                          <div className="card-header">
+                            <h5 className="mb-0">Address</h5>
                           </div>
-                          <div className="col-md-6 d-flex align-items-center">
-                            <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
-                              <i className="ti ti-map-pins fs-16"></i>
-                            </span>
-                            <div>
-                              <p className="text-dark fw-medium mb-1">Drop Point</p>
-                              <p className="mb-0">{student.drop_point || 'Chakdah'}</p>
+                          <div className="card-body">
+                            <div className="row">
+                              <div className="col-md-6 d-flex align-items-center mb-3">
+                                <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
+                                  <i className="ti ti-map-pin-up fs-16"></i>
+                                </span>
+                                <div>
+                                  <p className="text-dark fw-medium mb-1">Pickup Point</p>
+                                  <p className="mb-0">{student.pickup_point || 'N/A'}</p>
+                                </div>
+                              </div>
+                              <div className="col-md-6 d-flex align-items-center">
+                                <span className="avatar avatar-md bg-light-300 rounded me-2 flex-shrink-0 text-default d-flex align-items-center justify-content-center">
+                                  <i className="ti ti-map-pins fs-16"></i>
+                                </span>
+                                <div>
+                                  <p className="text-dark fw-medium mb-1">Drop Point</p>
+                                  <p className="mb-0">{student.drop_point || 'N/A'}</p>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
                       </div>
+                    </>
+                  ) : (
+                    <div className="col-xxl-12">
+                      <div className="card">
+                        <div className="card-body text-center p-4">
+                          <img
+                            src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                            style={{ width: '50px' }}
+                            alt="no data"
+                          />
+                          <h5 className="mt-2 text-muted">No Transport Details Found!</h5>
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </>
               )}
 
@@ -1198,26 +1254,40 @@ const StudentDetails = () => {
                 <div className="col-xxl-12 d-flex">
                   <div className="card w-100">
                     <div className="card-body">
-                      <div className="border rounded p-3 pb-0 mb-3">
-                        <div className="row">
-                          <div className="col-sm-6 col-lg-6">
-                            <div className="mb-3">
-                              <p className="text-dark fw-medium mb-1">Hostel Name</p>
-                              <p className="mb-0">{student.hostel_name || 'Boys Hostel'}</p>
+                      {student.hostel_name || student.room_number ? (
+                        <div className="border rounded p-3 pb-0 mb-3">
+                          <div className="row">
+                            <div className="col-sm-6 col-lg-6">
+                              <div className="mb-3">
+                                <p className="text-dark fw-medium mb-1">Hostel Name</p>
+                                <p className="mb-0">{student.hostel_name || 'N/A'}</p>
+                              </div>
                             </div>
-                          </div>
-                          <div className="col-sm-6 col-lg-6">
-                            <div className="d-flex align-items-center justify-content-between">
-                              <div className="mb-3 overflow-hidden me-3">
-                                <p className="text-dark fw-medium mb-1">Room Number</p>
-                                <p className="text-truncate mb-0">
-                                  <a className="text-dark">{student.room_number || '22'}</a>
-                                </p>
+                            <div className="col-sm-6 col-lg-6">
+                              <div className="d-flex align-items-center justify-content-between">
+                                <div className="mb-3 overflow-hidden me-3">
+                                  <p className="text-dark fw-medium mb-1">Room Number</p>
+                                  <p className="text-truncate mb-0">
+                                    <a className="text-dark">{student.room_number || 'N/A'}</a>
+                                  </p>
+                                </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="text-center p-4">
+                          <img
+                            src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                            style={{ width: '50px' }}
+                            alt="no data"
+                          />
+                          <h5 className="mt-2 text-muted">No Hostel Details Found!</h5>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1363,93 +1433,21 @@ const StudentDetails = () => {
                       </div>
                     ))
                   ) : (
-                    <>
-                      <div className="col-xxl-12 d-flex">
-                        <div className="card w-100">
-                          <div className="card-body">
-                            <div className="border rounded p-3 pb-0 mb-3">
-                              <div className="row">
-                                <div className="col-sm-6 col-lg-3">
-                                  <div className="mb-3">
-                                    <p className="text-dark fw-medium mb-1">Medical Condition</p>
-                                    <p className="mb-0">Good</p>
-                                  </div>
-                                </div>
-                                <div className="col-sm-6 col-lg-3">
-                                  <div className="mb-3">
-                                    <p className="text-dark fw-medium mb-1">Date</p>
-                                    <p className="mb-0">16-06-2026</p>
-                                  </div>
-                                </div>
-                                <div className="col-sm-6 col-lg-3">
-                                  <div className="d-flex align-items-center justify-content-between">
-                                    <div className="mb-3 overflow-hidden me-3">
-                                      <p className="text-dark fw-medium mb-1">Description</p>
-                                      <p className="text-truncate mb-0">
-                                        <a className="text-dark">Loose Motion</a>
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="col-sm-6 col-lg-3">
-                                  <div className="d-flex align-items-center justify-content-between">
-                                    <div className="mb-3 overflow-hidden me-3">
-                                      <p className="text-dark fw-medium mb-1">Informed</p>
-                                      <p className="text-truncate mb-0">
-                                        <a className="text-dark">N/A</a>
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
+                    <div className="col-xxl-12">
+                      <div className="card">
+                        <div className="card-body text-center p-4">
+                          <img
+                            src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                            }}
+                            style={{ width: '50px' }}
+                            alt="no data"
+                          />
+                          <h5 className="mt-2 text-muted">No Medical History Found!</h5>
                         </div>
                       </div>
-
-                      <div className="col-xxl-12 d-flex">
-                        <div className="card w-100">
-                          <div className="card-body">
-                            <div className="border rounded p-3 pb-0 mb-3">
-                              <div className="row">
-                                <div className="col-sm-6 col-lg-3">
-                                  <div className="mb-3">
-                                    <p className="text-dark fw-medium mb-1">Medical Condition</p>
-                                    <p className="mb-0">Good</p>
-                                  </div>
-                                </div>
-                                <div className="col-sm-6 col-lg-3">
-                                  <div className="mb-3">
-                                    <p className="text-dark fw-medium mb-1">Date</p>
-                                    <p className="mb-0">15-06-2026</p>
-                                  </div>
-                                </div>
-                                <div className="col-sm-6 col-lg-3">
-                                  <div className="d-flex align-items-center justify-content-between">
-                                    <div className="mb-3 overflow-hidden me-3">
-                                      <p className="text-dark fw-medium mb-1">Description</p>
-                                      <p className="text-truncate mb-0">
-                                        <a className="text-dark">Highly Fever</a>
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="col-sm-6 col-lg-3">
-                                  <div className="d-flex align-items-center justify-content-between">
-                                    <div className="mb-3 overflow-hidden me-3">
-                                      <p className="text-dark fw-medium mb-1">Informed</p>
-                                      <p className="text-truncate mb-0">
-                                        <a className="text-dark">Informed</a>
-                                      </p>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </>
+                    </div>
                   )}
                 </>
               )}

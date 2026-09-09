@@ -244,6 +244,7 @@ const GeneralSetting = () => {
           school_logo: uploadedLogoPath,
           schoolName: formData.school_title,
           school_name: formData.school_title,
+          schoolFooter: formData.footer || '',
         })
       );
 

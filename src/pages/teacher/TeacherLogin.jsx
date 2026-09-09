@@ -90,7 +90,7 @@ const TeacherLogin = () => {
                           name="identifier"
                           id="identifier"
                           className="form-control"
-                          placeholder="e.g. 895632 or teacher@school.com"
+                          placeholder="Enter Teacher ID, email or phone"
                           value={identifier}
                           onChange={(e) => setIdentifier(e.target.value)}
                           required
@@ -105,7 +105,7 @@ const TeacherLogin = () => {
                           id="password"
                           name="password"
                           className="pass-input form-control"
-                          placeholder="••••••••"
+                          placeholder="Enter password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required

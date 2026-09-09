@@ -57,6 +57,8 @@ const StudentAttendance = () => {
 
   const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1];
 
+
+
   const getStatusBadge = (status) => {
     const s = Number(status);
     if (s === 1) return <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">Present</span>;
@@ -213,4 +215,6 @@ const StudentAttendance = () => {
   );
 };
 
+export { StudentAttendance };
 export default StudentAttendance;
+

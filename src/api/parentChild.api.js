@@ -1,4 +1,5 @@
 import apiClient from './axios.config';
+import { sortAcademicYearsDesc, sortExamsDesc } from '../utils/dropdownSort.util';
 
 const withStudent = (endpoint, studentId, params = {}) => {
   const queryParams = new URLSearchParams(params);
@@ -28,8 +29,15 @@ export const payChildFeeApi = async (studentId, data) => {
 };
 
 export const fetchChildExamResultsApi = async (studentId) => {
-  return apiClient.get(withStudent('/parent/child/exam-results', studentId));
+  const res = await apiClient.get(withStudent('/parent/child/exam-results', studentId));
+  if (Array.isArray(res?.data?.data)) {
+    res.data.data = sortExamsDesc(res.data.data);
+  } else if (Array.isArray(res?.data)) {
+    res.data = sortExamsDesc(res.data);
+  }
+  return res;
 };
+
 
 export const fetchChildStudyMaterialsApi = async (studentId) => {
   return apiClient.get(withStudent('/parent/child/study-materials', studentId));
@@ -60,5 +68,12 @@ export const fetchChildDocumentsApi = async (studentId) => {
 };
 
 export const fetchParentAcademicYearsApi = async () => {
-  return apiClient.get('/parent/child/academic-years');
+  const res = await apiClient.get('/parent/child/academic-years');
+  if (Array.isArray(res?.data?.data)) {
+    res.data.data = sortAcademicYearsDesc(res.data.data);
+  } else if (Array.isArray(res?.data)) {
+    res.data = sortAcademicYearsDesc(res.data);
+  }
+  return res;
 };
+

@@ -4,10 +4,12 @@ import { Link } from 'react-router-dom';
 import { logoutAdmin } from '../../store/slices/authSlice';
 import { fetchAcademicYearsApi } from '../../api/adminAcademic.api';
 import { fetchNoticesApi } from '../../api/adminAnnouncement.api';
+import usePermission from '../../hooks/usePermission';
 
 const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
+  const { can, isSuperAdmin } = usePermission();
   const [darkMode, setDarkMode] = useState(false);
   const [currentYearText, setCurrentYearText] = useState('2026');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -123,42 +125,48 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             </div>
 
             {/* Add New Quick Button */}
-            <div className="pe-1">
-              <div className="dropdown">
-                <a href="#" className="btn btn-outline-light bg-white btn-icon me-1" data-bs-toggle="dropdown" aria-expanded="false">
-                  <i className="ti ti-square-rounded-plus"></i>
-                </a>
-                <div className="dropdown-menu dropdown-menu-right border shadow-sm dropdown-md">
-                  <div className="p-3 border-bottom">
-                    <h5>Add New</h5>
-                  </div>
-                  <div className="p-3 pb-0">
-                    <div className="row gx-2">
-                      <div className="col-6">
-                        <a href="/admin/students" className="d-block bg-primary-transparent rounded p-2 text-center mb-3 class-hover">
-                          <div className="avatar avatar-lg mb-2">
-                            <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-primary rounded-circle text-white">
-                              <i className="ti ti-school"></i>
-                            </span>
+            {(isSuperAdmin || can('ward/students', 'add') || can('staff/teachers', 'add')) && (
+              <div className="pe-1">
+                <div className="dropdown">
+                  <a href="#" className="btn btn-outline-light bg-white btn-icon me-1" data-bs-toggle="dropdown" aria-expanded="false" title="Add New">
+                    <i className="ti ti-square-rounded-plus"></i>
+                  </a>
+                  <div className="dropdown-menu dropdown-menu-right border shadow-sm dropdown-md">
+                    <div className="p-3 border-bottom">
+                      <h5 className="mb-0 fs-14 fw-bold text-dark">Add New</h5>
+                    </div>
+                    <div className="p-3 pb-0">
+                      <div className="row gx-2">
+                        {(isSuperAdmin || can('ward/students', 'add')) && (
+                          <div className="col-6">
+                            <Link to="/admin/students/add" className="d-block bg-primary-transparent rounded p-2 text-center mb-3 class-hover text-decoration-none">
+                              <div className="avatar avatar-lg mb-2">
+                                <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-primary rounded-circle text-white">
+                                  <i className="ti ti-school"></i>
+                                </span>
+                              </div>
+                              <p className="text-dark fw-semibold mb-0 fs-13">Student</p>
+                            </Link>
                           </div>
-                          <p className="text-dark mb-0">Students</p>
-                        </a>
-                      </div>
-                      <div className="col-6">
-                        <a href="/admin/teachers" className="d-block bg-success-transparent rounded p-2 text-center mb-3 class-hover">
-                          <div className="avatar avatar-lg mb-2">
-                            <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-success rounded-circle text-white">
-                              <i className="ti ti-users"></i>
-                            </span>
+                        )}
+                        {(isSuperAdmin || can('staff/teachers', 'add')) && (
+                          <div className="col-6">
+                            <Link to="/admin/teachers/add" className="d-block bg-success-transparent rounded p-2 text-center mb-3 class-hover text-decoration-none">
+                              <div className="avatar avatar-lg mb-2">
+                                <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-success rounded-circle text-white">
+                                  <i className="ti ti-users"></i>
+                                </span>
+                              </div>
+                              <p className="text-dark fw-semibold mb-0 fs-13">Teacher</p>
+                            </Link>
                           </div>
-                          <p className="text-dark mb-0">Teachers</p>
-                        </a>
+                        )}
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
             {/* Dark / Light Toggle */}
             <div className="pe-1">

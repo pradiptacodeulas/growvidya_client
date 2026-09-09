@@ -1,4 +1,5 @@
 import apiClient from './axios.config';
+import { sortExamsDesc, sortDropdownDesc } from '../utils/dropdownSort.util';
 
 export const fetchStudentDashboardApi = async () => {
   return apiClient.get('/student/portal/dashboard');
@@ -22,8 +23,15 @@ export const fetchStudentTimetableApi = async () => {
 };
 
 export const fetchStudentExamResultsApi = async () => {
-  return apiClient.get('/student/portal/exam-results');
+  const res = await apiClient.get('/student/portal/exam-results');
+  if (Array.isArray(res?.data?.data)) {
+    res.data.data = sortExamsDesc(res.data.data);
+  } else if (Array.isArray(res?.data)) {
+    res.data = sortExamsDesc(res.data);
+  }
+  return res;
 };
+
 
 export const fetchStudentStudyMaterialsApi = async () => {
   return apiClient.get('/student/portal/study-materials');
@@ -54,8 +62,15 @@ export const fetchStudentDocumentsApi = async () => {
 };
 
 export const fetchStudentAssignmentsApi = async () => {
-  return apiClient.get('/student/portal/assignments');
+  const res = await apiClient.get('/student/portal/assignments');
+  if (Array.isArray(res?.data?.data)) {
+    res.data.data = sortDropdownDesc(res.data.data, ['due_date', 'id']);
+  } else if (Array.isArray(res?.data)) {
+    res.data = sortDropdownDesc(res.data, ['due_date', 'id']);
+  }
+  return res;
 };
+
 
 export const fetchStudentAssignmentForAttemptApi = async (id) => {
   return apiClient.get(`/student/portal/assignments/${id}/attempt`);

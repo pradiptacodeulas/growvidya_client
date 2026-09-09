@@ -1,9 +1,13 @@
 import axiosInstance from './axios.config';
+import { sortDropdownDesc } from '../utils/dropdownSort.util';
 
 // --- Hostel Master Endpoints ---
 export const fetchHostelsApi = async () => {
   const response = await axiosInstance.get('/admin/hostel/hostels');
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.hostels)) data.hostels = sortDropdownDesc(data.hostels);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchHostelByIdApi = async (id) => {
@@ -29,7 +33,10 @@ export const deleteHostelApi = async (id) => {
 // --- Hostel Rooms Master Endpoints ---
 export const fetchHostelRoomsApi = async () => {
   const response = await axiosInstance.get('/admin/hostel/rooms');
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.rooms)) data.rooms = sortDropdownDesc(data.rooms);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchHostelRoomByIdApi = async (id) => {

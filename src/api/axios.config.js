@@ -1,6 +1,7 @@
 import axios from 'axios';
 import { getApiBaseUrl } from '../utils/url.util';
 import { encodeParam } from '../utils/idHelper';
+import { sortResponseDropdowns } from '../utils/dropdownSort.util';
 
 /**
  * Axios API Client configured for Hybrid Cookie + Bearer Token Authentication
@@ -73,4 +74,16 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// Automatic descending sorting for dropdown and options responses
+apiClient.interceptors.response.use(
+  (response) => {
+    if (response && response.data) {
+      sortResponseDropdowns(response.config?.url, response.data);
+    }
+    return response;
+  },
+  (error) => Promise.reject(error)
+);
+
 export default apiClient;
+

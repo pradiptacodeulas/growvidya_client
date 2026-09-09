@@ -4,6 +4,12 @@ import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import {
+  sortAcademicYearsDesc,
+  sortExamsDesc,
+  sortClassesDesc,
+  sortSubjectsDesc,
+} from '../../../utils/dropdownSort.util';
 
 const AddExamSchedule = () => {
   const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
@@ -74,12 +80,15 @@ const AddExamSchedule = () => {
         ? clsRes
         : [];
 
-      setAcademicYears(ayList);
-      setClasses(classesList);
+      const sortedYears = sortAcademicYearsDesc(ayList);
+      const sortedClasses = sortClassesDesc(classesList);
+
+      setAcademicYears(sortedYears);
+      setClasses(sortedClasses);
 
       const currentYr =
-        ayList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
-        ayList[0];
+        sortedYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+        sortedYears[0];
       const targetYear = queryYearId || (currentYr ? String(currentYr.id) : '');
       setSelectedAcademicYearId(targetYear);
 
@@ -94,10 +103,11 @@ const AddExamSchedule = () => {
         ? exRes.data
         : [];
 
-      setExams(examsList);
+      const sortedExams = sortExamsDesc(examsList);
+      setExams(sortedExams);
 
-      const targetExam = selectedExamId || (examsList.length > 0 ? String(examsList[0].id) : '');
-      const targetClass = selectedClassId || (classesList.length > 0 ? String(classesList[0].id) : '');
+      const targetExam = selectedExamId || (sortedExams.length > 0 ? String(sortedExams[0].id) : '');
+      const targetClass = selectedClassId || (sortedClasses.length > 0 ? String(sortedClasses[0].id) : '');
 
       setSelectedExamId(targetExam);
       setSelectedClassId(targetClass);
@@ -127,7 +137,7 @@ const AddExamSchedule = () => {
         adminExaminationApi.getExamSchedules({ exam_id: examId, class_id: classId, academic_year_id: yearId }),
       ]);
 
-      const subs = configRes?.data?.subjects || [];
+      const subs = sortSubjectsDesc(configRes?.data?.subjects || []);
       setSubjects(subs);
 
       const existingSchedules = schRes?.data?.schedules || [];
@@ -179,9 +189,10 @@ const AddExamSchedule = () => {
         ? exRes.data
         : [];
 
-      setExams(examsList);
+      const sortedExams = sortExamsDesc(examsList);
+      setExams(sortedExams);
 
-      const nextExamId = examsList.length > 0 ? String(examsList[0].id) : '';
+      const nextExamId = sortedExams.length > 0 ? String(sortedExams[0].id) : '';
       setSelectedExamId(nextExamId);
 
       if (nextExamId && selectedClassId) {
@@ -320,8 +331,7 @@ const AddExamSchedule = () => {
                         <option value="">Select Academic Year</option>
                         {academicYears.map((ay) => (
                           <option key={ay.id} value={ay.id}>
-                            {ay.academic_year || ay.academic_year_name || ay.year}
-                            {Number(ay.is_current) === 1 || String(ay.is_current) === '1' ? ' (Current)' : ''}
+                            {ay.name || ay.academic_year || ay.academic_year_name || ay.year}
                           </option>
                         ))}
                       </select>

@@ -1,4 +1,11 @@
 import { apiFetch } from './fetch.config';
+import {
+  sortAcademicYearsDesc,
+  sortClassesDesc,
+  sortSectionsDesc,
+  sortSubjectsDesc,
+  sortDropdownDesc,
+} from '../utils/dropdownSort.util';
 
 export const fetchAcademicOverviewApi = async () => {
   return await apiFetch('/admin/academics/overview');
@@ -6,11 +13,19 @@ export const fetchAcademicOverviewApi = async () => {
 
 // Academic Years
 export const fetchAcademicYearsApi = async (params = {}) => {
+  let res;
   if (typeof params === 'object' && params !== null) {
     const query = new URLSearchParams(params).toString();
-    return await apiFetch(`/admin/academics/years${query ? `?${query}` : ''}`);
+    res = await apiFetch(`/admin/academics/years${query ? `?${query}` : ''}`);
+  } else {
+    res = await apiFetch('/admin/academics/years');
   }
-  return await apiFetch('/admin/academics/years');
+  if (Array.isArray(res)) return sortAcademicYearsDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortAcademicYearsDesc(res.data);
+  if (Array.isArray(res?.data?.academicYears)) res.data.academicYears = sortAcademicYearsDesc(res.data.academicYears);
+  if (Array.isArray(res?.data?.academic_years)) res.data.academic_years = sortAcademicYearsDesc(res.data.academic_years);
+  if (Array.isArray(res?.academicYears)) res.academicYears = sortAcademicYearsDesc(res.academicYears);
+  return res;
 };
 export const fetchAcademicYearByIdApi = async (id) => await apiFetch(`/admin/academics/years/${id}`);
 export const createAcademicYearApi = async (data) => await apiFetch('/admin/academics/years', { method: 'POST', body: JSON.stringify(data) });
@@ -19,11 +34,18 @@ export const deleteAcademicYearApi = async (id) => await apiFetch(`/admin/academ
 
 // Classes
 export const fetchClassesApi = async (params = {}) => {
+  let res;
   if (typeof params === 'object' && params !== null) {
     const query = new URLSearchParams(params).toString();
-    return await apiFetch(`/admin/academics/classes${query ? `?${query}` : ''}`);
+    res = await apiFetch(`/admin/academics/classes${query ? `?${query}` : ''}`);
+  } else {
+    res = await apiFetch('/admin/academics/classes');
   }
-  return await apiFetch('/admin/academics/classes');
+  if (Array.isArray(res)) return sortClassesDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortClassesDesc(res.data);
+  if (Array.isArray(res?.data?.classes)) res.data.classes = sortClassesDesc(res.data.classes);
+  if (Array.isArray(res?.classes)) res.classes = sortClassesDesc(res.classes);
+  return res;
 };
 export const fetchClassByIdApi = async (id) => await apiFetch(`/admin/academics/classes/${id}`);
 export const createClassApi = async (data) => await apiFetch('/admin/academics/classes', { method: 'POST', body: JSON.stringify(data) });
@@ -32,6 +54,7 @@ export const deleteClassApi = async (id) => await apiFetch(`/admin/academics/cla
 
 // Sections
 export const fetchSectionsApi = async (paramsOrClassId = null) => {
+  let res;
   if (typeof paramsOrClassId === 'object' && paramsOrClassId !== null) {
     const query = new URLSearchParams();
     const classId = paramsOrClassId.class_id ?? paramsOrClassId.classId;
@@ -39,12 +62,24 @@ export const fetchSectionsApi = async (paramsOrClassId = null) => {
       query.set('class_id', classId);
       query.set('classId', classId);
     }
-    if (paramsOrClassId.status !== undefined) query.set('status', paramsOrClassId.status);
+    if (paramsOrClassId.status !== undefined) {
+      query.set('status', paramsOrClassId.status);
+    } else if (classId) {
+      query.set('status', '1');
+    }
     if (paramsOrClassId.activeOnly !== undefined) query.set('activeOnly', paramsOrClassId.activeOnly);
     const qs = query.toString();
-    return await apiFetch(`/admin/academics/sections${qs ? `?${qs}` : ''}`);
+    res = await apiFetch(`/admin/academics/sections${qs ? `?${qs}` : ''}`);
+  } else if (paramsOrClassId) {
+    res = await apiFetch(`/admin/academics/sections?class_id=${paramsOrClassId}&classId=${paramsOrClassId}&status=1`);
+  } else {
+    res = await apiFetch('/admin/academics/sections');
   }
-  return await apiFetch(`/admin/academics/sections${paramsOrClassId ? `?class_id=${paramsOrClassId}&classId=${paramsOrClassId}` : ''}`);
+  if (Array.isArray(res)) return sortSectionsDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortSectionsDesc(res.data);
+  if (Array.isArray(res?.data?.sections)) res.data.sections = sortSectionsDesc(res.data.sections);
+  if (Array.isArray(res?.sections)) res.sections = sortSectionsDesc(res.sections);
+  return res;
 };
 export const fetchSectionByIdApi = async (id) => await apiFetch(`/admin/academics/sections/detail/${id}`);
 export const createSectionApi = async (data) => await apiFetch('/admin/academics/sections', { method: 'POST', body: JSON.stringify(data) });
@@ -54,7 +89,12 @@ export const deleteSectionApi = async (id) => await apiFetch(`/admin/academics/s
 // Subjects
 export const fetchSubjectsApi = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
-  return await apiFetch(`/admin/academics/subjects${query ? `?${query}` : ''}`);
+  const res = await apiFetch(`/admin/academics/subjects${query ? `?${query}` : ''}`);
+  if (Array.isArray(res)) return sortSubjectsDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortSubjectsDesc(res.data);
+  if (Array.isArray(res?.data?.subjects)) res.data.subjects = sortSubjectsDesc(res.data.subjects);
+  if (Array.isArray(res?.subjects)) res.subjects = sortSubjectsDesc(res.subjects);
+  return res;
 };
 export const fetchSubjectByIdApi = async (id) => await apiFetch(`/admin/academics/subjects/${id}`);
 export const createSubjectApi = async (data) => await apiFetch('/admin/academics/subjects', { method: 'POST', body: JSON.stringify(data) });
@@ -62,35 +102,60 @@ export const updateSubjectApi = async (id, data) => await apiFetch(`/admin/acade
 export const deleteSubjectApi = async (id) => await apiFetch(`/admin/academics/subjects/${id}`, { method: 'DELETE' });
 
 // Shifts
-export const fetchShiftsApi = async () => await apiFetch('/admin/academics/shifts');
+export const fetchShiftsApi = async () => {
+  const res = await apiFetch('/admin/academics/shifts');
+  if (Array.isArray(res)) return sortDropdownDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortDropdownDesc(res.data);
+  return res;
+};
 export const fetchShiftByIdApi = async (id) => await apiFetch(`/admin/academics/shifts/${id}`);
 export const createShiftApi = async (data) => await apiFetch('/admin/academics/shifts', { method: 'POST', body: JSON.stringify(data) });
 export const updateShiftApi = async (id, data) => await apiFetch(`/admin/academics/shifts/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteShiftApi = async (id) => await apiFetch(`/admin/academics/shifts/${id}`, { method: 'DELETE' });
 
 // Houses
-export const fetchHousesApi = async () => await apiFetch('/admin/academics/houses');
+export const fetchHousesApi = async () => {
+  const res = await apiFetch('/admin/academics/houses');
+  if (Array.isArray(res)) return sortDropdownDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortDropdownDesc(res.data);
+  return res;
+};
 export const fetchHouseByIdApi = async (id) => await apiFetch(`/admin/academics/houses/${id}`);
 export const createHouseApi = async (data) => await apiFetch('/admin/academics/houses', { method: 'POST', body: JSON.stringify(data) });
 export const updateHouseApi = async (id, data) => await apiFetch(`/admin/academics/houses/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteHouseApi = async (id) => await apiFetch(`/admin/academics/houses/${id}`, { method: 'DELETE' });
 
 // Periods
-export const fetchPeriodsApi = async () => await apiFetch('/admin/academics/periods');
+export const fetchPeriodsApi = async () => {
+  const res = await apiFetch('/admin/academics/periods');
+  if (Array.isArray(res)) return sortDropdownDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortDropdownDesc(res.data);
+  return res;
+};
 export const fetchPeriodByIdApi = async (id) => await apiFetch(`/admin/academics/periods/${id}`);
 export const createPeriodApi = async (data) => await apiFetch('/admin/academics/periods', { method: 'POST', body: JSON.stringify(data) });
 export const updatePeriodApi = async (id, data) => await apiFetch(`/admin/academics/periods/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deletePeriodApi = async (id) => await apiFetch(`/admin/academics/periods/${id}`, { method: 'DELETE' });
 
 // Days
-export const fetchDaysApi = async () => await apiFetch('/admin/academics/days');
+export const fetchDaysApi = async () => {
+  const res = await apiFetch('/admin/academics/days');
+  if (Array.isArray(res)) return sortDropdownDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortDropdownDesc(res.data);
+  return res;
+};
 export const fetchDayByIdApi = async (id) => await apiFetch(`/admin/academics/days/${id}`);
 export const createDayApi = async (data) => await apiFetch('/admin/academics/days', { method: 'POST', body: JSON.stringify(data) });
 export const updateDayApi = async (id, data) => await apiFetch(`/admin/academics/days/${id}`, { method: 'PUT', body: JSON.stringify(data) });
 export const deleteDayApi = async (id) => await apiFetch(`/admin/academics/days/${id}`, { method: 'DELETE' });
 
 // Document Types
-export const fetchDocumentTypesApi = async () => await apiFetch('/admin/academics/document-types');
+export const fetchDocumentTypesApi = async () => {
+  const res = await apiFetch('/admin/academics/document-types');
+  if (Array.isArray(res)) return sortDropdownDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortDropdownDesc(res.data);
+  return res;
+};
 export const fetchDocumentTypeByIdApi = async (id) => await apiFetch(`/admin/academics/document-types/${id}`);
 export const createDocumentTypeApi = async (data) => await apiFetch('/admin/academics/document-types', { method: 'POST', body: JSON.stringify(data) });
 export const updateDocumentTypeApi = async (id, data) => await apiFetch(`/admin/academics/document-types/${id}`, { method: 'PUT', body: JSON.stringify(data) });

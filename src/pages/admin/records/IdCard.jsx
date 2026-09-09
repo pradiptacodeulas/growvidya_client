@@ -402,8 +402,8 @@ const IdCard = () => {
 
   // Generate clean HTML string for ID Card PDF rendering
   const generatePdfHtml = (candidateList, candidatePhotos, schoolLogoBase64) => {
-    const schoolName = user?.school_name || user?.schoolName || 'CIBL School';
-    const schoolAddress = user?.school_address || user?.address || '09/245, Kalyani, Nadia';
+    const schoolName = user?.school_name || user?.schoolName || '';
+    const schoolAddress = user?.school_address || user?.address || '';
     const className = getSelectedClassName();
     const sectionName = getSelectedSectionName();
     const logoImgSrc = schoolLogoBase64 || schoolLogo;
@@ -1236,10 +1236,10 @@ const IdCard = () => {
                           }}
                         />
                         <h2 className="id-title m-0" style={{ fontSize: '20px' }}>
-                          {user?.school_name || user?.schoolName || 'CIBL School'}
+                          {user?.school_name || user?.schoolName || ''}
                         </h2>
                       </div>
-                      <p className="id-para mb-3">{user?.school_address || user?.address || '09/245, Kalyani, Nadia'}</p>
+                      <p className="id-para mb-3">{user?.school_address || user?.address || ''}</p>
 
                       <div className="id-avatar">
                         <img

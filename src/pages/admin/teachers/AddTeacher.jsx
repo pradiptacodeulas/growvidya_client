@@ -9,6 +9,8 @@ import {
   fetchTeacherByIdApi,
   fetchTeacherOptionsApi,
   checkTeacherEmailApi,
+  checkTeacherPhoneApi,
+  checkTeacherDuplicateApi,
 } from '../../../api/adminTeacher.api';
 import { decodeParam } from '../../../utils/idHelper';
 
@@ -474,6 +476,23 @@ const AddTeacher = () => {
     }
   };
 
+  // Live Phone Check
+  const handlePhoneBlur = async (phone) => {
+    if (!phone || !String(phone).trim()) {
+      return;
+    }
+    try {
+      const res = await checkTeacherPhoneApi(phone, isEditMode ? id : null);
+      if (res?.data?.exists) {
+        setErrors((prev) => ({ ...prev, primary_contact_number: 'Mobile number already registered.' }));
+      } else {
+        clearError('primary_contact_number');
+      }
+    } catch {
+      clearError('primary_contact_number');
+    }
+  };
+
   // Address Country -> States
   const handleCurrentCountryChange = async (countryId) => {
     setCurrentAddress((prev) => ({ ...prev, country: countryId, state: '', city: '' }));
@@ -662,6 +681,13 @@ const AddTeacher = () => {
       if (!personalInfo.marital_status) newErrors.marital_status = 'Marital status is required.';
       if (!String(personalInfo.language_known || '').trim()) newErrors.language_known = 'Language known is required.';
       if (!String(personalInfo.qualification || '').trim()) newErrors.qualification = 'Qualification is required.';
+
+      if (!newErrors.primary_contact_number && errors.primary_contact_number) {
+        newErrors.primary_contact_number = errors.primary_contact_number;
+      }
+      if (!newErrors.email_address && errors.email_address) {
+        newErrors.email_address = errors.email_address;
+      }
     }
 
     if (tabId === 'address') {
@@ -754,6 +780,34 @@ const AddTeacher = () => {
 
     try {
       setSubmitting(true);
+
+      // Duplicate verification before submission
+      try {
+        const dupRes = await checkTeacherDuplicateApi(
+          {
+            email: String(personalInfo.email_address || '').trim(),
+            phone: String(personalInfo.primary_contact_number || '').trim(),
+          },
+          isEditMode ? id : null
+        );
+
+        if (dupRes?.data?.isEmailDuplicate || dupRes?.data?.isPhoneDuplicate) {
+          const dupErrors = {};
+          if (dupRes.data.isEmailDuplicate) {
+            dupErrors.email_address = 'Email address already registered.';
+          }
+          if (dupRes.data.isPhoneDuplicate) {
+            dupErrors.primary_contact_number = 'Mobile number already registered.';
+          }
+          setErrors((prev) => ({ ...prev, ...dupErrors }));
+          setActiveTab('personal');
+          toast.error(dupRes.data.message || 'Email address or mobile number already registered.');
+          setSubmitting(false);
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Pre-submit duplicate check warning:', checkErr);
+      }
 
       let uploadedPicPath = '';
       if (personalImgFile) {
@@ -885,7 +939,17 @@ const AddTeacher = () => {
     } catch (err) {
       console.error('Submission error:', err);
       const serverMsg = err.response?.data?.message || 'Failed to save teacher information.';
-      setErrors((prev) => ({ ...prev, formSubmit: serverMsg }));
+      const msgLower = serverMsg.toLowerCase();
+      if (msgLower.includes('email')) {
+        setErrors((prev) => ({ ...prev, email_address: serverMsg, formSubmit: serverMsg }));
+        setActiveTab('personal');
+      } else if (msgLower.includes('mobile') || msgLower.includes('phone') || msgLower.includes('contact')) {
+        setErrors((prev) => ({ ...prev, primary_contact_number: serverMsg, formSubmit: serverMsg }));
+        setActiveTab('personal');
+      } else {
+        setErrors((prev) => ({ ...prev, formSubmit: serverMsg }));
+      }
+      toast.error(serverMsg);
     } finally {
       setSubmitting(false);
     }
@@ -1176,6 +1240,7 @@ const AddTeacher = () => {
                             });
                             clearError('primary_contact_number');
                           }}
+                          onBlur={(e) => handlePhoneBlur(e.target.value)}
                         />
                         {errors.primary_contact_number && (
                           <div className="invalid-feedback">{errors.primary_contact_number}</div>

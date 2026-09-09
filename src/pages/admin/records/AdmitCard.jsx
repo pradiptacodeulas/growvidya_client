@@ -401,8 +401,8 @@ const AdmitCard = () => {
     const yearShort = getSelectedYearShort();
     const className = getSelectedClassName();
     const sectionName = getSelectedSectionName();
-    const schoolName = user?.school_name || user?.schoolName || 'CIBL School';
-    const schoolAddress = user?.school_address || user?.address || '09/245, Kalyani, Nadia';
+    const schoolName = user?.school_name || user?.schoolName || '';
+    const schoolAddress = user?.school_address || user?.address || '';
 
     return `
       <style>
@@ -1128,11 +1128,11 @@ const AdmitCard = () => {
                         </div>
 
                         <div className="school-name">
-                          <h1>{user?.school_name || user?.schoolName || 'CIBL School'}</h1>
+                          <h1>{user?.school_name || user?.schoolName || ''}</h1>
                         </div>
 
                         <div className="address">
-                          {user?.school_address || user?.address || '09/245, Kalyani, Nadia'}
+                          {user?.school_address || user?.address || ''}
                         </div>
 
                         <div className="exam-title">

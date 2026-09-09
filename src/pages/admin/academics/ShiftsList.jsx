@@ -5,8 +5,10 @@ import adminAcademicApi from '../../../api/adminAcademic.api';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
+import usePermission from '../../../hooks/usePermission';
 
 const ShiftsList = () => {
+  const { can } = usePermission();
   const [shifts, setShifts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -88,12 +90,16 @@ const ShiftsList = () => {
         header: 'Shift Name',
         sortable: true,
         cell: ({ value, row }) => (
-          <Link
-            to={`/admin/academics/shifts/edit/${encodeParam(row.id)}`}
-            className="fw-semibold text-primary text-decoration-none"
-          >
-            {value}
-          </Link>
+          can('academic/shift', 'edit') ? (
+            <Link
+              to={`/admin/academics/shifts/edit/${encodeParam(row.id)}`}
+              className="fw-semibold text-primary text-decoration-none"
+            >
+              {value}
+            </Link>
+          ) : (
+            <span className="fw-semibold text-dark">{value}</span>
+          )
         ),
       },
       {
@@ -143,7 +149,7 @@ const ShiftsList = () => {
         cell: ({ row }) => (
           <TableActionMenu
             items={[
-              {
+              can('academic/shift', 'edit') && {
                 label: 'Edit',
                 icon: 'ti ti-edit-circle',
                 to: `/admin/academics/shifts/edit/${encodeParam(row.id)}`,
@@ -153,7 +159,7 @@ const ShiftsList = () => {
         ),
       },
     ],
-    []
+    [can]
   );
 
   return (
@@ -212,12 +218,14 @@ const ShiftsList = () => {
             ]}
           />
 
-          <Link
-            to="/admin/academics/shifts/add"
-            className="btn btn-primary d-flex align-items-center"
-          >
-            <i className="ti ti-square-rounded-plus me-2"></i>Add Shift
-          </Link>
+          {can('academic/shift', 'add') && (
+            <Link
+              to="/admin/academics/shifts/add"
+              className="btn btn-primary d-flex align-items-center"
+            >
+              <i className="ti ti-square-rounded-plus me-2"></i>Add Shift
+            </Link>
+          )}
         </div>
       </div>
 

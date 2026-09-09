@@ -5,6 +5,12 @@ import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import {
+  sortAcademicYearsDesc,
+  sortExamsDesc,
+  sortClassesDesc,
+  sortSectionsDesc,
+} from '../../../utils/dropdownSort.util';
 
 const ExamResultsList = () => {
   const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
@@ -63,7 +69,7 @@ const ExamResultsList = () => {
       return;
     }
     try {
-      const res = await adminAcademicApi.fetchSectionsApi(classId);
+      const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1 });
       const secList = Array.isArray(res?.data)
         ? res.data
         : Array.isArray(res?.data?.sections)
@@ -71,7 +77,7 @@ const ExamResultsList = () => {
         : Array.isArray(res)
         ? res
         : [];
-      setSections(secList);
+      setSections(sortSectionsDesc(secList));
     } catch (err) {
       console.error('Failed to load sections:', err);
       setSections([]);
@@ -111,29 +117,33 @@ const ExamResultsList = () => {
         ? ayRes
         : [];
 
-      setExams(examsList);
-      setClasses(classesList);
-      setAcademicYears(ayList);
+      const sortedExams = sortExamsDesc(examsList);
+      const sortedClasses = sortClassesDesc(classesList);
+      const sortedYears = sortAcademicYearsDesc(ayList);
+
+      setExams(sortedExams);
+      setClasses(sortedClasses);
+      setAcademicYears(sortedYears);
 
       let defaultYear = selectedYear;
       let defaultExam = selectedExam;
       let defaultClass = selectedClass;
 
-      if (!defaultYear && ayList.length > 0) {
+      if (!defaultYear && sortedYears.length > 0) {
         const currentYear =
-          ayList.find((ay) => Number(ay.is_current) === 1 || String(ay.is_current) === '1' || ay.isCurrent) ||
-          ayList[0];
+          sortedYears.find((ay) => Number(ay.is_current) === 1 || String(ay.is_current) === '1' || ay.isCurrent) ||
+          sortedYears[0];
         defaultYear = currentYear ? String(currentYear.id) : '';
         setSelectedYear(defaultYear);
       }
 
-      if (!defaultExam && examsList.length > 0) {
-        defaultExam = String(examsList[0].id);
+      if (!defaultExam && sortedExams.length > 0) {
+        defaultExam = String(sortedExams[0].id);
         setSelectedExam(defaultExam);
       }
 
-      if (!defaultClass && classesList.length > 0) {
-        defaultClass = String(classesList[0].id);
+      if (!defaultClass && sortedClasses.length > 0) {
+        defaultClass = String(sortedClasses[0].id);
         setSelectedClass(defaultClass);
       }
 
@@ -367,10 +377,7 @@ const ExamResultsList = () => {
                 <option value="">Select Year</option>
                 {academicYears.map((ay) => (
                   <option key={ay.id} value={ay.id}>
-                    {ay.name || ay.academic_year || `Year ${ay.id}`}{' '}
-                    {Number(ay.is_current) === 1 || String(ay.is_current) === '1' || ay.isCurrent
-                      ? '(Current)'
-                      : ''}
+                    {ay.name || ay.academic_year || `Year ${ay.id}`}
                   </option>
                 ))}
               </select>

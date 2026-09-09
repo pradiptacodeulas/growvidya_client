@@ -5,6 +5,7 @@ import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam, decodeParam } from '../../../utils/idHelper';
+import { sortExamsDesc, sortClassesDesc } from '../../../utils/dropdownSort.util';
 
 const ExamSubjectList = () => {
   const [searchParams] = useSearchParams();
@@ -50,11 +51,14 @@ const ExamSubjectList = () => {
         ? clsRes
         : [];
 
-      setExams(examsList);
-      setClasses(classesList);
+      const sortedExams = sortExamsDesc(examsList);
+      const sortedClasses = sortClassesDesc(classesList);
 
-      const targetExam = selectedExamId || (examsList.length > 0 ? examsList[0].id : '');
-      const targetClass = selectedClassId || (classesList.length > 0 ? classesList[0].id : '');
+      setExams(sortedExams);
+      setClasses(sortedClasses);
+
+      const targetExam = selectedExamId || (sortedExams.length > 0 ? sortedExams[0].id : '');
+      const targetClass = selectedClassId || (sortedClasses.length > 0 ? sortedClasses[0].id : '');
 
       if (targetExam) setSelectedExamId(targetExam);
       if (targetClass) setSelectedClassId(targetClass);
@@ -99,6 +103,8 @@ const ExamSubjectList = () => {
         examSubjectMasterId: data.examSubjectMasterId || null,
         status: data.status !== undefined ? data.status : null,
         hasConfig: Boolean(data.hasConfig),
+        isLocked: Boolean(data.isLocked),
+        lockReason: data.lockReason || null,
       });
     } catch (err) {
       toast.error(err.message || 'Failed to load exam subjects matrix');
@@ -109,6 +115,11 @@ const ExamSubjectList = () => {
 
   const handleDeleteConfig = async () => {
     if (!matrixData.examSubjectMasterId) return;
+    if (matrixData.isLocked) {
+      toast.error(matrixData.lockReason || 'Cannot delete locked exam configuration.');
+      setDeleteModalOpen(false);
+      return;
+    }
     try {
       setDeleting(true);
       await adminExaminationApi.deleteExamSubject(matrixData.examSubjectMasterId);
@@ -116,7 +127,7 @@ const ExamSubjectList = () => {
       setDeleteModalOpen(false);
       fetchExamSubjectMatrix(selectedExamId, selectedClassId);
     } catch (err) {
-      toast.error(err.message || 'Failed to delete exam subjects configuration.');
+      toast.error(err.response?.data?.message || err.message || 'Failed to delete exam subjects configuration.');
     } finally {
       setDeleting(false);
     }
@@ -244,7 +255,14 @@ const ExamSubjectList = () => {
       <div className="datatable-card">
         <div className="datatable-card-header d-flex align-items-center justify-content-between">
           <div>
-            <h5 className="mb-0 fw-bold text-dark fs-16">Subject Marks Matrix</h5>
+            <div className="d-flex align-items-center gap-2">
+              <h5 className="mb-0 fw-bold text-dark fs-16">Subject Marks Matrix</h5>
+              {matrixData.isLocked && (
+                <span className="badge bg-warning text-dark fs-12 fw-normal" title={matrixData.lockReason}>
+                  <i className="ti ti-lock me-1"></i>Locked (Exam Done)
+                </span>
+              )}
+            </div>
             <p className="text-muted fs-13 mb-0 mt-1">
               Marks allocation across evaluation types for {selectedExamName} ({selectedClassName}).
             </p>
@@ -303,16 +321,20 @@ const ExamSubjectList = () => {
                       <TableActionMenu
                         items={[
                           {
-                            label: 'Edit Marks',
-                            icon: 'ti ti-edit-circle text-primary',
+                            label: matrixData.isLocked ? 'View Marks (Locked)' : 'Edit Marks',
+                            icon: matrixData.isLocked ? 'ti ti-lock text-warning' : 'ti ti-edit-circle text-primary',
                             to: `/admin/examinations/exam-subjects/add?exam_id=${encodeParam(selectedExamId)}&class_id=${encodeParam(selectedClassId)}`,
                           },
-                          {
-                            label: 'Delete Config',
-                            icon: 'ti ti-trash-x text-danger',
-                            variant: 'danger',
-                            onClick: () => setDeleteModalOpen(true),
-                          },
+                          ...(!matrixData.isLocked
+                            ? [
+                                {
+                                  label: 'Delete Config',
+                                  icon: 'ti ti-trash-x text-danger',
+                                  variant: 'danger',
+                                  onClick: () => setDeleteModalOpen(true),
+                                },
+                              ]
+                            : []),
                         ]}
                       />
                     </td>

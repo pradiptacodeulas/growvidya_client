@@ -85,7 +85,7 @@ const AdminLogin = () => {
                           name="email"
                           id="email"
                           className="form-control"
-                          placeholder="admin@school.com"
+                          placeholder="Enter email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           required
@@ -99,7 +99,7 @@ const AdminLogin = () => {
                           id="password"
                           name="password"
                           className="pass-input form-control"
-                          placeholder="••••••••"
+                          placeholder="Enter password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required

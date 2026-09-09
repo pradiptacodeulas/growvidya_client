@@ -1,4 +1,9 @@
 import { apiFetch } from './fetch.config';
+import {
+  sortClassesDesc,
+  sortSectionsDesc,
+  sortSubjectsDesc,
+} from '../utils/dropdownSort.util';
 
 /**
  * Dedicated Teacher Academic API client
@@ -8,15 +13,26 @@ import { apiFetch } from './fetch.config';
 // Classes
 export const fetchTeacherClassesApi = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
-  return await apiFetch(`/teacher/academics/classes${query ? `?${query}` : ''}`);
+  const res = await apiFetch(`/teacher/academics/classes${query ? `?${query}` : ''}`);
+  if (Array.isArray(res)) return sortClassesDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortClassesDesc(res.data);
+  if (Array.isArray(res?.data?.classes)) res.data.classes = sortClassesDesc(res.data.classes);
+  if (Array.isArray(res?.classes)) res.classes = sortClassesDesc(res.classes);
+  return res;
 };
 
 export const fetchTeacherClassByIdApi = async (id) =>
   await apiFetch(`/teacher/academics/classes/${id}`);
 
 // Sections
-export const fetchTeacherSectionsApi = async (classId = null) =>
-  await apiFetch(`/teacher/academics/sections${classId ? `?classId=${classId}` : ''}`);
+export const fetchTeacherSectionsApi = async (classId = null) => {
+  const res = await apiFetch(`/teacher/academics/sections${classId ? `?classId=${classId}` : ''}`);
+  if (Array.isArray(res)) return sortSectionsDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortSectionsDesc(res.data);
+  if (Array.isArray(res?.data?.sections)) res.data.sections = sortSectionsDesc(res.data.sections);
+  if (Array.isArray(res?.sections)) res.sections = sortSectionsDesc(res.sections);
+  return res;
+};
 
 export const fetchTeacherSectionByIdApi = async (id) =>
   await apiFetch(`/teacher/academics/sections/detail/${id}`);
@@ -31,7 +47,12 @@ export const fetchTeacherSubjectsApi = async (params = {}) => {
   } else if (params) {
     queryString = `?classId=${params}`;
   }
-  return await apiFetch(`/teacher/academics/subjects${queryString}`);
+  const res = await apiFetch(`/teacher/academics/subjects${queryString}`);
+  if (Array.isArray(res)) return sortSubjectsDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortSubjectsDesc(res.data);
+  if (Array.isArray(res?.data?.subjects)) res.data.subjects = sortSubjectsDesc(res.data.subjects);
+  if (Array.isArray(res?.subjects)) res.subjects = sortSubjectsDesc(res.subjects);
+  return res;
 };
 
 export const fetchTeacherSubjectByIdApi = async (id) =>

@@ -1,10 +1,15 @@
 import apiClient from './axios.config';
+import { sortDropdownDesc } from '../utils/dropdownSort.util';
 
 const adminFeesApi = {
   // 1. Fee Components
   getAllComponents: async (params) => {
     const res = await apiClient.get('/admin/fees/components', { params });
-    return res.data;
+    const data = res.data;
+    if (Array.isArray(data?.components)) data.components = sortDropdownDesc(data.components);
+    if (Array.isArray(data?.data?.components)) data.data.components = sortDropdownDesc(data.data.components);
+    if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+    return data;
   },
 
   getComponentById: async (id) => {
@@ -22,6 +27,15 @@ const adminFeesApi = {
     return res.data;
   },
 
+  saveComponent: async (data) => {
+    if (data.id) {
+      const res = await apiClient.put(`/admin/fees/components/${data.id}`, data);
+      return res.data;
+    }
+    const res = await apiClient.post('/admin/fees/components', data);
+    return res.data;
+  },
+
   deleteComponent: async (id) => {
     const res = await apiClient.delete(`/admin/fees/components/${id}`);
     return res.data;
@@ -30,7 +44,11 @@ const adminFeesApi = {
   // 2. Fee Structures
   getAllStructures: async (params) => {
     const res = await apiClient.get('/admin/fees/structures', { params });
-    return res.data;
+    const data = res.data;
+    if (Array.isArray(data?.structures)) data.structures = sortDropdownDesc(data.structures);
+    if (Array.isArray(data?.data?.structures)) data.data.structures = sortDropdownDesc(data.data.structures);
+    if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+    return data;
   },
 
   getStructureById: async (id) => {

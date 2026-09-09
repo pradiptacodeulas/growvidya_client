@@ -1,12 +1,29 @@
 import apiClient from './axios.config';
+import {
+  sortClassesDesc,
+  sortSectionsDesc,
+  sortAcademicYearsDesc,
+} from '../utils/dropdownSort.util';
 
 /**
  * Fetch meta options (classes, sections, academic years)
  */
 export const fetchAttendanceMetaApi = async () => {
   const response = await apiClient.get('/admin/attendance/meta');
+  if (response?.data?.data) {
+    if (Array.isArray(response.data.data.classes)) {
+      response.data.data.classes = sortClassesDesc(response.data.data.classes);
+    }
+    if (Array.isArray(response.data.data.sections)) {
+      response.data.data.sections = sortSectionsDesc(response.data.data.sections);
+    }
+    if (Array.isArray(response.data.data.academicYears)) {
+      response.data.data.academicYears = sortAcademicYearsDesc(response.data.data.academicYears);
+    }
+  }
   return response.data;
 };
+
 
 /* =========================================================================
  * 1. STUDENT ATTENDANCE

@@ -8,6 +8,9 @@ import {
   updateStaffApi,
   deleteStaffApi,
   fetchStaffRolesApi,
+  checkStaffEmailApi,
+  checkStaffPhoneApi,
+  checkStaffDuplicateApi,
 } from '../../../api/adminStaff.api';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
@@ -31,6 +34,7 @@ const StaffList = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingStaffId, setEditingStaffId] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -135,8 +139,47 @@ const StaffList = () => {
     }
   };
 
+  const handleEmailBlur = async (email) => {
+    const trimmed = String(email || '').trim();
+    if (!trimmed || !trimmed.includes('@')) return;
+    try {
+      const res = await checkStaffEmailApi(trimmed, editingStaffId || null);
+      if (res?.data?.exists) {
+        setFormErrors((prev) => ({ ...prev, email: 'Email address already registered.' }));
+      } else {
+        setFormErrors((prev) => {
+          const next = { ...prev };
+          delete next.email;
+          return next;
+        });
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handlePhoneBlur = async (phone) => {
+    const trimmed = String(phone || '').trim();
+    if (!trimmed) return;
+    try {
+      const res = await checkStaffPhoneApi(trimmed, editingStaffId || null);
+      if (res?.data?.exists) {
+        setFormErrors((prev) => ({ ...prev, phone: 'Mobile number already registered.' }));
+      } else {
+        setFormErrors((prev) => {
+          const next = { ...prev };
+          delete next.phone;
+          return next;
+        });
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
   const handleOpenAddModal = () => {
     setEditingStaffId(null);
+    setFormErrors({});
     setFormData({
       first_name: '',
       last_name: '',
@@ -162,8 +205,38 @@ const StaffList = () => {
       return;
     }
 
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(formData.email).trim())) {
+      setFormErrors((prev) => ({ ...prev, email: 'Please enter a valid email address.' }));
+      toast.warning('Please enter a valid email address.');
+      return;
+    }
+
     try {
       setFormSubmitting(true);
+
+      // Pre-submission duplicate check
+      try {
+        const dupRes = await checkStaffDuplicateApi(
+          {
+            email: String(formData.email || '').trim(),
+            phone: String(formData.phone || '').trim(),
+          },
+          editingStaffId || null
+        );
+
+        if (dupRes?.data?.isEmailDuplicate || dupRes?.data?.isPhoneDuplicate) {
+          const errors = {};
+          if (dupRes.data.isEmailDuplicate) errors.email = 'Email address already registered.';
+          if (dupRes.data.isPhoneDuplicate) errors.phone = 'Mobile number already registered.';
+          setFormErrors((prev) => ({ ...prev, ...errors }));
+          toast.error(dupRes.data.message || 'Duplicate email or mobile number detected.');
+          setFormSubmitting(false);
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Pre-submit staff duplicate check warning:', checkErr);
+      }
+
       if (editingStaffId) {
         await updateStaffApi(editingStaffId, formData);
         toast.success('Staff user updated successfully');
@@ -175,7 +248,14 @@ const StaffList = () => {
       loadStaff(pagination.page, pagination.limit, search);
     } catch (err) {
       console.error('Failed to save staff user:', err);
-      toast.error(err.response?.data?.message || 'Failed to save staff details');
+      const serverMsg = err.response?.data?.message || 'Failed to save staff details';
+      const msgLower = serverMsg.toLowerCase();
+      if (msgLower.includes('email')) {
+        setFormErrors((prev) => ({ ...prev, email: serverMsg }));
+      } else if (msgLower.includes('mobile') || msgLower.includes('phone')) {
+        setFormErrors((prev) => ({ ...prev, phone: serverMsg }));
+      }
+      toast.error(serverMsg);
     } finally {
       setFormSubmitting(false);
     }
@@ -189,7 +269,8 @@ const StaffList = () => {
     if (staffList.length === 0) return toast.info('No staff to export');
     let csv = 'Sl No.,Name,Email,Phone,Role,Status\n';
     staffList.forEach((u, idx) => {
-      csv += `"${idx + 1}","${u.first_name} ${u.last_name || ''}","${u.email || ''}","${u.phone || ''}","${u.role_name || 'Staff'}","${u.status === 1 ? 'Active' : 'Inactive'}"\n`;
+      const roleText = Number(u.admin_type) === 1 ? 'Super Admin' : (u.role_name || 'Staff');
+      csv += `"${idx + 1}","${u.first_name} ${u.last_name || ''}","${u.email || ''}","${u.phone || ''}","${roleText}","${u.status === 1 ? 'Active' : 'Inactive'}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -242,11 +323,14 @@ const StaffList = () => {
         accessorKey: 'role_name',
         header: 'Role',
         sortable: true,
-        cell: ({ value }) => (
-          <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-medium">
-            {value || 'Staff'}
-          </span>
-        ),
+        cell: ({ row, value }) => {
+          const roleText = Number(row?.admin_type) === 1 ? 'Super Admin' : (value || 'Staff');
+          return (
+            <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-medium">
+              {roleText}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'status',
@@ -485,22 +569,48 @@ const StaffList = () => {
                       </label>
                       <input
                         type="email"
-                        className="form-control"
+                        className={`form-control ${formErrors.email ? 'is-invalid border-danger' : ''}`}
                         placeholder="user@example.com"
                         value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        onChange={(e) => {
+                          setFormData({ ...formData, email: e.target.value });
+                          if (formErrors.email) {
+                            setFormErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.email;
+                              return copy;
+                            });
+                          }
+                        }}
+                        onBlur={(e) => handleEmailBlur(e.target.value)}
                         required
                       />
+                      {formErrors.email && (
+                        <div className="invalid-feedback">{formErrors.email}</div>
+                      )}
                     </div>
                     <div className="col-md-6">
                       <label className="form-label fw-semibold">Phone Number</label>
                       <input
                         type="tel"
-                        className="form-control"
+                        className={`form-control ${formErrors.phone ? 'is-invalid border-danger' : ''}`}
                         placeholder="e.g. 9876543210"
                         value={formData.phone}
-                        onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                        onChange={(e) => {
+                          setFormData({ ...formData, phone: e.target.value });
+                          if (formErrors.phone) {
+                            setFormErrors((prev) => {
+                              const copy = { ...prev };
+                              delete copy.phone;
+                              return copy;
+                            });
+                          }
+                        }}
+                        onBlur={(e) => handlePhoneBlur(e.target.value)}
                       />
+                      {formErrors.phone && (
+                        <div className="invalid-feedback">{formErrors.phone}</div>
+                      )}
                     </div>
 
                     <div className="col-md-4">

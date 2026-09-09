@@ -1,4 +1,5 @@
 import apiClient from './axios.config';
+import { sortDropdownDesc } from '../utils/dropdownSort.util';
 
 /**
  * ==========================================
@@ -7,7 +8,10 @@ import apiClient from './axios.config';
  */
 export const fetchRoutesApi = async (params = {}) => {
   const response = await apiClient.get('/admin/transport/routes', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.routes)) data.routes = sortDropdownDesc(data.routes);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchRouteByIdApi = async (id) => {
@@ -37,8 +41,10 @@ export const deleteRouteApi = async (id) => {
  */
 export const fetchVehiclesApi = async (params = {}) => {
   const response = await apiClient.get('/admin/transport/vehicles', { params });
-  console.log('fetchVehiclesApi response:', response.data);
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.vehicles)) data.vehicles = sortDropdownDesc(data.vehicles);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchVehicleByIdApi = async (id) => {
@@ -68,7 +74,10 @@ export const deleteVehicleApi = async (id) => {
  */
 export const fetchDriversApi = async (params = {}) => {
   const response = await apiClient.get('/admin/transport/drivers', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.drivers)) data.drivers = sortDropdownDesc(data.drivers);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchDriverByIdApi = async (id) => {
@@ -91,6 +100,11 @@ export const deleteDriverApi = async (id) => {
   return response.data;
 };
 
+export const checkDriverDuplicateApi = async (params = {}) => {
+  const response = await apiClient.get('/admin/transport/drivers/check-duplicate', { params });
+  return response.data;
+};
+
 /**
  * ==========================================
  * 4. HELPERS API
@@ -98,7 +112,10 @@ export const deleteDriverApi = async (id) => {
  */
 export const fetchHelpersApi = async (params = {}) => {
   const response = await apiClient.get('/admin/transport/helpers', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.helpers)) data.helpers = sortDropdownDesc(data.helpers);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const fetchHelperByIdApi = async (id) => {
@@ -118,6 +135,11 @@ export const updateHelperApi = async (id, data) => {
 
 export const deleteHelperApi = async (id) => {
   const response = await apiClient.delete(`/admin/transport/helpers/${id}`);
+  return response.data;
+};
+
+export const checkHelperDuplicateApi = async (params = {}) => {
+  const response = await apiClient.get('/admin/transport/helpers/check-duplicate', { params });
   return response.data;
 };
 

@@ -32,12 +32,12 @@ const getTodayDateStr = () => {
 const CertificateCreate = () => {
   const { user } = useSelector((state) => state.auth);
   const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogo;
-  const schoolName = user?.school_name || user?.schoolName || 'CIBL School';
+  const schoolName = user?.school_name || user?.schoolName || '';
   const affiliation = user?.affiliation_board
     ? `(Affiliated to ${user.affiliation_board})`
-    : '(Affiliated to CBSE)';
-  const schoolAddress = user?.school_address || user?.address || '09/245, Kalyani, Nadia';
-  const schoolCode = user?.school_code ? `School Code-${user.school_code}` : 'School Code-SK005';
+    : '';
+  const schoolAddress = user?.school_address || user?.address || '';
+  const schoolCode = user?.school_code ? `School Code-${user.school_code}` : '';
 
   const [certificates, setCertificates] = useState([]);
   const [borders, setBorders] = useState([]);

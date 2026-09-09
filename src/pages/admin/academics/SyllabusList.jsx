@@ -8,6 +8,7 @@ import {
   deleteSyllabusApi,
 } from '../../../api/adminAcademic.api';
 import { encodeParam } from '../../../utils/idHelper';
+import TableActionMenu from '../../../components/common/TableActionMenu';
 
 const formatAcademicYear = (ay) => {
   if (!ay) return '';
@@ -63,7 +64,6 @@ const SyllabusList = () => {
   const [totalPages, setTotalPages] = useState(1);
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const [openDropdownId, setOpenDropdownId] = useState(null);
 
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -352,35 +352,29 @@ const SyllabusList = () => {
               <i className="ti ti-printer text-dark"></i>
             </button>
           </div>
-          <div className="dropdown me-2 mb-2">
-            <button
-              className="dropdown-toggle btn btn-light fw-medium d-inline-flex align-items-center"
-              type="button"
-              data-bs-toggle="dropdown"
-              aria-expanded="false"
-            >
-              <i className="ti ti-file-export me-2"></i>Export
-            </button>
-            <ul className="dropdown-menu dropdown-menu-end p-3">
-              <li>
+          <div className="me-2 mb-2">
+            <TableActionMenu
+              trigger={
                 <button
+                  className="btn btn-light fw-medium d-inline-flex align-items-center"
                   type="button"
-                  onClick={handlePrint}
-                  className="dropdown-item rounded-1"
                 >
-                  <i className="ti ti-file-type-pdf me-2"></i>Export as PDF
+                  <i className="ti ti-file-export me-2"></i>Export
                 </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={handleExportCSV}
-                  className="dropdown-item rounded-1"
-                >
-                  <i className="ti ti-file-type-xls me-2"></i>Export as Excel
-                </button>
-              </li>
-            </ul>
+              }
+              items={[
+                {
+                  label: 'Export as PDF',
+                  icon: 'ti ti-file-type-pdf text-danger',
+                  onClick: handlePrint,
+                },
+                {
+                  label: 'Export as Excel',
+                  icon: 'ti ti-file-type-xls text-success',
+                  onClick: handleExportCSV,
+                },
+              ]}
+            />
           </div>
           <div className="mb-2">
             <Link
@@ -566,7 +560,6 @@ const SyllabusList = () => {
                         syllabusList.map((item, idx) => {
                           const slNo = startIndex + idx + 1;
                           const encodedId = encodeParam(item.id);
-                          const isDropdownOpen = openDropdownId === item.id;
 
                           return (
                             <tr key={item.id} className={idx % 2 === 0 ? 'odd' : 'even'}>
@@ -586,57 +579,23 @@ const SyllabusList = () => {
                                 {item.lession}
                               </td>
                               <td>{getStatusBadge(item.status)}</td>
-                              <td className="text-center position-relative">
-                                <div className="dropdown d-inline-block">
-                                  <button
-                                    className="btn btn-white btn-icon btn-sm d-flex align-items-center justify-content-center rounded-circle p-0 border shadow-none"
-                                    type="button"
-                                    onClick={() =>
-                                      setOpenDropdownId(isDropdownOpen ? null : item.id)
-                                    }
-                                  >
-                                    <i className="ti ti-dots-vertical fs-14"></i>
-                                  </button>
-
-                                  {isDropdownOpen && (
-                                    <>
-                                      <div
-                                        className="position-fixed top-0 start-0 w-100 h-100"
-                                        style={{ zIndex: 100 }}
-                                        onClick={() => setOpenDropdownId(null)}
-                                      ></div>
-                                      <ul
-                                        className="dropdown-menu dropdown-menu-end p-2 show position-absolute shadow"
-                                        style={{
-                                          zIndex: 105,
-                                          right: 0,
-                                          top: '100%',
-                                          minWidth: '140px',
-                                        }}
-                                      >
-                                        <li>
-                                          <Link
-                                            className="dropdown-item rounded-1 d-flex align-items-center"
-                                            to={`/admin/academics/syllabus/edit/${encodedId}`}
-                                            onClick={() => setOpenDropdownId(null)}
-                                          >
-                                            <i className="ti ti-edit-circle me-2 text-primary"></i>
-                                            Edit
-                                          </Link>
-                                        </li>
-                                        <li>
-                                          <button
-                                            type="button"
-                                            className="dropdown-item rounded-1 text-danger d-flex align-items-center"
-                                            onClick={() => confirmDelete(item)}
-                                          >
-                                            <i className="ti ti-trash-x me-2"></i>Delete
-                                          </button>
-                                        </li>
-                                      </ul>
-                                    </>
-                                  )}
-                                </div>
+                              <td className="text-center">
+                                <TableActionMenu
+                                  placement={idx >= Math.max(0, syllabusList.length - 2) ? 'top-end' : 'bottom-end'}
+                                  items={[
+                                    {
+                                      label: 'Edit',
+                                      icon: 'ti ti-edit-circle text-primary',
+                                      to: `/admin/academics/syllabus/edit/${encodedId}`,
+                                    },
+                                    {
+                                      label: 'Delete',
+                                      icon: 'ti ti-trash-x',
+                                      variant: 'danger',
+                                      onClick: () => confirmDelete(item),
+                                    },
+                                  ]}
+                                />
                               </td>
                             </tr>
                           );

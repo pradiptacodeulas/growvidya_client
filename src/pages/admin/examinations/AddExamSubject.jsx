@@ -4,6 +4,12 @@ import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { decodeParam } from '../../../utils/idHelper';
+import {
+  sortExamsDesc,
+  sortClassesDesc,
+  sortSubjectsDesc,
+  sortExamTypesDesc,
+} from '../../../utils/dropdownSort.util';
 
 const AddExamSubject = () => {
   const navigate = useNavigate();
@@ -53,11 +59,14 @@ const AddExamSubject = () => {
         ? clsRes
         : [];
 
-      setExams(examsList);
-      setClasses(classesList);
+      const sortedExams = sortExamsDesc(examsList);
+      const sortedClasses = sortClassesDesc(classesList);
 
-      const targetExam = selectedExamId || (examsList.length > 0 ? examsList[0].id : '');
-      const targetClass = selectedClassId || (classesList.length > 0 ? classesList[0].id : '');
+      setExams(sortedExams);
+      setClasses(sortedClasses);
+
+      const targetExam = selectedExamId || (sortedExams.length > 0 ? sortedExams[0].id : '');
+      const targetClass = selectedClassId || (sortedClasses.length > 0 ? sortedClasses[0].id : '');
 
       setSelectedExamId(targetExam);
       setSelectedClassId(targetClass);
@@ -82,7 +91,13 @@ const AddExamSubject = () => {
       });
 
       if (res?.data) {
-        setMatrixData(res.data);
+        const d = res.data;
+        const sortedData = {
+          ...d,
+          subjects: sortSubjectsDesc(d.subjects || []),
+          examTypes: sortExamTypesDesc(d.examTypes || []),
+        };
+        setMatrixData(sortedData);
 
         // Build state mapping: `${subject_id}_${exam_type_id}`
         const initial = {};
@@ -123,12 +138,22 @@ const AddExamSubject = () => {
     const key = `${subjectId}_${examTypeId}`;
     setMatrixState((prev) => {
       const current = prev[key] || { isCheck: false, mark: '' };
+      if (field === 'isCheck') {
+        const isChecked = Boolean(value);
+        return {
+          ...prev,
+          [key]: {
+            ...current,
+            isCheck: isChecked,
+            mark: isChecked ? current.mark : '',
+          },
+        };
+      }
       return {
         ...prev,
         [key]: {
           ...current,
           [field]: value,
-          ...(field === 'mark' && value !== '' && Number(value) > 0 ? { isCheck: true } : {}),
         },
       };
     });
@@ -142,25 +167,50 @@ const AddExamSubject = () => {
       return;
     }
 
-    try {
-      setSaving(true);
-      const items = [];
+    if (matrixData.isLocked) {
+      toast.error(matrixData.lockReason || 'This exam pattern is locked and cannot be modified.');
+      return;
+    }
 
-      matrixData.subjects.forEach((sub) => {
-        matrixData.examTypes.forEach((et) => {
-          const key = `${sub.subject_id}_${et.exam_type_id}`;
-          const cell = matrixState[key];
-          if (cell && (cell.isCheck || cell.mark > 0)) {
+    const items = [];
+    let hasIncompleteMark = false;
+    let firstIncompleteDetail = '';
+
+    matrixData.subjects.forEach((sub) => {
+      matrixData.examTypes.forEach((et) => {
+        const key = `${sub.subject_id}_${et.exam_type_id}`;
+        const cell = matrixState[key];
+        if (cell && cell.isCheck) {
+          const numMark = parseInt(cell.mark, 10);
+          if (!cell.mark || isNaN(numMark) || numMark <= 0) {
+            hasIncompleteMark = true;
+            if (!firstIncompleteDetail) {
+              firstIncompleteDetail = `${sub.subject_name} (${et.exam_type})`;
+            }
+          } else {
             items.push({
               subjectId: sub.subject_id,
               examTypeId: et.exam_type_id,
-              isCheck: cell.isCheck ? 1 : 0,
-              mark: parseInt(cell.mark, 10) || 0,
+              isCheck: 1,
+              mark: numMark,
             });
           }
-        });
+        }
       });
+    });
 
+    if (hasIncompleteMark) {
+      toast.warning(`Please enter marks greater than 0 for selected subject: ${firstIncompleteDetail}`);
+      return;
+    }
+
+    if (items.length === 0) {
+      toast.warning('Please select at least one subject and enter its marks (greater than 0).');
+      return;
+    }
+
+    try {
+      setSaving(true);
       await adminExaminationApi.saveExamSubjectConfig({
         exam_id: selectedExamId,
         class_id: selectedClassId,
@@ -182,8 +232,19 @@ const AddExamSubject = () => {
       {/* Page Header */}
       <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
         <div className="my-auto mb-2">
-          <h3 className="mb-1">
-            {matrixData.examSubjectMasterId ? 'Edit Exam Subject' : 'Add Exam Subject'}
+          <h3 className="mb-1 d-flex align-items-center flex-wrap gap-2">
+            {matrixData.isLocked ? (
+              <>
+                <span>View Exam Subject Configuration</span>
+                <span className="badge bg-warning text-dark fs-12 fw-normal">
+                  <i className="ti ti-lock me-1"></i>Locked (Exam Done)
+                </span>
+              </>
+            ) : matrixData.examSubjectMasterId ? (
+              'Edit Exam Subject'
+            ) : (
+              'Add Exam Subject'
+            )}
           </h3>
           <nav>
             <ol className="breadcrumb mb-0">
@@ -194,7 +255,7 @@ const AddExamSubject = () => {
                 <Link to="/admin/examinations/exam-subjects">Examination</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
-                {matrixData.examSubjectMasterId ? 'Edit Exam Subject' : 'Add Exam Subject'}
+                {matrixData.isLocked ? 'View Exam Subject' : matrixData.examSubjectMasterId ? 'Edit Exam Subject' : 'Add Exam Subject'}
               </li>
             </ol>
           </nav>
@@ -265,7 +326,18 @@ const AddExamSubject = () => {
 
               {/* Subject Marks Matrix */}
               <div className="card-body pb-1">
-                {matrixData.examSubjectMasterId && (
+                {matrixData.isLocked ? (
+                  <div className="alert alert-warning border border-warning d-flex align-items-start mb-4" role="alert">
+                    <i className="ti ti-lock fs-20 me-2 mt-1 text-warning"></i>
+                    <div>
+                      <h6 className="alert-heading fw-bold mb-1 text-dark">Exam Pattern Locked (Read Only)</h6>
+                      <p className="mb-1 text-dark fs-13">{matrixData.lockReason}</p>
+                      <div className="fs-12 text-muted">
+                        To protect academic data integrity and previously recorded student results, subject marks and exam type allocations cannot be edited for this exam.
+                      </div>
+                    </div>
+                  </div>
+                ) : matrixData.examSubjectMasterId ? (
                   <div className="alert alert-info d-flex align-items-center mb-4" role="alert">
                     <i className="ti ti-info-circle me-2 fs-18"></i>
                     <div>
@@ -273,7 +345,7 @@ const AddExamSubject = () => {
                       can modify marks below and click <strong>Submit</strong> to update.
                     </div>
                   </div>
-                )}
+                ) : null}
 
                 {loading ? (
                   <div className="text-center py-5">
@@ -319,6 +391,7 @@ const AddExamSubject = () => {
                                       type="checkbox"
                                       className="form-check-input"
                                       checked={cell.isCheck}
+                                      disabled={Boolean(matrixData.isLocked)}
                                       onChange={(e) =>
                                         handleMatrixCellChange(
                                           sub.subject_id,
@@ -331,10 +404,11 @@ const AddExamSubject = () => {
                                     <input
                                       type="number"
                                       min="0"
-                                      className="form-control form-control-sm text-center"
+                                      className={`form-control form-control-sm text-center ${!cell.isCheck ? 'bg-light text-muted' : ''}`}
                                       style={{ width: '80px' }}
                                       placeholder="Marks"
                                       value={cell.mark}
+                                      disabled={Boolean(matrixData.isLocked) || !cell.isCheck}
                                       onChange={(e) =>
                                         handleMatrixCellChange(
                                           sub.subject_id,
@@ -364,23 +438,34 @@ const AddExamSubject = () => {
                   >
                     Cancel
                   </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary d-inline-flex align-items-center"
-                    disabled={saving || matrixData.subjects.length === 0}
-                  >
-                    {saving ? (
-                      <>
-                        <span
-                          className="spinner-border spinner-border-sm me-2"
-                          role="status"
-                        ></span>
-                        Submitting...
-                      </>
-                    ) : (
-                      'Submit'
-                    )}
-                  </button>
+                  {matrixData.isLocked ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary d-inline-flex align-items-center"
+                      disabled
+                      title="Configuration is locked because the exam is done or marks are recorded."
+                    >
+                      <i className="ti ti-lock me-1"></i> Locked (Read Only)
+                    </button>
+                  ) : (
+                    <button
+                      type="submit"
+                      className="btn btn-primary d-inline-flex align-items-center"
+                      disabled={saving || matrixData.subjects.length === 0}
+                    >
+                      {saving ? (
+                        <>
+                          <span
+                            className="spinner-border spinner-border-sm me-2"
+                            role="status"
+                          ></span>
+                          Submitting...
+                        </>
+                      ) : (
+                        'Submit'
+                      )}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

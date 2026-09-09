@@ -1,10 +1,21 @@
 import apiClient from './axios.config';
+import {
+  sortExamsDesc,
+  sortExamTypesDesc,
+  sortGradesDesc,
+  sortSubjectsDesc,
+  sortDropdownDesc,
+} from '../utils/dropdownSort.util';
 
 const adminExaminationApi = {
   // 1. Grade Settings
   getAllGrades: async () => {
     const res = await apiClient.get('/admin/examinations/grades');
-    return res.data;
+    const data = res.data;
+    if (Array.isArray(data?.grades)) data.grades = sortGradesDesc(data.grades);
+    if (Array.isArray(data?.data?.grades)) data.data.grades = sortGradesDesc(data.data.grades);
+    if (Array.isArray(data?.data)) data.data = sortGradesDesc(data.data);
+    return data;
   },
 
   getGradeById: async (id) => {
@@ -30,7 +41,11 @@ const adminExaminationApi = {
   // 2. Exam Master
   getAllExams: async (params) => {
     const res = await apiClient.get('/admin/examinations/exams', { params });
-    return res.data;
+    const data = res.data;
+    if (Array.isArray(data?.exams)) data.exams = sortExamsDesc(data.exams);
+    if (Array.isArray(data?.data?.exams)) data.data.exams = sortExamsDesc(data.data.exams);
+    if (Array.isArray(data?.data)) data.data = sortExamsDesc(data.data);
+    return data;
   },
 
   getExamById: async (id) => {
@@ -56,7 +71,11 @@ const adminExaminationApi = {
   // 3. Exam Types
   getAllExamTypes: async (params) => {
     const res = await apiClient.get('/admin/examinations/exam-types', { params });
-    return res.data;
+    const data = res.data;
+    if (Array.isArray(data?.examTypes)) data.examTypes = sortExamTypesDesc(data.examTypes);
+    if (Array.isArray(data?.data?.examTypes)) data.data.examTypes = sortExamTypesDesc(data.data.examTypes);
+    if (Array.isArray(data?.data)) data.data = sortExamTypesDesc(data.data);
+    return data;
   },
 
   getExamTypeById: async (id) => {
@@ -87,7 +106,12 @@ const adminExaminationApi = {
 
   getExamSubjectConfig: async (params) => {
     const res = await apiClient.get('/admin/examinations/exam-subjects/config', { params });
-    return res.data;
+    const data = res.data;
+    if (Array.isArray(data?.subjects)) data.subjects = sortSubjectsDesc(data.subjects);
+    if (Array.isArray(data?.data?.subjects)) data.data.subjects = sortSubjectsDesc(data.data.subjects);
+    if (Array.isArray(data?.examTypes)) data.examTypes = sortExamTypesDesc(data.examTypes);
+    if (Array.isArray(data?.data?.examTypes)) data.data.examTypes = sortExamTypesDesc(data.data.examTypes);
+    return data;
   },
 
   saveExamSubjectConfig: async (data) => {
@@ -103,12 +127,18 @@ const adminExaminationApi = {
   // 5. Exam Schedules
   getExamSchedules: async (params) => {
     const res = await apiClient.get('/admin/examinations/schedules', { params });
-    return res.data;
+    const data = res.data;
+    if (Array.isArray(data?.schedules)) data.schedules = sortDropdownDesc(data.schedules, (s) => s.date || s.id);
+    if (Array.isArray(data?.data?.schedules)) data.data.schedules = sortDropdownDesc(data.data.schedules, (s) => s.date || s.id);
+    return data;
   },
 
   getExamSchedulesList: async (params) => {
     const res = await apiClient.get('/admin/examinations/schedules', { params });
-    return res.data;
+    const data = res.data;
+    if (Array.isArray(data?.schedules)) data.schedules = sortDropdownDesc(data.schedules, (s) => s.date || s.id);
+    if (Array.isArray(data?.data?.schedules)) data.data.schedules = sortDropdownDesc(data.data.schedules, (s) => s.date || s.id);
+    return data;
   },
 
   getExamScheduleById: async (id) => {

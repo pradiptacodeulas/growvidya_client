@@ -79,7 +79,7 @@ const HelpersList = () => {
       },
       {
         accessorKey: 'first_name',
-        header: 'Helper Name',
+        header: 'Name',
         sortable: true,
         cell: ({ row }) => {
           const fullName = `${row.first_name || ''} ${row.last_name || ''}`.trim() || '—';
@@ -94,26 +94,16 @@ const HelpersList = () => {
         },
       },
       {
-        accessorKey: 'phone',
-        header: 'Phone Number',
+        accessorKey: 'email',
+        header: 'Email',
         sortable: true,
         cell: ({ value }) => <span className="text-dark">{value || '—'}</span>,
       },
       {
-        accessorKey: 'license_number',
-        header: 'License Number',
+        accessorKey: 'phone',
+        header: 'Phone',
         sortable: true,
-        cell: ({ value }) => (
-          <span className="badge bg-light text-dark border px-2.5 py-1.5">{value || '—'}</span>
-        ),
-      },
-      {
-        accessorKey: 'gender',
-        header: 'Gender',
-        sortable: true,
-        width: '100px',
-        align: 'center',
-        cell: ({ value }) => <span className="text-muted">{value || '—'}</span>,
+        cell: ({ value }) => <span className="text-dark">{value || '—'}</span>,
       },
       {
         accessorKey: 'status',
@@ -215,7 +205,7 @@ const HelpersList = () => {
         selectedIds={selectedRows}
         onSelectRow={handleToggleRow}
         onSelectAll={handleSelectAll}
-        searchPlaceholder="Search by name, phone, or license..."
+        searchPlaceholder="Search by name, email, or phone..."
         emptyMessage="No helpers registered in the system."
       />
 

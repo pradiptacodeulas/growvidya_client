@@ -5,6 +5,7 @@ import {
   fetchHelperByIdApi,
   createHelperApi,
   updateHelperApi,
+  checkHelperDuplicateApi,
 } from '../../../api/adminTransport.api';
 import { decodeParam } from '../../../utils/idHelper';
 
@@ -22,8 +23,32 @@ const EditHelper = () => {
     status: '1',
   });
 
+  const [errors, setErrors] = useState({
+    email: '',
+    phone: '',
+  });
+
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  const validateEmail = (email) => {
+    if (!email || !email.trim()) return '';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      return 'Please enter a valid email address.';
+    }
+    return '';
+  };
+
+  const validatePhone = (phone) => {
+    if (!phone || !phone.trim()) return 'Please enter Phone Number.';
+    const cleanPhone = phone.trim().replace(/[\s\-()]/g, '');
+    const phoneRegex = /^[+]?[0-9]{10,15}$/;
+    if (!phoneRegex.test(cleanPhone)) {
+      return 'Please enter a valid phone number (at least 10 digits).';
+    }
+    return '';
+  };
 
   const loadHelperData = useCallback(async () => {
     if (!id) return;
@@ -58,6 +83,62 @@ const EditHelper = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: '' }));
+    }
+  };
+
+  const handleBlur = async (e) => {
+    const { name, value } = e.target;
+    if (name === 'email') {
+      const emailErr = validateEmail(value);
+      if (emailErr) {
+        setErrors((prev) => ({ ...prev, email: emailErr }));
+        return;
+      }
+      if (value.trim()) {
+        try {
+          const res = await checkHelperDuplicateApi({
+            email: value.trim(),
+            exclude_id: id || undefined,
+          });
+          if (res?.data?.isEmailDuplicate) {
+            setErrors((prev) => ({
+              ...prev,
+              email: res?.data?.message || 'A helper with this email already exists.',
+            }));
+          } else {
+            setErrors((prev) => ({ ...prev, email: '' }));
+          }
+        } catch {
+          // ignore error on live blur check
+        }
+      } else {
+        setErrors((prev) => ({ ...prev, email: '' }));
+      }
+    } else if (name === 'phone') {
+      const phoneErr = validatePhone(value);
+      if (phoneErr) {
+        setErrors((prev) => ({ ...prev, phone: phoneErr }));
+        return;
+      }
+      try {
+        const res = await checkHelperDuplicateApi({
+          phone: value.trim(),
+          exclude_id: id || undefined,
+        });
+        if (res?.data?.isPhoneDuplicate) {
+          setErrors((prev) => ({
+            ...prev,
+            phone: res?.data?.message || 'A helper with this phone number already exists.',
+          }));
+        } else {
+          setErrors((prev) => ({ ...prev, phone: '' }));
+        }
+      } catch {
+        // ignore error on live blur check
+      }
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -70,8 +151,23 @@ const EditHelper = () => {
       toast.warning('Please enter Last Name.');
       return;
     }
-    if (!formData.phone.trim()) {
-      toast.warning('Please enter Phone Number.');
+
+    const phoneErr = validatePhone(formData.phone);
+    if (phoneErr) {
+      setErrors((prev) => ({ ...prev, phone: phoneErr }));
+      toast.warning(phoneErr);
+      return;
+    }
+
+    const emailErr = validateEmail(formData.email);
+    if (emailErr) {
+      setErrors((prev) => ({ ...prev, email: emailErr }));
+      toast.warning(emailErr);
+      return;
+    }
+
+    if (errors.email || errors.phone) {
+      toast.warning('Please resolve validation errors before saving.');
       return;
     }
 
@@ -87,7 +183,14 @@ const EditHelper = () => {
       navigate('/admin/transport/helper');
     } catch (err) {
       console.error('Error saving helper:', err);
-      toast.error(err.response?.data?.message || 'Failed to save helper.');
+      const errMsg = err.response?.data?.message || 'Failed to save helper.';
+      if (errMsg.toLowerCase().includes('email')) {
+        setErrors((prev) => ({ ...prev, email: errMsg }));
+      }
+      if (errMsg.toLowerCase().includes('phone')) {
+        setErrors((prev) => ({ ...prev, phone: errMsg }));
+      }
+      toast.error(errMsg);
     } finally {
       setSubmitting(false);
     }
@@ -173,13 +276,17 @@ const EditHelper = () => {
                         <label className="form-label">Email</label>
                         <input
                           type="email"
-                          className="form-control"
+                          className={`form-control ${errors.email ? 'is-invalid' : ''}`}
                           name="email"
                           id="email"
                           value={formData.email}
                           onChange={handleChange}
+                          onBlur={handleBlur}
                           placeholder="e.g. pritam@gmail.com"
                         />
+                        {errors.email && (
+                          <div className="invalid-feedback d-block">{errors.email}</div>
+                        )}
                       </div>
                     </div>
                     <div className="col-md-4">
@@ -189,14 +296,18 @@ const EditHelper = () => {
                         </label>
                         <input
                           type="tel"
-                          className="form-control"
+                          className={`form-control ${errors.phone ? 'is-invalid' : ''}`}
                           name="phone"
                           id="phone"
                           value={formData.phone}
                           onChange={handleChange}
+                          onBlur={handleBlur}
                           placeholder="e.g. 08420457824"
                           required
                         />
+                        {errors.phone && (
+                          <div className="invalid-feedback d-block">{errors.phone}</div>
+                        )}
                       </div>
                     </div>
                     <div className="col-md-4">

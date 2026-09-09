@@ -1,4 +1,5 @@
 import { apiFetch } from './fetch.config';
+import { sortDropdownDesc } from '../utils/dropdownSort.util';
 
 /**
  * Teacher Leave API Client
@@ -15,7 +16,11 @@ export const fetchTeacherLeaveByIdApi = async (id) => {
 };
 
 export const fetchTeacherLeaveTypesApi = async () => {
-  return await apiFetch('/teacher/leaves/types');
+  const res = await apiFetch('/teacher/leaves/types');
+  if (Array.isArray(res)) return sortDropdownDesc(res);
+  if (Array.isArray(res?.data)) res.data = sortDropdownDesc(res.data);
+  if (Array.isArray(res?.leaveTypes)) res.leaveTypes = sortDropdownDesc(res.leaveTypes);
+  return res;
 };
 
 export const applyTeacherLeaveApi = async (payload) => {

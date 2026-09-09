@@ -175,8 +175,8 @@ const ParentFees = () => {
   };
 
   const handlePrintReceipt = (receipt) => {
-    const schoolName = parent?.school_name || parent?.schoolName || 'CIBL School';
-    const schoolAddress = parent?.school_address || '09/245, Kalyani, Nadia';
+    const schoolName = parent?.school_name || parent?.schoolName || '';
+    const schoolAddress = parent?.school_address || parent?.address || '';
     const items = receipt?.items || [];
 
     const html = `
@@ -942,7 +942,7 @@ const ParentFees = () => {
                 <div className="border rounded-3 p-4 bg-white shadow-sm mb-3">
                   <div className="text-center border-bottom pb-3 mb-3">
                     <h4 className="fw-bold text-dark mb-1">
-                      {parent?.school_name || parent?.schoolName || 'CIBL School'}
+                      {parent?.school_name || parent?.schoolName || ''}
                     </h4>
                     <span className="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">
                       PAYMENT SUCCESSFUL

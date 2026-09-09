@@ -70,7 +70,7 @@ const HostelRoomsList = () => {
     if (rooms.length === 0) return toast.info('No rooms to export');
     let csv = 'Sl No.,Room Number,Hostel Name,Room Type,Number of Bed,Cost per Bed (₹),Status\n';
     rooms.forEach((r, idx) => {
-      csv += `"${idx + 1}","${r.room_no || ''}","${r.hostel_name || ''}","${r.room_type || ''}","${r.number_of_beds || r.capacity || ''}","${r.cost_per_bed || 0}","${Number(r.status) === 1 ? 'Active' : 'Inactive'}"\n`;
+      csv += `"${idx + 1}","${r.room_number || r.room_no || ''}","${r.hostel_name || ''}","${r.room_type || ''}","${r.number_of_beds || r.capacity || ''}","${r.cost_per_bed || 0}","${Number(r.status) === 1 ? 'Active' : 'Inactive'}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -91,7 +91,7 @@ const HostelRoomsList = () => {
         cell: ({ index }) => <span className="text-muted fw-medium">{index + 1}</span>,
       },
       {
-        accessorKey: 'room_no',
+        accessorKey: 'room_number',
         header: 'Room Number',
         sortable: true,
         cell: ({ value, row }) => (
@@ -99,7 +99,7 @@ const HostelRoomsList = () => {
             to={`/admin/hostel-rooms/edit/${encodeParam(row.id)}`}
             className="fw-semibold text-primary text-decoration-none"
           >
-            {value || '—'}
+            {value || row.room_number || row.room_no || '—'}
           </Link>
         ),
       },

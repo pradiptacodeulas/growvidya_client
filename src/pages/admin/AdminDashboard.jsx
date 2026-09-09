@@ -3,9 +3,11 @@ import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { fetchDashboardStatsApi } from '../../api/adminDashboard.api';
 import Avatar from '../../components/common/Avatar';
+import usePermission from '../../hooks/usePermission';
 
 const AdminDashboard = () => {
   const { user } = useSelector((state) => state.auth);
+  const { can, isSuperAdmin } = usePermission();
   const [stats, setStats] = useState({
     students: { total: 0, active: 0, inactive: 0 },
     teachers: { total: 0, active: 0, inactive: 0 },
@@ -83,22 +85,26 @@ const AdminDashboard = () => {
           </nav>
         </div>
         <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-          <div className="mb-2">
-            <Link
-              to="/admin/students/add"
-              className="btn btn-primary d-flex align-items-center me-3"
-            >
-              <i className="ti ti-square-rounded-plus me-2"></i>Add New Student
-            </Link>
-          </div>
-          <div className="mb-2">
-            <Link
-              to="/admin/academics/years"
-              className="btn btn-light d-flex align-items-center"
-            >
-              <i className="ti ti-notebook me-2"></i>Academics Master
-            </Link>
-          </div>
+          {(isSuperAdmin || can('ward/students', 'add')) && (
+            <div className="mb-2">
+              <Link
+                to="/admin/students/add"
+                className="btn btn-primary d-flex align-items-center me-3"
+              >
+                <i className="ti ti-square-rounded-plus me-2"></i>Add New Student
+              </Link>
+            </div>
+          )}
+          {(isSuperAdmin || can('academic/year', 'view')) && (
+            <div className="mb-2">
+              <Link
+                to="/admin/academics/years"
+                className="btn btn-light d-flex align-items-center"
+              >
+                <i className="ti ti-notebook me-2"></i>Academics Master
+              </Link>
+            </div>
+          )}
         </div>
       </div>
       {/* /Page Header */}
@@ -408,89 +414,82 @@ const AdminDashboard = () => {
             </div>
             <div className="card-body">
               <div className="row g-3">
-                <div className="col-md-4 col-sm-6">
-                  <Link
-                    to="/admin/reports"
-                    className="d-block bg-success-transparent rounded p-3 text-center class-hover text-decoration-none"
-                  >
-                    <div className="avatar avatar-lg border p-1 border-success rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center">
-                      <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-success rounded-circle text-white">
-                        <i className="ti ti-calendar fs-20"></i>
-                      </span>
+                {[
+                  {
+                    title: 'Calendar',
+                    to: '/admin/reports/calendar-report',
+                    module: 'report/calendarReport',
+                    icon: 'ti ti-calendar',
+                    colorClass: 'bg-success-transparent',
+                    borderClass: 'border-success',
+                    bgClass: 'bg-success',
+                  },
+                  {
+                    title: 'Fees',
+                    to: '/admin/fees/dashboard',
+                    module: 'feesmanagement/payments',
+                    icon: 'ti ti-report-money',
+                    colorClass: 'bg-secondary-transparent',
+                    borderClass: 'border-secondary',
+                    bgClass: 'bg-secondary',
+                  },
+                  {
+                    title: 'Routines',
+                    to: '/admin/academics/routines',
+                    module: 'academic/routine',
+                    icon: 'ti ti-calendar-time',
+                    colorClass: 'bg-primary-transparent',
+                    borderClass: 'border-primary',
+                    bgClass: 'bg-primary',
+                  },
+                  {
+                    title: 'Home Works',
+                    to: '/admin/academics/assignments',
+                    module: 'academic/assignment',
+                    icon: 'ti ti-clipboard-list',
+                    colorClass: 'bg-danger-transparent',
+                    borderClass: 'border-danger',
+                    bgClass: 'bg-danger',
+                  },
+                  {
+                    title: 'Attendance',
+                    to: '/admin/attendance/student',
+                    module: 'attendance/student',
+                    icon: 'ti ti-user-check',
+                    colorClass: 'bg-warning-transparent',
+                    borderClass: 'border-warning',
+                    bgClass: 'bg-warning',
+                  },
+                  {
+                    title: 'Reports',
+                    to: '/admin/reports/class-report',
+                    module: 'report/classReport',
+                    icon: 'ti ti-file-analytics',
+                    colorClass: 'bg-skyblue-transparent',
+                    borderClass: 'border-skyblue',
+                    bgClass: 'bg-skyblue',
+                  },
+                ]
+                  .filter((item) => isSuperAdmin || !item.module || can(item.module, 'view'))
+                  .map((item) => (
+                    <div className="col-md-4 col-sm-6" key={item.title}>
+                      <Link
+                        to={item.to}
+                        className={`d-block ${item.colorClass} rounded p-3 text-center class-hover text-decoration-none`}
+                      >
+                        <div
+                          className={`avatar avatar-lg border p-1 ${item.borderClass} rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center`}
+                        >
+                          <span
+                            className={`d-inline-flex align-items-center justify-content-center w-100 h-100 ${item.bgClass} rounded-circle text-white`}
+                          >
+                            <i className={`${item.icon} fs-20`}></i>
+                          </span>
+                        </div>
+                        <p className="text-dark fw-semibold mb-0">{item.title}</p>
+                      </Link>
                     </div>
-                    <p className="text-dark fw-semibold mb-0">Calendar</p>
-                  </Link>
-                </div>
-
-                <div className="col-md-4 col-sm-6">
-                  <Link
-                    to="/admin/fees/dashboard"
-                    className="d-block bg-secondary-transparent rounded p-3 text-center class-hover text-decoration-none"
-                  >
-                    <div className="avatar avatar-lg border p-1 border-secondary rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center">
-                      <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-secondary rounded-circle text-white">
-                        <i className="ti ti-license fs-20"></i>
-                      </span>
-                    </div>
-                    <p className="text-dark fw-semibold mb-0">Fees</p>
-                  </Link>
-                </div>
-
-                <div className="col-md-4 col-sm-6">
-                  <Link
-                    to="/admin/academics/routine"
-                    className="d-block bg-primary-transparent rounded p-3 text-center class-hover text-decoration-none"
-                  >
-                    <div className="avatar avatar-lg border p-1 border-primary rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center">
-                      <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-primary rounded-circle text-white">
-                        <i className="ti ti-hexagonal-prism fs-20"></i>
-                      </span>
-                    </div>
-                    <p className="text-dark fw-semibold mb-0">Routines</p>
-                  </Link>
-                </div>
-
-                <div className="col-md-4 col-sm-6">
-                  <Link
-                    to="/admin/academics/assignments"
-                    className="d-block bg-danger-transparent rounded p-3 text-center class-hover text-decoration-none"
-                  >
-                    <div className="avatar avatar-lg border p-1 border-danger rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center">
-                      <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-danger rounded-circle text-white">
-                        <i className="ti ti-report-money fs-20"></i>
-                      </span>
-                    </div>
-                    <p className="text-dark fw-semibold mb-0">Home Works</p>
-                  </Link>
-                </div>
-
-                <div className="col-md-4 col-sm-6">
-                  <Link
-                    to="/admin/attendance/student"
-                    className="d-block bg-warning-transparent rounded p-3 text-center class-hover text-decoration-none"
-                  >
-                    <div className="avatar avatar-lg border p-1 border-warning rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center">
-                      <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-warning rounded-circle text-white">
-                        <i className="ti ti-calendar-share fs-20"></i>
-                      </span>
-                    </div>
-                    <p className="text-dark fw-semibold mb-0">Attendance</p>
-                  </Link>
-                </div>
-
-                <div className="col-md-4 col-sm-6">
-                  <Link
-                    to="/admin/reports"
-                    className="d-block bg-skyblue-transparent rounded p-3 text-center class-hover text-decoration-none"
-                  >
-                    <div className="avatar avatar-lg border p-1 border-skyblue rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center">
-                      <span className="d-inline-flex align-items-center justify-content-center w-100 h-100 bg-skyblue rounded-circle text-white">
-                        <i className="ti ti-file-pencil fs-20"></i>
-                      </span>
-                    </div>
-                    <p className="text-dark fw-semibold mb-0">Reports</p>
-                  </Link>
-                </div>
+                  ))}
               </div>
             </div>
           </div>

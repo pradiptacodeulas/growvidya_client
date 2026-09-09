@@ -10,6 +10,9 @@ import {
   fetchStaffStatesApi,
   fetchStaffCitiesApi,
   fetchStaffRoomsApi,
+  checkStaffEmailApi,
+  checkStaffPhoneApi,
+  checkStaffDuplicateApi,
 } from '../../../api/adminStaff.api';
 import apiClient from '../../../api/axios.config';
 import { decodeParam } from '../../../utils/idHelper';
@@ -409,6 +412,49 @@ const AddUser = () => {
     setDeleteDocModal({ show: false, index: null, docId: null });
   };
 
+  // Live Email & Phone Checks
+  const handleEmailBlur = async (email) => {
+    const trimmed = String(email || '').trim();
+    if (!trimmed || !trimmed.includes('@')) return;
+    try {
+      const res = await checkStaffEmailApi(trimmed, isEditMode ? id : null);
+      if (res?.data?.exists) {
+        setErrors((prev) => ({ ...prev, email: 'Email address already registered.' }));
+      } else {
+        setErrors((prev) => {
+          const next = { ...prev };
+          if (next.email === 'Email address already registered.') {
+            delete next.email;
+          }
+          return next;
+        });
+      }
+    } catch {
+      // Ignore network errors on blur
+    }
+  };
+
+  const handlePhoneBlur = async (phone) => {
+    const trimmed = String(phone || '').trim();
+    if (!trimmed) return;
+    try {
+      const res = await checkStaffPhoneApi(trimmed, isEditMode ? id : null);
+      if (res?.data?.exists) {
+        setErrors((prev) => ({ ...prev, phone: 'Mobile number already registered.' }));
+      } else {
+        setErrors((prev) => {
+          const next = { ...prev };
+          if (next.phone === 'Mobile number already registered.') {
+            delete next.phone;
+          }
+          return next;
+        });
+      }
+    } catch {
+      // Ignore network errors on blur
+    }
+  };
+
   // Form Validation per tab - shows errors ONLY in form fields
   const validateTab = (tabId) => {
     const newErrors = {};
@@ -424,9 +470,13 @@ const AddUser = () => {
         newErrors.email = 'Email is required.';
       } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(personalInfo.email || '').trim())) {
         newErrors.email = 'Please enter a valid email address.';
+      } else if (errors.email) {
+        newErrors.email = errors.email;
       }
       if (!String(personalInfo.phone || '').trim()) {
         newErrors.phone = 'Phone is required.';
+      } else if (errors.phone) {
+        newErrors.phone = errors.phone;
       }
       if (!isEditMode && !String(personalInfo.password || '').trim()) {
         newErrors.password = 'Password is required.';
@@ -518,6 +568,34 @@ const AddUser = () => {
     try {
       setSubmitting(true);
 
+      // Pre-submission duplicate check
+      try {
+        const dupRes = await checkStaffDuplicateApi(
+          {
+            email: String(personalInfo.email || '').trim(),
+            phone: String(personalInfo.phone || '').trim(),
+          },
+          isEditMode ? id : null
+        );
+
+        if (dupRes?.data?.isEmailDuplicate || dupRes?.data?.isPhoneDuplicate) {
+          const dupErrors = {};
+          if (dupRes.data.isEmailDuplicate) {
+            dupErrors.email = 'Email address already registered.';
+          }
+          if (dupRes.data.isPhoneDuplicate) {
+            dupErrors.phone = 'Mobile number already registered.';
+          }
+          setErrors((prev) => ({ ...prev, ...dupErrors }));
+          setActiveTab('PersonalInformationTab');
+          toast.error(dupRes.data.message || 'Duplicate email or mobile number detected.');
+          setSubmitting(false);
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Pre-submit staff duplicate check warning:', checkErr);
+      }
+
       let uploadedPicPath = '';
       if (pictureFile) {
         const formData = new FormData();
@@ -575,7 +653,16 @@ const AddUser = () => {
       navigate('/admin/users');
     } catch (err) {
       console.error('Submission error:', err);
-      toast.error(err.response?.data?.message || err.message || 'Failed to save user.');
+      const serverMsg = err.response?.data?.message || err.message || 'Failed to save user.';
+      const msgLower = serverMsg.toLowerCase();
+      if (msgLower.includes('email')) {
+        setErrors((prev) => ({ ...prev, email: serverMsg }));
+        setActiveTab('PersonalInformationTab');
+      } else if (msgLower.includes('mobile') || msgLower.includes('phone')) {
+        setErrors((prev) => ({ ...prev, phone: serverMsg }));
+        setActiveTab('PersonalInformationTab');
+      }
+      toast.error(serverMsg);
     } finally {
       setSubmitting(false);
     }
@@ -759,6 +846,7 @@ const AddUser = () => {
                             setPersonalInfo({ ...personalInfo, email: e.target.value });
                             if (errors.email) setErrors({ ...errors, email: null });
                           }}
+                          onBlur={(e) => handleEmailBlur(e.target.value)}
                           required
                         />
                         {errors.email && (
@@ -782,6 +870,7 @@ const AddUser = () => {
                             setPersonalInfo({ ...personalInfo, phone: e.target.value });
                             if (errors.phone) setErrors({ ...errors, phone: null });
                           }}
+                          onBlur={(e) => handlePhoneBlur(e.target.value)}
                           required
                         />
                         {errors.phone && (

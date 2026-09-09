@@ -296,7 +296,7 @@ const TeacherProfile = () => {
 
       setMetaInfo({
         teacherId: t.teacherId || t.teacher_id || '',
-        schoolName: t.schoolName || t.school_name || 'Growvidya School',
+        schoolName: t.schoolName || t.school_name || '',
         className: classNames,
         sectionName: t.sectionName || t.section_name || '',
         subjectName: subjectNames,

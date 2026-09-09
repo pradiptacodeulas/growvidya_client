@@ -6,6 +6,11 @@ import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import {
+  sortAcademicYearsDesc,
+  sortExamsDesc,
+  sortClassesDesc,
+} from '../../../utils/dropdownSort.util';
 
 const ExamScheduleList = () => {
   const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
@@ -74,15 +79,18 @@ const ExamScheduleList = () => {
         ? clsRes
         : [];
 
-      setAcademicYears(ayList);
-      setClasses(classesList);
+      const sortedYears = sortAcademicYearsDesc(ayList);
+      const sortedClasses = sortClassesDesc(classesList);
+
+      setAcademicYears(sortedYears);
+      setClasses(sortedClasses);
 
       let defaultYearId = selectedAcademicYearId;
-      if (!defaultYearId && ayList.length > 0) {
-        const currentYear = ayList.find(
+      if (!defaultYearId && sortedYears.length > 0) {
+        const currentYear = sortedYears.find(
           (ay) => Number(ay.is_current) === 1 || String(ay.is_current) === '1'
         );
-        defaultYearId = currentYear ? currentYear.id : ayList[0].id;
+        defaultYearId = currentYear ? currentYear.id : sortedYears[0].id;
         setSelectedAcademicYearId(defaultYearId);
       }
 
@@ -107,7 +115,7 @@ const ExamScheduleList = () => {
         ? exRes.data
         : [];
 
-      setExams(examsList);
+      setExams(sortExamsDesc(examsList));
     } catch (err) {
       toast.error('Failed to load exams');
     }
@@ -320,8 +328,7 @@ const ExamScheduleList = () => {
               <option value="">All Academic Years</option>
               {academicYears.map((ay) => (
                 <option key={ay.id} value={ay.id}>
-                  {ay.academic_year || ay.academic_year_name || ay.year}
-                  {Number(ay.is_current) === 1 || String(ay.is_current) === '1' ? ' (Current)' : ''}
+                  {ay.academic_year || ay.academic_year_name || ay.name || ay.year}
                 </option>
               ))}
             </select>

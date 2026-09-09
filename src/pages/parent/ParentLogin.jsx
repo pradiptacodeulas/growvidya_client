@@ -93,7 +93,7 @@ const ParentLogin = () => {
                         <input
                           type="text"
                           className="form-control border-start-0 ps-0"
-                          placeholder="e.g. parent@email.com or 9876543210"
+                          placeholder="Enter email address or phone number"
                           value={identifier}
                           onChange={(e) => setIdentifier(e.target.value)}
                           required
@@ -115,7 +115,7 @@ const ParentLogin = () => {
                         <input
                           type={showPassword ? 'text' : 'password'}
                           className="form-control border-start-0 border-end-0 ps-0"
-                          placeholder="••••••••"
+                          placeholder="Enter password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
                           required

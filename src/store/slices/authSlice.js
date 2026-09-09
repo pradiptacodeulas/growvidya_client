@@ -80,9 +80,14 @@ const authSlice = createSlice({
     },
     updateUserSchoolInfo: (state, action) => {
       if (state.user) {
-        state.user.schoolName = action.payload.schoolName || state.user.schoolName;
+        if (action.payload.schoolName !== undefined) {
+          state.user.schoolName = action.payload.schoolName;
+        }
         if (action.payload.schoolLogo !== undefined) {
           state.user.schoolLogo = action.payload.schoolLogo;
+        }
+        if (action.payload.schoolFooter !== undefined) {
+          state.user.schoolFooter = action.payload.schoolFooter;
         }
       }
     },

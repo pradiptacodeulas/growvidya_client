@@ -520,7 +520,7 @@ const StudentReport = () => {
                             const isActive = student.status === 1 || student.status === '1';
 
                             return (
-                              <tr key={student.student_id || idx} className={isOdd ? 'odd' : 'even'}>
+                              <tr key={`student-report-item-${student.student_id || 'row'}-${idx}`} className={isOdd ? 'odd' : 'even'}>
                                 <td className="text-center" style={{ whiteSpace: 'nowrap' }}>
                                   <div className="form-check form-check-md d-flex justify-content-center">
                                     <input

@@ -4,13 +4,25 @@ import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import { fetchTeacherClassesApi } from '../../../api/teacherAcademic.api';
 import { encodeParam, decodeParam } from '../../../utils/idHelper';
+import {
+  sortAcademicYearsDesc,
+  sortExamsDesc,
+  sortClassesDesc,
+  sortSubjectsDesc,
+} from '../../../utils/dropdownSort.util';
 
 const AddExamAttendance = () => {
-  const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
-  const isTeacher = Boolean(
-    (typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher')) ||
-    (isTeacherAuth && teacher)
+  const { user } = useSelector((state) => state.auth || {});
+  const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth || {});
+  const userRole = String(user?.roleName || user?.role_name || user?.role || '').toLowerCase();
+  const isAdminPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
+  const isTeacherPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
+  const isTeacher = !isAdminPath && Boolean(
+    isTeacherPath ||
+    (isTeacherAuth && teacher) ||
+    userRole.includes('teacher')
   );
   const basePath = isTeacher ? '/teacher' : '/admin';
 
@@ -21,12 +33,10 @@ const AddExamAttendance = () => {
   const queryClassId = decodeParam(searchParams.get('class_id'));
   const querySubjectId = decodeParam(searchParams.get('subject_id'));
   const queryYearId = decodeParam(searchParams.get('academic_year_id'));
-  const querySectionId = decodeParam(searchParams.get('section_id'));
   const queryScheduleId = decodeParam(searchParams.get('exam_schedule_id') || searchParams.get('schedule_id'));
 
   const [exams, setExams] = useState([]);
   const [classes, setClasses] = useState([]);
-  const [sections, setSections] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
 
@@ -34,8 +44,9 @@ const AddExamAttendance = () => {
   const [selectedYearId, setSelectedYearId] = useState(queryYearId);
   const [selectedExamId, setSelectedExamId] = useState(queryExamId);
   const [selectedClassId, setSelectedClassId] = useState(queryClassId);
-  const [selectedSectionId, setSelectedSectionId] = useState(querySectionId);
   const [selectedSubjectId, setSelectedSubjectId] = useState(querySubjectId);
+  const [currentScheduleId, setCurrentScheduleId] = useState(queryScheduleId || '');
+  const [examScheduleDate, setExamScheduleDate] = useState('');
 
   // Student Attendance Rows
   const [students, setStudents] = useState([]);
@@ -43,39 +54,41 @@ const AddExamAttendance = () => {
   const [initialLoading, setInitialLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
-  const [isLocked, setIsLocked] = useState(false);
+  const [hasRecordedAttendance, setHasRecordedAttendance] = useState(false);
+  const [scheduleNotFound, setScheduleNotFound] = useState(false);
+  const [isSubjectEditable, setIsSubjectEditable] = useState(true);
+
+  const getExamDateStatus = () => {
+    if (!examScheduleDate) return { isPassed: false, isFuture: false, isToday: true, dateStr: '' };
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    const dateStr = String(examScheduleDate).slice(0, 10);
+    return {
+      isPassed: todayStr > dateStr,
+      isFuture: todayStr < dateStr,
+      isToday: todayStr === dateStr,
+      dateStr,
+    };
+  };
+
+  const { isPassed: isExamDatePassed, isFuture: isExamDateFuture, dateStr: examDateDisplay } = getExamDateStatus();
+  const isTeacherLocked = Boolean(isTeacher && isExamDatePassed);
 
   useEffect(() => {
     fetchInitialOptions();
   }, []);
 
-  const fetchSectionsForClass = async (classId) => {
-    if (!classId) {
-      setSections([]);
-      return;
-    }
-    try {
-      const res = await adminAcademicApi.fetchSectionsApi(classId);
-      const secList = Array.isArray(res?.data)
-        ? res.data
-        : Array.isArray(res?.data?.sections)
-        ? res.data.sections
-        : Array.isArray(res)
-        ? res
-        : [];
-      setSections(secList);
-    } catch (err) {
-      console.error('Failed to load sections:', err);
-      setSections([]);
-    }
-  };
-
   const fetchInitialOptions = async () => {
     try {
       setInitialLoading(true);
+      const fetchClasses = isTeacher ? fetchTeacherClassesApi : adminAcademicApi.getAllClasses;
       const [exRes, clsRes, yrRes] = await Promise.all([
         adminExaminationApi.getAllExams({ status: 1 }),
-        adminAcademicApi.getAllClasses({ status: 1 }),
+        fetchClasses({ status: 1 }),
         adminAcademicApi.getAllAcademicYears(),
       ]);
 
@@ -101,25 +114,44 @@ const AddExamAttendance = () => {
         ? yrRes
         : [];
 
-      setExams(examsList);
-      setClasses(classesList);
-      setAcademicYears(yearsList);
+      const sortedExams = sortExamsDesc(examsList);
+      const sortedClasses = sortClassesDesc(classesList);
+      const sortedYears = sortAcademicYearsDesc(yearsList);
 
-      const targetYear =
-        queryYearId ||
-        (yearsList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent)?.id ||
-          yearsList[0]?.id ||
-          '');
-      const targetExam = queryExamId || (examsList.length > 0 ? String(examsList[0].id) : '');
-      const targetClass = queryClassId || (classesList.length > 0 ? String(classesList[0].id) : '');
+      setExams(sortedExams);
+      setClasses(sortedClasses);
+      setAcademicYears(sortedYears);
+
+      let targetYear = queryYearId;
+      if (!targetYear && queryExamId) {
+        const matchedExam = sortedExams.find((ex) => String(ex.id) === String(queryExamId));
+        if (matchedExam && matchedExam.academic_year) {
+          targetYear = String(matchedExam.academic_year);
+        }
+      }
+      if (!targetYear && sortedYears.length > 0) {
+        const currentYear =
+          sortedYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+          sortedYears[0];
+        targetYear = currentYear ? String(currentYear.id) : '';
+      }
+
+      const yearExams = targetYear
+        ? sortedExams.filter((ex) => String(ex.academic_year) === String(targetYear))
+        : sortedExams;
+
+      let targetExam = queryExamId;
+      if (!targetExam || !yearExams.some((ex) => String(ex.id) === String(targetExam))) {
+        targetExam = yearExams.length > 0 ? String(yearExams[0].id) : (sortedExams.length > 0 ? String(sortedExams[0].id) : '');
+      }
+      const targetClass = queryClassId || (sortedClasses.length > 0 ? String(sortedClasses[0].id) : '');
 
       setSelectedYearId(targetYear ? String(targetYear) : '');
       setSelectedExamId(targetExam ? String(targetExam) : '');
       setSelectedClassId(targetClass ? String(targetClass) : '');
 
-      if (targetClass) {
-        await fetchSectionsForClass(targetClass);
-        await loadSubjectsForClass(targetClass, querySubjectId, targetExam, querySectionId);
+      if (targetClass && targetExam) {
+        await loadSubjectsForClass(targetClass, querySubjectId, targetExam, targetYear);
       }
     } catch (err) {
       console.error('Failed to load initial options:', err);
@@ -129,51 +161,149 @@ const AddExamAttendance = () => {
     }
   };
 
-  const loadSubjectsForClass = async (classId, preselectSubId = '', examId = '', secId = '') => {
+  const loadSubjectsForClass = async (classId, preselectSubId = '', examId = '', yearId = '') => {
     if (!classId) {
       setSubjects([]);
       setSelectedSubjectId('');
+      setCurrentScheduleId('');
+      setScheduleNotFound(false);
       return;
     }
 
     try {
-      const activeExam = examId || selectedExamId || 1;
-      const configRes = await adminExaminationApi.getExamSubjectConfig({
+      const activeExam = examId || selectedExamId;
+      if (!activeExam) {
+        setSubjects([]);
+        setSelectedSubjectId('');
+        setCurrentScheduleId('');
+        setScheduleNotFound(false);
+        return;
+      }
+
+      const activeYear = yearId || selectedYearId;
+      // Load scheduled subjects specifically for this exam, class, and academic year
+      const schedRes = await adminExaminationApi.getExamSchedules({
         exam_id: activeExam,
         class_id: classId,
+        academic_year_id: activeYear || undefined,
+        assigned_only: isTeacher ? 1 : undefined,
       });
 
-      const subs = configRes?.data?.subjects || [];
+      const schedList = (schedRes?.data?.schedules || schedRes?.data || []).filter(Boolean);
+      // For teachers, strictly filter schedules to only those assigned to this teacher
+      const allowedSchedules = isTeacher
+        ? schedList.filter((s) => s.isEditable !== false)
+        : schedList;
+
+      const uniqueSubsMap = new Map();
+      allowedSchedules.forEach((s) => {
+        if (s.subject_id && !uniqueSubsMap.has(s.subject_id)) {
+          uniqueSubsMap.set(s.subject_id, {
+            subject_id: s.subject_id,
+            subject_name: s.subject_name || `Subject #${s.subject_id}`,
+            schedule_id: s.id,
+            date: s.date,
+            isEditable: s.isEditable !== false,
+          });
+        }
+      });
+
+      const subs = sortSubjectsDesc(Array.from(uniqueSubsMap.values()));
       setSubjects(subs);
 
-      const targetSubject = preselectSubId || (subs.length > 0 ? subs[0].subject_id : '');
-      setSelectedSubjectId(targetSubject ? String(targetSubject) : '');
+      if (subs.length === 0) {
+        setSelectedSubjectId('');
+        setCurrentScheduleId('');
+        setIsSubjectEditable(true);
+        setStudents([]);
+        setHasRecordedAttendance(false);
+        setScheduleNotFound(true);
+        setHasSearched(true);
+        return;
+      }
+
+      setScheduleNotFound(false);
+      const matchedSub = preselectSubId ? subs.find((s) => String(s.subject_id) === String(preselectSubId)) : null;
+      const targetSubObj = matchedSub || subs[0];
+      const targetSubject = targetSubObj ? String(targetSubObj.subject_id) : '';
+      setSelectedSubjectId(targetSubject);
+      setCurrentScheduleId(targetSubObj?.schedule_id ? String(targetSubObj.schedule_id) : '');
+      setIsSubjectEditable(targetSubObj ? targetSubObj.isEditable !== false : true);
 
       if (activeExam && classId && targetSubject) {
-        fetchStudentsList(activeExam, classId, targetSubject, secId !== undefined ? secId : selectedSectionId);
+        fetchStudentsList(
+          activeExam,
+          classId,
+          targetSubject,
+          targetSubObj?.schedule_id
+        );
       }
     } catch (err) {
-      console.error('Failed to load subjects for class:', err);
+      console.error('Failed to load scheduled subjects for class:', err);
+      setSubjects([]);
+      setScheduleNotFound(true);
+    }
+  };
+
+  const handleExamChange = async (e) => {
+    const newExamId = e.target.value;
+    setSelectedExamId(newExamId);
+    setSelectedSubjectId('');
+    setCurrentScheduleId('');
+    setIsSubjectEditable(true);
+    setExamScheduleDate('');
+    setStudents([]);
+    setHasRecordedAttendance(false);
+    setHasSearched(false);
+    if (newExamId && selectedClassId) {
+      await loadSubjectsForClass(selectedClassId, '', newExamId, selectedYearId);
+    } else {
+      setSubjects([]);
+      setScheduleNotFound(false);
     }
   };
 
   const handleClassChange = async (e) => {
     const classId = e.target.value;
     setSelectedClassId(classId);
-    setSelectedSectionId('');
+    setSelectedSubjectId('');
+    setCurrentScheduleId('');
+    setIsSubjectEditable(true);
+    setExamScheduleDate('');
     setStudents([]);
+    setHasRecordedAttendance(false);
     setHasSearched(false);
     if (classId) {
-      await fetchSectionsForClass(classId);
-      await loadSubjectsForClass(classId, '', selectedExamId, '');
+      if (selectedExamId) {
+        await loadSubjectsForClass(classId, '', selectedExamId, selectedYearId);
+      } else {
+        setSubjects([]);
+        setScheduleNotFound(false);
+      }
     } else {
-      setSections([]);
       setSubjects([]);
-      setSelectedSubjectId('');
+      setScheduleNotFound(false);
     }
   };
 
-  const fetchStudentsList = async (examId, classId, subjectId, sectionId = '') => {
+  const handleSubjectChange = (e) => {
+    const newSubId = e.target.value;
+    setSelectedSubjectId(newSubId);
+    const matchedSub = subjects.find((s) => String(s.subject_id) === String(newSubId));
+    const schedId = matchedSub ? matchedSub.schedule_id : '';
+    const schedDate = matchedSub?.date || '';
+    setCurrentScheduleId(schedId ? String(schedId) : '');
+    setExamScheduleDate(schedDate);
+    setIsSubjectEditable(matchedSub ? matchedSub.isEditable !== false : true);
+    if (selectedExamId && selectedClassId && newSubId) {
+      fetchStudentsList(selectedExamId, selectedClassId, newSubId, schedId);
+    } else {
+      setStudents([]);
+      setHasRecordedAttendance(false);
+    }
+  };
+
+  const fetchStudentsList = async (examId, classId, subjectId, scheduleId = '') => {
     if (!examId || !classId || !subjectId) {
       toast.warning('Please select Exam, Class, and Subject.');
       return;
@@ -186,17 +316,31 @@ const AddExamAttendance = () => {
         exam_id: examId,
         class_id: classId,
         subject_id: subjectId,
-        section_id: sectionId || selectedSectionId || undefined,
+        academic_year_id: selectedYearId || undefined,
+        exam_schedule_id: scheduleId || currentScheduleId || queryScheduleId || undefined,
         roster: 1,
       });
 
+      if (res?.data?.hasSchedule === false) {
+        setStudents([]);
+        setHasRecordedAttendance(false);
+        setScheduleNotFound(true);
+        setExamScheduleDate('');
+        return;
+      }
+
+      setScheduleNotFound(false);
+      setExamScheduleDate(res?.data?.examSchedule?.date || '');
+      if (res?.data?.isSubjectEditable !== undefined) {
+        setIsSubjectEditable(Boolean(res.data.isSubjectEditable));
+      }
       const rawList = res?.data?.rawAttendance || [];
-      // Only lock if attendance exists specifically for this subject
+      // Check if attendance exists specifically for this subject
       const hasSubjectAttendance = Boolean(
         res?.data?.isLocked ||
         (res?.data?.hasAttendance && rawList.some((r) => String(r.subject_id) === String(subjectId)))
       );
-      setIsLocked(hasSubjectAttendance);
+      setHasRecordedAttendance(hasSubjectAttendance);
 
       const studentList = res?.data?.students || [];
       const formatted = studentList.map((st) => {
@@ -221,11 +365,19 @@ const AddExamAttendance = () => {
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
-    fetchStudentsList(selectedExamId, selectedClassId, selectedSubjectId);
+    if (!selectedExamId || !selectedClassId || !selectedSubjectId) {
+      toast.warning('Please select Exam, Class, and Subject.');
+      return;
+    }
+    fetchStudentsList(selectedExamId, selectedClassId, selectedSubjectId, currentScheduleId);
   };
 
   const handleStatusChange = (studentId, statusVal) => {
-    if (isLocked) return;
+    if (!isSubjectEditable && isTeacher) {
+      toast.warning('You are not assigned to this subject. Attendance can only be viewed.');
+      return;
+    }
+    if (isTeacherLocked) return;
     setStudents((prev) =>
       prev.map((s) =>
         s.student_id === studentId ? { ...s, attendanceStatus: statusVal } : s
@@ -234,7 +386,11 @@ const AddExamAttendance = () => {
   };
 
   const handleMarkAll = (statusVal) => {
-    if (isLocked) return;
+    if (!isSubjectEditable && isTeacher) {
+      toast.warning('You are not assigned to this subject. Attendance can only be viewed.');
+      return;
+    }
+    if (isTeacherLocked) return;
     setStudents((prev) =>
       prev.map((s) => ({
         ...s,
@@ -246,13 +402,13 @@ const AddExamAttendance = () => {
   const handleSubmitAttendance = async (e) => {
     e.preventDefault();
 
-    if (isLocked) {
-      toast.error('Exam attendance has already been submitted and cannot be edited or updated.');
+    if (!selectedExamId || !selectedClassId || !selectedSubjectId) {
+      toast.warning('Please select Exam, Class, and Subject.');
       return;
     }
 
-    if (!selectedExamId || !selectedClassId || !selectedSubjectId) {
-      toast.warning('Please select Exam, Class, and Subject.');
+    if (!isSubjectEditable && isTeacher) {
+      toast.error('You are not assigned to this subject. Attendance can only be viewed.');
       return;
     }
 
@@ -273,11 +429,15 @@ const AddExamAttendance = () => {
         exam_id: selectedExamId,
         class_id: selectedClassId,
         subject_id: selectedSubjectId,
-        exam_schedule_id: queryScheduleId || undefined,
+        exam_schedule_id: currentScheduleId || queryScheduleId || undefined,
         records,
       });
 
-      toast.success('Exam attendance saved successfully!');
+      toast.success(
+        hasRecordedAttendance
+          ? 'Exam attendance updated successfully!'
+          : 'Exam attendance saved successfully!'
+      );
       navigate(
         `${basePath}/examinations/attendance?exam_id=${encodeParam(selectedExamId)}&class_id=${encodeParam(selectedClassId)}`
       );
@@ -325,28 +485,47 @@ const AddExamAttendance = () => {
               <div className="col-md-2">
                 <div className="mb-3">
                   <label className="form-label" htmlFor="academic_year_id">
-                    Academic Year <strong className="text-danger">*</strong>
+                    Academic Year
                   </label>
                   <select
                     className="form-select select"
                     name="academic_year_id"
                     id="academic_year_id"
-                    required
                     value={selectedYearId}
-                    onChange={(e) => setSelectedYearId(e.target.value)}
+                    onChange={(e) => {
+                      const yr = e.target.value;
+                      setSelectedYearId(yr);
+                      const matchedExams = yr
+                        ? exams.filter((ex) => String(ex.academic_year) === String(yr))
+                        : exams;
+                      const isCurValid = matchedExams.some((ex) => String(ex.id) === String(selectedExamId));
+                      const nextExam = isCurValid
+                        ? selectedExamId
+                        : (matchedExams.length > 0 ? String(matchedExams[0].id) : '');
+                      setSelectedExamId(nextExam);
+
+                      if (nextExam && selectedClassId) {
+                        loadSubjectsForClass(selectedClassId, '', nextExam, yr);
+                      } else {
+                        setSubjects([]);
+                        setSelectedSubjectId('');
+                        setCurrentScheduleId('');
+                        setStudents([]);
+                        setScheduleNotFound(false);
+                      }
+                    }}
                   >
                     <option value="">Select Year</option>
                     {academicYears.map((y) => (
                       <option key={y.id} value={y.id}>
                         {y.name || y.academic_year || `Year ${y.id}`}
-                        {y.is_current === 1 ? ' (Current)' : ''}
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              <div className="col-md-2">
+              <div className="col-md-3">
                 <div className="mb-3">
                   <label className="form-label" htmlFor="exam_id">
                     Exam <strong className="text-danger">*</strong>
@@ -357,23 +536,20 @@ const AddExamAttendance = () => {
                     id="exam_id"
                     required
                     value={selectedExamId}
-                    onChange={(e) => {
-                      const newExamId = e.target.value;
-                      setSelectedExamId(newExamId);
-                      if (newExamId && selectedClassId && selectedSubjectId) {
-                        fetchStudentsList(newExamId, selectedClassId, selectedSubjectId);
-                      } else {
-                        setStudents([]);
-                        setIsLocked(false);
-                      }
-                    }}
+                    onChange={handleExamChange}
                   >
-                    <option value="">Select </option>
-                    {exams.map((ex) => (
-                      <option key={ex.id} value={ex.id}>
-                        {ex.exam_name}
-                      </option>
-                    ))}
+                    <option value="">
+                      {selectedYearId && exams.filter((ex) => !selectedYearId || String(ex.academic_year) === String(selectedYearId)).length === 0
+                        ? 'No Exams for Selected Year'
+                        : 'Select Exam'}
+                    </option>
+                    {exams
+                      .filter((ex) => !selectedYearId || String(ex.academic_year) === String(selectedYearId))
+                      .map((ex) => (
+                        <option key={ex.id} value={ex.id}>
+                          {ex.exam_name}
+                        </option>
+                      ))}
                   </select>
                 </div>
               </div>
@@ -401,35 +577,7 @@ const AddExamAttendance = () => {
                 </div>
               </div>
 
-              <div className="col-md-2">
-                <div className="mb-3">
-                  <label className="form-label" htmlFor="section_id">
-                    Section
-                  </label>
-                  <select
-                    className="form-select select"
-                    name="section_id"
-                    id="section_id"
-                    value={selectedSectionId}
-                    onChange={(e) => {
-                      const newSecId = e.target.value;
-                      setSelectedSectionId(newSecId);
-                      if (selectedExamId && selectedClassId && selectedSubjectId) {
-                        fetchStudentsList(selectedExamId, selectedClassId, selectedSubjectId, newSecId);
-                      }
-                    }}
-                  >
-                    <option value="">All Sections</option>
-                    {sections.map((sec) => (
-                      <option key={sec.id} value={sec.id}>
-                        {sec.section_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="col-md-2">
+              <div className="col-md-3">
                 <div className="mb-3">
                   <label className="form-label" htmlFor="subject_id">
                     Subject <strong className="text-danger">*</strong>
@@ -440,21 +588,18 @@ const AddExamAttendance = () => {
                     id="subject_id"
                     required
                     value={selectedSubjectId}
-                    onChange={(e) => {
-                      const newSubId = e.target.value;
-                      setSelectedSubjectId(newSubId);
-                      if (selectedExamId && selectedClassId && newSubId) {
-                        fetchStudentsList(selectedExamId, selectedClassId, newSubId, selectedSectionId);
-                      } else {
-                        setStudents([]);
-                        setIsLocked(false);
-                      }
-                    }}
+                    onChange={handleSubjectChange}
                   >
-                    <option value="">Select Subject</option>
+                    <option value="">
+                      {selectedExamId && selectedClassId && subjects.length === 0
+                        ? isTeacher
+                          ? 'No Assigned Subjects'
+                          : 'No Scheduled Subjects'
+                        : 'Select Subject'}
+                    </option>
                     {subjects.map((sub) => (
                       <option key={sub.subject_id} value={sub.subject_id}>
-                        {sub.subject_name}
+                        {sub.subject_name} {sub.date ? `(${sub.date})` : ''}
                       </option>
                     ))}
                   </select>
@@ -483,11 +628,38 @@ const AddExamAttendance = () => {
 
         {/* Student Attendance Form Table */}
         <div className="card-body p-0 py-3">
-          {isLocked && (
+          {isTeacher && isExamDatePassed && (
             <div className="alert alert-warning border border-warning-subtle d-flex align-items-center mb-3 mx-3">
               <i className="ti ti-lock fs-20 me-2 text-warning"></i>
               <div>
-                <strong>Attendance Locked:</strong> Exam attendance for this Exam, Class, and Subject has already been submitted and cannot be edited or updated further.
+                <strong>Attendance Locked:</strong> The scheduled exam date ({examDateDisplay}) has passed. Staff and teachers cannot alter past exam attendance. Please contact the school administration for any corrections.
+              </div>
+            </div>
+          )}
+
+          {isTeacher && isExamDateFuture && (
+            <div className="alert alert-info border border-info-subtle d-flex align-items-center mb-3 mx-3">
+              <i className="ti ti-calendar-event fs-20 me-2 text-info"></i>
+              <div>
+                <strong>Upcoming Exam:</strong> This exam is scheduled for {examDateDisplay}.
+              </div>
+            </div>
+          )}
+
+          {!isTeacher && isExamDatePassed && (
+            <div className="alert alert-warning border border-warning-subtle d-flex align-items-center mb-3 mx-3">
+              <i className="ti ti-shield-check fs-20 me-2 text-warning"></i>
+              <div>
+                <strong>School Administration Mode:</strong> The scheduled exam date ({examDateDisplay}) has passed. As School Administration, you have authority to review or update past attendance records.
+              </div>
+            </div>
+          )}
+
+          {!isTeacherLocked && !isExamDatePassed && hasRecordedAttendance && (
+            <div className="alert alert-info border border-info-subtle d-flex align-items-center mb-3 mx-3">
+              <i className="ti ti-info-circle fs-20 me-2 text-info"></i>
+              <div>
+                <strong>Attendance Already Recorded:</strong> Exam attendance for this Exam, Class, and Subject has already been saved. You can review or adjust statuses and click <strong>Update Attendance</strong> to save changes.
               </div>
             </div>
           )}
@@ -495,26 +667,24 @@ const AddExamAttendance = () => {
           {students.length > 0 && (
             <div className="d-flex justify-content-between align-items-center px-3 mb-3">
               <h5 className="mb-0">Students List ({students.length})</h5>
-              {!isLocked && (
-                <div className="d-flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleMarkAll(1)}
-                    className="btn btn-sm btn-outline-success"
-                    disabled={isLocked || saving}
-                  >
-                    <i className="fa-solid fa-check me-1"></i> Mark All Present
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleMarkAll(2)}
-                    className="btn btn-sm btn-outline-danger"
-                    disabled={isLocked || saving}
-                  >
-                    <i className="fa-solid fa-xmark me-1"></i> Mark All Absent
-                  </button>
-                </div>
-              )}
+              <div className="d-flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleMarkAll(1)}
+                  className="btn btn-sm btn-outline-success"
+                  disabled={(!isSubjectEditable && isTeacher) || isTeacherLocked || saving}
+                >
+                  <i className="fa-solid fa-check me-1"></i> Mark All Present
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleMarkAll(2)}
+                  className="btn btn-sm btn-outline-danger"
+                  disabled={(!isSubjectEditable && isTeacher) || isTeacherLocked || saving}
+                >
+                  <i className="fa-solid fa-xmark me-1"></i> Mark All Absent
+                </button>
+              </div>
             </div>
           )}
 
@@ -526,26 +696,39 @@ const AddExamAttendance = () => {
                   <th className="text-center" style={{ width: '150px' }}>Admission No</th>
                   <th className="text-center">Student Name</th>
                   <th className="text-center" style={{ width: '100px' }}>Class</th>
+                  <th className="text-center" style={{ width: '110px' }}>Section</th>
                   <th className="text-center" style={{ width: '220px' }}>Attendance</th>
                 </tr>
               </thead>
               <tbody>
                 {initialLoading || loading ? (
                   <tr>
-                    <td colSpan="5" className="text-center py-4">
+                    <td colSpan="6" className="text-center py-4">
                       <div className="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
                       Loading students...
                     </td>
                   </tr>
+                ) : scheduleNotFound || (selectedExamId && selectedClassId && subjects.length === 0) ? (
+                  <tr>
+                    <td colSpan="6" className="text-center py-5">
+                      <div className="text-warning mb-2">
+                        <i className="ti ti-calendar-off fs-36"></i>
+                      </div>
+                      <h6 className="text-dark fw-semibold mb-1">No Exam Schedule Found</h6>
+                      <p className="text-muted fs-13 mb-0">
+                        No exam schedule has been created for this Exam and Class. Please schedule the exam before taking attendance.
+                      </p>
+                    </td>
+                  </tr>
                 ) : !hasSearched && students.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center text-muted py-4">
+                    <td colSpan="6" className="text-center text-muted py-4">
                       Please select Exam, Class, and Subject, then click Search.
                     </td>
                   </tr>
                 ) : students.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="text-center text-muted py-4">
+                    <td colSpan="6" className="text-center text-muted py-4">
                       No students found for this class.
                     </td>
                   </tr>
@@ -574,6 +757,7 @@ const AddExamAttendance = () => {
                         </div>
                       </td>
                       <td className="text-center">{st.class_name || '-'}</td>
+                      <td className="text-center">{st.section_name || '-'}</td>
                       <td className="text-center">
                         <div className="d-flex justify-content-center gap-3">
                           <div className="form-check form-check-inline">
@@ -583,7 +767,12 @@ const AddExamAttendance = () => {
                               name={`attendance_${st.student_id}`}
                               id={`present_${st.student_id}`}
                               checked={st.attendanceStatus === 1}
-                              disabled={isLocked}
+                              disabled={(!isSubjectEditable && isTeacher) || isTeacherLocked || saving}
+                              title={
+                                !isSubjectEditable && isTeacher
+                                  ? 'You are not assigned to this subject. Attendance can only be viewed.'
+                                  : ''
+                              }
                               onChange={() => handleStatusChange(st.student_id, 1)}
                             />
                             <label
@@ -600,7 +789,12 @@ const AddExamAttendance = () => {
                               name={`attendance_${st.student_id}`}
                               id={`absent_${st.student_id}`}
                               checked={st.attendanceStatus === 0}
-                              disabled={isLocked}
+                              disabled={(!isSubjectEditable && isTeacher) || isTeacherLocked || saving}
+                              title={
+                                !isSubjectEditable && isTeacher
+                                  ? 'You are not assigned to this subject. Attendance can only be viewed.'
+                                  : ''
+                              }
                               onChange={() => handleStatusChange(st.student_id, 0)}
                             />
                             <label
@@ -626,14 +820,23 @@ const AddExamAttendance = () => {
                 onClick={() => navigate(`${basePath}/examinations/attendance`)}
                 className="btn btn-light me-3"
               >
-                {isLocked ? 'Back' : 'Cancel'}
+                {isTeacherLocked ? 'Back' : 'Cancel'}
               </button>
-              {isLocked ? (
+              {!isSubjectEditable && isTeacher ? (
                 <button
                   type="button"
                   className="btn btn-secondary"
                   disabled
-                  title="Exam attendance is locked and cannot be edited or updated"
+                  title="You are not assigned to this subject. Attendance can only be viewed."
+                >
+                  <i className="ti ti-eye me-1"></i> View Only
+                </button>
+              ) : isTeacherLocked ? (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled
+                  title="Exam attendance is locked for staff and teachers"
                 >
                   <i className="ti ti-lock me-1"></i> Attendance Locked
                 </button>
@@ -649,6 +852,8 @@ const AddExamAttendance = () => {
                       <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                       Saving...
                     </>
+                  ) : hasRecordedAttendance ? (
+                    'Update Attendance'
                   ) : (
                     'Submit Attendance'
                   )}

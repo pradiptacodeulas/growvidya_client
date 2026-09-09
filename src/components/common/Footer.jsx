@@ -4,27 +4,38 @@ import { fetchSchoolConfigApi } from '../../api/schoolConfig.api';
 
 const Footer = () => {
   const adminUser = useSelector((state) => state.auth?.user);
+  const teacherUser = useSelector((state) => state.teacherAuth?.user);
+  const parentUser = useSelector((state) => state.parentAuth?.user);
+  const studentUser = useSelector((state) => state.studentAuth?.user);
+
+  const currentUser = adminUser || teacherUser || parentUser || studentUser;
+  const currentSchoolId = currentUser?.schoolId || currentUser?.school_id || null;
+  const currentSchoolName = currentUser?.schoolName || currentUser?.school_name || '';
   const currentYear = new Date().getFullYear();
 
-  const [footerText, setFooterText] = useState(
-    () => adminUser?.schoolName
-      ? `Copyright © ${currentYear} ${adminUser.schoolName}. All rights reserved.`
-      : `Copyright © ${currentYear} Growvidya. All rights reserved.`
-  );
+  const [footerText, setFooterText] = useState(() => {
+    if (currentUser?.schoolFooter) return currentUser.schoolFooter;
+    if (currentSchoolName) return `Copyright © ${currentYear} ${currentSchoolName}. All rights reserved.`;
+    return '';
+  });
 
   useEffect(() => {
     let isMounted = true;
 
+    if (currentUser?.schoolFooter) {
+      setFooterText(currentUser.schoolFooter);
+    }
+
     const loadSchoolFooter = async () => {
       try {
-        const res = await fetchSchoolConfigApi();
+        const res = await fetchSchoolConfigApi(currentSchoolId);
         const data = res?.data || res;
         if (data && isMounted) {
           if (data.footer && data.footer.trim()) {
             setFooterText(data.footer.trim());
           } else if (data.school_title || data.school_name) {
-            const title = data.school_title || data.school_name;
-            setFooterText(`Copyright © ${currentYear} ${title}. All rights reserved.`);
+            const title = (data.school_title || data.school_name).trim();
+            setFooterText(title ? `Copyright © ${currentYear} ${title}. All rights reserved.` : '');
           }
         }
       } catch (err) {
@@ -37,7 +48,7 @@ const Footer = () => {
     return () => {
       isMounted = false;
     };
-  }, [currentYear]);
+  }, [currentSchoolId, currentUser?.schoolFooter, currentSchoolName, currentYear]);
 
   const handleLinkClick = (e) => {
     e.preventDefault();

@@ -1,10 +1,14 @@
 import apiClient from './axios.config';
+import { sortDropdownDesc } from '../utils/dropdownSort.util';
 
 // ==================== RELIGION API ====================
 
 export const getReligionsApi = async (params = {}) => {
   const response = await apiClient.get('/admin/settings/religions', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.religions)) data.religions = sortDropdownDesc(data.religions);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const createReligionApi = async (data) => {
@@ -26,7 +30,10 @@ export const deleteReligionApi = async (id) => {
 
 export const getMotherTonguesApi = async (params = {}) => {
   const response = await apiClient.get('/admin/settings/mother-tongues', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.motherTongues)) data.motherTongues = sortDropdownDesc(data.motherTongues);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const createMotherTongueApi = async (data) => {
@@ -48,14 +55,20 @@ export const deleteMotherTongueApi = async (id) => {
 
 export const getGendersApi = async (params = {}) => {
   const response = await apiClient.get('/admin/settings/genders', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.genders)) data.genders = sortDropdownDesc(data.genders);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 // ==================== CATEGORY API ====================
 
 export const getCategoriesApi = async (params = {}) => {
   const response = await apiClient.get('/admin/settings/categories', { params });
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.categories)) data.categories = sortDropdownDesc(data.categories);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const createCategoryApi = async (data) => {
@@ -87,12 +100,18 @@ export const updateGeneralSettingsApi = async (data) => {
 
 export const getStatesByCountryApi = async (countryId) => {
   const response = await apiClient.get(`/admin/settings/general/states/${countryId}`);
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.states)) data.states = sortDropdownDesc(data.states);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 export const getCitiesByStateApi = async (stateId) => {
   const response = await apiClient.get(`/admin/settings/general/cities/${stateId}`);
-  return response.data;
+  const data = response.data;
+  if (Array.isArray(data?.cities)) data.cities = sortDropdownDesc(data.cities);
+  if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
+  return data;
 };
 
 // ==================== SALARY DATE API ====================

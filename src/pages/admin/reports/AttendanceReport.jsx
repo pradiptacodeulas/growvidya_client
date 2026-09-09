@@ -114,6 +114,8 @@ const AttendanceReport = () => {
     return list;
   }, [selectedYearObj]);
 
+
+
   // Sync selected month & year when availableMonths changes
   useEffect(() => {
     if (availableMonths.length > 0) {

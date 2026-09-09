@@ -4,6 +4,15 @@ import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import {
+  sortAcademicYearsDesc,
+  sortExamsDesc,
+  sortClassesDesc,
+  sortSectionsDesc,
+  sortGradesDesc,
+  sortSubjectsDesc,
+  sortExamTypesDesc,
+} from '../../../utils/dropdownSort.util';
 
 const AddExamResult = () => {
   const { teacher, isAuthenticated: isTeacherAuth } = useSelector((state) => state.teacherAuth);
@@ -62,6 +71,8 @@ const AddExamResult = () => {
   const [marksMatrix, setMarksMatrix] = useState({}); // { [subjectId]: { [examTypeId]: mark } }
   const [gradesMatrix, setGradesMatrix] = useState({}); // { [subjectId]: gradeId }
   const [existingMarksMap, setExistingMarksMap] = useState({}); // { [`${subId}_${typeId}`]: true }
+  const [studentAttendanceMap, setStudentAttendanceMap] = useState({}); // { [subjectId]: attendance_status }
+  const [isTeacherUser, setIsTeacherUser] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -75,7 +86,7 @@ const AddExamResult = () => {
       return;
     }
     try {
-      const res = await adminAcademicApi.fetchSectionsApi(classId);
+      const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1 });
       const secList = Array.isArray(res?.data)
         ? res.data
         : Array.isArray(res?.data?.sections)
@@ -83,7 +94,7 @@ const AddExamResult = () => {
         : Array.isArray(res)
         ? res
         : [];
-      setSections(secList);
+      setSections(sortSectionsDesc(secList));
     } catch (err) {
       console.error('Failed to load sections:', err);
       setSections([]);
@@ -94,10 +105,10 @@ const AddExamResult = () => {
     try {
       setInitialLoading(true);
       const [exRes, clsRes, grRes, yrRes] = await Promise.all([
-        adminExaminationApi.getAllExams({ status: 1 }),
-        adminAcademicApi.getAllClasses({ status: 1 }),
-        adminExaminationApi.getAllGrades({ status: 1 }),
-        adminAcademicApi.getAllAcademicYears(),
+        adminExaminationApi.getAllExams({ status: 1 }).catch(() => ({ data: [] })),
+        adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
+        adminExaminationApi.getAllGrades({ status: 1 }).catch(() => ({ data: [] })),
+        adminAcademicApi.getAllAcademicYears().catch(() => ({ data: [] })),
       ]);
 
       const examsList = Array.isArray(exRes?.data?.exams)
@@ -128,18 +139,23 @@ const AddExamResult = () => {
         ? yrRes
         : [];
 
-      setExams(examsList);
-      setClasses(classesList);
-      setGrades(gradesList);
-      setAcademicYears(yearsList);
+      const sortedExams = sortExamsDesc(examsList);
+      const sortedClasses = sortClassesDesc(classesList);
+      const sortedGrades = sortGradesDesc(gradesList);
+      const sortedYears = sortAcademicYearsDesc(yearsList);
+
+      setExams(sortedExams);
+      setClasses(sortedClasses);
+      setGrades(sortedGrades);
+      setAcademicYears(sortedYears);
 
       const targetYear =
         queryYearId ||
-        (yearsList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent)?.id ||
-          yearsList[0]?.id ||
+        (sortedYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent)?.id ||
+          sortedYears[0]?.id ||
           '');
-      const targetExam = queryExamId || (examsList.length > 0 ? String(examsList[0].id) : '');
-      const targetClass = queryClassId || (classesList.length > 0 ? String(classesList[0].id) : '');
+      const targetExam = queryExamId || (sortedExams.length > 0 ? String(sortedExams[0].id) : '');
+      const targetClass = queryClassId || (sortedClasses.length > 0 ? String(sortedClasses[0].id) : '');
 
       setSelectedYear(targetYear ? String(targetYear) : '');
       setSelectedExam(targetExam ? String(targetExam) : '');
@@ -222,11 +238,12 @@ const AddExamResult = () => {
           .catch(() => ({ data: null })),
       ]);
 
-      const subList = configRes?.data?.subjects || [];
-      const typesList = configRes?.data?.examTypes || [];
+      const subList = sortSubjectsDesc(configRes?.data?.subjects || []);
+      const typesList = sortExamTypesDesc(configRes?.data?.examTypes || []);
 
       setSubjects(subList);
       setExamTypes(typesList);
+      setIsTeacherUser(Boolean(configRes?.data?.isTeacherUser));
 
       // Pre-fill existing marks if already recorded and lock them
       const existingMarks = marksheetRes?.data?.marks || [];
@@ -250,6 +267,9 @@ const AddExamResult = () => {
       setMarksMatrix(initialMarks);
       setGradesMatrix(initialGrades);
       setExistingMarksMap(initialExistingMap);
+
+      const attMap = marksheetRes?.data?.attendance || marksheetRes?.attendance || {};
+      setStudentAttendanceMap(attMap);
     } catch (err) {
       console.error('Failed to load marks entry matrix:', err);
       toast.error('Failed to load marks entry form.');
@@ -259,6 +279,13 @@ const AddExamResult = () => {
   };
 
   const handleMarkChange = (subjectId, examTypeId, val) => {
+    // If subject is not editable for this user or student is not present, do not allow change
+    const targetSub = subjects.find((s) => s.subject_id === subjectId);
+    const isStudentPresent = isTeacherRole ? Number(studentAttendanceMap[subjectId]) === 1 : true;
+    if (targetSub && (targetSub.isEditable === false || !isStudentPresent)) {
+      return;
+    }
+
     // If already exists, do not allow change
     if (existingMarksMap[`${subjectId}_${examTypeId}`]) {
       return;
@@ -298,6 +325,12 @@ const AddExamResult = () => {
   };
 
   const handleGradeChange = (subjectId, gradeId) => {
+    const targetSub = subjects.find((s) => s.subject_id === subjectId);
+    const isStudentPresent = isTeacherRole ? Number(studentAttendanceMap[subjectId]) === 1 : true;
+    if (targetSub && (targetSub.isEditable === false || !isStudentPresent)) {
+      return;
+    }
+
     setGradesMatrix((prev) => ({
       ...prev,
       [subjectId]: gradeId,
@@ -309,10 +342,22 @@ const AddExamResult = () => {
     return Object.values(subMarks).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
   };
 
+  const isTeacherRole = isTeacher || isTeacherUser;
+  const hasAnyEditableSubject = useMemo(() => {
+    return subjects.some((sub) => {
+      const isPresent = isTeacherRole ? Number(studentAttendanceMap[sub.subject_id]) === 1 : true;
+      return sub.isEditable !== false && isPresent;
+    });
+  }, [subjects, isTeacherRole, studentAttendanceMap]);
+
   // Check if all configured marks are already submitted
   const hasNewMarksToSubmit = useMemo(() => {
     if (subjects.length === 0 || examTypes.length === 0) return false;
     for (const sub of subjects) {
+      if (sub.isEditable === false) continue; // Skip view-only subjects
+      const isPresent = isTeacherRole ? Number(studentAttendanceMap[sub.subject_id]) === 1 : true;
+      if (!isPresent) continue; // Skip subjects where student is not present
+
       for (const et of examTypes) {
         const typeId = et.exam_type_id !== undefined ? et.exam_type_id : et.id;
         const key = `${sub.subject_id}_${typeId}`;
@@ -323,7 +368,7 @@ const AddExamResult = () => {
       }
     }
     return false;
-  }, [subjects, examTypes, marksMatrix, existingMarksMap]);
+  }, [subjects, examTypes, marksMatrix, existingMarksMap, isTeacherRole, studentAttendanceMap]);
 
   const handleSaveStudentMarks = async (e) => {
     e.preventDefault();
@@ -333,6 +378,10 @@ const AddExamResult = () => {
 
     const items = [];
     subjects.forEach((sub) => {
+      if (sub.isEditable === false) return; // Teachers cannot submit marks for unassigned subjects
+      const isPresent = isTeacherRole ? Number(studentAttendanceMap[sub.subject_id]) === 1 : true;
+      if (!isPresent) return; // Teachers cannot submit marks if student is not marked present
+
       const subMarks = marksMatrix[sub.subject_id] || {};
       const gradeId = gradesMatrix[sub.subject_id] || null;
 
@@ -356,7 +405,7 @@ const AddExamResult = () => {
     });
 
     if (items.length === 0) {
-      toast.info('No new marks to submit. Previously submitted marks cannot be modified.');
+      toast.info('No new marks to submit. Previously submitted marks or unassigned subjects cannot be modified.');
       return;
     }
 
@@ -503,7 +552,6 @@ const AddExamResult = () => {
                     {academicYears.map((y) => (
                       <option key={y.id} value={y.id}>
                         {y.name || y.academic_year || `Year ${y.id}`}
-                        {y.is_current === 1 ? ' (Current)' : ''}
                       </option>
                     ))}
                   </select>
@@ -857,112 +905,143 @@ const AddExamResult = () => {
                   </div>
                 ) : (
                   <div className="table-responsive">
-                    <table className="table table-bordered text-center align-middle" id="examTable">
-                      <thead>
-                        <tr className="table-light">
-                          <th rowSpan="2" className="align-middle text-center" style={{ width: '180px' }}>
-                            Subject
-                          </th>
-                          <th colSpan={examTypes.length} className="text-center">
-                            {exams.find((e) => `${e.id}` === `${selectedExam}`)?.exam_name || 'Exam'}
-                          </th>
-                          <th rowSpan="2" className="align-middle text-center" style={{ width: '130px' }}>
-                            Marks Obt.
-                          </th>
-                          <th rowSpan="2" className="align-middle text-center" style={{ width: '150px' }}>
-                            Grade
-                          </th>
-                        </tr>
-                        <tr className="table-light">
-                          {examTypes.map((type) => {
-                            const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
+                      <table className="table table-bordered text-center align-middle" id="examTable">
+                        <thead>
+                          <tr className="table-light">
+                            <th rowSpan="2" className="align-middle text-center" style={{ width: '180px' }}>
+                              Subject
+                            </th>
+                            <th colSpan={examTypes.length} className="text-center">
+                              {exams.find((e) => `${e.id}` === `${selectedExam}`)?.exam_name || 'Exam'}
+                            </th>
+                            <th rowSpan="2" className="align-middle text-center" style={{ width: '130px' }}>
+                              Marks Obt.
+                            </th>
+                            <th rowSpan="2" className="align-middle text-center" style={{ width: '150px' }}>
+                              Grade
+                            </th>
+                          </tr>
+                          <tr className="table-light">
+                            {examTypes.map((type) => {
+                              const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
+                              return (
+                                <th key={typeId} className="text-center">
+                                  {type.exam_type}
+                                  {type.mark ? (
+                                    <>
+                                      <br />
+                                      <span className="fs-12 text-muted">({type.mark})</span>
+                                    </>
+                                  ) : (
+                                    ''
+                                  )}
+                                </th>
+                              );
+                            })}
+                          </tr>
+                        </thead>
+
+                        <tbody>
+                          {subjects.map((sub) => {
+                            const isStudentPresent = isTeacherRole
+                              ? Number(studentAttendanceMap[sub.subject_id]) === 1
+                              : true;
+                            const isSubjectEditable = sub.isEditable !== false && isStudentPresent;
+                            const hasSubjectAnyEditable =
+                              isSubjectEditable &&
+                              examTypes.some((type) => {
+                                const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
+                                return !existingMarksMap[`${sub.subject_id}_${typeId}`];
+                              });
+
+                            const attendanceStatus = studentAttendanceMap[sub.subject_id];
+                            const isStudentAbsent = isTeacherRole && Number(attendanceStatus) === 0;
+                            const isAttendanceUnmarked = isTeacherRole && attendanceStatus === undefined;
+
                             return (
-                              <th key={typeId} className="text-center">
-                                {type.exam_type}
-                                {type.mark ? (
-                                  <>
-                                    <br />
-                                    <span className="fs-12 text-muted">({type.mark})</span>
-                                  </>
-                                ) : (
-                                  ''
-                                )}
-                              </th>
+                              <tr
+                                key={sub.subject_id}
+                                style={{
+                                  backgroundColor: !isSubjectEditable ? '#fcfcfc' : 'inherit',
+                                }}
+                              >
+                                <td className="text-start fw-medium ps-3">{sub.subject_name}</td>
+
+                                {examTypes.map((type) => {
+                                  const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
+                                  const isExisting = Boolean(existingMarksMap[`${sub.subject_id}_${typeId}`]);
+                                  const isFieldReadOnly = !isSubjectEditable || isExisting;
+                                  let tooltipText = '';
+                                  if (isExisting) {
+                                    tooltipText = 'Already submitted marks cannot be modified';
+                                  } else if (sub.isEditable === false) {
+                                    tooltipText = 'You are not assigned to this subject. Marks can only be viewed.';
+                                  } else if (isStudentAbsent) {
+                                    tooltipText = 'Student is marked absent for this subject. Marks cannot be entered.';
+                                  } else if (isAttendanceUnmarked) {
+                                    tooltipText = 'Student attendance is not marked present for this subject. Marks cannot be entered.';
+                                  }
+
+                                  return (
+                                    <td key={typeId} style={{ width: '110px' }}>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        className={`form-control text-center mx-auto ${
+                                          isFieldReadOnly ? 'bg-light text-muted fw-semibold' : ''
+                                        }`}
+                                        style={{
+                                          width: '85px',
+                                          backgroundColor: isFieldReadOnly ? '#f1f5f9' : '#fff',
+                                          cursor: isFieldReadOnly ? 'not-allowed' : 'text',
+                                        }}
+                                        placeholder={isSubjectEditable ? '0' : '-'}
+                                        readOnly={isFieldReadOnly}
+                                        title={tooltipText}
+                                        value={marksMatrix[sub.subject_id]?.[typeId] ?? ''}
+                                        onChange={(e) => {
+                                          if (!isSubjectEditable) return;
+                                          handleMarkChange(sub.subject_id, typeId, e.target.value);
+                                        }}
+                                      />
+                                    </td>
+                                  );
+                                })}
+
+                                <td className="fw-bold text-primary fs-15">
+                                  {calculateSubjectTotal(sub.subject_id)}
+                                </td>
+
+                                <td>
+                                  <select
+                                    className="form-select form-select-sm mx-auto"
+                                    style={{
+                                      width: '120px',
+                                      pointerEvents: !hasSubjectAnyEditable ? 'none' : 'auto',
+                                      backgroundColor: !hasSubjectAnyEditable ? '#f1f5f9' : '#fff',
+                                      cursor: !hasSubjectAnyEditable ? 'not-allowed' : 'default',
+                                    }}
+                                    value={gradesMatrix[sub.subject_id] ?? ''}
+                                    disabled={!hasSubjectAnyEditable}
+                                    onChange={(e) => {
+                                      if (!isSubjectEditable) return;
+                                      handleGradeChange(sub.subject_id, e.target.value);
+                                    }}
+                                  >
+                                    <option value="">Select</option>
+                                    {grades.map((gr) => (
+                                      <option key={gr.id} value={gr.id}>
+                                        {gr.grade_name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </td>
+                              </tr>
                             );
                           })}
-                        </tr>
-                      </thead>
-
-                      <tbody>
-                        {subjects.map((sub) => {
-                          const hasSubjectAnyEditable = examTypes.some((type) => {
-                            const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
-                            return !existingMarksMap[`${sub.subject_id}_${typeId}`];
-                          });
-
-                          return (
-                            <tr key={sub.subject_id}>
-                              <td className="text-start fw-medium ps-3">{sub.subject_name}</td>
-
-                              {examTypes.map((type) => {
-                                const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
-                                const isExisting = Boolean(existingMarksMap[`${sub.subject_id}_${typeId}`]);
-
-                                return (
-                                  <td key={typeId} style={{ width: '110px' }}>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      className={`form-control text-center mx-auto ${
-                                        isExisting ? 'bg-light text-muted fw-semibold' : ''
-                                      }`}
-                                      style={{
-                                        width: '85px',
-                                        backgroundColor: isExisting ? '#f5f5f5' : '#fff',
-                                        cursor: isExisting ? 'not-allowed' : 'text',
-                                      }}
-                                      placeholder="0"
-                                      readOnly={isExisting}
-                                      title={isExisting ? 'Already submitted marks cannot be modified' : ''}
-                                      value={marksMatrix[sub.subject_id]?.[typeId] ?? ''}
-                                      onChange={(e) =>
-                                        handleMarkChange(sub.subject_id, typeId, e.target.value)
-                                      }
-                                    />
-                                  </td>
-                                );
-                              })}
-
-                              <td className="fw-bold text-primary fs-15">
-                                {calculateSubjectTotal(sub.subject_id)}
-                              </td>
-
-                              <td>
-                                <select
-                                  className="form-select form-select-sm mx-auto"
-                                  style={{
-                                    width: '120px',
-                                    pointerEvents: !hasSubjectAnyEditable ? 'none' : 'auto',
-                                    backgroundColor: !hasSubjectAnyEditable ? '#f5f5f5' : '#fff',
-                                  }}
-                                  value={gradesMatrix[sub.subject_id] ?? ''}
-                                  disabled={!hasSubjectAnyEditable}
-                                  onChange={(e) => handleGradeChange(sub.subject_id, e.target.value)}
-                                >
-                                  <option value="">Select</option>
-                                  {grades.map((gr) => (
-                                    <option key={gr.id} value={gr.id}>
-                                      {gr.grade_name}
-                                    </option>
-                                  ))}
-                                </select>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                        </tbody>
+                      </table>
+                    </div>
                 )}
               </div>
 

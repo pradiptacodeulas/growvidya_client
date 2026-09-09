@@ -22,7 +22,7 @@ const TeacherSidebar = ({
   const { teacher } = useSelector((state) => state.teacherAuth);
 
   const schoolLogoSrc = resolveImageUrl(teacher?.schoolLogo || teacher?.school_logo || teacher?.school?.school_logo) || schoolLogoDefault;
-  const schoolName = teacher?.schoolName || 'Growvidya School';
+  const schoolName = teacher?.schoolName || teacher?.school_name || '';
 
   // Helper to determine the active submenu key from current URL path
   const getActiveMenuFromPath = (path) => {

@@ -21,7 +21,7 @@ const ParentSidebar = ({
   const { parent } = useSelector((state) => state.parentAuth);
 
   const schoolLogoSrc = resolveImageUrl(parent?.schoolLogo || parent?.school_logo) || schoolLogoDefault;
-  const schoolName = parent?.schoolName || parent?.school_name || 'Growvidya School';
+  const schoolName = parent?.schoolName || parent?.school_name || '';
 
   const handleLogout = (e) => {
     e.preventDefault();

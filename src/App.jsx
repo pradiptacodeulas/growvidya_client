@@ -477,222 +477,377 @@ function AppContent() {
         <Route path="/dev/leaves/assign/add" element={<Navigate to="/admin/leaves/assign/add" replace />} />
 
         {/* Protected Admin Routes */}
-        <Route element={<ProtectedRoute allowedRoles={['Super Admin', 'Admin']} />}>
+        <Route element={<ProtectedRoute />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="dashboard" element={<AdminDashboard />} />
             <Route path="academics" element={<Navigate to="/admin/academics/years" replace />} />
-            <Route path="academics/years" element={<AcademicYearsList />} />
-            <Route path="academics/years/add" element={<EditAcademicYear />} />
-            <Route path="academics/years/edit/:id" element={<EditAcademicYear />} />
-            <Route path="academics/years/form" element={<EditAcademicYear />} />
-            <Route path="academics/years/form/:id" element={<EditAcademicYear />} />
-            <Route path="academics/academic-years" element={<AcademicYearsList />} />
-            <Route path="academics/academic-years/add" element={<EditAcademicYear />} />
-            <Route path="academics/academic-years/edit/:id" element={<EditAcademicYear />} />
-            <Route path="academics/academic-years/form" element={<EditAcademicYear />} />
-            <Route path="academics/academic-years/form/:id" element={<EditAcademicYear />} />
+
+            {/* Academic Years */}
+            <Route element={<ProtectedRoute module="academic/year" action="view" />}>
+              <Route path="academics/years" element={<AcademicYearsList />} />
+              <Route path="academics/academic-years" element={<AcademicYearsList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/year" action="add" />}>
+              <Route path="academics/years/add" element={<EditAcademicYear />} />
+              <Route path="academics/years/form" element={<EditAcademicYear />} />
+              <Route path="academics/academic-years/add" element={<EditAcademicYear />} />
+              <Route path="academics/academic-years/form" element={<EditAcademicYear />} />
+              <Route path="academic/year/add" element={<EditAcademicYear />} />
+              <Route path="academic/year/form" element={<EditAcademicYear />} />
+              <Route path="academic/years/add" element={<EditAcademicYear />} />
+              <Route path="academic/years/form" element={<EditAcademicYear />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/year" action="edit" />}>
+              <Route path="academics/years/edit/:id" element={<EditAcademicYear />} />
+              <Route path="academics/years/form/:id" element={<EditAcademicYear />} />
+              <Route path="academics/academic-years/edit/:id" element={<EditAcademicYear />} />
+              <Route path="academics/academic-years/form/:id" element={<EditAcademicYear />} />
+              <Route path="academic/year/edit/:id" element={<EditAcademicYear />} />
+              <Route path="academic/year/form/:id" element={<EditAcademicYear />} />
+              <Route path="academic/years/edit/:id" element={<EditAcademicYear />} />
+              <Route path="academic/years/form/:id" element={<EditAcademicYear />} />
+            </Route>
             <Route path="academics/academic-year" element={<Navigate to="/admin/academics/years" replace />} />
-            <Route path="academics/academic-year/add" element={<EditAcademicYear />} />
-            <Route path="academics/academic-year/edit/:id" element={<EditAcademicYear />} />
             <Route path="academic/year" element={<Navigate to="/admin/academics/years" replace />} />
-            <Route path="academic/year/add" element={<EditAcademicYear />} />
-            <Route path="academic/year/form" element={<EditAcademicYear />} />
-            <Route path="academic/year/form/:id" element={<EditAcademicYear />} />
-            <Route path="academic/year/edit/:id" element={<EditAcademicYear />} />
             <Route path="academic/years" element={<Navigate to="/admin/academics/years" replace />} />
-            <Route path="academic/years/add" element={<EditAcademicYear />} />
-            <Route path="academic/years/form" element={<EditAcademicYear />} />
-            <Route path="academic/years/form/:id" element={<EditAcademicYear />} />
-            <Route path="academic/years/edit/:id" element={<EditAcademicYear />} />
-            <Route path="academics/classes" element={<ClassesList />} />
-            <Route path="academics/classes/add" element={<EditClass />} />
-            <Route path="academics/classes/edit/:id" element={<EditClass />} />
-            <Route path="academics/classes/form" element={<EditClass />} />
-            <Route path="academics/classes/form/:id" element={<EditClass />} />
+
+            {/* Academic Classes */}
+            <Route element={<ProtectedRoute module="academic/classes" action="view" />}>
+              <Route path="academics/classes" element={<ClassesList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/classes" action="add" />}>
+              <Route path="academics/classes/add" element={<EditClass />} />
+              <Route path="academics/classes/form" element={<EditClass />} />
+              <Route path="academic/classes/form" element={<EditClass />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/classes" action="edit" />}>
+              <Route path="academics/classes/edit/:id" element={<EditClass />} />
+              <Route path="academics/classes/form/:id" element={<EditClass />} />
+              <Route path="academic/classes/form/:id" element={<EditClass />} />
+            </Route>
             <Route path="academic/classes" element={<Navigate to="/admin/academics/classes" replace />} />
-            <Route path="academic/classes/form" element={<EditClass />} />
-            <Route path="academic/classes/form/:id" element={<EditClass />} />
-            <Route path="academics/sections" element={<SectionsList />} />
-            <Route path="academics/sections/add" element={<EditSection />} />
-            <Route path="academics/sections/edit/:id" element={<EditSection />} />
-            <Route path="academics/sections/form" element={<EditSection />} />
-            <Route path="academics/sections/form/:id" element={<EditSection />} />
+
+            {/* Academic Sections */}
+            <Route element={<ProtectedRoute module="academic/sections" action="view" />}>
+              <Route path="academics/sections" element={<SectionsList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/sections" action="add" />}>
+              <Route path="academics/sections/add" element={<EditSection />} />
+              <Route path="academics/sections/form" element={<EditSection />} />
+              <Route path="academic/sections/add" element={<EditSection />} />
+              <Route path="academic/sections/form" element={<EditSection />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/sections" action="edit" />}>
+              <Route path="academics/sections/edit/:id" element={<EditSection />} />
+              <Route path="academics/sections/form/:id" element={<EditSection />} />
+              <Route path="academic/sections/form/:id" element={<EditSection />} />
+            </Route>
             <Route path="academic/sections" element={<Navigate to="/admin/academics/sections" replace />} />
-            <Route path="academic/sections/add" element={<EditSection />} />
-            <Route path="academic/sections/form" element={<EditSection />} />
-            <Route path="academic/sections/form/:id" element={<EditSection />} />
-            <Route path="academics/subjects" element={<SubjectsList />} />
-            <Route path="academics/subjects/add" element={<EditSubject />} />
-            <Route path="academics/subjects/edit/:id" element={<EditSubject />} />
-            <Route path="academics/subjects/form" element={<EditSubject />} />
-            <Route path="academics/subjects/form/:id" element={<EditSubject />} />
+
+            {/* Academic Subjects */}
+            <Route element={<ProtectedRoute module="academic/subject" action="view" />}>
+              <Route path="academics/subjects" element={<SubjectsList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/subject" action="add" />}>
+              <Route path="academics/subjects/add" element={<EditSubject />} />
+              <Route path="academics/subjects/form" element={<EditSubject />} />
+              <Route path="academic/subject/add" element={<EditSubject />} />
+              <Route path="academic/subject/form" element={<EditSubject />} />
+              <Route path="academic/subjects/add" element={<EditSubject />} />
+              <Route path="academic/subjects/form" element={<EditSubject />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/subject" action="edit" />}>
+              <Route path="academics/subjects/edit/:id" element={<EditSubject />} />
+              <Route path="academics/subjects/form/:id" element={<EditSubject />} />
+              <Route path="academic/subject/edit/:id" element={<EditSubject />} />
+              <Route path="academic/subject/form/:id" element={<EditSubject />} />
+              <Route path="academic/subjects/edit/:id" element={<EditSubject />} />
+              <Route path="academic/subjects/form/:id" element={<EditSubject />} />
+            </Route>
             <Route path="academic/subject" element={<Navigate to="/admin/academics/subjects" replace />} />
-            <Route path="academic/subject/add" element={<EditSubject />} />
-            <Route path="academic/subject/form" element={<EditSubject />} />
-            <Route path="academic/subject/form/:id" element={<EditSubject />} />
-            <Route path="academic/subject/edit/:id" element={<EditSubject />} />
             <Route path="academic/subjects" element={<Navigate to="/admin/academics/subjects" replace />} />
-            <Route path="academic/subjects/add" element={<EditSubject />} />
-            <Route path="academic/subjects/form" element={<EditSubject />} />
-            <Route path="academic/subjects/form/:id" element={<EditSubject />} />
-            <Route path="academic/subjects/edit/:id" element={<EditSubject />} />
-            <Route path="academics/shifts" element={<ShiftsList />} />
-            <Route path="academics/shifts/add" element={<EditShift />} />
-            <Route path="academics/shifts/edit/:id" element={<EditShift />} />
+
+            {/* Academic Shifts */}
+            <Route element={<ProtectedRoute module="academic/shift" action="view" />}>
+              <Route path="academics/shifts" element={<ShiftsList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/shift" action="add" />}>
+              <Route path="academics/shifts/add" element={<EditShift />} />
+              <Route path="academic/shift/add" element={<EditShift />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/shift" action="edit" />}>
+              <Route path="academics/shifts/edit/:id" element={<EditShift />} />
+              <Route path="academic/shift/edit/:id" element={<EditShift />} />
+            </Route>
             <Route path="academic/shift" element={<Navigate to="/admin/academics/shifts" replace />} />
-            <Route path="academic/shift/add" element={<EditShift />} />
-            <Route path="academic/shift/edit/:id" element={<EditShift />} />
-            <Route path="academics/days" element={<DaysList />} />
-            <Route path="academics/days/add" element={<EditDays />} />
-            <Route path="academics/days/edit/:id" element={<EditDays />} />
+            {/* Academic Days */}
+            <Route element={<ProtectedRoute module="academic/days" action="view" />}>
+              <Route path="academics/days" element={<DaysList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/days" action="add" />}>
+              <Route path="academics/days/add" element={<EditDays />} />
+              <Route path="academic/days/add" element={<EditDays />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/days" action="edit" />}>
+              <Route path="academics/days/edit/:id" element={<EditDays />} />
+              <Route path="academic/days/edit/:id" element={<EditDays />} />
+            </Route>
             <Route path="academic/days" element={<Navigate to="/admin/academics/days" replace />} />
-            <Route path="academic/days/add" element={<EditDays />} />
-            <Route path="academic/days/edit/:id" element={<EditDays />} />
-            <Route path="academics/periods" element={<PeriodsList />} />
-            <Route path="academics/periods/add" element={<EditPeriod />} />
-            <Route path="academics/periods/edit/:id" element={<EditPeriod />} />
+
+            {/* Academic Periods */}
+            <Route element={<ProtectedRoute module="academic/period" action="view" />}>
+              <Route path="academics/periods" element={<PeriodsList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/period" action="add" />}>
+              <Route path="academics/periods/add" element={<EditPeriod />} />
+              <Route path="academic/period/add" element={<EditPeriod />} />
+              <Route path="academic/periods/add" element={<EditPeriod />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/period" action="edit" />}>
+              <Route path="academics/periods/edit/:id" element={<EditPeriod />} />
+              <Route path="academic/period/edit/:id" element={<EditPeriod />} />
+              <Route path="academic/periods/edit/:id" element={<EditPeriod />} />
+            </Route>
             <Route path="academic/period" element={<Navigate to="/admin/academics/periods" replace />} />
-            <Route path="academic/period/add" element={<EditPeriod />} />
-            <Route path="academic/period/edit/:id" element={<EditPeriod />} />
             <Route path="academic/periods" element={<Navigate to="/admin/academics/periods" replace />} />
-            <Route path="academic/periods/add" element={<EditPeriod />} />
-            <Route path="academic/periods/edit/:id" element={<EditPeriod />} />
-            <Route path="academics/houses" element={<HousesList />} />
-            <Route path="academics/houses/add" element={<EditHouse />} />
-            <Route path="academics/houses/edit/:id" element={<EditHouse />} />
-            <Route path="academics/houses/form" element={<EditHouse />} />
-            <Route path="academics/houses/form/:id" element={<EditHouse />} />
+
+            {/* Academic Houses */}
+            <Route element={<ProtectedRoute module="academic/house" action="view" />}>
+              <Route path="academics/houses" element={<HousesList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/house" action="add" />}>
+              <Route path="academics/houses/add" element={<EditHouse />} />
+              <Route path="academics/houses/form" element={<EditHouse />} />
+              <Route path="academic/house/add" element={<EditHouse />} />
+              <Route path="academic/house/form" element={<EditHouse />} />
+              <Route path="academic/houses/add" element={<EditHouse />} />
+              <Route path="academic/houses/form" element={<EditHouse />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/house" action="edit" />}>
+              <Route path="academics/houses/edit/:id" element={<EditHouse />} />
+              <Route path="academics/houses/form/:id" element={<EditHouse />} />
+              <Route path="academic/house/form/:id" element={<EditHouse />} />
+              <Route path="academic/house/edit/:id" element={<EditHouse />} />
+              <Route path="academic/houses/form/:id" element={<EditHouse />} />
+            </Route>
             <Route path="academic/house" element={<Navigate to="/admin/academics/houses" replace />} />
-            <Route path="academic/house/add" element={<EditHouse />} />
-            <Route path="academic/house/form" element={<EditHouse />} />
-            <Route path="academic/house/form/:id" element={<EditHouse />} />
-            <Route path="academic/house/edit/:id" element={<EditHouse />} />
             <Route path="academic/houses" element={<Navigate to="/admin/academics/houses" replace />} />
-            <Route path="academic/houses/add" element={<EditHouse />} />
-            <Route path="academic/houses/form" element={<EditHouse />} />
-            <Route path="academic/houses/form/:id" element={<EditHouse />} />
-            <Route path="academics/document-types" element={<DocumentTypesList />} />
-            <Route path="academics/document-types/add" element={<EditDocumentType />} />
-            <Route path="academics/document-types/edit/:id" element={<EditDocumentType />} />
-            <Route path="academics/document-types/form" element={<EditDocumentType />} />
-            <Route path="academics/document-types/form/:id" element={<EditDocumentType />} />
+
+            {/* Academic Document Types */}
+            <Route element={<ProtectedRoute module="academic/documentType" action="view" />}>
+              <Route path="academics/document-types" element={<DocumentTypesList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/documentType" action="add" />}>
+              <Route path="academics/document-types/add" element={<EditDocumentType />} />
+              <Route path="academics/document-types/form" element={<EditDocumentType />} />
+              <Route path="academic/documentType/add" element={<EditDocumentType />} />
+              <Route path="academic/documentType/form" element={<EditDocumentType />} />
+              <Route path="academic/document-type/add" element={<EditDocumentType />} />
+              <Route path="academic/document-type/form" element={<EditDocumentType />} />
+              <Route path="academic/document-types/add" element={<EditDocumentType />} />
+              <Route path="academic/document-types/form" element={<EditDocumentType />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/documentType" action="edit" />}>
+              <Route path="academics/document-types/edit/:id" element={<EditDocumentType />} />
+              <Route path="academics/document-types/form/:id" element={<EditDocumentType />} />
+              <Route path="academic/documentType/form/:id" element={<EditDocumentType />} />
+              <Route path="academic/documentType/edit/:id" element={<EditDocumentType />} />
+              <Route path="academic/document-type/form/:id" element={<EditDocumentType />} />
+              <Route path="academic/document-type/edit/:id" element={<EditDocumentType />} />
+              <Route path="academic/document-types/form/:id" element={<EditDocumentType />} />
+              <Route path="academic/document-types/edit/:id" element={<EditDocumentType />} />
+            </Route>
             <Route path="academic/documentType" element={<Navigate to="/admin/academics/document-types" replace />} />
-            <Route path="academic/documentType/add" element={<EditDocumentType />} />
-            <Route path="academic/documentType/form" element={<EditDocumentType />} />
-            <Route path="academic/documentType/form/:id" element={<EditDocumentType />} />
-            <Route path="academic/documentType/edit/:id" element={<EditDocumentType />} />
             <Route path="academic/document-type" element={<Navigate to="/admin/academics/document-types" replace />} />
-            <Route path="academic/document-type/add" element={<EditDocumentType />} />
-            <Route path="academic/document-type/form" element={<EditDocumentType />} />
-            <Route path="academic/document-type/form/:id" element={<EditDocumentType />} />
-            <Route path="academic/document-type/edit/:id" element={<EditDocumentType />} />
             <Route path="academic/document-types" element={<Navigate to="/admin/academics/document-types" replace />} />
-            <Route path="academic/document-types/add" element={<EditDocumentType />} />
-            <Route path="academic/document-types/form" element={<EditDocumentType />} />
-            <Route path="academic/document-types/form/:id" element={<EditDocumentType />} />
-            <Route path="academic/document-types/edit/:id" element={<EditDocumentType />} />
-            <Route path="academics/routine" element={<RoutinesList />} />
-            <Route path="academics/routines" element={<RoutinesList />} />
-            <Route path="academics/routine/section/:classId" element={<RoutineSectionView />} />
-            <Route path="academics/routines/section/:classId" element={<RoutineSectionView />} />
-            <Route path="academics/routine/list/:classId/:sectionId" element={<RoutineTimetableView />} />
-            <Route path="academics/routines/list/:classId/:sectionId" element={<RoutineTimetableView />} />
+
+            {/* Academic Routines */}
+            <Route element={<ProtectedRoute module="academic/routine" action="view" />}>
+              <Route path="academics/routine" element={<RoutinesList />} />
+              <Route path="academics/routines" element={<RoutinesList />} />
+              <Route path="academics/routine/section/:classId" element={<RoutineSectionView />} />
+              <Route path="academics/routines/section/:classId" element={<RoutineSectionView />} />
+              <Route path="academics/routine/list/:classId/:sectionId" element={<RoutineTimetableView />} />
+              <Route path="academics/routines/list/:classId/:sectionId" element={<RoutineTimetableView />} />
+              <Route path="academic/routine/section/:classId" element={<RoutineSectionView />} />
+              <Route path="academic/routine/list/:classId/:sectionId" element={<RoutineTimetableView />} />
+              <Route path="academic/routines/section/:classId" element={<RoutineSectionView />} />
+              <Route path="academic/routines/list/:classId/:sectionId" element={<RoutineTimetableView />} />
+            </Route>
             <Route path="academic/routine" element={<Navigate to="/admin/academics/routines" replace />} />
-            <Route path="academic/routine/section/:classId" element={<RoutineSectionView />} />
-            <Route path="academic/routine/list/:classId/:sectionId" element={<RoutineTimetableView />} />
             <Route path="academic/routines" element={<Navigate to="/admin/academics/routines" replace />} />
-            <Route path="academic/routines/section/:classId" element={<RoutineSectionView />} />
-            <Route path="academic/routines/list/:classId/:sectionId" element={<RoutineTimetableView />} />
-            <Route path="academics/syllabus" element={<SyllabusList />} />
-            <Route path="academics/syllabus/add" element={<AddSyllabus />} />
-            <Route path="academics/syllabus/edit/:id" element={<EditSyllabus />} />
+
+            {/* Academic Syllabus */}
+            <Route element={<ProtectedRoute module="academic/syllabus" action="view" />}>
+              <Route path="academics/syllabus" element={<SyllabusList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/syllabus" action="add" />}>
+              <Route path="academics/syllabus/add" element={<AddSyllabus />} />
+              <Route path="academic/syllabus/add" element={<AddSyllabus />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/syllabus" action="edit" />}>
+              <Route path="academics/syllabus/edit/:id" element={<EditSyllabus />} />
+              <Route path="academic/syllabus/edit/:id" element={<EditSyllabus />} />
+            </Route>
             <Route path="academic/syllabus" element={<Navigate to="/admin/academics/syllabus" replace />} />
-            <Route path="academic/syllabus/add" element={<AddSyllabus />} />
-            <Route path="academic/syllabus/edit/:id" element={<EditSyllabus />} />
-            <Route path="academics/assignment-types" element={<AssignmentTypesList />} />
-            <Route path="academics/assignment-types/add" element={<AddAssignmentType />} />
-            <Route path="academics/assignment-types/edit/:id" element={<EditAssignmentType />} />
+
+            {/* Academic Assignment Types */}
+            <Route element={<ProtectedRoute module="academic/assignmenttype" action="view" />}>
+              <Route path="academics/assignment-types" element={<AssignmentTypesList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/assignmenttype" action="add" />}>
+              <Route path="academics/assignment-types/add" element={<AddAssignmentType />} />
+              <Route path="academic/assignmenttype/add" element={<AddAssignmentType />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/assignmenttype" action="edit" />}>
+              <Route path="academics/assignment-types/edit/:id" element={<EditAssignmentType />} />
+              <Route path="academic/assignmenttype/edit/:id" element={<EditAssignmentType />} />
+            </Route>
             <Route path="academic/assignmenttype" element={<Navigate to="/admin/academics/assignment-types" replace />} />
-            <Route path="academic/assignmenttype/add" element={<AddAssignmentType />} />
-            <Route path="academic/assignmenttype/edit/:id" element={<EditAssignmentType />} />
-            <Route path="academics/assignments" element={<AssignmentsList />} />
-            <Route path="academics/assignments/section/:classId" element={<AssignmentSectionView />} />
-            <Route path="academics/assignments/subject/:classId/:sectionId" element={<AssignmentSubjectView />} />
-            <Route path="academics/assignments/viewAssignment/:subjectId/:classId/:sectionId" element={<ViewSubjectAssignments />} />
-            <Route path="academics/assignments/addForm/:subjectId/:classId/:sectionId" element={<AddAssignmentForm />} />
-            <Route path="academics/assignments/editForm/:id" element={<AddAssignmentForm />} />
+
+            {/* Academic Assignments */}
+            <Route element={<ProtectedRoute module="academic/assignment" action="view" />}>
+              <Route path="academics/assignments" element={<AssignmentsList />} />
+              <Route path="academics/assignments/section/:classId" element={<AssignmentSectionView />} />
+              <Route path="academics/assignments/subject/:classId/:sectionId" element={<AssignmentSubjectView />} />
+              <Route path="academics/assignments/viewAssignment/:subjectId/:classId/:sectionId" element={<ViewSubjectAssignments />} />
+              <Route path="academic/assignment/section/:classId" element={<AssignmentSectionView />} />
+              <Route path="academic/assignment/subject/:classId/:sectionId" element={<AssignmentSubjectView />} />
+              <Route path="academic/assignment/viewAssignment/:subjectId/:classId/:sectionId" element={<ViewSubjectAssignments />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/assignment" action="add" />}>
+              <Route path="academics/assignments/addForm/:subjectId/:classId/:sectionId" element={<AddAssignmentForm />} />
+              <Route path="academic/assignment/addForm/:subjectId/:classId/:sectionId" element={<AddAssignmentForm />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/assignment" action="edit" />}>
+              <Route path="academics/assignments/editForm/:id" element={<AddAssignmentForm />} />
+              <Route path="academic/assignment/editForm/:id" element={<AddAssignmentForm />} />
+            </Route>
             <Route path="academic/assignment" element={<Navigate to="/admin/academics/assignments" replace />} />
-            <Route path="academic/assignment/section/:classId" element={<AssignmentSectionView />} />
-            <Route path="academic/assignment/subject/:classId/:sectionId" element={<AssignmentSubjectView />} />
-            <Route path="academic/assignment/viewAssignment/:subjectId/:classId/:sectionId" element={<ViewSubjectAssignments />} />
-            <Route path="academic/assignment/addForm/:subjectId/:classId/:sectionId" element={<AddAssignmentForm />} />
-            <Route path="academic/assignment/editForm/:id" element={<AddAssignmentForm />} />
-            <Route path="academics/study-material" element={<StudyMaterialsList />} />
-            <Route path="academics/study-materials" element={<StudyMaterialsList />} />
-            <Route path="academics/study-material/add" element={<EditStudyMaterial />} />
-            <Route path="academics/study-materials/add" element={<EditStudyMaterial />} />
-            <Route path="academics/study-material/edit/:id" element={<EditStudyMaterial />} />
-            <Route path="academics/study-materials/edit/:id" element={<EditStudyMaterial />} />
-            <Route path="academics/study-material/view/:id" element={<ViewStudyMaterial />} />
-            <Route path="academics/study-materials/view/:id" element={<ViewStudyMaterial />} />
-            <Route path="academic/material/create" element={<EditStudyMaterial />} />
-            <Route path="academic/material/form" element={<EditStudyMaterial />} />
-            <Route path="academic/material/form/:id" element={<EditStudyMaterial />} />
-            <Route path="academic/material/edit/:id" element={<EditStudyMaterial />} />
-            <Route path="academic/material/view/:id" element={<ViewStudyMaterial />} />
-            <Route path="teachers" element={<TeacherList />} />
-            <Route path="teachers/add" element={<AddTeacher />} />
-            <Route path="teachers/add_teacher" element={<AddTeacher />} />
-            <Route path="teachers/edit/:id" element={<AddTeacher />} />
-            <Route path="teachers/edit_teacher/:id" element={<AddTeacher />} />
-            <Route path="teachers/:id" element={<TeacherDetails />} />
-            <Route path="teachers/details/:id" element={<TeacherDetails />} />
-            <Route path="students" element={<StudentList />} />
-            <Route path="students/add" element={<AddStudent />} />
-            <Route path="students/add_student" element={<AddStudent />} />
-            <Route path="students/edit/:id" element={<AddStudent />} />
-            <Route path="students/edit_student/:id" element={<AddStudent />} />
-            <Route path="students/:id" element={<StudentDetails />} />
-            <Route path="parents" element={<ParentList />} />
-            <Route path="staff" element={<StaffList />} />
-            <Route path="staff/add" element={<AddUser />} />
-            <Route path="staff/edit/:id" element={<AddUser />} />
-            <Route path="users" element={<StaffList />} />
-            <Route path="users/add" element={<AddUser />} />
-            <Route path="users/edit/:id" element={<AddUser />} />
+
+            {/* Academic Study Material */}
+            <Route element={<ProtectedRoute module="academic/material" action="view" />}>
+              <Route path="academics/study-material" element={<StudyMaterialsList />} />
+              <Route path="academics/study-materials" element={<StudyMaterialsList />} />
+              <Route path="academics/study-material/view/:id" element={<ViewStudyMaterial />} />
+              <Route path="academics/study-materials/view/:id" element={<ViewStudyMaterial />} />
+              <Route path="academic/material/view/:id" element={<ViewStudyMaterial />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/material" action="add" />}>
+              <Route path="academics/study-material/add" element={<EditStudyMaterial />} />
+              <Route path="academics/study-materials/add" element={<EditStudyMaterial />} />
+              <Route path="academic/material/create" element={<EditStudyMaterial />} />
+              <Route path="academic/material/form" element={<EditStudyMaterial />} />
+            </Route>
+            <Route element={<ProtectedRoute module="academic/material" action="edit" />}>
+              <Route path="academics/study-material/edit/:id" element={<EditStudyMaterial />} />
+              <Route path="academics/study-materials/edit/:id" element={<EditStudyMaterial />} />
+              <Route path="academic/material/form/:id" element={<EditStudyMaterial />} />
+              <Route path="academic/material/edit/:id" element={<EditStudyMaterial />} />
+            </Route>
+
+            {/* Teachers */}
+            <Route element={<ProtectedRoute module="staff/teachers" action="view" />}>
+              <Route path="teachers" element={<TeacherList />} />
+              <Route path="teachers/:id" element={<TeacherDetails />} />
+              <Route path="teachers/details/:id" element={<TeacherDetails />} />
+            </Route>
+            <Route element={<ProtectedRoute module="staff/teachers" action="add" />}>
+              <Route path="teachers/add" element={<AddTeacher />} />
+              <Route path="teachers/add_teacher" element={<AddTeacher />} />
+            </Route>
+            <Route element={<ProtectedRoute module="staff/teachers" action="edit" />}>
+              <Route path="teachers/edit/:id" element={<AddTeacher />} />
+              <Route path="teachers/edit_teacher/:id" element={<AddTeacher />} />
+            </Route>
+
+            {/* Students */}
+            <Route element={<ProtectedRoute module="ward/students" action="view" />}>
+              <Route path="students" element={<StudentList />} />
+              <Route path="students/:id" element={<StudentDetails />} />
+            </Route>
+            <Route element={<ProtectedRoute module="ward/students" action="add" />}>
+              <Route path="students/add" element={<AddStudent />} />
+              <Route path="students/add_student" element={<AddStudent />} />
+            </Route>
+            <Route element={<ProtectedRoute module="ward/students" action="edit" />}>
+              <Route path="students/edit/:id" element={<AddStudent />} />
+              <Route path="students/edit_student/:id" element={<AddStudent />} />
+            </Route>
+
+            {/* Parents */}
+            <Route element={<ProtectedRoute module="ward/parents" action="view" />}>
+              <Route path="parents" element={<ParentList />} />
+            </Route>
+
+            {/* Staff / Users */}
+            <Route element={<ProtectedRoute module="staff/users" action="view" />}>
+              <Route path="staff" element={<StaffList />} />
+              <Route path="users" element={<StaffList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="staff/users" action="add" />}>
+              <Route path="staff/add" element={<AddUser />} />
+              <Route path="users/add" element={<AddUser />} />
+            </Route>
+            <Route element={<ProtectedRoute module="staff/users" action="edit" />}>
+              <Route path="staff/edit/:id" element={<AddUser />} />
+              <Route path="users/edit/:id" element={<AddUser />} />
+            </Route>
 
             {/* Attendance Routes */}
             <Route path="attendance" element={<Navigate to="/admin/attendance/student" replace />} />
-            <Route path="attendance/student" element={<StudentAttendanceList />} />
-            <Route path="attendance/student/add" element={<AddStudentAttendance />} />
-            <Route path="attendance/teacher" element={<TeacherAttendanceList />} />
-            <Route path="attendance/teacher/add" element={<AddTeacherAttendance />} />
-            <Route path="attendance/staff" element={<StaffAttendanceList />} />
-            <Route path="attendance/staff/add" element={<AddStaffAttendance />} />
+            <Route element={<ProtectedRoute module="attendance/student" action="view" />}>
+              <Route path="attendance/student" element={<StudentAttendanceList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="attendance/student" action="add" />}>
+              <Route path="attendance/student/add" element={<AddStudentAttendance />} />
+            </Route>
+            <Route element={<ProtectedRoute module="attendance/teacher" action="view" />}>
+              <Route path="attendance/teacher" element={<TeacherAttendanceList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="attendance/teacher" action="add" />}>
+              <Route path="attendance/teacher/add" element={<AddTeacherAttendance />} />
+            </Route>
+            <Route element={<ProtectedRoute module="attendance/staff" action="view" />}>
+              <Route path="attendance/staff" element={<StaffAttendanceList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="attendance/staff" action="add" />}>
+              <Route path="attendance/staff/add" element={<AddStaffAttendance />} />
+            </Route>
 
             {/* Leaves Routes */}
-            <Route path="leaves" element={<LeaveList />} />
-            <Route path="leaves/apply" element={<ApplyLeave />} />
-            <Route path="leaves/add" element={<ApplyLeave />} />
-            <Route path="leaves/form" element={<ApplyLeave />} />
-            <Route path="leaves/create" element={<ApplyLeave />} />
-            <Route path="leaves/approve" element={<LeaveList />} />
-            <Route path="leaves/approve/add" element={<ApplyLeave />} />
-            <Route path="leaves/approve/form" element={<ApplyLeave />} />
-            <Route path="leaves/approve/form/:id" element={<ApplyLeave />} />
-            <Route path="leaves/approved" element={<LeaveList />} />
-            <Route path="leaves/approved/add" element={<ApplyLeave />} />
-            <Route path="leaves/assign" element={<LeaveTypes />} />
-            <Route path="leaves/assign/add" element={<AddLeaveAssign />} />
-            <Route path="leaves/assign/edit/:id" element={<AddLeaveAssign />} />
-            <Route path="leaves/assign/form" element={<AddLeaveAssign />} />
-            <Route path="leaves/assign/form/:id" element={<AddLeaveAssign />} />
-            <Route path="leaves/details/:id" element={<LeaveDetails />} />
-            <Route path="leaves/status/:id" element={<LeaveDetails />} />
-            <Route path="leaves/types" element={<LeaveTypes />} />
             <Route path="leave" element={<Navigate to="/admin/leaves" replace />} />
-            <Route path="leave/apply" element={<ApplyLeave />} />
-            <Route path="leave/add" element={<ApplyLeave />} />
+            <Route element={<ProtectedRoute module="leaves/leaveapply" action="view" />}>
+              <Route path="leaves" element={<LeaveList />} />
+              <Route path="leaves/approve" element={<LeaveList />} />
+              <Route path="leaves/approved" element={<LeaveList />} />
+              <Route path="leaves/details/:id" element={<LeaveDetails />} />
+              <Route path="leaves/status/:id" element={<LeaveDetails />} />
+            </Route>
+            <Route element={<ProtectedRoute module="leaves/leaveapply" action="add" />}>
+              <Route path="leaves/apply" element={<ApplyLeave />} />
+              <Route path="leaves/add" element={<ApplyLeave />} />
+              <Route path="leaves/form" element={<ApplyLeave />} />
+              <Route path="leaves/create" element={<ApplyLeave />} />
+              <Route path="leaves/approve/add" element={<ApplyLeave />} />
+              <Route path="leaves/approve/form" element={<ApplyLeave />} />
+              <Route path="leaves/approved/add" element={<ApplyLeave />} />
+              <Route path="leave/apply" element={<ApplyLeave />} />
+              <Route path="leave/add" element={<ApplyLeave />} />
+              <Route path="leave/form" element={<ApplyLeave />} />
+            </Route>
+            <Route element={<ProtectedRoute module="leaves/leaveassign" action="view" />}>
+              <Route path="leaves/assign" element={<LeaveTypes />} />
+              <Route path="leaves/types" element={<LeaveTypes />} />
+            </Route>
+            <Route element={<ProtectedRoute module="leaves/leaveassign" action="add" />}>
+              <Route path="leaves/assign/add" element={<AddLeaveAssign />} />
+              <Route path="leaves/assign/form" element={<AddLeaveAssign />} />
+            </Route>
+            <Route element={<ProtectedRoute module="leaves/leaveassign" action="edit" />}>
+              <Route path="leaves/assign/edit/:id" element={<AddLeaveAssign />} />
+              <Route path="leaves/assign/form/:id" element={<AddLeaveAssign />} />
+            </Route>
             <Route path="leave/form" element={<ApplyLeave />} />
 
             {/* Transport Routes */}
@@ -750,10 +905,16 @@ function AppContent() {
             <Route path="payroll/salaries/add" element={<AddSalary />} />
 
             {/* Roles & Permissions Routes */}
-            <Route path="roles-permissions" element={<RolesList />} />
-            <Route path="roles-permissions/add" element={<RolePermissionForm />} />
-            <Route path="roles-permissions/edit/:id" element={<RolePermissionForm />} />
             <Route path="permissions" element={<Navigate to="/admin/roles-permissions" replace />} />
+            <Route element={<ProtectedRoute module="permissions/permission" action="view" />}>
+              <Route path="roles-permissions" element={<RolesList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="permissions/permission" action="add" />}>
+              <Route path="roles-permissions/add" element={<RolePermissionForm />} />
+            </Route>
+            <Route element={<ProtectedRoute module="permissions/permission" action="edit" />}>
+              <Route path="roles-permissions/edit/:id" element={<RolePermissionForm />} />
+            </Route>
 
             {/* Examination Routes */}
             <Route path="examinations" element={<Navigate to="/admin/examinations/exams" replace />} />

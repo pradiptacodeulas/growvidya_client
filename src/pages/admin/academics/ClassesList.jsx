@@ -5,8 +5,10 @@ import adminAcademicApi from '../../../api/adminAcademic.api';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
+import usePermission from '../../../hooks/usePermission';
 
 const ClassesList = () => {
+  const { can } = usePermission();
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -100,12 +102,16 @@ const ClassesList = () => {
         header: 'Class Name',
         sortable: true,
         cell: ({ value, row }) => (
-          <Link
-            to={`/admin/academics/classes/edit/${encodeParam(row.id)}`}
-            className="fw-semibold text-primary text-decoration-none"
-          >
-            {value}
-          </Link>
+          can('academic/classes', 'edit') ? (
+            <Link
+              to={`/admin/academics/classes/edit/${encodeParam(row.id)}`}
+              className="fw-semibold text-primary text-decoration-none"
+            >
+              {value}
+            </Link>
+          ) : (
+            <span className="fw-semibold text-dark">{value}</span>
+          )
         ),
       },
       {
@@ -141,12 +147,12 @@ const ClassesList = () => {
         cell: ({ row }) => (
           <TableActionMenu
             items={[
-              {
+              can('academic/classes', 'edit') && {
                 label: 'Edit',
                 icon: 'ti ti-edit-circle',
                 to: `/admin/academics/classes/edit/${encodeParam(row.id)}`,
               },
-              {
+              can('academic/classes', 'delete') && {
                 label: 'Delete',
                 icon: 'ti ti-trash-x',
                 variant: 'danger',
@@ -157,7 +163,7 @@ const ClassesList = () => {
         ),
       },
     ],
-    []
+    [can]
   );
 
   return (
@@ -216,12 +222,14 @@ const ClassesList = () => {
             ]}
           />
 
-          <Link
-            to="/admin/academics/classes/add"
-            className="btn btn-primary d-flex align-items-center"
-          >
-            <i className="ti ti-square-rounded-plus me-2"></i>Add Class
-          </Link>
+          {can('academic/classes', 'add') && (
+            <Link
+              to="/admin/academics/classes/add"
+              className="btn btn-primary d-flex align-items-center"
+            >
+              <i className="ti ti-square-rounded-plus me-2"></i>Add Class
+            </Link>
+          )}
         </div>
       </div>
 

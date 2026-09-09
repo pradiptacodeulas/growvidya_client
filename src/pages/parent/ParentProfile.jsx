@@ -393,7 +393,7 @@ const ParentProfile = () => {
 
                 <h5 className="mb-0 fw-bold text-dark">{fullName}</h5>
                 <span className="badge bg-primary-subtle text-primary fs-11 mt-1 mb-1">Parent Account</span>
-                <p className="text-muted fs-12 mb-3">{parent?.schoolName || 'Growvidya School'}</p>
+                <p className="text-muted fs-12 mb-3">{parent?.schoolName || parent?.school_name || ''}</p>
 
                 <div className="w-100 border-top pt-2 text-start fs-12">
                   <div className="d-flex justify-content-between py-1">

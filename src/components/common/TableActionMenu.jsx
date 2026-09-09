@@ -32,6 +32,11 @@ const TableActionMenu = ({
   iconClassName = 'ti ti-dots-vertical fs-15 text-muted',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const validItems = (items || []).filter(Boolean);
+
+  if (validItems.length === 0 && !children) {
+    return <span className="text-muted fs-12">-</span>;
+  }
 
   const { refs, floatingStyles, context } = useFloating({
     open: isOpen,
@@ -42,7 +47,7 @@ const TableActionMenu = ({
     middleware: [
       offset(6),
       flip({
-        fallbackPlacements: ['top-end', 'bottom-start', 'top-start', 'left-start', 'right-start'],
+        fallbackPlacements: ['top-end', 'bottom-end', 'top-start', 'bottom-start', 'left-start', 'right-start'],
         padding: 8,
       }),
       shift({ padding: 8 }),
@@ -95,7 +100,7 @@ const TableActionMenu = ({
 
     return (
       <ul className="list-unstyled mb-0 py-1" role="menu">
-        {items.map((item, index) => {
+        {validItems.map((item, index) => {
           if (item.divider) {
             return <li key={`divider-${index}`} className="dropdown-divider my-1 border-light" />;
           }
@@ -179,7 +184,7 @@ const TableActionMenu = ({
   };
 
   const menuElement = isMounted && (
-    <FloatingFocusManager context={context} modal={false}>
+    <FloatingFocusManager context={context} modal={false} initialFocus={-1} returnFocus={true}>
       <div
         ref={refs.setFloating}
         style={{
