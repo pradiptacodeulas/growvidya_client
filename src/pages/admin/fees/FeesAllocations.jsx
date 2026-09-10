@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
-import adminStudentApi from '../../../api/adminStudent.api';
 import { getPaginationRange } from '../../../utils/pagination.util';
 
 const FeesAllocations = () => {
@@ -22,19 +21,6 @@ const FeesAllocations = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
-
-  // Modal State
-  const [showModal, setShowModal] = useState(false);
-  const [allocating, setAllocating] = useState(false);
-  const [modalClassId, setModalClassId] = useState('');
-  const [modalStructureId, setModalStructureId] = useState('');
-  const [modalYearId, setModalYearId] = useState('');
-  const [allowPartial, setAllowPartial] = useState(true);
-
-  // Students in selected class
-  const [students, setStudents] = useState([]);
-  const [selectedStudentIds, setSelectedStudentIds] = useState([]);
-  const [loadingStudents, setLoadingStudents] = useState(false);
 
   useEffect(() => {
     fetchInitialDropdowns();
@@ -105,94 +91,6 @@ const FeesAllocations = () => {
     }
   };
 
-  const handleOpenAssignModal = () => {
-    const currentYear =
-      academicYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
-      academicYears[0];
-    setModalClassId(classes.length > 0 ? String(classes[0].id) : '');
-    setModalStructureId(structures.length > 0 ? String(structures[0].id) : '');
-    setModalYearId(currentYear ? String(currentYear.id) : '');
-    setAllowPartial(true);
-    setShowModal(true);
-
-    if (classes.length > 0) {
-      loadStudentsForClass(classes[0].id);
-    }
-  };
-
-  const loadStudentsForClass = async (classId) => {
-    if (!classId) {
-      setStudents([]);
-      setSelectedStudentIds([]);
-      return;
-    }
-
-    try {
-      setLoadingStudents(true);
-      const res = await adminStudentApi.getAllStudents({ class_id: classId, status: 1 });
-      const list = res?.data?.students || [];
-      setStudents(list);
-      setSelectedStudentIds(list.map((s) => s.id));
-    } catch (err) {
-      console.error('Failed to load students for class:', err);
-    } finally {
-      setLoadingStudents(false);
-    }
-  };
-
-  const handleModalClassChange = (classId) => {
-    setModalClassId(classId);
-    loadStudentsForClass(classId);
-  };
-
-  const handleToggleStudent = (studentId) => {
-    setSelectedStudentIds((prev) =>
-      prev.includes(studentId)
-        ? prev.filter((id) => id !== studentId)
-        : [...prev, studentId]
-    );
-  };
-
-  const handleSelectAllStudents = () => {
-    if (selectedStudentIds.length === students.length) {
-      setSelectedStudentIds([]);
-    } else {
-      setSelectedStudentIds(students.map((s) => s.id));
-    }
-  };
-
-  const handleAssignSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!modalStructureId) {
-      toast.warning('Please select Fee Structure.');
-      return;
-    }
-    if (selectedStudentIds.length === 0) {
-      toast.warning('Please select at least one student to allocate.');
-      return;
-    }
-
-    try {
-      setAllocating(true);
-      const res = await adminFeesApi.allocateStructureToStudents({
-        fee_structure_id: modalStructureId,
-        academic_year_id: modalYearId || undefined,
-        student_ids: selectedStudentIds,
-        allow_partial_payment: allowPartial ? 1 : 0,
-      });
-
-      toast.success(res?.message || 'Fee structure successfully assigned to selected students.');
-      setShowModal(false);
-      loadAllocations(1, pageSize);
-    } catch (err) {
-      console.error('Failed to assign structure:', err);
-      toast.error(err.response?.data?.message || err.message || 'Failed to allocate fee structure.');
-    } finally {
-      setAllocating(false);
-    }
-  };
-
   const handleDelete = async (id, studentName) => {
     if (!window.confirm(`Are you sure you want to remove fee allocation for "${studentName}"?`)) {
       return;
@@ -239,13 +137,12 @@ const FeesAllocations = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
+          <Link
+            to="/admin/fees/structures"
             className="btn btn-primary d-flex align-items-center"
-            onClick={handleOpenAssignModal}
           >
-            <i className="ti ti-user-plus me-1"></i> Assign Fee Structure
-          </button>
+            <i className="ti ti-layout-grid me-1"></i> Fee Structures
+          </Link>
         </div>
       </div>
       {/* /Page Header */}
@@ -454,204 +351,6 @@ const FeesAllocations = () => {
           )}
         </div>
       </div>
-
-      {/* Assign Fee Structure Modal */}
-      {showModal && (
-        <div
-          className="modal fade show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-          tabIndex="-1"
-          role="dialog"
-        >
-          <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
-            <div className="modal-content border-0 shadow-lg">
-              <form onSubmit={handleAssignSubmit}>
-                <div className="modal-header py-3 px-4 border-bottom">
-                  <h5 className="modal-title text-dark fw-bold">
-                    <i className="ti ti-user-plus me-2 text-primary"></i>Assign Fee Structure to Students
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowModal(false)}
-                    aria-label="Close"
-                  ></button>
-                </div>
-
-                <div className="modal-body p-4">
-                  <div className="row g-3 mb-3">
-                    <div className="col-md-4">
-                      <label className="form-label fw-semibold">
-                        Academic Year <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        className="form-select"
-                        required
-                        value={modalYearId}
-                        onChange={(e) => setModalYearId(e.target.value)}
-                      >
-                        <option value="">-- Select Year --</option>
-                        {academicYears.map((ay) => (
-                          <option key={ay.id} value={ay.id}>
-                            {ay.academic_year}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label fw-semibold">
-                        Target Class <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        className="form-select"
-                        required
-                        value={modalClassId}
-                        onChange={(e) => handleModalClassChange(e.target.value)}
-                      >
-                        <option value="">-- Select Class --</option>
-                        {classes.map((cls) => (
-                          <option key={cls.id} value={cls.id}>
-                            {cls.class_name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label fw-semibold">
-                        Fee Structure <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        className="form-select"
-                        required
-                        value={modalStructureId}
-                        onChange={(e) => setModalStructureId(e.target.value)}
-                      >
-                        <option value="">-- Select Structure --</option>
-                        {structures.map((st) => (
-                          <option key={st.id} value={st.id}>
-                            {st.name} ({st.frequency})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="form-check form-switch mb-3">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      id="allowPartialSwitch"
-                      checked={allowPartial}
-                      onChange={(e) => setAllowPartial(e.target.checked)}
-                    />
-                    <label className="form-check-label fw-semibold" htmlFor="allowPartialSwitch">
-                      Allow Partial Fee Payments for assigned students
-                    </label>
-                  </div>
-
-                  <hr className="my-3" />
-
-                  {/* Student Selection List */}
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <h6 className="fw-bold text-dark mb-0">
-                      Select Students ({selectedStudentIds.length} of {students.length} Selected)
-                    </h6>
-                    {students.length > 0 && (
-                      <button
-                        type="button"
-                        className="btn btn-sm btn-outline-primary"
-                        onClick={handleSelectAllStudents}
-                      >
-                        {selectedStudentIds.length === students.length
-                          ? 'Deselect All'
-                          : 'Select All'}
-                      </button>
-                    )}
-                  </div>
-
-                  {loadingStudents ? (
-                    <div className="text-center py-4 text-muted">
-                      <div className="spinner-border text-primary spinner-border-sm me-2"></div>
-                      Loading students in selected class...
-                    </div>
-                  ) : students.length === 0 ? (
-                    <div className="alert alert-warning py-2 mb-0 fs-13">
-                      No active students found in this class.
-                    </div>
-                  ) : (
-                    <div
-                      className="border rounded p-2"
-                      style={{ maxHeight: '240px', overflowY: 'auto' }}
-                    >
-                      <div className="row g-2">
-                        {students.map((st) => {
-                          const isSelected = selectedStudentIds.includes(st.id);
-                          return (
-                            <div key={`st-${st.id}`} className="col-md-6">
-                              <div
-                                onClick={() => handleToggleStudent(st.id)}
-                                className={`p-2 rounded border d-flex align-items-center justify-content-between cursor-pointer ${
-                                  isSelected ? 'bg-primary-subtle border-primary' : 'bg-light'
-                                }`}
-                                style={{ cursor: 'pointer' }}
-                              >
-                                <div>
-                                  <div className="fw-semibold text-dark fs-13">
-                                    {st.first_name} {st.last_name || ''}
-                                  </div>
-                                  <small className="text-muted fs-11">
-                                    Adm: {st.admission_number || 'N/A'}{' '}
-                                    {st.roll_number && `• Roll: ${st.roll_number}`}
-                                  </small>
-                                </div>
-                                <input
-                                  type="checkbox"
-                                  className="form-check-input mt-0"
-                                  checked={isSelected}
-                                  onChange={() => {}}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="modal-footer bg-light">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowModal(false)}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={allocating || selectedStudentIds.length === 0}
-                  >
-                    {allocating ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Allocating...
-                      </>
-                    ) : (
-                      <>
-                        <i className="ti ti-check me-1"></i>
-                        Assign Structure ({selectedStudentIds.length})
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

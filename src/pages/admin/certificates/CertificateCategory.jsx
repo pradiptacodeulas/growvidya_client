@@ -1,31 +1,20 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   fetchCertificateCategoriesApi,
-  createCertificateCategoryApi,
-  updateCertificateCategoryApi,
   deleteCertificateCategoryApi,
 } from '../../../api/adminCertificate.api';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import { encodeParam } from '../../../utils/idHelper';
 
 const CertificateCategory = () => {
+  const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [deleteModal, setDeleteModal] = useState({ show: false, id: null, name: '' });
-
-  // Modal State for Add/Edit
-  const [categoryModal, setCategoryModal] = useState({
-    show: false,
-    isEdit: false,
-    id: null,
-    category_name: '',
-    sort_order: 0,
-    status: 1,
-  });
 
   const loadData = useCallback(async () => {
     try {
@@ -50,67 +39,7 @@ const CertificateCategory = () => {
     loadData();
   }, [loadData]);
 
-  const handleOpenAdd = () => {
-    setCategoryModal({
-      show: true,
-      isEdit: false,
-      id: null,
-      category_name: '',
-      sort_order: 0,
-      status: 1,
-    });
-  };
-
-  const handleOpenEdit = (cat) => {
-    setCategoryModal({
-      show: true,
-      isEdit: true,
-      id: cat.id,
-      category_name: cat.category_name || '',
-      sort_order: cat.sort_order || 0,
-      status: cat.status !== undefined ? Number(cat.status) : 1,
-    });
-  };
-
-  const handleSaveCategory = async (e) => {
-    e.preventDefault();
-    if (!categoryModal.category_name.trim()) {
-      toast.error('Category Name is required.');
-      return;
-    }
-    try {
-      setSubmitting(true);
-      if (categoryModal.isEdit) {
-        await updateCertificateCategoryApi(categoryModal.id, {
-          category_name: categoryModal.category_name.trim(),
-          sort_order: Number(categoryModal.sort_order) || 0,
-          status: Number(categoryModal.status),
-        });
-        toast.success('Certificate category updated successfully.');
-      } else {
-        await createCertificateCategoryApi({
-          category_name: categoryModal.category_name.trim(),
-          sort_order: Number(categoryModal.sort_order) || 0,
-          status: Number(categoryModal.status),
-        });
-        toast.success('Certificate category added successfully.');
-      }
-      setCategoryModal({
-        show: false,
-        isEdit: false,
-        id: null,
-        category_name: '',
-        sort_order: 0,
-        status: 1,
-      });
-      loadData();
-    } catch (err) {
-      console.error('Error saving category:', err);
-      toast.error(err.response?.data?.message || 'Failed to save certificate category.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const [deleting, setDeleting] = useState(false);
 
   const handleOpenDelete = (cat) => {
     setDeleteModal({ show: true, id: cat.id, name: cat.category_name });
@@ -119,7 +48,7 @@ const CertificateCategory = () => {
   const handleConfirmDelete = async () => {
     if (!deleteModal.id) return;
     try {
-      setSubmitting(true);
+      setDeleting(true);
       await deleteCertificateCategoryApi(deleteModal.id);
       toast.success('Certificate category deleted successfully.');
       setDeleteModal({ show: false, id: null, name: '' });
@@ -128,7 +57,7 @@ const CertificateCategory = () => {
       console.error('Error deleting category:', err);
       toast.error(err.response?.data?.message || 'Failed to delete category.');
     } finally {
-      setSubmitting(false);
+      setDeleting(false);
     }
   };
 
@@ -234,7 +163,7 @@ const CertificateCategory = () => {
               {
                 label: 'Edit',
                 icon: 'ti ti-edit-circle text-primary',
-                onClick: () => handleOpenEdit(row),
+                onClick: () => navigate(`/admin/certificates/category/edit/${encodeParam(row.id)}`),
               },
               {
                 label: 'Delete',
@@ -247,7 +176,7 @@ const CertificateCategory = () => {
         ),
       },
     ],
-    []
+    [navigate]
   );
 
   return (
@@ -306,13 +235,12 @@ const CertificateCategory = () => {
             ]}
           />
 
-          <button
-            type="button"
-            onClick={handleOpenAdd}
+          <Link
+            to="/admin/certificates/category/add"
             className="btn btn-primary d-flex align-items-center"
           >
             <i className="ti ti-square-rounded-plus me-2"></i>Add Category
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -330,107 +258,6 @@ const CertificateCategory = () => {
         searchPlaceholder="Search categories..."
         emptyMessage="No certificate categories found."
       />
-
-      {/* Add / Edit Category Modal */}
-      {categoryModal.show && (
-        <div
-          className="modal fade show d-block"
-          tabIndex="-1"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow">
-              <div className="modal-header">
-                <h5 className="modal-title fw-bold">
-                  {categoryModal.isEdit ? 'Edit Certificate Category' : 'Add Certificate Category'}
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() =>
-                    setCategoryModal({
-                      show: false,
-                      isEdit: false,
-                      id: null,
-                      category_name: '',
-                      sort_order: 0,
-                      status: 1,
-                    })
-                  }
-                ></button>
-              </div>
-              <form onSubmit={handleSaveCategory}>
-                <div className="modal-body p-4">
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">
-                      Category Name <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="e.g. Transfer Certificate, Bonafide Certificate"
-                      value={categoryModal.category_name}
-                      onChange={(e) =>
-                        setCategoryModal((prev) => ({ ...prev, category_name: e.target.value }))
-                      }
-                      required
-                    />
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">Sort Order</label>
-                    <input
-                      type="number"
-                      className="form-control"
-                      placeholder="0"
-                      value={categoryModal.sort_order}
-                      onChange={(e) =>
-                        setCategoryModal((prev) => ({ ...prev, sort_order: e.target.value }))
-                      }
-                    />
-                  </div>
-
-                  <div className="mb-3">
-                    <label className="form-label fw-semibold">Status</label>
-                    <select
-                      className="form-select"
-                      value={categoryModal.status}
-                      onChange={(e) =>
-                        setCategoryModal((prev) => ({ ...prev, status: Number(e.target.value) }))
-                      }
-                    >
-                      <option value={1}>Active</option>
-                      <option value={2}>Inactive</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="modal-footer">
-                  <button
-                    type="button"
-                    className="btn btn-light"
-                    onClick={() =>
-                      setCategoryModal({
-                        show: false,
-                        isEdit: false,
-                        id: null,
-                        category_name: '',
-                        sort_order: 0,
-                        status: 1,
-                      })
-                    }
-                  >
-                    Cancel
-                  </button>
-                  <button type="submit" className="btn btn-primary" disabled={submitting}>
-                    {submitting ? 'Saving...' : categoryModal.isEdit ? 'Update Category' : 'Save Category'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Delete Confirmation Modal */}
       {deleteModal.show && (
@@ -461,9 +288,9 @@ const CertificateCategory = () => {
                     type="button"
                     className="btn btn-danger"
                     onClick={handleConfirmDelete}
-                    disabled={submitting}
+                    disabled={deleting}
                   >
-                    {submitting ? 'Deleting...' : 'Delete'}
+                    {deleting ? 'Deleting...' : 'Delete'}
                   </button>
                 </div>
               </div>

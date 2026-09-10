@@ -7,6 +7,12 @@ import {
   fetchClassesApi,
   deleteSyllabusApi,
 } from '../../../api/adminAcademic.api';
+import {
+  fetchTeacherSyllabusApi,
+  fetchTeacherAcademicYearsApi,
+  fetchTeacherClassesApi,
+  deleteTeacherSyllabusApi,
+} from '../../../api/teacherAcademic.api';
 import { encodeParam } from '../../../utils/idHelper';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 
@@ -46,6 +52,9 @@ const getStatusBadge = (status) => {
 };
 
 const SyllabusList = () => {
+  const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
+  const basePath = isTeacher ? '/teacher' : '/admin';
+
   const [academicYears, setAcademicYears] = useState([]);
   const [classes, setClasses] = useState([]);
   const [syllabusList, setSyllabusList] = useState([]);
@@ -79,9 +88,12 @@ const SyllabusList = () => {
   const loadFilters = async () => {
     try {
       setLoading(true);
+      const fetchAcademicYears = isTeacher ? fetchTeacherAcademicYearsApi : fetchAcademicYearsApi;
+      const fetchClasses = isTeacher ? fetchTeacherClassesApi : fetchClassesApi;
+
       const [ayRes, clsRes] = await Promise.all([
-        fetchAcademicYearsApi().catch(() => ({ data: [] })),
-        fetchClassesApi().catch(() => ({ data: [] })),
+        fetchAcademicYears().catch(() => ({ data: [] })),
+        fetchClasses().catch(() => ({ data: [] })),
       ]);
 
       const ayList = Array.isArray(ayRes?.data) ? ayRes.data : Array.isArray(ayRes) ? ayRes : [];
@@ -140,7 +152,8 @@ const SyllabusList = () => {
         params.status = statusVal;
       }
 
-      const res = await fetchSyllabusListApi(params);
+      const fetchSyllabus = isTeacher ? fetchTeacherSyllabusApi : fetchSyllabusListApi;
+      const res = await fetchSyllabus(params);
 
       const responseData = res?.data || res || {};
       const list = Array.isArray(responseData?.syllabus)
@@ -260,7 +273,11 @@ const SyllabusList = () => {
     if (!syllabusToDelete) return;
     try {
       setDeleting(true);
-      await deleteSyllabusApi(syllabusToDelete.id);
+      if (isTeacher) {
+        await deleteTeacherSyllabusApi(syllabusToDelete.id);
+      } else {
+        await deleteSyllabusApi(syllabusToDelete.id);
+      }
       toast.success('Syllabus item deleted successfully.');
       setDeleteModalOpen(false);
       setSyllabusToDelete(null);
@@ -322,7 +339,7 @@ const SyllabusList = () => {
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
               <li className="breadcrumb-item">Class</li>
               <li className="breadcrumb-item active" aria-current="page">
@@ -378,7 +395,7 @@ const SyllabusList = () => {
           </div>
           <div className="mb-2">
             <Link
-              to="/admin/academics/syllabus/add"
+              to={`${basePath}/academics/syllabus/add`}
               className="btn btn-primary d-flex align-items-center"
             >
               <i className="ti ti-square-rounded-plus me-2"></i>Add Syllabus
@@ -586,7 +603,7 @@ const SyllabusList = () => {
                                     {
                                       label: 'Edit',
                                       icon: 'ti ti-edit-circle text-primary',
-                                      to: `/admin/academics/syllabus/edit/${encodedId}`,
+                                      to: `${basePath}/academics/syllabus/edit/${encodedId}`,
                                     },
                                     {
                                       label: 'Delete',

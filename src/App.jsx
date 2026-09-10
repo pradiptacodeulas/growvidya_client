@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { Provider, useDispatch } from 'react-redux';
 import { ToastContainer } from 'react-toastify';
@@ -20,6 +20,10 @@ import TeacherLayout from './layouts/TeacherLayout';
 import ParentLayout from './layouts/ParentLayout';
 import StudentLayout from './layouts/StudentLayout';
 import PortalSelection from './pages/PortalSelection';
+import PricingPlans from './pages/saas/PricingPlans';
+import SchoolRegistrationWizard from './pages/saas/SchoolRegistrationWizard';
+import SubscriptionBilling from './pages/admin/subscription/SubscriptionBilling';
+import { SubscriptionProvider } from './context/SubscriptionContext';
 import AdminLogin from './pages/admin/AdminLogin';
 import TeacherLogin from './pages/teacher/TeacherLogin';
 import ParentLogin from './pages/parent/ParentLogin';
@@ -61,7 +65,6 @@ import TeacherAssignmentSectionView from './pages/teacher/academics/TeacherAssig
 import TeacherAssignmentSubjectView from './pages/teacher/academics/TeacherAssignmentSubjectView';
 import NotFound from './pages/NotFound';
 import AdminDashboard from './pages/admin/AdminDashboard';
-import AcademicMasterList from './pages/admin/academics/AcademicMasterList';
 import AcademicYearsList from './pages/admin/academics/AcademicYearsList';
 import EditAcademicYear from './pages/admin/academics/EditAcademicYear';
 import ClassesList from './pages/admin/academics/ClassesList';
@@ -214,6 +217,14 @@ function AppContent() {
         <Route path="/account/login" element={<PortalSelection />} />
         <Route path="/portal-selection" element={<Navigate to="/account/login" replace />} />
         <Route path="/" element={<Navigate to="/account/login" replace />} />
+
+        {/* SaaS Pricing & School Registration Onboarding */}
+        <Route path="/pricing" element={<PricingPlans />} />
+        <Route path="/register/plans" element={<PricingPlans />} />
+        <Route path="/register" element={<PricingPlans />} />
+        <Route path="/register/wizard" element={<SchoolRegistrationWizard />} />
+        <Route path="/register/school-setup" element={<SchoolRegistrationWizard />} />
+        <Route path="/register/school" element={<SchoolRegistrationWizard />} />
 
         {/* Exact original admin login URL: /account/login/adminlogin */}
         <Route path="/account/login/adminlogin" element={<AdminLogin />} />
@@ -480,6 +491,8 @@ function AppContent() {
         <Route element={<ProtectedRoute />}>
           <Route path="/admin" element={<AdminLayout />}>
             <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="subscription" element={<SubscriptionBilling />} />
+            <Route path="billing" element={<SubscriptionBilling />} />
             <Route path="academics" element={<Navigate to="/admin/academics/years" replace />} />
 
             {/* Academic Years */}
@@ -918,74 +931,129 @@ function AppContent() {
 
             {/* Examination Routes */}
             <Route path="examinations" element={<Navigate to="/admin/examinations/exams" replace />} />
-            <Route path="examinations/grades" element={<GradeSettingsList />} />
-            <Route path="examinations/grades/add" element={<AddGradeSetting />} />
-            <Route path="examinations/grades/edit/:id" element={<AddGradeSetting />} />
-            <Route path="examinations/exams" element={<ExamList />} />
-            <Route path="examinations/exams/add" element={<AddExam />} />
-            <Route path="examinations/exams/edit/:id" element={<AddExam />} />
-            <Route path="examinations/exam-types" element={<ExamTypeList />} />
-            <Route path="examinations/exam-types/add" element={<AddExamType />} />
-            <Route path="examinations/exam-types/edit/:id" element={<AddExamType />} />
-            <Route path="examinations/exam-subjects" element={<ExamSubjectList />} />
-            <Route path="examinations/exam-subjects/add" element={<AddExamSubject />} />
-            <Route path="examinations/schedules" element={<ExamScheduleList />} />
-            <Route path="examinations/schedules/add" element={<AddExamSchedule />} />
-            <Route path="examinations/schedules/edit" element={<AddExamSchedule />} />
-            <Route path="examinations/attendance" element={<ExamAttendance />} />
-            <Route path="examinations/attendance/add" element={<AddExamAttendance />} />
-            <Route path="examinations/results" element={<ExamResultsList />} />
-            <Route path="examinations/results/add" element={<AddExamResult />} />
-
-            {/* Examination route aliases */}
             <Route path="examination" element={<Navigate to="/admin/examinations/exams" replace />} />
-            <Route path="examination/gradeSettings" element={<GradeSettingsList />} />
-            <Route path="examination/gradeSettings/add" element={<AddGradeSetting />} />
-            <Route path="examination/gradeSettings/edit/:id" element={<AddGradeSetting />} />
-            <Route path="examination/exam" element={<ExamList />} />
-            <Route path="examination/exam/add" element={<AddExam />} />
-            <Route path="examination/exam/edit/:id" element={<AddExam />} />
-            <Route path="examination/examtype" element={<ExamTypeList />} />
-            <Route path="examination/examtype/add" element={<AddExamType />} />
-            <Route path="examination/examtype/edit/:id" element={<AddExamType />} />
-            <Route path="examination/examsubject" element={<ExamSubjectList />} />
-            <Route path="examination/examsubject/add" element={<AddExamSubject />} />
-            <Route path="examination/examschedule" element={<ExamScheduleList />} />
-            <Route path="examination/examschedule/add" element={<AddExamSchedule />} />
-            <Route path="examination/examschedule/edit" element={<AddExamSchedule />} />
-            <Route path="examination/examAttendance" element={<ExamAttendance />} />
-            <Route path="examination/examAttendance/add" element={<AddExamAttendance />} />
-            <Route path="examination/examResult" element={<ExamResultsList />} />
-            <Route path="examination/examResult/add" element={<AddExamResult />} />
+
+            <Route element={<ProtectedRoute module="examination/gradeSettings" action="view" />}>
+              <Route path="examinations/grades" element={<GradeSettingsList />} />
+              <Route path="examination/gradeSettings" element={<GradeSettingsList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/gradeSettings" action="add" />}>
+              <Route path="examinations/grades/add" element={<AddGradeSetting />} />
+              <Route path="examination/gradeSettings/add" element={<AddGradeSetting />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/gradeSettings" action="edit" />}>
+              <Route path="examinations/grades/edit/:id" element={<AddGradeSetting />} />
+              <Route path="examination/gradeSettings/edit/:id" element={<AddGradeSetting />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="examination/exam" action="view" />}>
+              <Route path="examinations/exams" element={<ExamList />} />
+              <Route path="examination/exam" element={<ExamList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/exam" action="add" />}>
+              <Route path="examinations/exams/add" element={<AddExam />} />
+              <Route path="examination/exam/add" element={<AddExam />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/exam" action="edit" />}>
+              <Route path="examinations/exams/edit/:id" element={<AddExam />} />
+              <Route path="examination/exam/edit/:id" element={<AddExam />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="examination/examtype" action="view" />}>
+              <Route path="examinations/exam-types" element={<ExamTypeList />} />
+              <Route path="examination/examtype" element={<ExamTypeList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/examtype" action="add" />}>
+              <Route path="examinations/exam-types/add" element={<AddExamType />} />
+              <Route path="examination/examtype/add" element={<AddExamType />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/examtype" action="edit" />}>
+              <Route path="examinations/exam-types/edit/:id" element={<AddExamType />} />
+              <Route path="examination/examtype/edit/:id" element={<AddExamType />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="examination/examsubject" action="view" />}>
+              <Route path="examinations/exam-subjects" element={<ExamSubjectList />} />
+              <Route path="examination/examsubject" element={<ExamSubjectList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/examsubject" action="add" />}>
+              <Route path="examinations/exam-subjects/add" element={<AddExamSubject />} />
+              <Route path="examination/examsubject/add" element={<AddExamSubject />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="examination/examschedule" action="view" />}>
+              <Route path="examinations/schedules" element={<ExamScheduleList />} />
+              <Route path="examination/examschedule" element={<ExamScheduleList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/examschedule" action="add" />}>
+              <Route path="examinations/schedules/add" element={<AddExamSchedule />} />
+              <Route path="examinations/schedules/edit" element={<AddExamSchedule />} />
+              <Route path="examination/examschedule/add" element={<AddExamSchedule />} />
+              <Route path="examination/examschedule/edit" element={<AddExamSchedule />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="examination/examAttendance" action="view" />}>
+              <Route path="examinations/attendance" element={<ExamAttendance />} />
+              <Route path="examination/examAttendance" element={<ExamAttendance />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/examAttendance" action="add" />}>
+              <Route path="examinations/attendance/add" element={<AddExamAttendance />} />
+              <Route path="examination/examAttendance/add" element={<AddExamAttendance />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="examination/examResult" action="view" />}>
+              <Route path="examinations/results" element={<ExamResultsList />} />
+              <Route path="examination/examResult" element={<ExamResultsList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="examination/examResult" action="add" />}>
+              <Route path="examinations/results/add" element={<AddExamResult />} />
+              <Route path="examination/examResult/add" element={<AddExamResult />} />
+            </Route>
 
             {/* Fees Management Routes */}
             <Route path="fees" element={<Navigate to="/admin/fees/dashboard" replace />} />
-            <Route path="fees/dashboard" element={<FeesCollectionDashboard />} />
-            <Route path="fees/collect" element={<FeesCollectionDashboard />} />
-            <Route path="fees/components" element={<FeesComponents />} />
-            <Route path="fees/structures" element={<FeesStructures />} />
-            <Route path="fees/allocations" element={<FeesAllocations />} />
-            <Route path="fees/invoices" element={<FeesInvoices />} />
-            <Route path="fees/invoices/view/:id" element={<ViewInvoice />} />
-            <Route path="fees/invoices/:id" element={<ViewInvoice />} />
-            <Route path="fees/payments" element={<FeesPaymentsList />} />
-            <Route path="fees/receipts" element={<FeesPaymentsList />} />
-            <Route path="fees/receipts/:id" element={<ViewReceipt />} />
-            <Route path="fees/payments/receipt/:id" element={<ViewReceipt />} />
-
-            {/* Fees Management route aliases */}
             <Route path="feesmanagement" element={<Navigate to="/admin/fees/dashboard" replace />} />
-            <Route path="feesmanagement/payments" element={<FeesCollectionDashboard />} />
-            <Route path="feesmanagement/payments/history" element={<FeesPaymentsList />} />
-            <Route path="feesmanagement/receipts" element={<FeesPaymentsList />} />
-            <Route path="feesmanagement/payments/receipt/:id" element={<ViewReceipt />} />
-            <Route path="feesmanagement/receipts/:id" element={<ViewReceipt />} />
-            <Route path="feesmanagement/components" element={<FeesComponents />} />
-            <Route path="feesmanagement/structures" element={<FeesStructures />} />
-            <Route path="feesmanagement/allocations" element={<FeesAllocations />} />
-            <Route path="feesmanagement/invoices" element={<FeesInvoices />} />
-            <Route path="feesmanagement/invoices/view/:id" element={<ViewInvoice />} />
-            <Route path="feesmanagement/invoices/:id" element={<ViewInvoice />} />
+
+            <Route element={<ProtectedRoute module={['feesmanagement/payments', 'feesmanagement/structures', 'feesmanagement/components', 'feesmanagement/allocations', 'feesmanagement/invoices']} action="view" />}>
+              <Route path="fees/dashboard" element={<FeesCollectionDashboard />} />
+              <Route path="fees/collect" element={<FeesCollectionDashboard />} />
+              <Route path="feesmanagement/payments" element={<FeesCollectionDashboard />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="feesmanagement/components" action="view" />}>
+              <Route path="fees/components" element={<FeesComponents />} />
+              <Route path="feesmanagement/components" element={<FeesComponents />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="feesmanagement/structures" action="view" />}>
+              <Route path="fees/structures" element={<FeesStructures />} />
+              <Route path="feesmanagement/structures" element={<FeesStructures />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="feesmanagement/allocations" action="view" />}>
+              <Route path="fees/allocations" element={<FeesAllocations />} />
+              <Route path="feesmanagement/allocations" element={<FeesAllocations />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="feesmanagement/invoices" action="view" />}>
+              <Route path="fees/invoices" element={<FeesInvoices />} />
+              <Route path="fees/invoices/view/:id" element={<ViewInvoice />} />
+              <Route path="fees/invoices/:id" element={<ViewInvoice />} />
+              <Route path="feesmanagement/invoices" element={<FeesInvoices />} />
+              <Route path="feesmanagement/invoices/view/:id" element={<ViewInvoice />} />
+              <Route path="feesmanagement/invoices/:id" element={<ViewInvoice />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="feesmanagement/payments" action="view" />}>
+              <Route path="fees/payments" element={<FeesPaymentsList />} />
+              <Route path="fees/receipts" element={<FeesPaymentsList />} />
+              <Route path="fees/receipts/:id" element={<ViewReceipt />} />
+              <Route path="fees/payments/receipt/:id" element={<ViewReceipt />} />
+              <Route path="feesmanagement/payments/history" element={<FeesPaymentsList />} />
+              <Route path="feesmanagement/receipts" element={<FeesPaymentsList />} />
+              <Route path="feesmanagement/payments/receipt/:id" element={<ViewReceipt />} />
+              <Route path="feesmanagement/receipts/:id" element={<ViewReceipt />} />
+            </Route>
 
             {/* Hostel Management Routes */}
             <Route path="hostel" element={<Navigate to="/admin/hostel/list" replace />} />
@@ -1015,56 +1083,82 @@ function AppContent() {
 
             {/* Announcement Management Routes */}
             <Route path="announcement" element={<Navigate to="/admin/announcement/notice" replace />} />
-            <Route path="announcement/notice" element={<NoticeList />} />
-            <Route path="announcement/notice/add" element={<NoticeList />} />
-            <Route path="announcement/notice/edit/:id" element={<NoticeList />} />
-            <Route path="announcement/notices" element={<NoticeList />} />
-            <Route path="announcement/notices/add" element={<NoticeList />} />
-            <Route path="announcement/notices/edit/:id" element={<NoticeList />} />
-            <Route path="notices" element={<NoticeList />} />
-            <Route path="notices/add" element={<NoticeList />} />
-            <Route path="notices/edit/:id" element={<NoticeList />} />
-            <Route path="notice" element={<NoticeList />} />
-            <Route path="notice/add" element={<NoticeList />} />
-            <Route path="notice/edit/:id" element={<NoticeList />} />
+            <Route path="announcements" element={<Navigate to="/admin/announcement/notice" replace />} />
+            <Route path="announcements/events" element={<Navigate to="/admin/announcement/event" replace />} />
+            <Route path="announcements/event" element={<Navigate to="/admin/announcement/event" replace />} />
+            <Route path="announcements/holidays" element={<Navigate to="/admin/announcement/holiday" replace />} />
+            <Route path="announcements/holiday" element={<Navigate to="/admin/announcement/holiday" replace />} />
+            <Route path="announcements/notices" element={<Navigate to="/admin/announcement/notice" replace />} />
+            <Route path="announcements/notice" element={<Navigate to="/admin/announcement/notice" replace />} />
 
-            <Route path="announcement/event" element={<EventList />} />
-            <Route path="announcement/event/add" element={<EditEvent />} />
-            <Route path="announcement/event/edit/:id" element={<EditEvent />} />
-            <Route path="announcement/event/form" element={<EditEvent />} />
-            <Route path="announcement/event/form/:id" element={<EditEvent />} />
-            <Route path="announcement/events" element={<EventList />} />
-            <Route path="announcement/events/add" element={<EditEvent />} />
-            <Route path="announcement/events/edit/:id" element={<EditEvent />} />
-            <Route path="announcement/events/form" element={<EditEvent />} />
-            <Route path="announcement/events/form/:id" element={<EditEvent />} />
-            <Route path="events" element={<EventList />} />
-            <Route path="events/add" element={<EditEvent />} />
-            <Route path="events/edit/:id" element={<EditEvent />} />
-            <Route path="events/form" element={<EditEvent />} />
-            <Route path="events/form/:id" element={<EditEvent />} />
-            <Route path="event" element={<EventList />} />
-            <Route path="event/add" element={<EditEvent />} />
-            <Route path="event/edit/:id" element={<EditEvent />} />
+            <Route element={<ProtectedRoute module="announcement/notice" action="view" />}>
+              <Route path="announcement/notice" element={<NoticeList />} />
+              <Route path="announcement/notices" element={<NoticeList />} />
+              <Route path="notices" element={<NoticeList />} />
+              <Route path="notice" element={<NoticeList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="announcement/notice" action="add" />}>
+              <Route path="announcement/notice/add" element={<NoticeList />} />
+              <Route path="announcement/notices/add" element={<NoticeList />} />
+              <Route path="notices/add" element={<NoticeList />} />
+              <Route path="notice/add" element={<NoticeList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="announcement/notice" action="edit" />}>
+              <Route path="announcement/notice/edit/:id" element={<NoticeList />} />
+              <Route path="announcement/notices/edit/:id" element={<NoticeList />} />
+              <Route path="notices/edit/:id" element={<NoticeList />} />
+              <Route path="notice/edit/:id" element={<NoticeList />} />
+            </Route>
 
-            <Route path="announcement/holiday" element={<HolidayList />} />
-            <Route path="announcement/holiday/add" element={<EditHoliday />} />
-            <Route path="announcement/holiday/edit/:id" element={<EditHoliday />} />
-            <Route path="announcement/holiday/form" element={<EditHoliday />} />
-            <Route path="announcement/holiday/form/:id" element={<EditHoliday />} />
-            <Route path="announcement/holidays" element={<HolidayList />} />
-            <Route path="announcement/holidays/add" element={<EditHoliday />} />
-            <Route path="announcement/holidays/edit/:id" element={<EditHoliday />} />
-            <Route path="announcement/holidays/form" element={<EditHoliday />} />
-            <Route path="announcement/holidays/form/:id" element={<EditHoliday />} />
-            <Route path="holidays" element={<HolidayList />} />
-            <Route path="holidays/add" element={<EditHoliday />} />
-            <Route path="holidays/edit/:id" element={<EditHoliday />} />
-            <Route path="holidays/form" element={<EditHoliday />} />
-            <Route path="holidays/form/:id" element={<EditHoliday />} />
-            <Route path="holiday" element={<HolidayList />} />
-            <Route path="holiday/add" element={<EditHoliday />} />
-            <Route path="holiday/edit/:id" element={<EditHoliday />} />
+            <Route element={<ProtectedRoute module="announcement/event" action="view" />}>
+              <Route path="announcement/event" element={<EventList />} />
+              <Route path="announcement/events" element={<EventList />} />
+              <Route path="events" element={<EventList />} />
+              <Route path="event" element={<EventList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="announcement/event" action="add" />}>
+              <Route path="announcement/event/add" element={<EditEvent />} />
+              <Route path="announcement/event/form" element={<EditEvent />} />
+              <Route path="announcement/events/add" element={<EditEvent />} />
+              <Route path="announcement/events/form" element={<EditEvent />} />
+              <Route path="events/add" element={<EditEvent />} />
+              <Route path="events/form" element={<EditEvent />} />
+              <Route path="event/add" element={<EditEvent />} />
+            </Route>
+            <Route element={<ProtectedRoute module="announcement/event" action="edit" />}>
+              <Route path="announcement/event/edit/:id" element={<EditEvent />} />
+              <Route path="announcement/event/form/:id" element={<EditEvent />} />
+              <Route path="announcement/events/edit/:id" element={<EditEvent />} />
+              <Route path="announcement/events/form/:id" element={<EditEvent />} />
+              <Route path="events/edit/:id" element={<EditEvent />} />
+              <Route path="events/form/:id" element={<EditEvent />} />
+              <Route path="event/edit/:id" element={<EditEvent />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="announcement/holiday" action="view" />}>
+              <Route path="announcement/holiday" element={<HolidayList />} />
+              <Route path="announcement/holidays" element={<HolidayList />} />
+              <Route path="holidays" element={<HolidayList />} />
+              <Route path="holiday" element={<HolidayList />} />
+            </Route>
+            <Route element={<ProtectedRoute module="announcement/holiday" action="add" />}>
+              <Route path="announcement/holiday/add" element={<EditHoliday />} />
+              <Route path="announcement/holiday/form" element={<EditHoliday />} />
+              <Route path="announcement/holidays/add" element={<EditHoliday />} />
+              <Route path="announcement/holidays/form" element={<EditHoliday />} />
+              <Route path="holidays/add" element={<EditHoliday />} />
+              <Route path="holidays/form" element={<EditHoliday />} />
+              <Route path="holiday/add" element={<EditHoliday />} />
+            </Route>
+            <Route element={<ProtectedRoute module="announcement/holiday" action="edit" />}>
+              <Route path="announcement/holiday/edit/:id" element={<EditHoliday />} />
+              <Route path="announcement/holiday/form/:id" element={<EditHoliday />} />
+              <Route path="announcement/holidays/edit/:id" element={<EditHoliday />} />
+              <Route path="announcement/holidays/form/:id" element={<EditHoliday />} />
+              <Route path="holidays/edit/:id" element={<EditHoliday />} />
+              <Route path="holidays/form/:id" element={<EditHoliday />} />
+              <Route path="holiday/edit/:id" element={<EditHoliday />} />
+            </Route>
 
             {/* Records & Documents Routes */}
             <Route path="records" element={<Navigate to="/admin/records/admit-card" replace />} />
@@ -1132,20 +1226,32 @@ function AppContent() {
 
             {/* Reports Routes */}
             <Route path="reports" element={<Navigate to="/admin/reports/class-report" replace />} />
-            <Route path="reports/class-report" element={<ClassReport />} />
-            <Route path="reports/class" element={<ClassReport />} />
-            <Route path="reports/classreport" element={<ClassReport />} />
-            <Route path="reports/student-report" element={<StudentReport />} />
-            <Route path="reports/student" element={<StudentReport />} />
-            <Route path="reports/studentreport" element={<StudentReport />} />
-            <Route path="reports/attendance-report" element={<AttendanceReport />} />
-            <Route path="reports/attendance" element={<AttendanceReport />} />
-            <Route path="reports/attendancereport" element={<AttendanceReport />} />
-            <Route path="reports/attendancereport/:tab" element={<AttendanceReport />} />
-            <Route path="report/attendanceReport/:tab" element={<AttendanceReport />} />
-            <Route path="reports/calendar-report" element={<CalendarReport />} />
-            <Route path="reports/calendar" element={<CalendarReport />} />
-            <Route path="reports/calendarreport" element={<CalendarReport />} />
+
+            <Route element={<ProtectedRoute module="report/classReport" action="view" />}>
+              <Route path="reports/class-report" element={<ClassReport />} />
+              <Route path="reports/class" element={<ClassReport />} />
+              <Route path="reports/classreport" element={<ClassReport />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="report/studentReport" action="view" />}>
+              <Route path="reports/student-report" element={<StudentReport />} />
+              <Route path="reports/student" element={<StudentReport />} />
+              <Route path="reports/studentreport" element={<StudentReport />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="report/attendanceReport" action="view" />}>
+              <Route path="reports/attendance-report" element={<AttendanceReport />} />
+              <Route path="reports/attendance" element={<AttendanceReport />} />
+              <Route path="reports/attendancereport" element={<AttendanceReport />} />
+              <Route path="reports/attendancereport/:tab" element={<AttendanceReport />} />
+              <Route path="report/attendanceReport/:tab" element={<AttendanceReport />} />
+            </Route>
+
+            <Route element={<ProtectedRoute module="report/calendarReport" action="view" />}>
+              <Route path="reports/calendar-report" element={<CalendarReport />} />
+              <Route path="reports/calendar" element={<CalendarReport />} />
+              <Route path="reports/calendarreport" element={<CalendarReport />} />
+            </Route>
 
             {/* Settings Routes */}
             <Route path="settings/misc-management" element={<MiscManagement />} />
@@ -1179,6 +1285,11 @@ function AppContent() {
             <Route path="routine" element={<TeacherRoutine />} />
             <Route path="academics/routine" element={<TeacherRoutine />} />
             <Route path="academics/syllabus" element={<SyllabusList />} />
+            <Route path="academics/syllabus/add" element={<AddSyllabus />} />
+            <Route path="academics/syllabus/edit/:id" element={<EditSyllabus />} />
+            <Route path="academic/syllabus" element={<Navigate to="/teacher/academics/syllabus" replace />} />
+            <Route path="academic/syllabus/add" element={<AddSyllabus />} />
+            <Route path="academic/syllabus/edit/:id" element={<EditSyllabus />} />
             <Route path="academics/assignments" element={<TeacherAssignments />} />
             <Route path="academics/assignments/section/:classId" element={<TeacherAssignmentSectionView />} />
             <Route path="academics/assignments/subject/:classId/:sectionId" element={<TeacherAssignmentSubjectView />} />
@@ -1363,7 +1474,9 @@ function AppContent() {
 function App() {
   return (
     <Provider store={store}>
-      <AppContent />
+      <SubscriptionProvider>
+        <AppContent />
+      </SubscriptionProvider>
     </Provider>
   );
 }

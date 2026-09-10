@@ -14,7 +14,6 @@ import {
   deleteRoutineApi,
   fetchClassTeachersApi,
 } from '../../../api/adminAcademic.api';
-import { fetchTeachersApi } from '../../../api/adminTeacher.api';
 import { apiFetch } from '../../../api/fetch.config';
 
 import Avatar from '../../../components/common/Avatar';
@@ -43,7 +42,6 @@ const RoutineTimetableView = () => {
   const [subjects, setSubjects] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [days, setDays] = useState([]);
-  const [teachers, setTeachers] = useState([]);
   const [classTeachers, setClassTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -65,13 +63,12 @@ const RoutineTimetableView = () => {
   const loadTimetableData = async () => {
     try {
       setLoading(true);
-      const [clsRes, secRes, subRes, perRes, daysRes, teaRes, rtsRes, classTeaRes] = await Promise.all([
+      const [clsRes, secRes, subRes, perRes, daysRes, rtsRes, classTeaRes] = await Promise.all([
         fetchClassByIdApi(classId).catch(() => null),
         fetchSectionsApi().catch(() => ({ data: [] })),
         fetchSubjectsApi({ classId }).catch(() => ({ data: [] })),
         fetchPeriodsApi().catch(() => ({ data: [] })),
         fetchDaysApi().catch(() => ({ data: [] })),
-        fetchTeachersApi({ limit: 500 }).catch(() => ({ data: [] })),
         fetchRoutinesApi({ class_id: classId, section_id: sectionId }).catch(() => ({ data: [] })),
         fetchClassTeachersApi({ class_id: classId }).catch(() => ({ data: [] })),
       ]);
@@ -101,17 +98,6 @@ const RoutineTimetableView = () => {
       const daysList = Array.isArray(daysRes?.data) ? daysRes.data : Array.isArray(daysRes) ? daysRes : [];
       setDays(daysList.filter((d) => d.status === 1));
 
-      const teaList = Array.isArray(teaRes?.data?.teachers)
-        ? teaRes.data.teachers
-        : Array.isArray(teaRes?.teachers)
-        ? teaRes.teachers
-        : Array.isArray(teaRes?.data)
-        ? teaRes.data
-        : Array.isArray(teaRes)
-        ? teaRes
-        : [];
-      setTeachers(teaList);
-
       const cTeaList = Array.isArray(classTeaRes?.data)
         ? classTeaRes.data
         : Array.isArray(classTeaRes)
@@ -128,43 +114,56 @@ const RoutineTimetableView = () => {
     }
   };
 
-  // Compute teachers assigned to this class from teacher_class_assign
+  // Helper to find the corresponding teacher assigned to this class and subject
+  const findTeacherForSubject = (subId, subName) => {
+    if (!subId && !subName) return null;
+    const sId = Number(subId);
+    const sName = String(subName || '').toLowerCase().trim();
+
+    return (
+      classTeachers.find((t) => {
+        const matchClass = !t.class_id || String(t.class_id) === String(classId);
+        const matchSubject =
+          (sId && Number(t.subject_id) === sId) ||
+          (sName && t.subject_name && t.subject_name.toLowerCase().trim() === sName);
+        return matchClass && matchSubject;
+      }) || null
+    );
+  };
+
+  // Compute teachers assigned strictly to this class and the selected subject (NO fallback)
   const availableTeachers = useMemo(() => {
-    if (classTeachers.length > 0) {
-      if (formData.subject_id) {
-        const subId = Number(formData.subject_id);
-        const subjectSpecific = classTeachers.filter(
-          (t) => Number(t.subject_id) === subId || Number(t.subject_id) === 0 || !t.subject_id
-        );
-        if (subjectSpecific.length > 0) {
-          const map = new Map();
-          subjectSpecific.forEach((t) => {
-            if (!map.has(t.id)) map.set(t.id, t);
-          });
-          return Array.from(map.values());
-        }
-      }
-      // If no subject-specific match or no subject selected yet, show all class teachers
-      const map = new Map();
-      classTeachers.forEach((t) => {
-        if (!map.has(t.id)) map.set(t.id, t);
-      });
-      return Array.from(map.values());
+    if (!formData.subject_id) {
+      return [];
     }
 
-    // Fallback to all teachers in case teacher_class_assign is empty
-    return teachers;
-  }, [classTeachers, formData.subject_id, teachers]);
+    const subIdNum = Number(formData.subject_id);
+    const selectedSub = subjects.find((s) => String(s.id) === String(formData.subject_id));
+    const selectedSubName = selectedSub?.subject_name?.toLowerCase().trim();
+
+    const subjectMatches = [];
+    const seenIds = new Set();
+
+    classTeachers.forEach((t) => {
+      const matchClass = !t.class_id || String(t.class_id) === String(classId);
+      const matchId = Number(t.subject_id) === subIdNum;
+      const matchName = selectedSubName && t.subject_name && t.subject_name.toLowerCase().trim() === selectedSubName;
+      if (matchClass && (matchId || matchName) && !seenIds.has(t.id)) {
+        seenIds.add(t.id);
+        subjectMatches.push(t);
+      }
+    });
+
+    return subjectMatches;
+  }, [classTeachers, classId, formData.subject_id, subjects]);
 
   const handleOpenAddModal = (defaultDay = '1', defaultPeriod = '') => {
     setEditingRoutine(null);
-    const initialSubject = subjects[0]?.id ? String(subjects[0].id) : '';
-    const initialMatched = classTeachers.find((t) => Number(t.subject_id) === Number(initialSubject));
     setFormData({
       day: String(defaultDay || '1'),
       period_id: defaultPeriod ? String(defaultPeriod) : (periods[0]?.id ? String(periods[0].id) : ''),
-      subject_id: initialSubject,
-      teacher_id: initialMatched ? String(initialMatched.id) : '',
+      subject_id: '',
+      teacher_id: '',
     });
     setShowModal(true);
   };
@@ -172,15 +171,19 @@ const RoutineTimetableView = () => {
   const handleOpenEditModal = (routine) => {
     setEditingRoutine(routine);
     const routineSubId = String(routine.subject_id || '');
-    const matchedClassTeacher = classTeachers.find((t) => Number(t.subject_id) === Number(routineSubId));
+    const routineSubObj = subjects.find((s) => String(s.id) === routineSubId);
+    const routineSubName = routine.subject_name || routineSubObj?.subject_name;
+
+    const matchedTeacher = findTeacherForSubject(routineSubId, routineSubName);
+
     setFormData({
       day: String(routine.day || '1'),
       period_id: String(routine.period_id || ''),
       subject_id: routineSubId,
       teacher_id: routine.teacher_id
         ? String(routine.teacher_id)
-        : matchedClassTeacher
-        ? String(matchedClassTeacher.id)
+        : matchedTeacher
+        ? String(matchedTeacher.id)
         : '',
     });
     setShowModal(true);
@@ -188,22 +191,15 @@ const RoutineTimetableView = () => {
 
   const handleSubjectChange = (e) => {
     const selectedSubId = e.target.value;
-    const subIdNum = Number(selectedSubId);
+    const selectedSubObj = subjects.find((s) => String(s.id) === String(selectedSubId));
+    const selectedSubName = selectedSubObj?.subject_name;
 
-    // Look up teacher assigned to this subject in teacher_class_assign
-    const matchedTeacher = classTeachers.find((t) => Number(t.subject_id) === subIdNum);
-    const fallbackSubject = subjects.find((s) => String(s.id) === String(selectedSubId));
-
-    const suggestedTeacherId = matchedTeacher
-      ? String(matchedTeacher.id)
-      : fallbackSubject?.teacher_id
-      ? String(fallbackSubject.teacher_id)
-      : '';
+    const matchedTeacher = findTeacherForSubject(selectedSubId, selectedSubName);
 
     setFormData((prev) => ({
       ...prev,
       subject_id: selectedSubId,
-      teacher_id: suggestedTeacherId || prev.teacher_id,
+      teacher_id: matchedTeacher ? String(matchedTeacher.id) : '',
     }));
   };
 
@@ -214,6 +210,9 @@ const RoutineTimetableView = () => {
     }
     if (!formData.period_id) {
       return toast.warning('Please select a Period.');
+    }
+    if (!formData.teacher_id) {
+      return toast.warning('Please select a Teacher assigned to this subject.');
     }
 
     try {
@@ -617,13 +616,21 @@ const RoutineTimetableView = () => {
                           value={formData.teacher_id}
                           onChange={(e) => setFormData({ ...formData, teacher_id: e.target.value })}
                         >
-                          <option value="">Select Teacher</option>
-                          {/* If current routine has a teacher assigned that's not in the loaded array, preserve it */}
-                          {editingRoutine?.teacher_id && !availableTeachers.some((t) => String(t.id) === String(editingRoutine.teacher_id)) && (
-                            <option value={String(editingRoutine.teacher_id)}>
-                              {editingRoutine.teacher_name || `Teacher ${editingRoutine.teacher_id}`}
-                            </option>
-                          )}
+                          <option value="">
+                            {!formData.subject_id
+                              ? 'Select Subject First'
+                              : availableTeachers.length === 0
+                              ? 'No teacher assigned for this subject'
+                              : 'Select Teacher'}
+                          </option>
+                          {/* If current routine has a teacher assigned and subject has not changed, preserve it */}
+                          {editingRoutine?.teacher_id &&
+                            String(formData.subject_id) === String(editingRoutine.subject_id) &&
+                            !availableTeachers.some((t) => String(t.id) === String(editingRoutine.teacher_id)) && (
+                              <option value={String(editingRoutine.teacher_id)}>
+                                {editingRoutine.teacher_name || `Teacher ${editingRoutine.teacher_id}`}
+                              </option>
+                            )}
                           {availableTeachers.map((t) => (
                             <option key={t.id} value={String(t.id)}>
                               {t.first_name ? `${t.first_name} ${t.last_name || ''}`.trim() : (t.full_name || t.name || `Teacher ${t.id}`)}

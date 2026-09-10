@@ -155,20 +155,16 @@ const CertificateCreate = () => {
 
   const getBorderForTemplate = (borderId) => {
     if (!borderId && borderId !== 0) {
-      return getBorderUrl('upload/template/certificate_01.jpg');
+      return '';
     }
     const match = borders.find((b) => String(b.id) === String(borderId));
     if (match?.image) {
       return getBorderUrl(match.image);
     }
-    const num = parseInt(borderId, 10);
-    if (!isNaN(num) && num >= 1 && num <= 4) {
-      return getBorderUrl(`upload/template/certificate_0${num}.jpg`);
-    }
     if (typeof borderId === 'string' && (borderId.includes('/') || borderId.includes('\\') || borderId.startsWith('http'))) {
       return getBorderUrl(borderId);
     }
-    return getBorderUrl('upload/template/certificate_01.jpg');
+    return '';
   };
 
   // Helper function to render certificate text with elegant typography and clean highlights
@@ -215,6 +211,9 @@ const CertificateCreate = () => {
       .replace(/&nbsp;/gi, ' ')
       .replace(/&amp;/gi, '&')
       .replace(/<[^>]+>/g, '');
+
+    // Format any raw ISO or SQL datetime strings like "2010-02-06 00:00:00" or "2026-09-10" to DD/MM/YYYY
+    text = text.replace(/(\d{4})-(\d{2})-(\d{2})(?:\s+\d{2}:\d{2}:\d{2})?/g, (match, y, m, d) => `${d}/${m}/${y}`);
 
     if (template?.certificate_heading) {
       const hReg = new RegExp(`^\\s*${template.certificate_heading}\\s*`, 'i');
@@ -263,28 +262,37 @@ const CertificateCreate = () => {
       }
     }
 
-    const paras = text.split(/\n\s*\n+/);
-    return paras.map((para, pIdx) => {
-      const parts = para.split(/(~~~HL~~~[\s\S]*?~~~END_HL~~~|\n)/g);
-      return (
-        <div key={pIdx} className="certificate-section mb-2">
-          {parts.map((part, partIdx) => {
-            if (part.startsWith('~~~HL~~~')) {
-              const val = part.replace('~~~HL~~~', '').replace('~~~END_HL~~~', '');
-              return (
-                <span key={partIdx} className="certificate-highlight">
-                  {val}
-                </span>
-              );
-            }
-            if (part === '\n') {
-              return <br key={partIdx} />;
-            }
-            return <React.Fragment key={partIdx}>{part}</React.Fragment>;
-          })}
-        </div>
-      );
-    });
+    // Normalize paragraphs: preserve intentional double newlines, but merge accidental single newlines into continuous prose
+    const rawParas = text.split(/\n\s*\n+/);
+    return rawParas
+      .map((rawPara, pIdx) => {
+        const cleanPara = rawPara
+          .replace(/\r?\n/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+        if (!cleanPara) return null;
+
+        const parts = cleanPara.split(/(~~~HL~~~[\s\S]*?~~~END_HL~~~)/g);
+        return (
+          <div key={pIdx} className="certificate-section mb-2">
+            {parts
+              .filter((part) => part.length > 0)
+              .map((part, partIdx) => {
+                if (part.startsWith('~~~HL~~~')) {
+                  const val = part.replace('~~~HL~~~', '').replace('~~~END_HL~~~', '');
+                  return (
+                    <span key={partIdx} className="certificate-highlight">
+                      {val}
+                    </span>
+                  );
+                }
+                return <React.Fragment key={partIdx}>{part}</React.Fragment>;
+              })}
+          </div>
+        );
+      })
+      .filter(Boolean);
   };
 
   // High-precision isolated iframe printer for certificates (A4 portrait)
@@ -319,7 +327,7 @@ const CertificateCreate = () => {
           <style>
             @page {
               size: A4 portrait;
-              margin: 4mm;
+              margin: 0;
             }
             * {
               -webkit-print-color-adjust: exact !important;
@@ -334,10 +342,10 @@ const CertificateCreate = () => {
               color: #1e293b;
             }
             .certificate-body {
-              width: 202mm !important;
-              height: 289mm !important;
-              min-height: 289mm !important;
-              max-height: 289mm !important;
+              width: 210mm !important;
+              height: 297mm !important;
+              min-height: 297mm !important;
+              max-height: 297mm !important;
               padding: 0 !important;
               margin: 0 auto !important;
               box-sizing: border-box !important;
@@ -354,7 +362,7 @@ const CertificateCreate = () => {
               min-height: 289mm !important;
               max-height: 289mm !important;
               margin: auto !important;
-              padding: 12mm 14mm 10mm 14mm !important;
+              padding: 24mm 22mm 22mm 22mm !important;
               box-sizing: border-box !important;
               position: relative !important;
               background-size: 100% 100% !important;
@@ -392,10 +400,7 @@ const CertificateCreate = () => {
               flex-direction: column;
               justify-content: space-between;
               padding: 16px 20px 14px 20px;
-              border: 1px solid rgba(197, 160, 89, 0.45);
               box-sizing: border-box;
-              border-radius: 2px;
-              background: rgba(255, 255, 255, 0.72);
             }
             .certificate-top-row {
               display: flex;
@@ -406,7 +411,7 @@ const CertificateCreate = () => {
               color: #475569;
               letter-spacing: 0.5px;
               padding: 0 4px 6px 4px;
-              border-bottom: 1px dashed rgba(197, 160, 89, 0.4);
+              border-bottom: none !important;
             }
             .cert-meta-tag {
               display: flex;
@@ -525,8 +530,8 @@ const CertificateCreate = () => {
               min-width: 280px;
             }
             .certificate-content {
-              font-size: 13.5px;
-              line-height: 2.05;
+              font-size: 16px;
+              line-height: 2.15;
               color: #334155;
               text-align: center;
               padding: 0 8px;
@@ -547,11 +552,11 @@ const CertificateCreate = () => {
               vertical-align: baseline;
             }
             .certificate-footer {
-              margin-top: 10px;
+              margin-top: 16px;
               display: flex;
               justify-content: space-between;
-              align-items: flex-end;
-              padding: 6px 8px 2px 8px;
+              align-items: flex-start;
+              padding: 6px 12px 2px 12px;
             }
             .sign-block {
               text-align: center;
@@ -626,13 +631,36 @@ const CertificateCreate = () => {
     });
   };
 
-  // Download single certificate using exact client vector HTML PDF generator
-  const handleDownloadSingle = (cert) => {
-    setActiveDropdownId(null);
-    setPrintModal({
-      show: true,
-      certificates: [cert],
-    });
+  // Download single certificate PDF directly
+  const handleDownloadSingle = async (cert) => {
+    try {
+      setActiveDropdownId(null);
+      setDownloadingPdf(true);
+      const schoolInfo = {
+        schoolName,
+        affiliation,
+        schoolAddress,
+        schoolCode,
+        schoolLogoSrc,
+      };
+      const certWithBorder = {
+        ...cert,
+        borderImg: getBorderForTemplate(cert.border || cert.certificate_border_id),
+      };
+      const studentName = `${cert.first_name || cert.student_name || ''}_${cert.last_name || ''}`.trim();
+      const cleanName = studentName.replace(/[^a-zA-Z0-9_-]/g, '_') || 'Student';
+      await downloadCertificatePdf(
+        [certWithBorder],
+        `Certificate_${cleanName}_${cert.id || 'issued'}.pdf`,
+        schoolInfo
+      );
+      toast.success('Certificate PDF generated and downloaded successfully!');
+    } catch (err) {
+      console.error('PDF download error:', err);
+      toast.error('Failed to download PDF.');
+    } finally {
+      setDownloadingPdf(false);
+    }
   };
 
   // Export bulk or filtered certificates using exact client vector HTML PDF generator
@@ -707,7 +735,7 @@ const CertificateCreate = () => {
           height: 1123px;
           min-height: 1123px;
           margin: 0 auto;
-          padding: 38px 42px 34px 42px;
+          padding: 70px 64px 66px 64px;
           box-sizing: border-box;
           position: relative;
           background-size: 100% 100%;
@@ -745,10 +773,7 @@ const CertificateCreate = () => {
           flex-direction: column;
           justify-content: space-between;
           padding: 24px 28px 18px 28px;
-          border: 1px solid rgba(197, 160, 89, 0.45);
           box-sizing: border-box;
-          border-radius: 2px;
-          background: rgba(255, 255, 255, 0.72);
         }
         .certificate-top-row {
           display: flex;
@@ -759,7 +784,7 @@ const CertificateCreate = () => {
           color: #475569;
           letter-spacing: 0.5px;
           padding: 0 4px 6px 4px;
-          border-bottom: 1px dashed rgba(197, 160, 89, 0.4);
+          border-bottom: none !important;
         }
         .cert-meta-tag {
           display: flex;
@@ -879,8 +904,8 @@ const CertificateCreate = () => {
           min-width: 320px;
         }
         .certificate-content {
-          font-size: 14.5px;
-          line-height: 2.15;
+          font-size: 16.5px;
+          line-height: 2.2;
           color: #334155;
           text-align: center;
           padding: 0 12px;
@@ -902,18 +927,18 @@ const CertificateCreate = () => {
           box-sizing: border-box;
         }
         .certificate-footer {
-          margin-top: 14px;
+          margin-top: 18px;
           display: flex;
           justify-content: space-between;
-          align-items: flex-end;
-          padding: 8px 10px 2px 10px;
+          align-items: flex-start;
+          padding: 8px 16px 2px 16px;
         }
         .sign-block {
           text-align: center;
-          width: 190px;
+          width: 180px;
         }
         .sign-line {
-          width: 150px;
+          width: 160px;
           height: 1px;
           background: #0f172a;
           margin: 0 auto 6px auto;
@@ -929,28 +954,6 @@ const CertificateCreate = () => {
           font-size: 11px;
           color: #64748b;
           font-style: italic;
-        }
-        .seal-container {
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
-        .official-seal-badge {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-        }
-        .seal-svg {
-          filter: drop-shadow(0 2px 6px rgba(197, 160, 89, 0.3));
-        }
-        .seal-text {
-          font-size: 9px;
-          font-weight: 800;
-          letter-spacing: 1.5px;
-          color: #c5a059;
-          margin-top: 2px;
-          text-transform: uppercase;
         }
         @media print {
           @page {
@@ -1021,7 +1024,7 @@ const CertificateCreate = () => {
             min-height: 289mm !important;
             max-height: 289mm !important;
             box-sizing: border-box !important;
-            padding: 12mm 14mm 10mm 14mm !important;
+            padding: 24mm 22mm 22mm 22mm !important;
             background-size: 100% 100% !important;
             background-repeat: no-repeat !important;
             -webkit-print-color-adjust: exact !important;
@@ -1500,7 +1503,7 @@ const CertificateCreate = () => {
                             {/* Certificate Title */}
                             <div className="certificate-title-wrap">
                               <div className="certificate-title">
-                                {cert.certificate_heading || cert.template_name || 'TRANSFER CERTIFICATE'}
+                                {cert.certificate_heading || cert.template_name || 'CERTIFICATE'}
                               </div>
                             </div>
 
@@ -1519,36 +1522,18 @@ const CertificateCreate = () => {
                               {renderCertificateBody(templateObj, cert, date)}
                             </div>
 
-                            {/* Dual Signatures & Official Seal Footer */}
+                            {/* Dual Signatures Footer */}
                             <div className="certificate-footer">
                               <div className="sign-block">
                                 <div className="sign-line"></div>
-                                <div className="sign-title">Class Teacher / Prepared By</div>
-                                <div className="sign-subtitle">Verified &amp; Checked</div>
-                              </div>
-
-                              <div className="seal-container">
-                                <div className="official-seal-badge">
-                                  <svg viewBox="0 0 100 100" className="seal-svg" width="62" height="62">
-                                    <circle cx="50" cy="50" r="46" fill="#fffcf0" stroke="#c5a059" strokeWidth="2" strokeDasharray="3 2" />
-                                    <circle cx="50" cy="50" r="40" fill="none" stroke="#0c2340" strokeWidth="1.5" />
-                                    <circle cx="50" cy="50" r="34" fill="none" stroke="#c5a059" strokeWidth="0.8" />
-                                    <path id={`certSealPath_${idx}`} d="M 18,50 A 32,32 0 1,1 82,50 A 32,32 0 1,1 18,50" fill="none" />
-                                    <text fontSize="7" fontWeight="bold" fill="#0c2340" letterSpacing="1.2">
-                                      <textPath href={`#certSealPath_${idx}`} startOffset="50%" textAnchor="middle">
-                                        ★ OFFICIAL SEAL OF EXCELLENCE ★
-                                      </textPath>
-                                    </text>
-                                    <polygon points="50,37 53,44 61,44 55,49 57,57 50,52 43,57 45,49 39,44 47,44" fill="#c5a059" />
-                                  </svg>
-                                  <div className="seal-text">OFFICIAL SEAL</div>
-                                </div>
+                                <div className="sign-title">Class Teacher</div>
+                                <div className="sign-subtitle">Signature</div>
                               </div>
 
                               <div className="sign-block">
                                 <div className="sign-line"></div>
                                 <div className="sign-title">{cert.certified_by || 'Principal'}</div>
-                                <div className="sign-subtitle">{schoolName}</div>
+                                <div className="sign-subtitle">Signature</div>
                               </div>
                             </div>
                           </div>

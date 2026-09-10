@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { fetchRoutesApi } from '../../../api/adminTransport.api';
+import { fetchHostelsApi } from '../../../api/adminHostel.api';
 
 const FeesStructures = () => {
   const [structures, setStructures] = useState([]);
@@ -11,10 +12,7 @@ const FeesStructures = () => {
   const [academicYears, setAcademicYears] = useState([]);
   const [feeComponents, setFeeComponents] = useState([]);
   const [transportRoutes, setTransportRoutes] = useState([]);
-  const [hostels, setHostels] = useState([
-    { id: 1, name: 'Boys Hostel', fee: 3500 },
-    { id: 2, name: 'Girls Hostel', fee: 3800 },
-  ]);
+  const [hostels, setHostels] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filters & Search
@@ -49,53 +47,71 @@ const FeesStructures = () => {
     components: [],
   });
 
+  const [reloadTrigger, setReloadTrigger] = useState(0);
+
   useEffect(() => {
+    let isMounted = true;
+    const fetchInitialData = async () => {
+      try {
+        const [structRes, classRes, yearRes, compRes, routesRes, hostelsRes] = await Promise.all([
+          adminFeesApi.getAllStructures(),
+          adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
+          adminAcademicApi.getAllAcademicYears({ status: 1 }).catch(() => ({ data: [] })),
+          adminFeesApi.getAllComponents({ status: 1 }).catch(() => ({ data: { components: [] } })),
+          fetchRoutesApi().catch(() => ({ data: [] })),
+          fetchHostelsApi().catch(() => ({ data: [] })),
+        ]);
+
+        const structsList = structRes?.data?.structures || [];
+        const classesList = Array.isArray(classRes?.data)
+          ? classRes.data
+          : Array.isArray(classRes?.data?.classes)
+          ? classRes.data.classes
+          : Array.isArray(classRes)
+          ? classRes
+          : [];
+        const yearsList = Array.isArray(yearRes?.data?.academicYears)
+          ? yearRes.data.academicYears
+          : Array.isArray(yearRes?.data)
+          ? yearRes.data
+          : [];
+        const compsList = compRes?.data?.components || (Array.isArray(compRes?.data) ? compRes.data : []);
+        const routesList = Array.isArray(routesRes?.data)
+          ? routesRes.data
+          : Array.isArray(routesRes?.routes)
+          ? routesRes.routes
+          : [];
+        const hostelsList = Array.isArray(hostelsRes?.data?.hostels)
+          ? hostelsRes.data.hostels
+          : Array.isArray(hostelsRes?.data)
+          ? hostelsRes.data
+          : Array.isArray(hostelsRes?.hostels)
+          ? hostelsRes.hostels
+          : [];
+
+        if (isMounted) {
+          setStructures(structsList);
+          setClasses(classesList);
+          setAcademicYears(yearsList);
+          setFeeComponents(compsList);
+          if (routesList.length > 0) setTransportRoutes(routesList);
+          if (hostelsList.length > 0) setHostels(hostelsList);
+        }
+      } catch (err) {
+        console.error('Failed to load fee structures initial data:', err);
+        toast.error('Failed to load fee structures data');
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
-    try {
-      setLoading(true);
-      const [structRes, classRes, yearRes, compRes, routesRes] = await Promise.all([
-        adminFeesApi.getAllStructures(),
-        adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
-        adminAcademicApi.getAllAcademicYears({ status: 1 }).catch(() => ({ data: [] })),
-        adminFeesApi.getAllComponents({ status: 1 }).catch(() => ({ data: { components: [] } })),
-        fetchRoutesApi().catch(() => ({ data: [] })),
-      ]);
-
-      const structsList = structRes?.data?.structures || [];
-      const classesList = Array.isArray(classRes?.data)
-        ? classRes.data
-        : Array.isArray(classRes?.data?.classes)
-        ? classRes.data.classes
-        : Array.isArray(classRes)
-        ? classRes
-        : [];
-      const yearsList = Array.isArray(yearRes?.data?.academicYears)
-        ? yearRes.data.academicYears
-        : Array.isArray(yearRes?.data)
-        ? yearRes.data
-        : [];
-      const compsList = compRes?.data?.components || (Array.isArray(compRes?.data) ? compRes.data : []);
-      const routesList = Array.isArray(routesRes?.data)
-        ? routesRes.data
-        : Array.isArray(routesRes?.routes)
-        ? routesRes.routes
-        : [];
-
-      setStructures(structsList);
-      setClasses(classesList);
-      setAcademicYears(yearsList);
-      setFeeComponents(compsList);
-      if (routesList.length > 0) setTransportRoutes(routesList);
-    } catch (err) {
-      console.error('Failed to load fee structures initial data:', err);
-      toast.error('Failed to load fee structures data');
-    } finally {
-      setLoading(false);
-    }
-  };
+    return () => {
+      isMounted = false;
+    };
+  }, [reloadTrigger]);
 
   const getClassNamesDisplay = (struct) => {
     if (!struct) return '-';
@@ -138,6 +154,7 @@ const FeesStructures = () => {
       generate_on_day: 1,
       description: '',
       status: 1,
+      auto_allocate: true,
       components: [
         {
           fee_component_id: feeComponents.length > 0 ? String(feeComponents[0].id) : '',
@@ -169,24 +186,12 @@ const FeesStructures = () => {
 
       let mappedComps = [];
       if (detailComps.length > 0) {
-        mappedComps = detailComps.map((dc) => {
-          const compNameLower = String(dc.component_name || dc.name || '').toLowerCase();
-          const compCodeLower = String(dc.code || dc.component_code || '').toLowerCase();
-          let compIdVal = String(dc.fee_component_id);
-
-          if (compNameLower.includes('hostel') || compCodeLower === 'hostel') {
-            compIdVal = 'static_hostel';
-          } else if (compNameLower.includes('transport') || compCodeLower === 'trans') {
-            compIdVal = 'static_transport';
-          }
-
-          return {
-            fee_component_id: compIdVal,
-            amount: parseFloat(dc.amount) || '0.00',
-            isLocked: isPublished,
-            component_name: dc.component_name || dc.name,
-          };
-        });
+        mappedComps = detailComps.map((dc) => ({
+          fee_component_id: String(dc.fee_component_id),
+          amount: parseFloat(dc.amount) || '0.00',
+          isLocked: isPublished,
+          component_name: dc.component_name || dc.name,
+        }));
       } else {
         mappedComps = [
           {
@@ -211,6 +216,7 @@ const FeesStructures = () => {
         generate_on_day: detail.generate_on_day || 1,
         description: detail.description || '',
         status: detail.status !== undefined ? detail.status : 1,
+        auto_allocate: true,
         components: mappedComps,
       });
 
@@ -234,7 +240,7 @@ const FeesStructures = () => {
       };
       setViewStructure(merged);
       setShowViewModal(true);
-    } catch (err) {
+    } catch {
       setViewStructure(struct);
       setShowViewModal(true);
     }
@@ -294,11 +300,17 @@ const FeesStructures = () => {
   const handleRowComponentChange = (index, value) => {
     setFormData((prev) => {
       const updated = [...prev.components];
-      const isSpecial = value === 'static_hostel' || value === 'static_transport';
+      const selectedFc = feeComponents.find((fc) => String(fc.id) === String(value));
+      const isDynamic = selectedFc && (
+        selectedFc.name?.toLowerCase().includes('hostel') ||
+        selectedFc.name?.toLowerCase().includes('transport') ||
+        selectedFc.code?.toLowerCase() === 'hostel' ||
+        selectedFc.code?.toLowerCase() === 'trans'
+      );
       updated[index] = {
         ...updated[index],
         fee_component_id: value,
-        amount: isSpecial ? '0.00' : updated[index].amount,
+        amount: isDynamic ? '0.00' : updated[index].amount,
       };
       return { ...prev, components: updated };
     });
@@ -327,31 +339,23 @@ const FeesStructures = () => {
       return;
     }
 
-    // Resolve component IDs
+    // Resolve component IDs directly from selected components
     const resolvedComponents = [];
     for (const c of formData.components) {
       if (!c.fee_component_id) continue;
 
-      let compId = c.fee_component_id;
-      let amt = parseFloat(c.amount) || 0;
-
-      if (compId === 'static_hostel') {
-        const foundHostelComp = feeComponents.find(
-          (fc) => fc.name?.toLowerCase().includes('hostel') || fc.code?.toLowerCase() === 'hostel'
-        );
-        compId = foundHostelComp ? foundHostelComp.id : 6;
-        amt = 0;
-      } else if (compId === 'static_transport') {
-        const foundTransportComp = feeComponents.find(
-          (fc) => fc.name?.toLowerCase().includes('transport') || fc.code?.toLowerCase() === 'trans'
-        );
-        compId = foundTransportComp ? foundTransportComp.id : 7;
-        amt = 0;
-      }
+      const compId = parseInt(c.fee_component_id, 10);
+      const selectedFc = feeComponents.find((fc) => fc.id === compId || String(fc.id) === String(c.fee_component_id));
+      const isDynamic = selectedFc && (
+        selectedFc.name?.toLowerCase().includes('hostel') ||
+        selectedFc.name?.toLowerCase().includes('transport') ||
+        selectedFc.code?.toLowerCase() === 'hostel' ||
+        selectedFc.code?.toLowerCase() === 'trans'
+      );
 
       resolvedComponents.push({
         fee_component_id: compId,
-        amount: amt,
+        amount: isDynamic ? 0 : (parseFloat(c.amount) || 0),
       });
     }
 
@@ -365,18 +369,20 @@ const FeesStructures = () => {
       id: currentId,
       class_id: formData.class_id.join(','),
       components: resolvedComponents,
+      auto_allocate: formData.auto_allocate !== false,
     };
 
     try {
       setSaving(true);
-      await adminFeesApi.saveStructure(payload);
+      const res = await adminFeesApi.saveStructure(payload);
       toast.success(
-        modalMode === 'add'
-          ? 'Fee structure created successfully.'
-          : 'Fee structure updated successfully.'
+        res?.message ||
+          (modalMode === 'add'
+            ? 'Fee structure created successfully.'
+            : 'Fee structure updated successfully.')
       );
       setShowModal(false);
-      fetchInitialData();
+      setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       console.error('Failed to save fee structure:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to save structure.');
@@ -396,7 +402,7 @@ const FeesStructures = () => {
     try {
       await adminFeesApi.deleteStructure(id);
       toast.success('Fee structure deleted successfully.');
-      fetchInitialData();
+      setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       console.error('Failed to delete structure:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to delete structure.');
@@ -817,9 +823,15 @@ const FeesStructures = () => {
                       </thead>
                       <tbody>
                         {formData.components.map((comp, idx) => {
+                          const selectedFc = feeComponents.find(
+                            (fc) => String(fc.id) === String(comp.fee_component_id)
+                          );
                           const isSpecial =
-                            comp.fee_component_id === 'static_hostel' ||
-                            comp.fee_component_id === 'static_transport';
+                            selectedFc &&
+                            (selectedFc.name?.toLowerCase().includes('hostel') ||
+                              selectedFc.name?.toLowerCase().includes('transport') ||
+                              selectedFc.code?.toLowerCase() === 'hostel' ||
+                              selectedFc.code?.toLowerCase() === 'trans');
 
                           return (
                             <tr key={`row-${idx}`}>
@@ -832,23 +844,17 @@ const FeesStructures = () => {
                                   required
                                 >
                                   <option value="">-- Choose Component --</option>
-                                  <optgroup label="Special Components">
-                                    <option value="static_hostel">Hostel Fees</option>
-                                    <option value="static_transport">Transport Fees</option>
-                                  </optgroup>
-                                  <optgroup label="Standard Fee Components">
-                                    {feeComponents
-                                      .filter(
-                                        (fc) =>
-                                          !fc.name?.toLowerCase().includes('hostel') &&
-                                          !fc.name?.toLowerCase().includes('transport')
-                                      )
-                                      .map((fc) => (
-                                        <option key={`fc-${fc.id}`} value={String(fc.id)}>
-                                          {fc.name}
-                                        </option>
-                                      ))}
-                                  </optgroup>
+                                  {feeComponents.length === 0 ? (
+                                    <option value="" disabled>
+                                      No fee components found (Create in Fee Components first)
+                                    </option>
+                                  ) : (
+                                    feeComponents.map((fc) => (
+                                      <option key={`fc-${fc.id}`} value={String(fc.id)}>
+                                        {fc.name} {fc.code ? `(${fc.code})` : ''}
+                                      </option>
+                                    ))
+                                  )}
                                 </select>
                               </td>
                               <td className="amount-cell">
@@ -898,6 +904,40 @@ const FeesStructures = () => {
                   >
                     <i className="ti ti-plus me-1"></i>Add Another Line Item
                   </button>
+
+                  {/* Auto Allocation Setting */}
+                  <div className="card bg-light border-0 shadow-none mt-3 mb-0">
+                    <div className="card-body p-3">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <div className="me-3">
+                          <div className="d-flex align-items-center gap-2 mb-1">
+                            <i className="ti ti-users-group text-primary fs-18"></i>
+                            <label
+                              htmlFor="auto_allocate_toggle"
+                              className="form-check-label fw-bold text-dark cursor-pointer mb-0"
+                            >
+                              Auto-assign to students in selected classes
+                            </label>
+                          </div>
+                          <p className="text-muted fs-12 mb-0">
+                            Automatically assigns this fee structure to all active students enrolled in the selected class(es) upon saving, without needing manual allocation.
+                          </p>
+                        </div>
+                        <div className="form-check form-switch fs-5 mb-0">
+                          <input
+                            className="form-check-input cursor-pointer"
+                            type="checkbox"
+                            role="switch"
+                            id="auto_allocate_toggle"
+                            checked={formData.auto_allocate !== false}
+                            onChange={(e) =>
+                              setFormData({ ...formData, auto_allocate: e.target.checked })
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="modal-footer bg-light gap-2">
@@ -1094,15 +1134,23 @@ const FeesStructures = () => {
                             </tr>
                           </thead>
                           <tbody>
-                            {hostels.map((h, idx) => (
-                              <tr key={`h-${h.id}`}>
-                                <td>{idx + 1}</td>
-                                <td className="fw-semibold text-dark">{h.name}</td>
-                                <td className="text-end fw-bold text-primary">
-                                  ₹{parseFloat(h.fee).toFixed(2)}
+                            {hostels.length === 0 ? (
+                              <tr>
+                                <td colSpan="3" className="text-center text-muted py-3">
+                                  No hostels registered yet.
                                 </td>
                               </tr>
-                            ))}
+                            ) : (
+                              hostels.map((h, idx) => (
+                                <tr key={`h-${h.id || idx}`}>
+                                  <td>{idx + 1}</td>
+                                  <td className="fw-semibold text-dark">{h.hostel_name || h.name || 'Hostel'}</td>
+                                  <td className="text-end fw-bold text-primary">
+                                    ₹{parseFloat(h.hostel_fee || h.fee || 0).toFixed(2)}
+                                  </td>
+                                </tr>
+                              ))
+                            )}
                           </tbody>
                         </table>
                       </div>

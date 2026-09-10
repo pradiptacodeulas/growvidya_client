@@ -1176,6 +1176,21 @@ const Sidebar = ({
                   </li>
                 )}
 
+                {/* Subscription & License */}
+                <li>
+                  <NavLink
+                    to="/admin/subscription"
+                    className={({ isActive }) =>
+                      isActive || location.pathname.startsWith('/admin/subscription')
+                        ? 'active'
+                        : ''
+                    }
+                  >
+                    <i className="ti ti-crown text-warning"></i>
+                    <span>Subscription & Plans</span>
+                  </NavLink>
+                </li>
+
                 {/* Roles & Permissions */}
                 {(isSuperAdmin || can('permissions/permission', 'view')) && (
                   <li>

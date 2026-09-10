@@ -104,6 +104,29 @@ const PortalSelection = () => {
             </div>
           </div>
 
+          {/* New School Registration Banner */}
+          <div className="col-12 col-md-10 col-lg-8 mx-auto text-center mt-4">
+            <div className="bg-white p-3 p-md-4 rounded-3 shadow-sm border d-flex flex-column flex-md-row align-items-center justify-content-between gap-3">
+              <div className="text-md-start">
+                <div className="d-flex align-items-center gap-2 mb-1 justify-content-center justify-content-md-start">
+                  <span className="badge bg-primary-subtle text-primary fw-semibold px-2 py-1 fs-11">
+                    NEW INSTITUTION
+                  </span>
+                  <h5 className="fw-bold mb-0 text-dark">Register Your School</h5>
+                </div>
+                <p className="text-muted fs-13 mb-0">
+                  Ready to digitize your campus? Choose a subscription plan and setup your school portal in minutes.
+                </p>
+              </div>
+              <Link
+                to="/register"
+                className="btn btn-primary px-4 py-2 fw-semibold d-flex align-items-center text-nowrap"
+              >
+                <i className="ti ti-school me-2 fs-16"></i> Register School
+              </Link>
+            </div>
+          </div>
+
           {/* Footer Section */}
           <div className="col-12 text-center mt-3">
             <p className="mb-0 text-muted" style={{ fontSize: '13px' }}>

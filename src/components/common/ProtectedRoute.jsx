@@ -59,8 +59,9 @@ const ProtectedRoute = ({ allowedRoles, module, action = 'view', children }) => 
   // 2. Module & Action level access check
   if (module && !isSuperAdmin) {
     const permissions = user?.permissions || {};
-    const modulePerm = permissions[module];
-    const hasAccess = Boolean(modulePerm && modulePerm[action]);
+    const hasAccess = Array.isArray(module)
+      ? module.some((mod) => Boolean(permissions[mod] && permissions[mod][action]))
+      : Boolean(permissions[module] && permissions[module][action]);
 
     if (!hasAccess) {
       const actionLabels = {
@@ -70,6 +71,7 @@ const ProtectedRoute = ({ allowedRoles, module, action = 'view', children }) => 
         delete: 'delete records from',
       };
       const actionText = actionLabels[action] || action;
+      const displayModuleName = Array.isArray(module) ? 'this section' : `the module ${module}`;
 
       return (
         <div className="container mt-5 py-5 text-center">
@@ -79,7 +81,7 @@ const ProtectedRoute = ({ allowedRoles, module, action = 'view', children }) => 
             </div>
             <h3 className="fw-bold text-dark mb-2">Permission Denied</h3>
             <p className="text-muted fs-14 mb-4">
-              You do not have permission to <strong>{actionText}</strong> the module <code>{module}</code>. If you need access, please contact your school administrator.
+              You do not have permission to <strong>{actionText}</strong> {displayModuleName}. If you need access, please contact your school administrator.
             </p>
             <div className="d-flex justify-content-center gap-2">
               <button

@@ -281,7 +281,7 @@ const AddExamResult = () => {
   const handleMarkChange = (subjectId, examTypeId, val) => {
     // If subject is not editable for this user or student is not present, do not allow change
     const targetSub = subjects.find((s) => s.subject_id === subjectId);
-    const isStudentPresent = isTeacherRole ? Number(studentAttendanceMap[subjectId]) === 1 : true;
+    const isStudentPresent = Number(studentAttendanceMap[subjectId]) === 1;
     if (targetSub && (targetSub.isEditable === false || !isStudentPresent)) {
       return;
     }
@@ -326,7 +326,7 @@ const AddExamResult = () => {
 
   const handleGradeChange = (subjectId, gradeId) => {
     const targetSub = subjects.find((s) => s.subject_id === subjectId);
-    const isStudentPresent = isTeacherRole ? Number(studentAttendanceMap[subjectId]) === 1 : true;
+    const isStudentPresent = Number(studentAttendanceMap[subjectId]) === 1;
     if (targetSub && (targetSub.isEditable === false || !isStudentPresent)) {
       return;
     }
@@ -342,20 +342,12 @@ const AddExamResult = () => {
     return Object.values(subMarks).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
   };
 
-  const isTeacherRole = isTeacher || isTeacherUser;
-  const hasAnyEditableSubject = useMemo(() => {
-    return subjects.some((sub) => {
-      const isPresent = isTeacherRole ? Number(studentAttendanceMap[sub.subject_id]) === 1 : true;
-      return sub.isEditable !== false && isPresent;
-    });
-  }, [subjects, isTeacherRole, studentAttendanceMap]);
-
   // Check if all configured marks are already submitted
   const hasNewMarksToSubmit = useMemo(() => {
     if (subjects.length === 0 || examTypes.length === 0) return false;
     for (const sub of subjects) {
       if (sub.isEditable === false) continue; // Skip view-only subjects
-      const isPresent = isTeacherRole ? Number(studentAttendanceMap[sub.subject_id]) === 1 : true;
+      const isPresent = Number(studentAttendanceMap[sub.subject_id]) === 1;
       if (!isPresent) continue; // Skip subjects where student is not present
 
       for (const et of examTypes) {
@@ -368,7 +360,7 @@ const AddExamResult = () => {
       }
     }
     return false;
-  }, [subjects, examTypes, marksMatrix, existingMarksMap, isTeacherRole, studentAttendanceMap]);
+  }, [subjects, examTypes, marksMatrix, existingMarksMap, studentAttendanceMap]);
 
   const handleSaveStudentMarks = async (e) => {
     e.preventDefault();
@@ -378,9 +370,9 @@ const AddExamResult = () => {
 
     const items = [];
     subjects.forEach((sub) => {
-      if (sub.isEditable === false) return; // Teachers cannot submit marks for unassigned subjects
-      const isPresent = isTeacherRole ? Number(studentAttendanceMap[sub.subject_id]) === 1 : true;
-      if (!isPresent) return; // Teachers cannot submit marks if student is not marked present
+      if (sub.isEditable === false) return; // Unassigned subjects cannot be submitted
+      const isPresent = Number(studentAttendanceMap[sub.subject_id]) === 1;
+      if (!isPresent) return; // Cannot submit marks if student is not marked present
 
       const subMarks = marksMatrix[sub.subject_id] || {};
       const gradeId = gradesMatrix[sub.subject_id] || null;
@@ -943,9 +935,10 @@ const AddExamResult = () => {
 
                         <tbody>
                           {subjects.map((sub) => {
-                            const isStudentPresent = isTeacherRole
-                              ? Number(studentAttendanceMap[sub.subject_id]) === 1
-                              : true;
+                            const attendanceStatus = studentAttendanceMap[sub.subject_id];
+                            const isStudentPresent = Number(attendanceStatus) === 1;
+                            const isStudentAbsent = Number(attendanceStatus) === 0;
+                            const isAttendanceUnmarked = attendanceStatus === undefined;
                             const isSubjectEditable = sub.isEditable !== false && isStudentPresent;
                             const hasSubjectAnyEditable =
                               isSubjectEditable &&
@@ -954,18 +947,31 @@ const AddExamResult = () => {
                                 return !existingMarksMap[`${sub.subject_id}_${typeId}`];
                               });
 
-                            const attendanceStatus = studentAttendanceMap[sub.subject_id];
-                            const isStudentAbsent = isTeacherRole && Number(attendanceStatus) === 0;
-                            const isAttendanceUnmarked = isTeacherRole && attendanceStatus === undefined;
-
                             return (
                               <tr
                                 key={sub.subject_id}
                                 style={{
-                                  backgroundColor: !isSubjectEditable ? '#fcfcfc' : 'inherit',
+                                  backgroundColor: !isSubjectEditable ? '#f8f9fa' : 'inherit',
                                 }}
                               >
-                                <td className="text-start fw-medium ps-3">{sub.subject_name}</td>
+                                <td className="text-start fw-medium ps-3">
+                                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-1">
+                                    <span>{sub.subject_name}</span>
+                                    {isStudentPresent ? (
+                                      <span className="badge bg-success-subtle text-success border border-success-subtle fs-11 px-2 py-1">
+                                        <i className="ti ti-check me-1"></i>Present
+                                      </span>
+                                    ) : isStudentAbsent ? (
+                                      <span className="badge bg-danger-subtle text-danger border border-danger-subtle fs-11 px-2 py-1">
+                                        <i className="ti ti-x me-1"></i>Absent
+                                      </span>
+                                    ) : (
+                                      <span className="badge bg-warning-subtle text-warning border border-warning-subtle fs-11 px-2 py-1">
+                                        <i className="ti ti-clock me-1"></i>No Attendance
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
 
                                 {examTypes.map((type) => {
                                   const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
@@ -977,9 +983,9 @@ const AddExamResult = () => {
                                   } else if (sub.isEditable === false) {
                                     tooltipText = 'You are not assigned to this subject. Marks can only be viewed.';
                                   } else if (isStudentAbsent) {
-                                    tooltipText = 'Student is marked absent for this subject. Marks cannot be entered.';
+                                    tooltipText = 'Student was absent for this exam subject. Marks entry is disabled.';
                                   } else if (isAttendanceUnmarked) {
-                                    tooltipText = 'Student attendance is not marked present for this subject. Marks cannot be entered.';
+                                    tooltipText = 'Student has no attendance recorded for this exam subject. Marks entry is disabled.';
                                   }
 
                                   return (
@@ -996,6 +1002,7 @@ const AddExamResult = () => {
                                           cursor: isFieldReadOnly ? 'not-allowed' : 'text',
                                         }}
                                         placeholder={isSubjectEditable ? '0' : '-'}
+                                        disabled={isFieldReadOnly}
                                         readOnly={isFieldReadOnly}
                                         title={tooltipText}
                                         value={marksMatrix[sub.subject_id]?.[typeId] ?? ''}

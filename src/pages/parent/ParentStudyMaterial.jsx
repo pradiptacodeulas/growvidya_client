@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
-import { fetchChildStudyMaterialsApi } from '../../api/parentChild.api';
+import {
+  fetchChildStudyMaterialsApi,
+  fetchChildMaterialTypesApi,
+} from '../../api/parentChild.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
 
@@ -10,6 +13,7 @@ const ParentStudyMaterial = () => {
 
   const [loading, setLoading] = useState(true);
   const [materials, setMaterials] = useState([]);
+  const [materialTypes, setMaterialTypes] = useState([]);
   const [selectedType, setSelectedType] = useState('');
   const [selectedSubject, setSelectedSubject] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -19,13 +23,24 @@ const ParentStudyMaterial = () => {
       if (!activeChild?.id) return;
       try {
         setLoading(true);
-        const res = await fetchChildStudyMaterialsApi(activeChild.id);
-        const data = Array.isArray(res?.data?.data)
-          ? res.data.data
-          : Array.isArray(res?.data)
-          ? res.data
+        const [matRes, typesRes] = await Promise.all([
+          fetchChildStudyMaterialsApi(activeChild.id).catch(() => ({ data: [] })),
+          fetchChildMaterialTypesApi().catch(() => ({ data: [] })),
+        ]);
+
+        const data = Array.isArray(matRes?.data?.data)
+          ? matRes.data.data
+          : Array.isArray(matRes?.data)
+          ? matRes.data
           : [];
         setMaterials(data);
+
+        const typesList = Array.isArray(typesRes?.data?.data)
+          ? typesRes.data.data
+          : Array.isArray(typesRes?.data)
+          ? typesRes.data
+          : [];
+        setMaterialTypes(typesList);
       } catch (err) {
         console.error('Failed to load study materials:', err);
       } finally {
@@ -57,51 +72,70 @@ const ParentStudyMaterial = () => {
     return Array.from(map.entries()).map(([name, id]) => ({ id, name }));
   }, [materials]);
 
+  // Material type options for dropdown
+  const typeOptions = useMemo(() => {
+    if (materialTypes.length > 0) {
+      return materialTypes.map((t) => ({
+        id: String(t.id),
+        name: t.material_type_name,
+      }));
+    }
+    return [
+      { id: '1', name: 'Syllabus' },
+      { id: '2', name: 'Lecture Notes' },
+      { id: '3', name: 'Reference Book' },
+      { id: '4', name: 'Exam Note' },
+    ];
+  }, [materialTypes]);
+
   // Filter materials
   const filteredMaterials = useMemo(() => {
     return materials.filter((m) => {
       const q = searchQuery.toLowerCase().trim();
-      const title = (m.title || '').toLowerCase();
-      const desc = (m.description || '').toLowerCase();
-      const sub = (m.subject_name || '').toLowerCase();
-      const type = (m.material_type_name || m.file_type || '').toLowerCase();
 
-      // Search query filter
-      if (q && !title.includes(q) && !desc.includes(q) && !sub.includes(q)) {
-        return false;
+      // Search query filter (checks title, description, subject, chapter, and material type)
+      if (q) {
+        const title = (m.title || '').toLowerCase();
+        const desc = (m.description || '').toLowerCase();
+        const sub = (m.subject_name || '').toLowerCase();
+        const chap = (m.chapter || '').toLowerCase();
+        const type = (m.material_type_name || '').toLowerCase();
+        if (
+          !title.includes(q) &&
+          !desc.includes(q) &&
+          !sub.includes(q) &&
+          !chap.includes(q) &&
+          !type.includes(q)
+        ) {
+          return false;
+        }
       }
 
-      // Type filter
+      // Type filter (strictly matches selected material type id or type name)
       if (selectedType) {
-        const typeMap = {
-          '1': 'syllabus',
-          '2': 'lecture notes',
-          '3': 'reference book',
-          '4': 'exam note',
-        };
-        const expectedType = typeMap[selectedType] || selectedType.toLowerCase();
-        if (
-          String(m.material_type_id) !== String(selectedType) &&
-          !type.includes(expectedType) &&
-          !title.includes(expectedType)
-        ) {
+        const matchId = String(m.material_type_id) === String(selectedType);
+        const targetType = typeOptions.find((t) => String(t.id) === String(selectedType));
+        const matchName =
+          targetType &&
+          String(m.material_type_name || '').toLowerCase() === targetType.name.toLowerCase();
+        if (!matchId && !matchName) {
           return false;
         }
       }
 
       // Subject filter
       if (selectedSubject) {
-        if (
-          String(m.subject_id) !== String(selectedSubject) &&
-          m.subject_name !== selectedSubject
-        ) {
+        const matchSubId = String(m.subject_id) === String(selectedSubject);
+        const matchSubName =
+          String(m.subject_name || '').toLowerCase() === String(selectedSubject).toLowerCase();
+        if (!matchSubId && !matchSubName) {
           return false;
         }
       }
 
       return true;
     });
-  }, [materials, searchQuery, selectedType, selectedSubject]);
+  }, [materials, searchQuery, selectedType, selectedSubject, typeOptions]);
 
   const formatDate = (dateVal) => {
     if (!dateVal) return '-';
@@ -209,10 +243,11 @@ const ParentStudyMaterial = () => {
                 onChange={(e) => setSelectedType(e.target.value)}
               >
                 <option value="">All Types</option>
-                <option value="1">Syllabus</option>
-                <option value="2">Lecture Notes</option>
-                <option value="3">Reference Book</option>
-                <option value="4">Exam Note</option>
+                {typeOptions.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -235,11 +270,26 @@ const ParentStudyMaterial = () => {
               <input
                 type="text"
                 className="form-control form-control-sm"
-                placeholder="Search title..."
+                placeholder="Search title, chapter..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
+
+            {(selectedType || selectedSubject || searchQuery) && (
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-sm d-flex align-items-center"
+                onClick={() => {
+                  setSelectedType('');
+                  setSelectedSubject('');
+                  setSearchQuery('');
+                }}
+                title="Clear all filters"
+              >
+                <i className="fa-solid fa-xmark me-1"></i> Clear
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -764,6 +764,10 @@ const ParentList = () => {
                           onBlur={(e) => handlePhoneBlur(e.target.value)}
                         />
                         {formErrors.phone && <div className="invalid-feedback">{formErrors.phone}</div>}
+                        <small className="text-muted d-block mt-1">
+                          <i className="ti ti-info-circle me-1 text-primary"></i>
+                          Default login password will be their phone number.
+                        </small>
                       </div>
 
                       <div className="mb-3">

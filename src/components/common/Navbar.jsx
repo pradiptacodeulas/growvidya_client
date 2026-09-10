@@ -1,15 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { logoutAdmin } from '../../store/slices/authSlice';
 import { fetchAcademicYearsApi } from '../../api/adminAcademic.api';
 import { fetchNoticesApi } from '../../api/adminAnnouncement.api';
 import usePermission from '../../hooks/usePermission';
+import { useSubscription } from '../../context/SubscriptionContext';
 
 const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { can, isSuperAdmin } = usePermission();
+  const { subscription, isTrial, isExpired, daysLeft, openUpgradeModal } = useSubscription();
   const [darkMode, setDarkMode] = useState(false);
   const [currentYearText, setCurrentYearText] = useState('2026');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -118,6 +120,46 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
           <div className="me-auto"></div>
 
           <div className="d-flex align-items-center">
+            {/* Free Trial Countdown / Active License Pill */}
+            {isTrial && !isExpired && (
+              <div className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-2.5 py-1 text-dark fw-semibold fs-12 shadow-none">
+                <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
+                <span>14-Day Free Trial: <strong className="text-danger">{daysLeft}d left</strong></span>
+                <button
+                  type="button"
+                  onClick={openUpgradeModal}
+                  className="btn btn-sm btn-primary py-0 px-2 ms-2 fs-11 rounded-pill"
+                >
+                  Upgrade
+                </button>
+              </div>
+            )}
+
+            {isExpired && (
+              <div className="me-2 d-flex align-items-center bg-danger-subtle border border-danger rounded px-2.5 py-1 text-danger fw-semibold fs-12 shadow-none">
+                <i className="ti ti-alert-triangle me-1 fs-14"></i>
+                <span>Trial Expired</span>
+                <button
+                  type="button"
+                  onClick={openUpgradeModal}
+                  className="btn btn-sm btn-danger py-0 px-2 ms-2 fs-11 rounded-pill"
+                >
+                  Unlock
+                </button>
+              </div>
+            )}
+
+            {!isTrial && !isExpired && subscription?.status === 'active' && (
+              <Link
+                to="/admin/subscription"
+                className="me-2 d-flex align-items-center bg-success-subtle border border-success-subtle rounded px-2.5 py-1 text-success-emphasis text-decoration-none fw-medium fs-12 shadow-none"
+                title="Annual License Active"
+              >
+                <i className="ti ti-crown text-warning me-1 fs-14"></i>
+                <span>{subscription?.plan_name || 'Active License'}</span>
+              </Link>
+            )}
+
             {/* Current Academic Year Badge (No Dropdown) */}
             <div className="me-2 d-none d-sm-flex align-items-center bg-white border rounded px-2 py-1 text-dark fw-medium fs-13 shadow-none">
               <i className="ti ti-calendar-due me-1 text-primary"></i>
@@ -268,7 +310,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
 
                   <div className="pt-2 mt-2 border-top">
                     <Link
-                      to="/admin/announcements"
+                      to="/admin/announcement/notice"
                       className="btn btn-primary btn-sm w-100 fw-medium"
                       onClick={() => setShowNotifications(false)}
                     >

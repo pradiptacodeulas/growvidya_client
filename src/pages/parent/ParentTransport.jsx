@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { fetchChildTransportApi } from '../../api/parentChild.api';
@@ -224,15 +224,15 @@ const ParentTransport = () => {
                     <i className="fa-solid fa-bus fs-20"></i>
                   </div>
                   <div>
-                    <span className="fs-11 text-muted text-uppercase fw-bold d-block">Vehicle Number</span>
+                    <span className="fs-11 text-muted text-uppercase fw-bold d-block">Vehicle / Plate No.</span>
                     <span className="badge bg-primary text-white fs-13 px-2 py-1">
-                      {transport.vehicle_number || 'N/A'}
+                      {transport.number_plate || transport.vehicle_number || 'N/A'}
                     </span>
                   </div>
                 </div>
                 <div className="pt-2 border-top d-flex align-items-center justify-content-between fs-12">
-                  <span className="text-muted">Vehicle Type:</span>
-                  <span className="text-dark fw-semibold">School Bus</span>
+                  <span className="text-muted">Vehicle:</span>
+                  <span className="text-dark fw-semibold">{transport.bus_name || transport.vehicle_name || 'School Bus'}</span>
                 </div>
               </div>
             </div>

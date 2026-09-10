@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { fetchChildExamResultsApi } from '../../api/parentChild.api';
@@ -44,41 +44,14 @@ const ParentExamResults = () => {
   const fullName =
     activeChild?.full_name ||
     `${activeChild?.first_name || ''} ${activeChild?.last_name || ''}`.trim() ||
-    'Dhawal Kulkarni';
+    'Student';
   const photo = resolveImageUrl(activeChild?.picture);
-  const admNo = activeChild?.admission_number || '895321';
-  const className = activeChild?.class_name || 'I';
-  const sectionName = activeChild?.section_name || 'A';
-  const rollNumber = activeChild?.roll_number || '3';
+  const admNo = activeChild?.admission_number || '-';
+  const className = activeChild?.class_name || '-';
+  const sectionName = activeChild?.section_name || '-';
+  const rollNumber = activeChild?.roll_number || '-';
 
-  // Fallback demo data if no exams recorded yet
-  const displayResults =
-    examResults.length > 0
-      ? examResults
-      : [
-          {
-            exam_id: 1,
-            exam_name: 'Term-1',
-            marks: [
-              {
-                id: 1,
-                subject_name: 'Bengali',
-                practical: '18',
-                assessment: '8',
-                theory: '42',
-                grade_name: 'B+',
-              },
-              {
-                id: 2,
-                subject_name: 'English',
-                practical: '50',
-                assessment: '-',
-                theory: '-',
-                grade_name: 'C+',
-              },
-            ],
-          },
-        ];
+  const displayResults = examResults || [];
 
   // Helper to group or format marks by subject
   const formatSubjectMarks = (marksList = []) => {
@@ -96,18 +69,20 @@ const ParentExamResults = () => {
       };
 
       const typeName = (m.exam_type_name || '').toLowerCase();
+      const typeId = Number(m.exam_type_id);
       const score = m.marks !== undefined && m.marks !== null ? String(m.marks) : '-';
 
-      if (typeName.includes('pract')) {
+      if (typeId === 1 || typeName.includes('pract')) {
         existing.practical = score;
-      } else if (typeName.includes('assess')) {
+      } else if (typeId === 2 || typeName.includes('asses') || typeName.includes('assess')) {
         existing.assessment = score;
-      } else if (typeName.includes('theor')) {
+      } else if (typeId === 3 || typeName.includes('theor')) {
         existing.theory = score;
       } else {
-        if (m.practical !== undefined) existing.practical = m.practical;
-        if (m.assessment !== undefined) existing.assessment = m.assessment;
-        if (m.theory !== undefined) existing.theory = m.theory;
+        if (m.practical !== undefined) existing.practical = String(m.practical);
+        if (m.assessment !== undefined) existing.assessment = String(m.assessment);
+        if (m.assesment !== undefined) existing.assessment = String(m.assesment);
+        if (m.theory !== undefined) existing.theory = String(m.theory);
         if (existing.theory === '-' && score !== '-') existing.theory = score;
       }
 
@@ -115,7 +90,17 @@ const ParentExamResults = () => {
       subjectMap.set(subName, existing);
     });
 
-    return Array.from(subjectMap.values());
+    return Array.from(subjectMap.values()).map((sub) => {
+      const p = parseFloat(sub.practical);
+      const a = parseFloat(sub.assessment);
+      const t = parseFloat(sub.theory);
+      const hasAny = !isNaN(p) || !isNaN(a) || !isNaN(t);
+      const total = hasAny ? (isNaN(p) ? 0 : p) + (isNaN(a) ? 0 : a) + (isNaN(t) ? 0 : t) : '-';
+      return {
+        ...sub,
+        total: total !== '-' ? String(total) : '-',
+      };
+    });
   };
 
   return (
@@ -189,6 +174,14 @@ const ParentExamResults = () => {
               <div className="spinner-border text-primary me-2" role="status"></div>
               <span className="text-muted">Loading exam results...</span>
             </div>
+          ) : displayResults.length === 0 ? (
+            <div className="text-center py-5">
+              <i className="fa-solid fa-square-poll-vertical text-muted fs-40 mb-3 d-block opacity-50"></i>
+              <h6 className="fw-semibold text-dark mb-1">No Exam Results Published Yet</h6>
+              <p className="text-muted small mb-0">
+                Exam results and marksheets will appear here once published by the school administration.
+              </p>
+            </div>
           ) : (
             <div className="accordion accordion-flush" id="examResultAccordion">
               {displayResults.map((exam, idx) => {
@@ -208,7 +201,12 @@ const ParentExamResults = () => {
                         aria-controls={`collapse${idx}`}
                       >
                         <i className="fa-solid fa-award text-success me-2 fs-18"></i>
-                        {exam.exam_name || `Term-${idx + 1}`}
+                        <span>{exam.exam_name || `Term-${idx + 1}`}</span>
+                        {exam.academic_year && (
+                          <span className="badge bg-white text-muted border ms-2 fw-normal fs-12">
+                            Session: {exam.academic_year}
+                          </span>
+                        )}
                       </button>
                     </h2>
                     <div
@@ -226,6 +224,7 @@ const ParentExamResults = () => {
                                 <th className="text-center py-3">Practical</th>
                                 <th className="text-center py-3">Assesment</th>
                                 <th className="text-center py-3">Theory</th>
+                                <th className="text-center py-3">Total</th>
                                 <th className="text-center pe-3 py-3">Grade</th>
                               </tr>
                             </thead>
@@ -236,6 +235,7 @@ const ParentExamResults = () => {
                                   <td className="text-center fw-semibold text-primary">{sub.practical}</td>
                                   <td className="text-center fw-semibold text-primary">{sub.assessment}</td>
                                   <td className="text-center fw-semibold text-primary">{sub.theory}</td>
+                                  <td className="text-center fw-bold text-dark">{sub.total}</td>
                                   <td className="text-center pe-3">
                                     <span className="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 fs-12">
                                       {sub.grade_name || 'A+'}

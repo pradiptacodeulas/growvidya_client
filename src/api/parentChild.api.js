@@ -43,6 +43,10 @@ export const fetchChildStudyMaterialsApi = async (studentId) => {
   return apiClient.get(withStudent('/parent/child/study-materials', studentId));
 };
 
+export const fetchChildMaterialTypesApi = async () => {
+  return apiClient.get('/parent/child/material-types');
+};
+
 export const fetchChildTimetableApi = async (studentId) => {
   return apiClient.get(withStudent('/parent/child/timetable', studentId));
 };

@@ -133,7 +133,11 @@ const AddExamSchedule = () => {
     try {
       setTableLoading(true);
       const [configRes, schRes] = await Promise.all([
-        adminExaminationApi.getExamSubjectConfig({ exam_id: examId, class_id: classId }),
+        adminExaminationApi.getExamSubjectConfig({
+          exam_id: examId,
+          class_id: classId,
+          configured_only: 1,
+        }),
         adminExaminationApi.getExamSchedules({ exam_id: examId, class_id: classId, academic_year_id: yearId }),
       ]);
 
@@ -406,7 +410,11 @@ const AddExamSchedule = () => {
                   ) : subjects.length === 0 ? (
                     <div className="text-center py-5 text-muted">
                       <i className="ti ti-calendar-event fs-36 mb-2 d-block"></i>
-                      <p>No subjects found for the selected class.</p>
+                      <p>
+                        {selectedExamId && selectedClassId
+                          ? 'No exam subjects or marks have been configured for this class and exam yet.'
+                          : 'Please select an Exam and Class to view the schedule timetable.'}
+                      </p>
                     </div>
                   ) : (
                     <div className="table-responsive mt-3">

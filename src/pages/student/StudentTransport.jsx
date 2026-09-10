@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { fetchStudentTransportApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
@@ -10,21 +10,28 @@ const StudentTransport = () => {
   const [transport, setTransport] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const loadTransport = async () => {
-    try {
-      setLoading(true);
-      const res = await fetchStudentTransportApi();
-      const data = res?.data?.data || res?.data || null;
-      setTransport(data);
-    } catch (err) {
-      console.error('Failed to load student transport:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let isMounted = true;
+    const loadTransport = async () => {
+      try {
+        const res = await fetchStudentTransportApi();
+        const data = res?.data?.data || res?.data || null;
+        if (isMounted) {
+          setTransport(data);
+        }
+      } catch (err) {
+        console.error('Failed to load student transport:', err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     loadTransport();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const student = authStudent;
@@ -102,8 +109,8 @@ const StudentTransport = () => {
               <div className="avatar avatar-lg rounded-circle bg-info-subtle text-info mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: '52px', height: '52px' }}>
                 <i className="ti ti-bus fs-26"></i>
               </div>
-              <span className="text-muted fs-12 text-uppercase fw-bold">Vehicle Number</span>
-              <h5 className="fw-bold text-dark mb-0 mt-1">{transport.vehicle_number || transport.vehicle_no || 'Assigned Bus'}</h5>
+              <span className="text-muted fs-12 text-uppercase fw-bold">Vehicle / Plate No.</span>
+              <h5 className="fw-bold text-dark mb-0 mt-1">{transport.number_plate || transport.vehicle_number || transport.vehicle_no || 'Assigned Bus'}</h5>
             </div>
           </div>
 

@@ -74,7 +74,7 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
-// Automatic descending sorting for dropdown and options responses
+// Automatic descending sorting for dropdown and options responses & Subscription 402 lock handling
 apiClient.interceptors.response.use(
   (response) => {
     if (response && response.data) {
@@ -82,7 +82,18 @@ apiClient.interceptors.response.use(
     }
     return response;
   },
-  (error) => Promise.reject(error)
+  (error) => {
+    if (error.response?.status === 402 || error.response?.data?.code === 'SUBSCRIPTION_EXPIRED') {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('subscription_expired', {
+            detail: error.response?.data?.data || error.response?.data,
+          })
+        );
+      }
+    }
+    return Promise.reject(error);
+  }
 );
 
 export default apiClient;

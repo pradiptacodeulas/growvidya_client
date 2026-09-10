@@ -7,6 +7,12 @@ import {
   fetchSubjectsApi,
   createSyllabusApi,
 } from '../../../api/adminAcademic.api';
+import {
+  fetchTeacherAcademicYearsApi,
+  fetchTeacherClassesApi,
+  fetchTeacherSubjectsApi,
+  createTeacherSyllabusApi,
+} from '../../../api/teacherAcademic.api';
 
 const formatAcademicYear = (ay) => {
   if (!ay) return '';
@@ -21,6 +27,8 @@ const formatAcademicYear = (ay) => {
 };
 
 const AddSyllabus = () => {
+  const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
+  const basePath = isTeacher ? '/teacher' : '/admin';
   const navigate = useNavigate();
 
   const [academicYears, setAcademicYears] = useState([]);
@@ -44,15 +52,25 @@ const AddSyllabus = () => {
   const loadMasterData = async () => {
     try {
       setLoading(true);
+      const fetchYears = isTeacher ? fetchTeacherAcademicYearsApi : fetchAcademicYearsApi;
+      const fetchClasses = isTeacher ? fetchTeacherClassesApi : fetchClassesApi;
+      const fetchSubjects = isTeacher ? fetchTeacherSubjectsApi : fetchSubjectsApi;
+
       const [ayRes, clsRes, subRes] = await Promise.all([
-        fetchAcademicYearsApi().catch(() => ({ data: [] })),
-        fetchClassesApi().catch(() => ({ data: [] })),
-        fetchSubjectsApi().catch(() => ({ data: [] })),
+        fetchYears().catch(() => ({ data: [] })),
+        fetchClasses().catch(() => ({ data: [] })),
+        fetchSubjects().catch(() => ({ data: [] })),
       ]);
 
       const ayList = Array.isArray(ayRes?.data) ? ayRes.data : Array.isArray(ayRes) ? ayRes : [];
       const clsList = Array.isArray(clsRes?.data) ? clsRes.data : Array.isArray(clsRes) ? clsRes : [];
-      const subList = Array.isArray(subRes?.data) ? subRes.data : Array.isArray(subRes) ? subRes : [];
+      const subList = Array.isArray(subRes?.data)
+        ? subRes.data
+        : Array.isArray(subRes?.data?.subjects)
+        ? subRes.data.subjects
+        : Array.isArray(subRes)
+        ? subRes
+        : [];
 
       setAcademicYears(ayList);
       setClasses(clsList);
@@ -87,7 +105,8 @@ const AddSyllabus = () => {
 
     try {
       setSubmitting(true);
-      await createSyllabusApi({
+      const createSyllabus = isTeacher ? createTeacherSyllabusApi : createSyllabusApi;
+      await createSyllabus({
         academic_year: formData.academic_year,
         class_id: formData.class_id,
         subject_id: formData.subject_id,
@@ -95,7 +114,7 @@ const AddSyllabus = () => {
         lession: formData.lession.trim(),
       });
       toast.success('Syllabus added successfully!');
-      navigate('/admin/academics/syllabus');
+      navigate(`${basePath}/academics/syllabus`);
     } catch (err) {
       toast.error(err.message || 'Failed to add syllabus.');
     } finally {
@@ -124,10 +143,10 @@ const AddSyllabus = () => {
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
               <li className="breadcrumb-item">
-                <Link to="/admin/academics/syllabus">Syllabus</Link>
+                <Link to={`${basePath}/academics/syllabus`}>Syllabus</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
                 Add Syllabus
@@ -252,7 +271,7 @@ const AddSyllabus = () => {
                 <div className="text-end mb-3">
                   <button
                     type="button"
-                    onClick={() => navigate('/admin/academics/syllabus')}
+                    onClick={() => navigate(`${basePath}/academics/syllabus`)}
                     className="btn btn-light me-3"
                     disabled={submitting}
                   >

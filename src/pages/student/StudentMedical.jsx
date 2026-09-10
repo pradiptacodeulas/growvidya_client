@@ -1,8 +1,48 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { fetchStudentMedicalApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+
+const formatDate = (dateStr) => {
+  if (!dateStr) return 'N/A';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr).slice(0, 10);
+    return d.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  } catch {
+    return String(dateStr).slice(0, 10);
+  }
+};
+
+const getConditionBadge = (item) => {
+  const condNum = Number(item.medical_condition);
+  const name = String(item.condition_name || item.condition || '').toLowerCase();
+
+  if (condNum === 1 || name.includes('good') || name.includes('fit')) {
+    return (
+      <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1 fs-11">
+        <i className="ti ti-circle-check me-1"></i>Good (Fit)
+      </span>
+    );
+  }
+  if (condNum === 2 || name.includes('bad') || name.includes('ill') || name.includes('attention')) {
+    return (
+      <span className="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1 fs-11">
+        <i className="ti ti-alert-triangle me-1"></i>Requires Attention
+      </span>
+    );
+  }
+  return (
+    <span className="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 fs-11">
+      <i className="ti ti-info-circle me-1"></i>Other
+    </span>
+  );
+};
 
 const StudentMedical = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
@@ -10,21 +50,28 @@ const StudentMedical = () => {
   const [medicalList, setMedicalList] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const loadMedical = async () => {
-    try {
-      setLoading(true);
-      const res = await fetchStudentMedicalApi();
-      const data = res?.data?.data || res?.data || [];
-      setMedicalList(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to load student medical records:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let isMounted = true;
+    const loadMedical = async () => {
+      try {
+        const res = await fetchStudentMedicalApi();
+        const data = res?.data?.data || res?.data || [];
+        if (isMounted) {
+          setMedicalList(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error('Failed to load student medical records:', err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     loadMedical();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const student = authStudent;
@@ -91,19 +138,21 @@ const StudentMedical = () => {
             <div key={`med-${item.id || idx}-${idx}`} className="col-12 col-md-6 col-xl-4">
               <div className="card border shadow-sm rounded-3 h-100 p-4 bg-white">
                 <div className="d-flex align-items-center justify-content-between mb-2">
-                  <span className="badge bg-primary-subtle text-primary fs-11">
-                    {item.checkup_name || item.condition || 'General Health Checkup'}
-                  </span>
+                  {getConditionBadge(item)}
                   <small className="text-muted fs-11">
-                    {item.checkup_date ? new Date(item.checkup_date).toLocaleDateString() : 'N/A'}
+                    <i className="ti ti-calendar me-1"></i>
+                    {formatDate(item.medical_time || item.created_at)}
                   </small>
                 </div>
                 <h6 className="fw-bold text-dark fs-14 mb-2">
-                  {item.doctor_name || 'Institutional Medical Officer'}
+                  {item.description || item.notes || item.remarks || 'Routine Health Examination'}
                 </h6>
-                <p className="text-muted fs-12 mb-0">
-                  {item.notes || item.remarks || 'Standard vitals and fitness examination certified.'}
-                </p>
+                <div className="d-flex align-items-center justify-content-between pt-2 border-top fs-11 text-muted">
+                  <span>Parent Status:</span>
+                  <span className={`badge ${item.is_informed ? 'bg-success-subtle text-success' : 'bg-secondary-subtle text-secondary'}`}>
+                    {item.is_informed ? 'Informed' : 'Institutional'}
+                  </span>
+                </div>
               </div>
             </div>
           ))}

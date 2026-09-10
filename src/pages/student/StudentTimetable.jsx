@@ -1,8 +1,26 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSelector } from 'react-redux';
 import { fetchStudentTimetableApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+
+// Normalize backend day IDs or day names to 1-7 (1=Mon, ..., 7=Sun)
+const normalizeDayId = (r) => {
+  const name = String(r?.day_name || '').toLowerCase().trim();
+  if (name.includes('mon')) return 1;
+  if (name.includes('tue')) return 2;
+  if (name.includes('wed')) return 3;
+  if (name.includes('thu')) return 4;
+  if (name.includes('fri')) return 5;
+  if (name.includes('sat')) return 6;
+  if (name.includes('sun')) return 7;
+
+  const num = Number(r?.day);
+  if (num >= 1 && num <= 6) return num;
+  if (num >= 7 && num <= 12) return num - 6;
+  if (num === 7) return 7;
+  return 1;
+};
 
 const StudentTimetable = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
@@ -11,21 +29,28 @@ const StudentTimetable = () => {
   const [selectedDay, setSelectedDay] = useState('ALL');
   const [loading, setLoading] = useState(true);
 
-  const loadTimetable = async () => {
-    try {
-      setLoading(true);
-      const res = await fetchStudentTimetableApi();
-      const data = res?.data?.data || res?.data || [];
-      setTimetable(Array.isArray(data) ? data : []);
-    } catch (err) {
-      console.error('Failed to load student timetable:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
+    let isMounted = true;
+    const loadTimetable = async () => {
+      try {
+        const res = await fetchStudentTimetableApi();
+        const data = res?.data?.data || res?.data || [];
+        if (isMounted) {
+          setTimetable(Array.isArray(data) ? data : []);
+        }
+      } catch (err) {
+        console.error('Failed to load student timetable:', err);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
     loadTimetable();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const daysOfWeek = [
@@ -46,7 +71,7 @@ const StudentTimetable = () => {
     'Student';
 
   const getDayPeriods = (dayId) => {
-    return timetable.filter((r) => Number(r.day) === Number(dayId));
+    return timetable.filter((r) => normalizeDayId(r) === Number(dayId));
   };
 
   const displayDays =

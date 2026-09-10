@@ -5,9 +5,16 @@ import {
   fetchSyllabusByIdApi,
   updateSyllabusApi,
 } from '../../../api/adminAcademic.api';
+import {
+  fetchTeacherSyllabusByIdApi,
+  updateTeacherSyllabusApi,
+} from '../../../api/teacherAcademic.api';
 import { decodeParam } from '../../../utils/idHelper';
 
 const EditSyllabus = () => {
+  const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
+  const basePath = isTeacher ? '/teacher' : '/admin';
+
   const { id: rawId } = useParams();
   const id = decodeParam(rawId);
   const navigate = useNavigate();
@@ -27,11 +34,12 @@ const EditSyllabus = () => {
   const loadSyllabusData = async () => {
     try {
       setLoading(true);
-      const res = await fetchSyllabusByIdApi(id);
+      const fetchSyllabusById = isTeacher ? fetchTeacherSyllabusByIdApi : fetchSyllabusByIdApi;
+      const res = await fetchSyllabusById(id);
       const data = res?.data || res;
       if (!data) {
         toast.error('Syllabus item not found.');
-        return navigate('/admin/academics/syllabus');
+        return navigate(`${basePath}/academics/syllabus`);
       }
       setSyllabus(data);
       setStatus(String(data.status || '1'));
@@ -50,7 +58,8 @@ const EditSyllabus = () => {
     }
     try {
       setSubmitting(true);
-      await updateSyllabusApi(id, {
+      const updateSyllabus = isTeacher ? updateTeacherSyllabusApi : updateSyllabusApi;
+      await updateSyllabus(id, {
         academic_year: syllabus.academic_year,
         class_id: syllabus.class_id,
         subject_id: syllabus.subject_id,
@@ -58,7 +67,7 @@ const EditSyllabus = () => {
         status: Number(status),
       });
       toast.success('Syllabus updated successfully!');
-      navigate('/admin/academics/syllabus');
+      navigate(`${basePath}/academics/syllabus`);
     } catch (err) {
       toast.error(err.message || 'Failed to update syllabus.');
     } finally {
@@ -87,10 +96,10 @@ const EditSyllabus = () => {
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
-                <Link to="/admin/dashboard">Dashboard</Link>
+                <Link to={`${basePath}/dashboard`}>Dashboard</Link>
               </li>
               <li className="breadcrumb-item">
-                <Link to="/admin/academics/syllabus">Syllabus</Link>
+                <Link to={`${basePath}/academics/syllabus`}>Syllabus</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
                 Edit Syllabus
@@ -190,7 +199,7 @@ const EditSyllabus = () => {
                 <div className="text-end mb-3">
                   <button
                     type="button"
-                    onClick={() => navigate('/admin/academics/syllabus')}
+                    onClick={() => navigate(`${basePath}/academics/syllabus`)}
                     className="btn btn-light me-3"
                     disabled={submitting}
                   >

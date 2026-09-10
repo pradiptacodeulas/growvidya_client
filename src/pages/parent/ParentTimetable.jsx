@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { fetchChildTimetableApi } from '../../api/parentChild.api';
@@ -28,6 +28,24 @@ const DAYS_CONFIG = [
   { id: 6, name: 'Saturday' },
   { id: 7, name: 'Sunday' },
 ];
+
+// Normalize backend day IDs or day names to 1-7 (1=Mon, ..., 7=Sun)
+const normalizeDayId = (r) => {
+  const name = String(r?.day_name || '').toLowerCase().trim();
+  if (name.includes('mon')) return 1;
+  if (name.includes('tue')) return 2;
+  if (name.includes('wed')) return 3;
+  if (name.includes('thu')) return 4;
+  if (name.includes('fri')) return 5;
+  if (name.includes('sat')) return 6;
+  if (name.includes('sun')) return 7;
+
+  const num = Number(r?.day);
+  if (num >= 1 && num <= 6) return num;
+  if (num >= 7 && num <= 12) return num - 6;
+  if (num === 7) return 7;
+  return 1;
+};
 
 const ParentTimetable = () => {
   const { activeChild } = useSelector((state) => state.parentAuth);
@@ -72,11 +90,11 @@ const ParentTimetable = () => {
   const sectionName = activeChild?.section_name || '-';
   const rollNumber = activeChild?.roll_number || '-';
 
-  // Group routines by day ID
+  // Group routines by normalized day ID
   const routinesByDay = useMemo(() => {
     const map = {};
     (routines || []).forEach((r) => {
-      const dayKey = String(r.day || 1);
+      const dayKey = String(normalizeDayId(r));
       if (!map[dayKey]) map[dayKey] = [];
       map[dayKey].push(r);
     });
@@ -89,8 +107,13 @@ const ParentTimetable = () => {
     return map;
   }, [routines]);
 
-  // Days list (Monday to Saturday)
-  const displayDays = DAYS_CONFIG.slice(0, 6);
+  // Days list (Monday to Saturday, plus Sunday if routines exist or today is Sunday)
+  const displayDays = useMemo(() => {
+    const hasSundayRoutine = routinesByDay['7'] && routinesByDay['7'].length > 0;
+    return hasSundayRoutine || currentDayId === 7
+      ? DAYS_CONFIG
+      : DAYS_CONFIG.slice(0, 6);
+  }, [routinesByDay, currentDayId]);
 
   return (
     <div className="content content-two">

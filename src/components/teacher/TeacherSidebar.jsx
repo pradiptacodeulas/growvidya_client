@@ -220,7 +220,9 @@ const TeacherSidebar = ({
                     <li>
                       <NavLink
                         to="/teacher/academics/syllabus"
-                        className={({ isActive }) => (isActive ? 'active' : '')}
+                        className={({ isActive }) =>
+                          isActive || location.pathname.startsWith('/teacher/academics/syllabus') ? 'active' : ''
+                        }
                       >
                         Syllabus
                       </NavLink>

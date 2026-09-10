@@ -1,13 +1,19 @@
-import React, { useEffect, useState } from 'react';
-import { useSelector } from 'react-redux';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchDashboardStatsApi } from '../../api/adminDashboard.api';
 import Avatar from '../../components/common/Avatar';
 import usePermission from '../../hooks/usePermission';
 
+const FEES_MODULES = [
+  'feesmanagement/payments',
+  'feesmanagement/structures',
+  'feesmanagement/components',
+  'feesmanagement/allocations',
+  'feesmanagement/invoices',
+];
+
 const AdminDashboard = () => {
-  const { user } = useSelector((state) => state.auth);
-  const { can, isSuperAdmin } = usePermission();
+  const { hasAny, isSuperAdmin } = usePermission();
   const [stats, setStats] = useState({
     students: { total: 0, active: 0, inactive: 0 },
     teachers: { total: 0, active: 0, inactive: 0 },
@@ -31,6 +37,8 @@ const AdminDashboard = () => {
   });
   const [loading, setLoading] = useState(true);
   const [attendanceTab, setAttendanceTab] = useState('students');
+
+  const canViewFees = isSuperAdmin || hasAny(FEES_MODULES, 'view');
 
   useEffect(() => {
     const loadStats = async () => {
@@ -85,31 +93,25 @@ const AdminDashboard = () => {
           </nav>
         </div>
         <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
-          {(isSuperAdmin || can('ward/students', 'add')) && (
-            <div className="mb-2">
-              <Link
-                to="/admin/students/add"
-                className="btn btn-primary d-flex align-items-center me-3"
-              >
-                <i className="ti ti-square-rounded-plus me-2"></i>Add New Student
-              </Link>
-            </div>
-          )}
-          {(isSuperAdmin || can('academic/year', 'view')) && (
-            <div className="mb-2">
-              <Link
-                to="/admin/academics/years"
-                className="btn btn-light d-flex align-items-center"
-              >
-                <i className="ti ti-notebook me-2"></i>Academics Master
-              </Link>
-            </div>
-          )}
+          <div className="mb-2">
+            <Link
+              to="/admin/students/add"
+              className="btn btn-primary d-flex align-items-center me-3"
+            >
+              <i className="ti ti-square-rounded-plus me-2"></i>Add New Student
+            </Link>
+          </div>
+          <div className="mb-2">
+            <Link
+              to="/admin/academics/years"
+              className="btn btn-light d-flex align-items-center"
+            >
+              <i className="ti ti-notebook me-2"></i>Academics Master
+            </Link>
+          </div>
         </div>
       </div>
       {/* /Page Header */}
-
-
 
       {/* Row 1: 4 Metric Cards (Total Students, Teachers, Staff, Parents) */}
       <div className="row">
@@ -329,7 +331,7 @@ const AdminDashboard = () => {
         {/* New Events */}
         <div className="col-xl-3 col-md-6 d-flex">
           <Link
-            to="/admin/announcements"
+            to="/admin/announcement/event"
             className="card bg-success-transparent border border-5 border-white animate-card flex-fill text-decoration-none"
           >
             <div className="card-body">
@@ -355,7 +357,7 @@ const AdminDashboard = () => {
         {/* Holiday */}
         <div className="col-xl-3 col-md-6 d-flex">
           <Link
-            to="/admin/announcements"
+            to="/admin/announcement/holiday"
             className="card bg-danger-transparent border border-5 border-white animate-card flex-fill text-decoration-none"
           >
             <div className="card-body">
@@ -418,7 +420,6 @@ const AdminDashboard = () => {
                   {
                     title: 'Calendar',
                     to: '/admin/reports/calendar-report',
-                    module: 'report/calendarReport',
                     icon: 'ti ti-calendar',
                     colorClass: 'bg-success-transparent',
                     borderClass: 'border-success',
@@ -427,7 +428,6 @@ const AdminDashboard = () => {
                   {
                     title: 'Fees',
                     to: '/admin/fees/dashboard',
-                    module: 'feesmanagement/payments',
                     icon: 'ti ti-report-money',
                     colorClass: 'bg-secondary-transparent',
                     borderClass: 'border-secondary',
@@ -436,7 +436,6 @@ const AdminDashboard = () => {
                   {
                     title: 'Routines',
                     to: '/admin/academics/routines',
-                    module: 'academic/routine',
                     icon: 'ti ti-calendar-time',
                     colorClass: 'bg-primary-transparent',
                     borderClass: 'border-primary',
@@ -445,7 +444,6 @@ const AdminDashboard = () => {
                   {
                     title: 'Home Works',
                     to: '/admin/academics/assignments',
-                    module: 'academic/assignment',
                     icon: 'ti ti-clipboard-list',
                     colorClass: 'bg-danger-transparent',
                     borderClass: 'border-danger',
@@ -454,7 +452,6 @@ const AdminDashboard = () => {
                   {
                     title: 'Attendance',
                     to: '/admin/attendance/student',
-                    module: 'attendance/student',
                     icon: 'ti ti-user-check',
                     colorClass: 'bg-warning-transparent',
                     borderClass: 'border-warning',
@@ -463,39 +460,36 @@ const AdminDashboard = () => {
                   {
                     title: 'Reports',
                     to: '/admin/reports/class-report',
-                    module: 'report/classReport',
                     icon: 'ti ti-file-analytics',
                     colorClass: 'bg-skyblue-transparent',
                     borderClass: 'border-skyblue',
                     bgClass: 'bg-skyblue',
                   },
-                ]
-                  .filter((item) => isSuperAdmin || !item.module || can(item.module, 'view'))
-                  .map((item) => (
-                    <div className="col-md-4 col-sm-6" key={item.title}>
-                      <Link
-                        to={item.to}
-                        className={`d-block ${item.colorClass} rounded p-3 text-center class-hover text-decoration-none`}
+                ].map((item) => (
+                  <div className="col-md-4 col-sm-6" key={item.title}>
+                    <Link
+                      to={item.to}
+                      className={`d-block ${item.colorClass} rounded p-3 text-center class-hover text-decoration-none`}
+                    >
+                      <div
+                        className={`avatar avatar-lg border p-1 ${item.borderClass} rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center`}
                       >
-                        <div
-                          className={`avatar avatar-lg border p-1 ${item.borderClass} rounded-circle mb-2 mx-auto d-flex align-items-center justify-content-center`}
+                        <span
+                          className={`d-inline-flex align-items-center justify-content-center w-100 h-100 ${item.bgClass} rounded-circle text-white`}
                         >
-                          <span
-                            className={`d-inline-flex align-items-center justify-content-center w-100 h-100 ${item.bgClass} rounded-circle text-white`}
-                          >
-                            <i className={`${item.icon} fs-20`}></i>
-                          </span>
-                        </div>
-                        <p className="text-dark fw-semibold mb-0">{item.title}</p>
-                      </Link>
-                    </div>
-                  ))}
+                          <i className={`${item.icon} fs-20`}></i>
+                        </span>
+                      </div>
+                      <p className="text-dark fw-semibold mb-0">{item.title}</p>
+                    </Link>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Leave Requests (Real Database Rows) */}
+        {/* Leave Requests */}
         <div className="col-xxl-6 col-xl-6 d-flex">
           <div className="card flex-fill">
             <div className="card-header d-flex align-items-center justify-content-between">
@@ -739,77 +733,89 @@ const AdminDashboard = () => {
               </Link>
             </div>
             <div className="card-body">
-              {/* Fee Metric Summary Boxes */}
-              <div className="row g-3 mb-4">
-                <div className="col-md-4">
-                  <div className="border rounded p-3 bg-primary-transparent">
-                    <p className="text-muted fs-12 mb-1">Total Invoiced</p>
-                    <h4 className="fw-bold mb-0 text-primary">
-                      ₹{Number(feesTotal).toLocaleString()}
-                    </h4>
-                  </div>
+              {!canViewFees ? (
+                <div className="text-center py-5 text-muted">
+                  <i className="ti ti-lock fs-36 text-warning mb-2 d-block"></i>
+                  <h5 className="fw-semibold text-dark mb-1">Permission Required</h5>
+                  <p className="mb-0 text-muted fs-14">
+                    You do not have permission to view fees collection records.
+                  </p>
                 </div>
-                <div className="col-md-4">
-                  <div className="border rounded p-3 bg-success-transparent">
-                    <p className="text-muted fs-12 mb-1">Total Collected</p>
-                    <h4 className="fw-bold mb-0 text-success">
-                      ₹{Number(feesPaid).toLocaleString()}
-                    </h4>
-                  </div>
-                </div>
-                <div className="col-md-4">
-                  <div className="border rounded p-3 bg-danger-transparent">
-                    <p className="text-muted fs-12 mb-1">Total Outstanding</p>
-                    <h4 className="fw-bold mb-0 text-danger">
-                      ₹{Number(feesDue).toLocaleString()}
-                    </h4>
-                  </div>
-                </div>
-              </div>
-
-              {/* Class-wise Real Breakdown */}
-              <h6 className="fw-semibold mb-3 text-dark">
-                Class-wise Fee Breakdown
-              </h6>
-              <div
-                className="row g-2"
-                style={{ maxHeight: '180px', overflowY: 'auto' }}
-              >
-                {stats.feesSummary?.byClass &&
-                stats.feesSummary.byClass.length > 0 ? (
-                  stats.feesSummary.byClass.map((cls, idx) => {
-                    const clsTotal = Number(cls.total || 0);
-                    const clsPaid = Number(cls.paid || 0);
-                    const clsPct =
-                      clsTotal > 0 ? Math.round((clsPaid / clsTotal) * 100) : 0;
-                    return (
-                      <div className="col-md-6 mb-2" key={idx}>
-                        <div className="p-2 border rounded bg-light-300">
-                          <div className="d-flex justify-content-between align-items-center mb-1">
-                            <span className="fw-bold fs-13 text-dark">
-                              Class {cls.class_name}
-                            </span>
-                            <span className="fs-12 text-muted">
-                              ₹{clsPaid.toLocaleString()} / ₹
-                              {clsTotal.toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="progress" style={{ height: '6px' }}>
-                            <div
-                              className="progress-bar bg-success"
-                              style={{ width: `${clsPct}%` }}
-                            ></div>
-                          </div>
-                        </div>
+              ) : (
+                <>
+                  {/* Fee Metric Summary Boxes */}
+                  <div className="row g-3 mb-4">
+                    <div className="col-md-4">
+                      <div className="border rounded p-3 bg-primary-transparent">
+                        <p className="text-muted fs-12 mb-1">Total Invoiced</p>
+                        <h4 className="fw-bold mb-0 text-primary">
+                          ₹{Number(feesTotal).toLocaleString()}
+                        </h4>
                       </div>
-                    );
-                  })
-                ) : (
-                  <div className="text-center py-3 text-muted">
-                    No fee invoice data available.
+                    </div>
+                    <div className="col-md-4">
+                      <div className="border rounded p-3 bg-success-transparent">
+                        <p className="text-muted fs-12 mb-1">Total Collected</p>
+                        <h4 className="fw-bold mb-0 text-success">
+                          ₹{Number(feesPaid).toLocaleString()}
+                        </h4>
+                      </div>
+                    </div>
+                    <div className="col-md-4">
+                      <div className="border rounded p-3 bg-danger-transparent">
+                        <p className="text-muted fs-12 mb-1">Total Outstanding</p>
+                        <h4 className="fw-bold mb-0 text-danger">
+                          ₹{Number(feesDue).toLocaleString()}
+                        </h4>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
+
+                  {/* Class-wise Real Breakdown */}
+                  <h6 className="fw-semibold mb-3 text-dark">
+                    Class-wise Fee Breakdown
+                  </h6>
+                  <div
+                    className="row g-2"
+                    style={{ maxHeight: '180px', overflowY: 'auto' }}
+                  >
+                    {stats.feesSummary?.byClass &&
+                    stats.feesSummary.byClass.length > 0 ? (
+                      stats.feesSummary.byClass.map((cls, idx) => {
+                        const clsTotal = Number(cls.total || 0);
+                        const clsPaid = Number(cls.paid || 0);
+                        const clsPct =
+                          clsTotal > 0 ? Math.round((clsPaid / clsTotal) * 100) : 0;
+                        return (
+                          <div className="col-md-6 mb-2" key={idx}>
+                            <div className="p-2 border rounded bg-light-300">
+                              <div className="d-flex justify-content-between align-items-center mb-1">
+                                <span className="fw-bold fs-13 text-dark">
+                                  Class {cls.class_name}
+                                </span>
+                                <span className="fs-12 text-muted">
+                                  ₹{clsPaid.toLocaleString()} / ₹
+                                  {clsTotal.toLocaleString()}
+                                </span>
+                              </div>
+                              <div className="progress" style={{ height: '6px' }}>
+                                <div
+                                  className="progress-bar bg-success"
+                                  style={{ width: `${clsPct}%` }}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="text-center py-3 text-muted">
+                        No fee invoice data available.
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -823,7 +829,7 @@ const AdminDashboard = () => {
           <div className="card flex-fill">
             <div className="card-header d-flex align-items-center justify-content-between">
               <h4 className="card-title mb-0">Notice Board</h4>
-              <Link to="/admin/announcements" className="fw-medium fs-13">
+              <Link to="/admin/announcement/notice" className="fw-medium fs-13">
                 View All
               </Link>
             </div>

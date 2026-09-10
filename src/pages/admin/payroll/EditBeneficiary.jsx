@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -29,6 +29,7 @@ const EditBeneficiary = () => {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
   // Custom searchable scrollable dropdown state
   const [isNameDropdownOpen, setIsNameDropdownOpen] = useState(false);
@@ -116,6 +117,17 @@ const EditBeneficiary = () => {
       ifsc_code: '',
       branch_name: '',
     }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.user_type;
+      delete next.employee_id;
+      delete next.bank_name;
+      delete next.account_name;
+      delete next.account_no;
+      delete next.ifsc_code;
+      delete next.branch_name;
+      return next;
+    });
     setNameSearch('');
     if (val) {
       loadEmployees(val);
@@ -143,6 +155,17 @@ const EditBeneficiary = () => {
         employee_id: '',
       }));
     }
+
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next.employee_id;
+      if (selectedEmp?.bank_name) delete next.bank_name;
+      if (selectedEmp?.account_name || selectedEmp?.name) delete next.account_name;
+      if (selectedEmp?.account_no) delete next.account_no;
+      if (selectedEmp?.ifsc_code) delete next.ifsc_code;
+      if (selectedEmp?.branch_name) delete next.branch_name;
+      return next;
+    });
   };
 
   const filteredEmployees = useMemo(() => {
@@ -162,30 +185,83 @@ const EditBeneficiary = () => {
       ...prev,
       [name]: value,
     }));
+    if (errors[name]) {
+      setErrors((prev) => {
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    }
+  };
+
+  const validate = () => {
+    const newErrors = {};
+
+    if (!formData.user_type || !String(formData.user_type).trim()) {
+      newErrors.user_type = 'Please select User Type.';
+    }
+
+    if (!formData.employee_id || !String(formData.employee_id).trim()) {
+      newErrors.employee_id = 'Please select an Employee.';
+    }
+
+    const salary = String(formData.basic_salary ?? '').trim();
+    if (!salary) {
+      newErrors.basic_salary = 'Amount is required.';
+    } else if (isNaN(salary) || Number(salary) <= 0) {
+      newErrors.basic_salary = 'Please enter a valid amount greater than 0.';
+    }
+
+    if (!String(formData.bank_name ?? '').trim()) {
+      newErrors.bank_name = 'Bank Name is required.';
+    }
+
+    if (!String(formData.account_name ?? '').trim()) {
+      newErrors.account_name = 'Account Name is required.';
+    }
+
+    if (!String(formData.account_no ?? '').trim()) {
+      newErrors.account_no = 'Account No is required.';
+    }
+
+    if (!String(formData.ifsc_code ?? '').trim()) {
+      newErrors.ifsc_code = 'IFSC Code is required.';
+    }
+
+    if (!String(formData.branch_name ?? '').trim()) {
+      newErrors.branch_name = 'Branch Name is required.';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.user_type) {
-      toast.error('Please select User Type.');
+
+    if (!validate()) {
+      toast.error('Please fill in all required fields correctly.');
       return;
     }
-    if (!formData.employee_id) {
-      toast.error('Please select Employee Name.');
-      return;
-    }
-    if (!formData.basic_salary || isNaN(formData.basic_salary) || Number(formData.basic_salary) <= 0) {
-      toast.error('Please enter a valid Basic Salary Amount.');
-      return;
-    }
+
+    const payload = {
+      user_type: String(formData.user_type).trim(),
+      employee_id: String(formData.employee_id).trim(),
+      basic_salary: String(formData.basic_salary).trim(),
+      bank_name: String(formData.bank_name).trim(),
+      account_name: String(formData.account_name).trim(),
+      account_no: String(formData.account_no).trim(),
+      ifsc_code: String(formData.ifsc_code).trim(),
+      branch_name: String(formData.branch_name).trim(),
+    };
 
     try {
       setSubmitting(true);
       if (isEdit) {
-        await updateBeneficiaryApi(id, formData);
+        await updateBeneficiaryApi(id, payload);
         toast.success('Beneficiary updated successfully.');
       } else {
-        await createBeneficiaryApi(formData);
+        await createBeneficiaryApi(payload);
         toast.success('Beneficiary added successfully.');
       }
       navigate('/admin/payroll/beneficiaries');
@@ -230,7 +306,7 @@ const EditBeneficiary = () => {
               </div>
             </div>
           ) : (
-            <form onSubmit={handleSubmit}>
+            <form noValidate onSubmit={handleSubmit}>
               {/* Personal Information */}
               <div className="card">
                 <div className="card-header bg-light">
@@ -242,21 +318,23 @@ const EditBeneficiary = () => {
                   <div className="row row-cols-md-6">
                     <div className="col-md-4">
                       <div className="mb-3">
-                        <label className="form-label">
+                        <label className="form-label" htmlFor="user_type">
                           Type <span className="text-danger">*</span>
                         </label>
                         <select
-                          className="form-select"
+                          className={`form-select ${errors.user_type ? 'is-invalid' : ''}`}
                           name="user_type"
                           id="user_type"
                           value={formData.user_type}
                           onChange={handleUserTypeChange}
-                          required
                         >
                           <option value="">Select</option>
                           <option value="1">User</option>
                           <option value="2">Teacher</option>
                         </select>
+                        {errors.user_type && (
+                          <div className="invalid-feedback">{errors.user_type}</div>
+                        )}
                       </div>
                     </div>
 
@@ -267,8 +345,8 @@ const EditBeneficiary = () => {
                         </label>
                         <div
                           className={`form-select d-flex align-items-center justify-content-between cursor-pointer ${
-                            !formData.employee_id ? 'text-muted' : 'text-dark'
-                          }`}
+                            errors.employee_id ? 'is-invalid border-danger' : ''
+                          } ${!formData.employee_id ? 'text-muted' : 'text-dark'}`}
                           onClick={() => setIsNameDropdownOpen((prev) => !prev)}
                           style={{
                             minHeight: '38px',
@@ -360,28 +438,34 @@ const EditBeneficiary = () => {
                           type="hidden"
                           name="employee_id"
                           value={formData.employee_id}
-                          required
                         />
+                        {errors.employee_id && (
+                          <div className="invalid-feedback d-block">{errors.employee_id}</div>
+                        )}
                       </div>
                     </div>
 
                     <div className="col-md-4">
                       <div className="mb-3">
-                        <label className="form-label">
+                        <label className="form-label" htmlFor="basic_salary">
                           Amount <span className="text-danger">*</span>
                         </label>
                         <div className="date-pic">
                           <input
-                            type="text"
-                            className="form-control"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            className={`form-control ${errors.basic_salary ? 'is-invalid' : ''}`}
                             placeholder="Amount"
                             name="basic_salary"
                             id="basic_salary"
                             value={formData.basic_salary}
                             onChange={handleChange}
-                            required
                           />
                         </div>
+                        {errors.basic_salary && (
+                          <div className="invalid-feedback d-block">{errors.basic_salary}</div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -392,91 +476,101 @@ const EditBeneficiary = () => {
 
                     <div className="col-md-4">
                       <div className="mb-3">
-                        <label className="form-label">
+                        <label className="form-label" htmlFor="bank_name">
                           Bank Name <span className="text-danger">*</span>
                         </label>
                         <input
                           type="text"
-                          className="form-control"
+                          className={`form-control ${errors.bank_name ? 'is-invalid' : ''}`}
                           placeholder="Bank Name"
                           name="bank_name"
                           id="bank_name"
                           value={formData.bank_name}
                           onChange={handleChange}
-                          required
                         />
+                        {errors.bank_name && (
+                          <div className="invalid-feedback">{errors.bank_name}</div>
+                        )}
                       </div>
                     </div>
 
                     <div className="col-md-4">
                       <div className="mb-3">
-                        <label className="form-label">
+                        <label className="form-label" htmlFor="account_name">
                           Account Name <span className="text-danger">*</span>
                         </label>
                         <input
                           type="text"
-                          className="form-control"
+                          className={`form-control ${errors.account_name ? 'is-invalid' : ''}`}
                           placeholder="Account Name"
                           name="account_name"
                           id="account_name"
                           value={formData.account_name}
                           onChange={handleChange}
-                          required
                         />
+                        {errors.account_name && (
+                          <div className="invalid-feedback">{errors.account_name}</div>
+                        )}
                       </div>
                     </div>
 
                     <div className="col-md-4">
                       <div className="mb-3">
-                        <label className="form-label">
+                        <label className="form-label" htmlFor="account_no">
                           Account No <span className="text-danger">*</span>
                         </label>
                         <input
                           type="text"
-                          className="form-control"
+                          className={`form-control ${errors.account_no ? 'is-invalid' : ''}`}
                           placeholder="Account No"
                           name="account_no"
                           id="account_no"
                           value={formData.account_no}
                           onChange={handleChange}
-                          required
                         />
+                        {errors.account_no && (
+                          <div className="invalid-feedback">{errors.account_no}</div>
+                        )}
                       </div>
                     </div>
 
                     <div className="col-md-4">
                       <div className="mb-3">
-                        <label className="form-label">
+                        <label className="form-label" htmlFor="ifsc_code">
                           IFSC Code <span className="text-danger">*</span>
                         </label>
                         <input
                           type="text"
-                          className="form-control"
+                          className={`form-control ${errors.ifsc_code ? 'is-invalid' : ''}`}
                           placeholder="IFSC Code"
                           name="ifsc_code"
                           id="ifsc_code"
                           value={formData.ifsc_code}
                           onChange={handleChange}
-                          required
                         />
+                        {errors.ifsc_code && (
+                          <div className="invalid-feedback">{errors.ifsc_code}</div>
+                        )}
                       </div>
                     </div>
 
                     <div className="col-md-4">
                       <div className="mb-3">
-                        <label className="form-label">
+                        <label className="form-label" htmlFor="branch_name">
                           Branch Name <span className="text-danger">*</span>
                         </label>
                         <input
                           type="text"
-                          className="form-control"
+                          className={`form-control ${errors.branch_name ? 'is-invalid' : ''}`}
                           placeholder="Branch Name"
                           name="branch_name"
                           id="branch_name"
                           value={formData.branch_name}
                           onChange={handleChange}
-                          required
                         />
+                        {errors.branch_name && (
+                          <div className="invalid-feedback">{errors.branch_name}</div>
+                        )}
                       </div>
                     </div>
                   </div>

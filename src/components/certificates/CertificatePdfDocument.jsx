@@ -6,7 +6,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
     backgroundColor: '#ffffff',
-    padding: 20,
+    padding: 0,
     position: 'relative',
     fontFamily: 'Times-Roman',
     color: '#1e293b',
@@ -21,24 +21,21 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   innerFrame: {
-    flex: 1,
-    borderWidth: 1.5,
-    borderColor: '#c5a059',
-    borderStyle: 'solid',
-    paddingTop: 16,
-    paddingBottom: 14,
-    paddingHorizontal: 20,
+    position: 'absolute',
+    top: 52,
+    bottom: 50,
+    left: 46,
+    right: 46,
+    paddingTop: 12,
+    paddingBottom: 12,
+    paddingHorizontal: 16,
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.85)',
   },
   topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    borderBottomWidth: 1,
-    borderBottomColor: '#cbd5e1',
-    borderBottomStyle: 'dashed',
-    paddingBottom: 5,
+    paddingBottom: 4,
   },
   metaGroup: {
     flexDirection: 'row',
@@ -52,36 +49,36 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
   serialNumber: {
-    fontSize: 9.5,
+    fontSize: 10,
     fontFamily: 'Courier-Bold',
     color: '#b91c1c',
   },
   metaValue: {
-    fontSize: 9,
+    fontSize: 9.5,
     fontFamily: 'Helvetica-Bold',
     color: '#0f172a',
   },
   header: {
     alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 4,
+    marginTop: 2,
+    marginBottom: 2,
   },
   crest: {
-    width: 42,
-    height: 42,
+    width: 38,
+    height: 38,
     objectFit: 'contain',
-    marginBottom: 4,
+    marginBottom: 3,
   },
   schoolName: {
     fontSize: 19,
     fontFamily: 'Times-Bold',
     color: '#0c2340',
-    letterSpacing: 1.2,
+    letterSpacing: 1,
     textTransform: 'uppercase',
     textAlign: 'center',
   },
   affiliation: {
-    fontSize: 9,
+    fontSize: 8.5,
     fontFamily: 'Helvetica',
     color: '#475569',
     marginTop: 2,
@@ -98,8 +95,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '60%',
-    marginVertical: 4,
+    width: '55%',
+    marginVertical: 3,
     alignSelf: 'center',
   },
   dividerLine: {
@@ -108,48 +105,48 @@ const styles = StyleSheet.create({
     backgroundColor: '#c5a059',
   },
   dividerDiamond: {
-    fontSize: 7.5,
+    fontSize: 7,
     color: '#c5a059',
-    marginHorizontal: 6,
+    marginHorizontal: 5,
   },
   titleWrapper: {
     alignItems: 'center',
-    marginVertical: 4,
+    marginVertical: 3,
   },
   titleBadge: {
-    fontSize: 12.5,
+    fontSize: 14,
     fontFamily: 'Times-Bold',
     color: '#0c2340',
-    letterSpacing: 1.5,
+    letterSpacing: 1.8,
     textTransform: 'uppercase',
-    paddingVertical: 3.5,
+    paddingVertical: 4,
     paddingHorizontal: 18,
-    borderTopWidth: 1.5,
-    borderBottomWidth: 1.5,
+    borderTopWidth: 1.2,
+    borderBottomWidth: 1.2,
     borderColor: '#c5a059',
     backgroundColor: 'rgba(197, 160, 89, 0.08)',
     textAlign: 'center',
   },
   leadIn: {
-    fontSize: 11,
+    fontSize: 12.5,
     fontFamily: 'Times-Italic',
     color: '#64748b',
     textAlign: 'center',
-    marginVertical: 2,
+    marginVertical: 3,
   },
   recipientWrapper: {
     alignItems: 'center',
-    marginVertical: 4,
+    marginVertical: 3,
   },
   recipientName: {
-    fontSize: 19,
+    fontSize: 22,
     fontFamily: 'Times-Bold',
     color: '#0c2340',
-    letterSpacing: 0.8,
+    letterSpacing: 1,
     borderBottomWidth: 1.5,
     borderBottomColor: '#c5a059',
-    paddingBottom: 2,
-    paddingHorizontal: 14,
+    paddingBottom: 3,
+    paddingHorizontal: 16,
     textAlign: 'center',
   },
   bodyContent: {
@@ -157,9 +154,9 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   bodyParagraph: {
-    fontSize: 10,
-    lineHeight: 1.8,
-    color: '#334155',
+    fontSize: 13,
+    lineHeight: 1.85,
+    color: '#1e293b',
     textAlign: 'center',
     marginBottom: 4,
   },
@@ -171,85 +168,49 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginTop: 8,
-    paddingHorizontal: 6,
+    alignItems: 'flex-start',
+    marginTop: 10,
+    paddingHorizontal: 8,
   },
   signBlock: {
-    width: 130,
+    width: 140,
     alignItems: 'center',
   },
   signLine: {
-    width: 110,
+    width: 125,
     height: 1,
     backgroundColor: '#0f172a',
     marginBottom: 4,
   },
   signTitle: {
-    fontSize: 9,
+    fontSize: 10.5,
     fontFamily: 'Times-Bold',
     color: '#0f172a',
     textAlign: 'center',
   },
   signSubtitle: {
-    fontSize: 7.5,
+    fontSize: 8.5,
     fontFamily: 'Helvetica-Oblique',
     color: '#64748b',
     textAlign: 'center',
-    marginTop: 1,
-  },
-  sealBlock: {
-    alignItems: 'center',
-  },
-  sealCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1.5,
-    borderColor: '#c5a059',
-    borderStyle: 'dashed',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fffcf0',
-  },
-  sealInnerCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#0c2340',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sealText: {
-    fontSize: 5,
-    fontFamily: 'Helvetica-Bold',
-    color: '#0c2340',
-    textAlign: 'center',
-  },
-  sealSubText: {
-    fontSize: 4.5,
-    fontFamily: 'Helvetica-Bold',
-    color: '#c5a059',
-    textAlign: 'center',
-    marginTop: 1,
+    marginTop: 2,
   },
 });
 
 const parseBodyParagraphs = (template, student, dateStr) => {
   const fullName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim() || 'Student';
-  const guardian = student?.guardian_name || student?.father_name || 'Mr. Parent';
+  const guardian = student?.guardian_name || student?.father_name || '—';
   const dob = student?.date_of_birth
     ? new Date(student.date_of_birth).toLocaleDateString('en-GB')
     : '—';
-  const clsName = student?.class_name || student?.class || 'I';
-  const secName = student?.section_name || student?.section || 'A';
-  const rollNo = student?.roll_number || '1';
-  const admNo = student?.admission_number || (student?.id ? `AD${student.id}` : '');
+  const clsName = student?.class_name || student?.class || '—';
+  const secName = student?.section_name || student?.section || '—';
+  const rollNo = student?.roll_number || '—';
+  const admNo = student?.admission_number || (student?.id ? `AD${student.id}` : '—');
   const admDate = student?.admission_date
     ? new Date(student.admission_date).toLocaleDateString('en-GB')
-    : '12/02/2026';
-  const academicYear = student?.academic_year || '2025-2026';
+    : '—';
+  const academicYear = student?.academic_year || '—';
 
   let desc = template?.description || template?.certificate_description || '';
 
@@ -283,6 +244,9 @@ const parseBodyParagraphs = (template, student, dateStr) => {
     .replace(/&amp;/gi, '&')
     .replace(/<[^>]+>/g, '');
 
+  // Format any raw ISO or SQL datetime strings like "2010-02-06 00:00:00" or "2026-09-10" to DD/MM/YYYY
+  text = text.replace(/(\d{4})-(\d{2})-(\d{2})(?:\s+\d{2}:\d{2}:\d{2})?/g, (match, y, m, d) => `${d}/${m}/${y}`);
+
   if (template?.certificate_heading) {
     const hReg = new RegExp(`^\\s*${template.certificate_heading}\\s*`, 'i');
     text = text.replace(hReg, '').trim();
@@ -313,24 +277,36 @@ const parseBodyParagraphs = (template, student, dateStr) => {
     if (fullName && fullName !== 'Student') {
       text = text.split(fullName).join(`~~~HL~~~${fullName}~~~END_HL~~~`);
     }
-    if (guardian && guardian !== 'Mr. Parent') {
+    if (guardian && guardian !== '—') {
       text = text.split(guardian).join(`~~~HL~~~${guardian}~~~END_HL~~~`);
     }
   }
 
-  const paras = text.split(/\n\s*\n+/);
-  return paras.map((para) => {
-    const parts = para.split(/(~~~HL~~~[\s\S]*?~~~END_HL~~~)/g);
-    return parts.map((part) => {
-      if (part.startsWith('~~~HL~~~')) {
-        return {
-          text: part.replace('~~~HL~~~', '').replace('~~~END_HL~~~', ''),
-          highlight: true,
-        };
-      }
-      return { text: part, highlight: false };
-    });
-  });
+  // Normalize paragraphs: preserve intentional double newlines, but merge accidental single newlines into continuous prose
+  const rawParas = text.split(/\n\s*\n+/);
+  return rawParas
+    .map((rawPara) => {
+      const cleanPara = rawPara
+        .replace(/\r?\n/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      if (!cleanPara) return null;
+
+      const parts = cleanPara.split(/(~~~HL~~~[\s\S]*?~~~END_HL~~~)/g);
+      return parts
+        .filter((part) => part.length > 0)
+        .map((part) => {
+          if (part.startsWith('~~~HL~~~')) {
+            return {
+              text: part.replace('~~~HL~~~', '').replace('~~~END_HL~~~', ''),
+              highlight: true,
+            };
+          }
+          return { text: part, highlight: false };
+        });
+    })
+    .filter(Boolean);
 };
 
 export const CertificatePdfDocument = ({
@@ -362,17 +338,17 @@ export const CertificatePdfDocument = ({
         const serialNo = certItem.id || student?.id || 100 + idx;
         const fullName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim() || 'Student';
         const borderImg = certItem.borderImg || certItem.border;
-        const heading = template?.certificate_heading || template?.template_name || 'TRANSFER CERTIFICATE';
+        const heading = template?.certificate_heading || template?.template_name || 'CERTIFICATE';
         const certifiedBy = template?.certified_by || certItem.certified_by || 'Principal';
         const paragraphs = parseBodyParagraphs(template, student, formattedDate);
 
         return (
           <Page key={idx} size="A4" orientation="portrait" style={styles.page}>
             {borderImg && (
-              <Image src={borderImg} style={styles.backgroundImage} />
+              <Image src={borderImg} style={styles.backgroundImage} fixed />
             )}
 
-            <View style={styles.innerFrame}>
+            <View style={styles.innerFrame} wrap={false}>
               {/* Top Metadata Header */}
               <View style={styles.topRow}>
                 <View style={styles.metaGroup}>
@@ -431,27 +407,18 @@ export const CertificatePdfDocument = ({
                 ))}
               </View>
 
-              {/* Dual Signatures & Seal Footer */}
+              {/* Dual Signatures Footer */}
               <View style={styles.footer}>
                 <View style={styles.signBlock}>
                   <View style={styles.signLine} />
                   <Text style={styles.signTitle}>Class Teacher</Text>
-                  <Text style={styles.signSubtitle}>Authorized Verification</Text>
-                </View>
-
-                <View style={styles.sealBlock}>
-                  <View style={styles.sealCircle}>
-                    <View style={styles.sealInnerCircle}>
-                      <Text style={styles.sealText}>OFFICIAL SEAL</Text>
-                      <Text style={styles.sealSubText}>EXCELLENCE</Text>
-                    </View>
-                  </View>
+                  <Text style={styles.signSubtitle}>Signature</Text>
                 </View>
 
                 <View style={styles.signBlock}>
                   <View style={styles.signLine} />
                   <Text style={styles.signTitle}>{certifiedBy}</Text>
-                  <Text style={styles.signSubtitle}>{schoolName}</Text>
+                  <Text style={styles.signSubtitle}>Signature</Text>
                 </View>
               </View>
             </View>

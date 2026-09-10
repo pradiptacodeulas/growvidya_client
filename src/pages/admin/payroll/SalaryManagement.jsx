@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import html2pdf from 'html2pdf.js';
 import { fetchSalariesApi, updateSalaryStatusApi } from '../../../api/adminPayroll.api';
+import { fetchTeacherSalariesApi } from '../../../api/teacherPayroll.api';
 import { numberToWords } from '../../../utils/numberToWords';
 import { resolveImageUrl } from '../../../utils/url.util';
 import schoolLogoDefault from '../../../assets/school-logo.png';
@@ -14,8 +15,7 @@ const SalaryManagement = () => {
   const teacherUser = useSelector((state) => state.teacherAuth?.teacher || state.teacherAuth?.user);
   const isTeacher =
     window.location.pathname.startsWith('/teacher') ||
-    Boolean(localStorage.getItem('teacher_token')) ||
-    Boolean(teacherUser);
+    (Boolean(teacherUser) && !window.location.pathname.startsWith('/admin'));
   const basePath = isTeacher ? '/teacher' : '/admin';
   const currentUser = isTeacher ? teacherUser : authUser;
 
@@ -29,7 +29,8 @@ const SalaryManagement = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetchSalariesApi().catch(() => null);
+      const fetchFn = isTeacher ? fetchTeacherSalariesApi : fetchSalariesApi;
+      const res = await fetchFn().catch(() => null);
       if (res?.data?.salaries) {
         setSalaries(res.data.salaries);
       } else if (res?.salaries) {
@@ -44,7 +45,7 @@ const SalaryManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isTeacher]);
 
   useEffect(() => {
     loadData();

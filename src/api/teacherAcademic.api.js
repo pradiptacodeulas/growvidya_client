@@ -70,12 +70,32 @@ export const fetchTeacherSyllabusApi = async (params = {}) => {
   return await apiFetch(`/teacher/academics/syllabus${query ? `?${query}` : ''}`);
 };
 
+export const fetchTeacherSyllabusByIdApi = async (id) =>
+  await apiFetch(`/teacher/academics/syllabus/${id}`);
+
+export const createTeacherSyllabusApi = async (data) =>
+  await apiFetch('/teacher/academics/syllabus', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const updateTeacherSyllabusApi = async (id, data) =>
+  await apiFetch(`/teacher/academics/syllabus/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
 export const updateTeacherSyllabusStatusApi = async (id, status) => {
   return await apiFetch(`/teacher/academics/syllabus/${id}/status`, {
     method: 'PUT',
     body: JSON.stringify({ status }),
   });
 };
+
+export const deleteTeacherSyllabusApi = async (id) =>
+  await apiFetch(`/teacher/academics/syllabus/${id}`, {
+    method: 'DELETE',
+  });
 
 // Assignments
 export const fetchTeacherAssignmentsApi = async (params = {}) => {
@@ -153,7 +173,11 @@ export default {
   fetchTeacherSubjectByIdApi,
   fetchTeacherRoutineApi,
   fetchTeacherSyllabusApi,
+  fetchTeacherSyllabusByIdApi,
+  createTeacherSyllabusApi,
+  updateTeacherSyllabusApi,
   updateTeacherSyllabusStatusApi,
+  deleteTeacherSyllabusApi,
   fetchTeacherAssignmentsApi,
   fetchTeacherAssignmentByIdApi,
   createTeacherAssignmentApi,
