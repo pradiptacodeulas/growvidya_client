@@ -72,6 +72,8 @@ const AddExamResult = () => {
   const [gradesMatrix, setGradesMatrix] = useState({}); // { [subjectId]: gradeId }
   const [existingMarksMap, setExistingMarksMap] = useState({}); // { [`${subId}_${typeId}`]: true }
   const [studentAttendanceMap, setStudentAttendanceMap] = useState({}); // { [subjectId]: attendance_status }
+  const [configuredMarksMap, setConfiguredMarksMap] = useState({}); // { [`${subId}_${typeId}`]: maxMark }
+  const [hasPatternConfig, setHasPatternConfig] = useState(false);
   const [isTeacherUser, setIsTeacherUser] = useState(false);
   const [modalLoading, setModalLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -245,6 +247,19 @@ const AddExamResult = () => {
       setExamTypes(typesList);
       setIsTeacherUser(Boolean(configRes?.data?.isTeacherUser));
 
+      // Build map of configured marks for each subject and exam type
+      const confMarks = configRes?.data?.configuredMarks || [];
+      const confMap = {};
+      confMarks.forEach((cm) => {
+        const isChecked = Number(cm.is_check) === 1 || cm.is_check === true || cm.is_check === '1';
+        const markVal = parseFloat(cm.mark ?? cm.full_mark ?? 0);
+        if (isChecked && markVal > 0) {
+          confMap[`${cm.subject_id}_${cm.exam_type_id}`] = markVal;
+        }
+      });
+      setConfiguredMarksMap(confMap);
+      setHasPatternConfig(confMarks.length > 0);
+
       // Pre-fill existing marks if already recorded and lock them
       const existingMarks = marksheetRes?.data?.marks || [];
       const initialMarks = {};
@@ -286,22 +301,34 @@ const AddExamResult = () => {
       return;
     }
 
-    // If already exists, do not allow change
-    if (existingMarksMap[`${subjectId}_${examTypeId}`]) {
+    // If subject has no assessment/marks configured for this exam type, disallow change
+    const key = `${subjectId}_${examTypeId}`;
+    if (hasPatternConfig && !configuredMarksMap[key]) {
       return;
     }
 
-    const numericVal = val === '' ? '' : Math.max(0, parseFloat(val) || 0);
+    // If already exists, do not allow change
+    if (existingMarksMap[key]) {
+      return;
+    }
+
+    let numericVal = val === '' ? '' : Math.max(0, parseFloat(val) || 0);
+    const maxAllowed = configuredMarksMap[key];
+    if (numericVal !== '' && maxAllowed !== undefined && numericVal > maxAllowed) {
+      toast.warning(`Maximum marks allowed for this assessment is ${maxAllowed}`);
+      numericVal = maxAllowed;
+    }
 
     setMarksMatrix((prev) => {
       const subObj = { ...(prev[subjectId] || {}) };
       subObj[examTypeId] = numericVal;
 
       // Calculate row total and match grade
-      const totalRowMarks = Object.values(subObj).reduce(
-        (sum, v) => sum + (parseFloat(v) || 0),
-        0
-      );
+      const totalRowMarks = Object.entries(subObj).reduce((sum, [eId, v]) => {
+        const isConf = !hasPatternConfig || Boolean(configuredMarksMap[`${subjectId}_${eId}`]);
+        if (!isConf) return sum;
+        return sum + (parseFloat(v) || 0);
+      }, 0);
 
       if (grades.length > 0 && totalRowMarks > 0) {
         const matchedGrade = grades.find(
@@ -339,7 +366,11 @@ const AddExamResult = () => {
 
   const calculateSubjectTotal = (subjectId) => {
     const subMarks = marksMatrix[subjectId] || {};
-    return Object.values(subMarks).reduce((acc, val) => acc + (parseFloat(val) || 0), 0);
+    return Object.entries(subMarks).reduce((acc, [typeId, val]) => {
+      const isConfigured = !hasPatternConfig || Boolean(configuredMarksMap[`${subjectId}_${typeId}`]);
+      if (!isConfigured) return acc;
+      return acc + (parseFloat(val) || 0);
+    }, 0);
   };
 
   // Check if all configured marks are already submitted
@@ -353,6 +384,9 @@ const AddExamResult = () => {
       for (const et of examTypes) {
         const typeId = et.exam_type_id !== undefined ? et.exam_type_id : et.id;
         const key = `${sub.subject_id}_${typeId}`;
+        const isConfigured = !hasPatternConfig || Boolean(configuredMarksMap[key]);
+        if (!isConfigured) continue; // Skip unconfigured assessments
+
         const val = marksMatrix[sub.subject_id]?.[typeId];
         if (!existingMarksMap[key] && val !== undefined && val !== '' && val !== null) {
           return true;
@@ -360,7 +394,7 @@ const AddExamResult = () => {
       }
     }
     return false;
-  }, [subjects, examTypes, marksMatrix, existingMarksMap, studentAttendanceMap]);
+  }, [subjects, examTypes, marksMatrix, existingMarksMap, studentAttendanceMap, configuredMarksMap, hasPatternConfig]);
 
   const handleSaveStudentMarks = async (e) => {
     e.preventDefault();
@@ -380,6 +414,8 @@ const AddExamResult = () => {
       examTypes.forEach((et) => {
         const typeId = et.exam_type_id !== undefined ? et.exam_type_id : et.id;
         const key = `${sub.subject_id}_${typeId}`;
+        const isConfigured = !hasPatternConfig || Boolean(configuredMarksMap[key]);
+        if (!isConfigured) return; // Do not submit non-assessed items
 
         // Only submit new marks that were NOT previously given
         if (!existingMarksMap[key]) {
@@ -944,7 +980,8 @@ const AddExamResult = () => {
                               isSubjectEditable &&
                               examTypes.some((type) => {
                                 const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
-                                return !existingMarksMap[`${sub.subject_id}_${typeId}`];
+                                const isConfigured = !hasPatternConfig || Boolean(configuredMarksMap[`${sub.subject_id}_${typeId}`]);
+                                return isConfigured && !existingMarksMap[`${sub.subject_id}_${typeId}`];
                               });
 
                             return (
@@ -975,10 +1012,16 @@ const AddExamResult = () => {
 
                                 {examTypes.map((type) => {
                                   const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
-                                  const isExisting = Boolean(existingMarksMap[`${sub.subject_id}_${typeId}`]);
-                                  const isFieldReadOnly = !isSubjectEditable || isExisting;
+                                  const key = `${sub.subject_id}_${typeId}`;
+                                  const isExisting = Boolean(existingMarksMap[key]);
+                                  const isAssessmentConfigured = !hasPatternConfig || Boolean(configuredMarksMap[key]);
+                                  const maxAllowed = configuredMarksMap[key] ?? type.mark ?? null;
+                                  const isFieldReadOnly = !isSubjectEditable || isExisting || !isAssessmentConfigured;
+
                                   let tooltipText = '';
-                                  if (isExisting) {
+                                  if (!isAssessmentConfigured) {
+                                    tooltipText = 'No assessment or marks configured for this subject and exam type.';
+                                  } else if (isExisting) {
                                     tooltipText = 'Already submitted marks cannot be modified';
                                   } else if (sub.isEditable === false) {
                                     tooltipText = 'You are not assigned to this subject. Marks can only be viewed.';
@@ -986,6 +1029,8 @@ const AddExamResult = () => {
                                     tooltipText = 'Student was absent for this exam subject. Marks entry is disabled.';
                                   } else if (isAttendanceUnmarked) {
                                     tooltipText = 'Student has no attendance recorded for this exam subject. Marks entry is disabled.';
+                                  } else if (maxAllowed) {
+                                    tooltipText = `Max marks: ${maxAllowed}`;
                                   }
 
                                   return (
@@ -993,21 +1038,28 @@ const AddExamResult = () => {
                                       <input
                                         type="number"
                                         min="0"
+                                        max={maxAllowed ?? undefined}
                                         className={`form-control text-center mx-auto ${
                                           isFieldReadOnly ? 'bg-light text-muted fw-semibold' : ''
                                         }`}
                                         style={{
                                           width: '85px',
-                                          backgroundColor: isFieldReadOnly ? '#f1f5f9' : '#fff',
+                                          backgroundColor: !isAssessmentConfigured
+                                            ? '#f1f5f9'
+                                            : isFieldReadOnly
+                                            ? '#f8f9fa'
+                                            : '#fff',
                                           cursor: isFieldReadOnly ? 'not-allowed' : 'text',
+                                          borderStyle: !isAssessmentConfigured ? 'dashed' : 'solid',
+                                          borderColor: !isAssessmentConfigured ? '#cbd5e1' : undefined,
                                         }}
-                                        placeholder={isSubjectEditable ? '0' : '-'}
+                                        placeholder={!isAssessmentConfigured ? 'N/A' : (isSubjectEditable ? '0' : '-')}
                                         disabled={isFieldReadOnly}
                                         readOnly={isFieldReadOnly}
                                         title={tooltipText}
-                                        value={marksMatrix[sub.subject_id]?.[typeId] ?? ''}
+                                        value={!isAssessmentConfigured ? '' : (marksMatrix[sub.subject_id]?.[typeId] ?? '')}
                                         onChange={(e) => {
-                                          if (!isSubjectEditable) return;
+                                          if (!isSubjectEditable || !isAssessmentConfigured) return;
                                           handleMarkChange(sub.subject_id, typeId, e.target.value);
                                         }}
                                       />

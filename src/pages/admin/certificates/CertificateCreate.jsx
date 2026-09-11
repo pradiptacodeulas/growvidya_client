@@ -6,13 +6,15 @@ import {
   fetchIssuedCertificatesApi,
   deleteIssuedCertificateApi,
   fetchCertificateBordersApi,
+  downloadIssuedCertificatePdfApi,
+  downloadBulkIssuedCertificatesPdfApi,
 } from '../../../api/adminCertificate.api';
 
 import schoolLogo from '../../../assets/school-logo.png';
 import defaultAvatar from '../../../assets/male-user.png';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
-import { downloadCertificatePdf } from '../../../utils/generateCertificatePdf';
+import { triggerPdfDownload } from '../../../utils/generateCertificatePdf';
 
 const getBorderUrl = (borderPath) => {
   if (!borderPath) return '';
@@ -622,49 +624,42 @@ const CertificateCreate = () => {
       }, 2000);
     }, 500);
   };
-  // Direct View & Print Modal trigger for single certificate
-  const handleViewModal = (cert) => {
-    setActiveDropdownId(null);
-    setPrintModal({
-      show: true,
-      certificates: [cert],
-    });
-  };
-
-  // Download single certificate PDF directly
-  const handleDownloadSingle = async (cert) => {
+  // Open certificate directly in browser native PDF viewer (View/Save)
+  const handleOpenPdfViewer = async (cert) => {
     try {
       setActiveDropdownId(null);
-      setDownloadingPdf(true);
-      const schoolInfo = {
-        schoolName,
-        affiliation,
-        schoolAddress,
-        schoolCode,
-        schoolLogoSrc,
-      };
-      const certWithBorder = {
-        ...cert,
-        borderImg: getBorderForTemplate(cert.border || cert.certificate_border_id),
-      };
-      const studentName = `${cert.first_name || cert.student_name || ''}_${cert.last_name || ''}`.trim();
-      const cleanName = studentName.replace(/[^a-zA-Z0-9_-]/g, '_') || 'Student';
-      await downloadCertificatePdf(
-        [certWithBorder],
-        `Certificate_${cleanName}_${cert.id || 'issued'}.pdf`,
-        schoolInfo
-      );
-      toast.success('Certificate PDF generated and downloaded successfully!');
+      // Synchronously open a new blank tab so popup blockers don't block it
+      const viewerTab = window.open('about:blank', '_blank');
+      if (viewerTab) {
+        const studentName = `${cert.first_name || cert.student_name || ''} ${cert.last_name || ''}`.trim() || 'Student';
+        viewerTab.document.title = `Certificate - ${studentName}`;
+        viewerTab.document.body.innerHTML = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8fafc; margin: 0;">
+            <div style="text-align: center; padding: 24px 32px; border-radius: 8px; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+              <div style="font-size: 16px; font-weight: 600; color: #0c2340; margin-bottom: 6px;">Opening Certificate PDF...</div>
+              <div style="font-size: 13px; color: #64748b;">Loading into browser PDF viewer. Please wait...</div>
+            </div>
+          </div>
+        `;
+      }
+
+      const blob = await downloadIssuedCertificatePdfApi(cert.id);
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const fileUrl = window.URL.createObjectURL(pdfBlob);
+
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.location.href = fileUrl;
+      } else {
+        window.open(fileUrl, '_blank');
+      }
     } catch (err) {
-      console.error('PDF download error:', err);
-      toast.error('Failed to download PDF.');
-    } finally {
-      setDownloadingPdf(false);
+      console.error('Error opening certificate PDF in viewer:', err);
+      toast.error('Failed to open certificate PDF.');
     }
   };
 
-  // Export bulk or filtered certificates using exact client vector HTML PDF generator
-  const handleExportPdf = () => {
+  // Export bulk or filtered certificates directly in browser PDF viewer
+  const handleExportPdf = async () => {
     const certsToExport =
       selectedIds.length > 0
         ? certificates.filter((c) => selectedIds.includes(c.id))
@@ -675,39 +670,39 @@ const CertificateCreate = () => {
       return;
     }
 
-    setPrintModal({
-      show: true,
-      certificates: certsToExport,
-    });
-  };
-
-  // Download currently open modal certificates using @react-pdf/renderer
-  const handleDownloadPdf = async () => {
     try {
-      setDownloadingPdf(true);
-      const schoolInfo = {
-        schoolName,
-        affiliation,
-        schoolAddress,
-        schoolCode,
-        schoolLogoSrc,
-      };
-      const certsWithBorders = printModal.certificates.map((cert) => ({
-        ...cert,
-        borderImg: getBorderForTemplate(cert.border || cert.certificate_border_id),
-      }));
+      const viewerTab = window.open('about:blank', '_blank');
+      if (viewerTab) {
+        viewerTab.document.title = 'Student Certificates';
+        viewerTab.document.body.innerHTML = `
+          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8fafc; margin: 0;">
+            <div style="text-align: center; padding: 24px 32px; border-radius: 8px; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+              <div style="font-size: 16px; font-weight: 600; color: #0c2340; margin-bottom: 6px;">Opening Certificates PDF...</div>
+              <div style="font-size: 13px; color: #64748b;">Loading into browser PDF viewer. Please wait...</div>
+            </div>
+          </div>
+        `;
+      }
 
-      await downloadCertificatePdf(
-        certsWithBorders,
-        `Student_Certificates_${getTodayDateStr()}.pdf`,
-        schoolInfo
-      );
-      toast.success('Certificate PDF generated and downloaded successfully!');
+      const certIds = certsToExport.map((c) => c.id).filter(Boolean);
+      let blob;
+      if (certIds.length === 1) {
+        blob = await downloadIssuedCertificatePdfApi(certIds[0]);
+      } else {
+        blob = await downloadBulkIssuedCertificatesPdfApi({ ids: certIds });
+      }
+
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const fileUrl = window.URL.createObjectURL(pdfBlob);
+
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.location.href = fileUrl;
+      } else {
+        window.open(fileUrl, '_blank');
+      }
     } catch (err) {
-      console.error('PDF download error:', err);
-      toast.error('Failed to download PDF.');
-    } finally {
-      setDownloadingPdf(false);
+      console.error('PDF export error:', err);
+      toast.error('Failed to open certificates PDF.');
     }
   };
 
@@ -1268,14 +1263,9 @@ const CertificateCreate = () => {
                                 <TableActionMenu
                                   items={[
                                     {
-                                      label: 'View & Download',
-                                      icon: 'ti ti-eye text-info',
-                                      onClick: () => handleViewModal(cert),
-                                    },
-                                    {
-                                      label: 'Download PDF',
-                                      icon: 'ti ti-download text-primary',
-                                      onClick: () => handleDownloadSingle(cert),
+                                      label: 'View/Save',
+                                      icon: 'ti ti-file-text text-primary',
+                                      onClick: () => handleOpenPdfViewer(cert),
                                     },
                                     {
                                       label: 'Delete',
@@ -1403,178 +1393,6 @@ const CertificateCreate = () => {
                     onClick={handleDeleteConfirm}
                   >
                     Yes, Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-      {/* Generated Certificate Print / Preview Modal */}
-      {printModal.show && (
-        <div
-          className="modal fade show"
-          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.6)' }}
-          tabIndex="-1"
-        >
-          <div className="modal-dialog modal-dialog-centered modal-xl">
-            <div className="modal-content shadow-lg border-0">
-              <div className="modal-header border-bottom px-4 py-3 bg-white">
-                <h5 className="modal-title text-dark fw-bold mb-0">
-                  Student Certificate ({printModal.certificates.length})
-                </h5>
-                <button
-                  type="button"
-                  className="btn-close custom-btn-close"
-                  onClick={() => setPrintModal({ show: false, certificates: [] })}
-                  aria-label="Close"
-                >
-                  <i className="ti ti-x"></i>
-                </button>
-              </div>
-              <div
-                className="modal-body p-4"
-                style={{ maxHeight: '75vh', overflowY: 'auto', background: '#f4f6f8' }}
-              >
-                <div id="printableCertificates">
-                  {printModal.certificates.map((cert, idx) => {
-                    const borderImg = getBorderForTemplate(cert.border || cert.certificate_border_id);
-                    const templateObj = {
-                      id: cert.certificate_template_id || cert.id,
-                      template_name: cert.template_name,
-                      certificate_heading: cert.certificate_heading,
-                      certified_by: cert.certified_by,
-                      description: cert.certificate_description || cert.description || '',
-                    };
-                    const date = cert.certificate_date || getTodayDateStr();
-                    const fullName = `${cert.first_name || cert.student_name || ''} ${cert.last_name || ''}`.trim() || 'Student';
-
-                    return (
-                      <div key={cert.id || idx} className="certificate-body mb-4 page-break">
-                        <div
-                          className="certificate_1"
-                          style={{
-                            backgroundImage: borderImg ? `url(${borderImg})` : 'none',
-                            backgroundSize: '100% 100%',
-                          }}
-                        >
-                          <div className="certificate-inner-frame">
-                            {/* Top Meta Bar */}
-                            <div className="certificate-top-row">
-                              <div className="cert-meta-tag">
-                                <span className="cert-meta-label">CERTIFICATE NO:</span>
-                                <span className="serial">{cert.id || 100 + idx}</span>
-                              </div>
-                              <div className="cert-meta-tag">
-                                <span className="cert-meta-label">DATE OF ISSUE:</span>
-                                <span className="cert-date-val">
-                                  {date ? new Date(date).toLocaleDateString('en-GB') : getTodayDateStr()}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Header & Crest */}
-                            <div className="certificate-header">
-                              {schoolLogoSrc && (
-                                <div className="school-logo-wrap">
-                                  <img
-                                    src={schoolLogoSrc}
-                                    alt="School Crest"
-                                    className="school-crest"
-                                    onError={(e) => {
-                                      e.currentTarget.onerror = null;
-                                      e.currentTarget.style.display = 'none';
-                                    }}
-                                  />
-                                </div>
-                              )}
-                              <div className="school-name">{schoolName}</div>
-                              {affiliation && <div className="affiliation">{affiliation}</div>}
-                              <div className="address-code">
-                                {schoolAddress} {schoolCode ? ` • ${schoolCode}` : ''}
-                              </div>
-                              <div className="ornate-divider">
-                                <span className="ornate-line"></span>
-                                <span className="ornate-diamond">✦</span>
-                                <span className="ornate-line"></span>
-                              </div>
-                            </div>
-
-                            {/* Certificate Title */}
-                            <div className="certificate-title-wrap">
-                              <div className="certificate-title">
-                                {cert.certificate_heading || cert.template_name || 'CERTIFICATE'}
-                              </div>
-                            </div>
-
-                            {/* Presentation Lead-in */}
-                            <div className="certificate-lead-in">
-                              This is to certify that
-                            </div>
-
-                            {/* Recipient Name */}
-                            <div className="recipient-name-box">
-                              <span className="recipient-name">{fullName}</span>
-                            </div>
-
-                            {/* Certificate Main Content */}
-                            <div className="certificate-content">
-                              {renderCertificateBody(templateObj, cert, date)}
-                            </div>
-
-                            {/* Dual Signatures Footer */}
-                            <div className="certificate-footer">
-                              <div className="sign-block">
-                                <div className="sign-line"></div>
-                                <div className="sign-title">Class Teacher</div>
-                                <div className="sign-subtitle">Signature</div>
-                              </div>
-
-                              <div className="sign-block">
-                                <div className="sign-line"></div>
-                                <div className="sign-title">{cert.certified_by || 'Principal'}</div>
-                                <div className="sign-subtitle">Signature</div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div className="modal-footer px-4 py-3 bg-white border-top d-flex justify-content-between align-items-center">
-                <button
-                  type="button"
-                  className="btn btn-light px-4"
-                  onClick={() => setPrintModal({ show: false, certificates: [] })}
-                >
-                  Close
-                </button>
-                <div className="d-flex gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-outline-primary px-4 d-inline-flex align-items-center"
-                    onClick={handleDownloadPdf}
-                    disabled={downloadingPdf}
-                  >
-                    {downloadingPdf ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2"></span>
-                        Downloading...
-                      </>
-                    ) : (
-                      <>
-                        <i className="ti ti-download me-2"></i>Download PDF
-                      </>
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-primary px-4 d-inline-flex align-items-center"
-                    onClick={handlePrintCertificates}
-                  >
-                    <i className="ti ti-printer me-2"></i>Print Certificates
                   </button>
                 </div>
               </div>

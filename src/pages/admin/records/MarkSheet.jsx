@@ -5,7 +5,6 @@ import { toast } from 'react-toastify';
 import apiClient from '../../../api/axios.config';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import maleUser from '../../../assets/male-user.png';
-import { encodeParam } from '../../../utils/idHelper';
 
 // Helper to format academic year with month duration
 const formatYearDuration = (yearObj) => {
@@ -235,10 +234,6 @@ const MarkSheet = () => {
 
   const isAllSelected = availableStudents.length > 0 && selectedStudentIds.length === availableStudents.length;
 
-  const getMarksheetUrl = (student) => {
-    return `/records/marksheet/viewResult/${encodeParam(student.id)}/${encodeParam(selectedYear || '')}/${encodeParam(selectedClass || '')}`;
-  };
-
   // Helpers
   const getSelectedClassName = () => {
     const found = classes.find((c) => String(c.id) === String(selectedClass));
@@ -250,15 +245,120 @@ const MarkSheet = () => {
     return found ? found.section_name : 'Section';
   };
 
-  // Open Preview for selected student
-  const handleViewSelectedMarksheet = () => {
+  // Open single student mark sheet PDF in browser default PDF viewer
+  const handleOpenSingleMarksheet = async (student) => {
+    if (!student || !student.id) return;
+    const studentName = `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Student';
+
+    const viewerTab = window.open('about:blank', '_blank');
+    if (viewerTab) {
+      viewerTab.document.title = `Marksheet - ${studentName}`;
+      viewerTab.document.body.innerHTML = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8fafc; margin: 0;">
+          <div style="text-align: center; padding: 24px 32px; border-radius: 8px; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+            <div style="font-size: 16px; font-weight: 600; color: #0c2340; margin-bottom: 6px;">Opening Marksheet PDF...</div>
+            <div style="font-size: 13px; color: #64748b;">Loading into browser PDF viewer. Please wait...</div>
+          </div>
+        </div>
+      `;
+    }
+
+    try {
+      const blob = await adminExaminationApi.downloadStudentMarksheetPdf(student.id, {
+        academicYearId: selectedYear || undefined,
+        classId: selectedClass || student.class_id || undefined,
+        sectionId: selectedSection || student.section_id || undefined,
+      });
+
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const fileUrl = window.URL.createObjectURL(pdfBlob);
+
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.location.href = fileUrl;
+      } else {
+        window.open(fileUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to open marksheet PDF:', err);
+      let errorMsg = 'Failed to generate marksheet PDF.';
+      if (err.response && err.response.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.message) errorMsg = json.message;
+        } catch (e) {}
+      } else if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      }
+      toast.error(errorMsg);
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.close();
+      }
+    }
+  };
+
+  // Open Preview for selected student(s) in browser default PDF viewer
+  const handleViewSelectedMarksheet = async () => {
     if (selectedStudentIds.length === 0) {
       toast.warning('Please select at least one student to view mark sheet.');
       return;
     }
-    const selectedStudent = students.find((s) => s.id === selectedStudentIds[0]);
-    if (selectedStudent) {
-      window.open(getMarksheetUrl(selectedStudent), '_blank');
+    if (selectedStudentIds.length === 1) {
+      const selectedStudent = students.find((s) => s.id === selectedStudentIds[0]);
+      if (selectedStudent) {
+        handleOpenSingleMarksheet(selectedStudent);
+      } else {
+        handleOpenSingleMarksheet({ id: selectedStudentIds[0] });
+      }
+      return;
+    }
+
+    // Multiple students: open multi-page batch PDF in browser viewer
+    const viewerTab = window.open('about:blank', '_blank');
+    if (viewerTab) {
+      viewerTab.document.title = 'Batch Marksheets';
+      viewerTab.document.body.innerHTML = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8fafc; margin: 0;">
+          <div style="text-align: center; padding: 24px 32px; border-radius: 8px; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+            <div style="font-size: 16px; font-weight: 600; color: #0c2340; margin-bottom: 6px;">Generating Batch Marksheets...</div>
+            <div style="font-size: 13px; color: #64748b;">Please wait while marksheets are prepared.</div>
+          </div>
+        </div>
+      `;
+    }
+
+    try {
+      const blob = await adminExaminationApi.downloadMarksheetPdf({
+        studentIds: selectedStudentIds,
+        academicYearId: selectedYear || undefined,
+        classId: selectedClass || undefined,
+        sectionId: selectedSection || undefined,
+      });
+
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const fileUrl = window.URL.createObjectURL(pdfBlob);
+
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.location.href = fileUrl;
+      } else {
+        window.open(fileUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to open batch marksheets:', err);
+      let errorMsg = 'Failed to generate batch marksheets.';
+      if (err.response && err.response.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json.message) errorMsg = json.message;
+        } catch (e) {}
+      } else if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      }
+      toast.error(errorMsg);
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.close();
+      }
     }
   };
 
@@ -495,15 +595,14 @@ const MarkSheet = () => {
                         <td>{student.section_name || getSelectedSectionName()}</td>
                         <td className="text-center">
                           {hasMarks ? (
-                            <a
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              href={getMarksheetUrl(student)}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenSingleMarksheet(student)}
                               className="btn btn-sm btn-icon btn-outline-primary"
-                              title="View Official A4 Marksheet Preview"
+                              title="View Official A4 Marksheet"
                             >
                               <i className="fa-regular fa-eye"></i>
-                            </a>
+                            </button>
                           ) : (
                             <span className="badge bg-light text-danger border fw-medium" style={{ fontSize: '11px' }}>
                               Not Available

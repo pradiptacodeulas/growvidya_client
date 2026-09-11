@@ -18,6 +18,17 @@ import TableActionMenu from '../../../components/common/TableActionMenu';
 const StaffList = () => {
   const [staffList, setStaffList] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [bloodGroups, setBloodGroups] = useState([
+    { id: 1, blood_group: 'A+' },
+    { id: 2, blood_group: 'A-' },
+    { id: 3, blood_group: 'B+' },
+    { id: 4, blood_group: 'B-' },
+    { id: 5, blood_group: 'AB+' },
+    { id: 6, blood_group: 'AB-' },
+    { id: 7, blood_group: 'AB-' },
+    { id: 8, blood_group: 'O+' },
+    { id: 9, blood_group: 'O-' },
+  ]);
   const [loading, setLoading] = useState(true);
 
   // Filters & Search
@@ -41,6 +52,7 @@ const StaffList = () => {
     email: '',
     phone: '',
     gender: '1',
+    blood_group: '',
     role: '6', // Staff default
     password: '',
     status: 1,
@@ -186,6 +198,7 @@ const StaffList = () => {
       email: '',
       phone: '',
       gender: '1',
+      blood_group: '',
       role: roles.length > 0 ? String(roles[0].id) : '6',
       password: '',
       status: 1,
@@ -331,6 +344,20 @@ const StaffList = () => {
             </span>
           );
         },
+      },
+      {
+        accessorKey: 'blood_group_name',
+        header: 'Blood Group',
+        sortable: true,
+        width: '120px',
+        align: 'center',
+        cell: ({ value }) => (
+          value ? (
+            <span className="badge badge-soft-danger px-2 py-1 fw-semibold">{value}</span>
+          ) : (
+            <span className="text-muted">—</span>
+          )
+        ),
       },
       {
         accessorKey: 'status',
@@ -613,7 +640,7 @@ const StaffList = () => {
                       )}
                     </div>
 
-                    <div className="col-md-4">
+                    <div className="col-md-3">
                       <label className="form-label fw-semibold">Gender</label>
                       <select
                         className="form-select"
@@ -626,7 +653,23 @@ const StaffList = () => {
                       </select>
                     </div>
 
-                    <div className="col-md-4">
+                    <div className="col-md-3">
+                      <label className="form-label fw-semibold">Blood Group</label>
+                      <select
+                        className="form-select"
+                        value={formData.blood_group || ''}
+                        onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
+                      >
+                        <option value="">Select</option>
+                        {bloodGroups.map((bg) => (
+                          <option key={bg.id} value={String(bg.id)}>
+                            {bg.blood_group || bg.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-md-3">
                       <label className="form-label fw-semibold">
                         Role <span className="text-danger">*</span>
                       </label>
@@ -644,7 +687,7 @@ const StaffList = () => {
                       </select>
                     </div>
 
-                    <div className="col-md-4">
+                    <div className="col-md-3">
                       <label className="form-label fw-semibold">Status</label>
                       <select
                         className="form-select"

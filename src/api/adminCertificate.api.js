@@ -139,6 +139,20 @@ export const generateStudentCertificateApi = async (data) => {
   return response.data;
 };
 
+export const downloadIssuedCertificatePdfApi = async (id) => {
+  const response = await axiosInstance.get(`/admin/certificates/issued/${id}/download`, {
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
+export const downloadBulkIssuedCertificatesPdfApi = async (payload) => {
+  const response = await axiosInstance.post('/admin/certificates/issued/download-bulk', payload, {
+    responseType: 'blob',
+  });
+  return response.data;
+};
+
 export default {
   fetchCertificateCategoriesApi,
   fetchCertificateCategoryByIdApi,
@@ -156,4 +170,6 @@ export default {
   createIssuedCertificateApi,
   deleteIssuedCertificateApi,
   populateCertificateTemplateApi,
+  downloadIssuedCertificatePdfApi,
+  downloadBulkIssuedCertificatesPdfApi,
 };

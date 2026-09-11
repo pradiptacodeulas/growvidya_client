@@ -231,6 +231,31 @@ const adminExaminationApi = {
     });
     return res.data;
   },
+
+  // 8. A4 Portrait Admit Card PDF
+  downloadAdmitCardPdf: async (dataOrParams) => {
+    const isPost = dataOrParams && Array.isArray(dataOrParams.studentIds);
+    const config = {
+      responseType: 'blob',
+    };
+    if (isPost) {
+      const res = await apiClient.post('/admin/examinations/admitcard/pdf', dataOrParams, config);
+      return res.data;
+    }
+    const res = await apiClient.get('/admin/examinations/admitcard/pdf', {
+      params: dataOrParams,
+      ...config,
+    });
+    return res.data;
+  },
+
+  downloadStudentAdmitCardPdf: async (studentId, params = {}) => {
+    const res = await apiClient.get(`/admin/examinations/admitcard/pdf/${studentId}`, {
+      params,
+      responseType: 'blob',
+    });
+    return res.data;
+  },
 };
 
 export default adminExaminationApi;

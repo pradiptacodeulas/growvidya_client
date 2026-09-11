@@ -146,17 +146,7 @@ const AddAssignmentForm = () => {
           ? typesRes
           : [];
 
-      const finalTypes =
-        typesList.length > 0
-          ? typesList
-          : [
-              { id: 1, type_name: 'Classwork', status: 1 },
-              { id: 2, type_name: 'Homework', status: 1 },
-              { id: 3, type_name: 'Project', status: 1 },
-              { id: 4, type_name: 'Lab Assignment', status: 1 },
-            ];
-
-      setAssignmentTypes(finalTypes);
+      setAssignmentTypes(typesList);
 
       const classesList = Array.isArray(classesRes?.data)
         ? classesRes.data
@@ -185,7 +175,7 @@ const AddAssignmentForm = () => {
 
             setFormData({
               title: asgData.title || '',
-              assignment_type_id: asgData.assignment_type_id ? String(asgData.assignment_type_id) : String(finalTypes[0]?.id || '1'),
+              assignment_type_id: asgData.assignment_type_id ? String(asgData.assignment_type_id) : '',
               assigned_date: asgData.assigned_date ? asgData.assigned_date.split('T')[0] : getTodayDate(),
               due_date: asgData.due_date ? asgData.due_date.split('T')[0] : getFutureDate(7),
             });
@@ -218,11 +208,6 @@ const AddAssignmentForm = () => {
         } catch (asgErr) {
           console.warn('Could not load assignment details:', asgErr);
         }
-      } else if (finalTypes.length > 0) {
-        setFormData((prev) => ({
-          ...prev,
-          assignment_type_id: prev.assignment_type_id || String(finalTypes[0]?.id || ''),
-        }));
       }
 
       // 3. Fetch Subject details
@@ -448,8 +433,8 @@ const AddAssignmentForm = () => {
     }
   };
 
-  const encodedClassId = encodeParam(classId || 1);
-  const encodedSectionId = encodeParam(sectionId || 1);
+  const encodedClassId = encodeParam(classId || '');
+  const encodedSectionId = encodeParam(sectionId || '');
   const backToSubjectUrl = `${basePath}/academics/assignments/subject/${encodedClassId}/${encodedSectionId}`;
 
   if (loading) {
@@ -564,7 +549,7 @@ const AddAssignmentForm = () => {
                         onChange={handleInputChange}
                         required
                       >
-                        <option value="">-- Select Type --</option>
+                        <option value="">{assignmentTypes.length === 0 ? '-- No Types Available --' : '-- Select Type --'}</option>
                         {assignmentTypes.map((t) => (
                           <option key={t.id} value={t.id}>
                             {t.type_name}

@@ -8,6 +8,8 @@ import {
   fetchCertificateBordersApi,
   fetchIssuedCertificatesApi,
   createIssuedCertificateApi,
+  downloadIssuedCertificatePdfApi,
+  downloadBulkIssuedCertificatesPdfApi,
 } from '../../../api/adminCertificate.api';
 import {
   fetchAcademicYearsApi,
@@ -17,7 +19,7 @@ import {
 } from '../../../api/adminAcademic.api';
 import { fetchStudentsApi } from '../../../api/adminStudent.api';
 import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
-import { downloadCertificatePdf } from '../../../utils/generateCertificatePdf';
+import { triggerPdfDownload } from '../../../utils/generateCertificatePdf';
 
 import schoolLogo from '../../../assets/school-logo.png';
 import defaultAvatar from '../../../assets/male-user.png';
@@ -887,28 +889,17 @@ const AddStudentCertificate = () => {
     }, 500);
   };
 
-  // Direct client PDF download helper using @react-pdf/renderer
-  const handleDownloadPdf = async () => {
+  // Backend PDF download helper
+  const handleDownloadPdf = async (certId) => {
     try {
+      if (!certId) {
+        toast.info('Please issue a certificate before downloading.');
+        return;
+      }
       setDownloadingPdf(true);
-      const schoolInfo = {
-        schoolName,
-        affiliation,
-        schoolAddress,
-        schoolCode,
-        schoolLogoSrc,
-      };
-      const certsWithBorders = printModal.certificates.map((item) => ({
-        ...item,
-        borderImg: getBorderForTemplate(item.template?.border),
-      }));
-
-      await downloadCertificatePdf(
-        certsWithBorders,
-        `Student_Certificates_${certificateDate || getTodayDateStr()}.pdf`,
-        schoolInfo
-      );
-      toast.success('Certificate PDF generated and downloaded successfully!');
+      const blob = await downloadIssuedCertificatePdfApi(certId);
+      triggerPdfDownload(blob, `Certificate_${certId}.pdf`);
+      toast.success('Certificate PDF downloaded successfully!');
     } catch (err) {
       console.error('PDF download error:', err);
       toast.error('Failed to download PDF.');

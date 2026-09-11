@@ -1,20 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { useSelector } from 'react-redux';
-import html2pdf from 'html2pdf.js';
 import apiClient from '../../../api/axios.config';
-import Avatar, { resolveImageUrl } from '../../../components/common/Avatar';
-import logoDark from '../../../assets/logo_dark.png';
-import schoolLogo from '../../../assets/school-logo.png';
-import maleUser from '../../../assets/male-user.png';
-
-// Helper to resolve student profile picture
-const getStudentProfileSrc = (std) => {
-  const resolved = resolveImageUrl(std?.picture);
-  if (resolved) return resolved;
-  return maleUser;
-};
+import adminExaminationApi from '../../../api/adminExamination.api';
+import Avatar from '../../../components/common/Avatar';
 
 // Helper to format academic year with month duration (e.g. "January 2026 - November 2026")
 const formatYearDuration = (yearObj) => {
@@ -94,17 +83,8 @@ const AdmitCard = () => {
   const [selectedStudentsMap, setSelectedStudentsMap] = useState({});
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Modal State for Admit Card Preview & Print
-  const [showModal, setShowModal] = useState(false);
-  const [modalStudents, setModalStudents] = useState([]);
   const [downloading, setDownloading] = useState(false);
-
-  // Template customizer state
-  const [activeTab, setActiveTab] = useState('template1');
-  const [admitCardTitle, setAdmitCardTitle] = useState('STUDENT ADMIT CARD');
-  const [headerColor, setHeaderColor] = useState('#1e3a8a');
-  const [admissionNumberPrefix, setAdmissionNumberPrefix] = useState('ADM-');
-  const [signatureImage, setSignatureImage] = useState(null);
+  const [openingStudentId, setOpeningStudentId] = useState(null);
 
   useEffect(() => {
     fetchInitialDropdowns();
@@ -343,404 +323,116 @@ const AdmitCard = () => {
     });
   };
 
-  // Open preview modal for single student
-  const getAdmitCard = (student) => {
-    setModalStudents([student]);
-    setShowModal(true);
-  };
+  // Open single student admit card PDF directly in browser default PDF viewer
+  const handleOpenSingleAdmitCard = async (student) => {
+    if (!student || !student.id) return;
+    const studentName = `${student.first_name || ''} ${student.last_name || ''}`.trim() || 'Student';
 
-  // Helper to convert images to Base64 data URIs for crisp, 100% reliable PDF rendering
-  const toBase64 = (url, fallbackUrl = logoDark) => {
-    return new Promise((resolve) => {
-      const targetUrl = url || fallbackUrl;
-      if (!targetUrl || typeof targetUrl !== 'string') return resolve(fallbackUrl || '');
-      if (targetUrl.startsWith('data:')) return resolve(targetUrl);
-
-      const img = new Image();
-      img.crossOrigin = 'Anonymous';
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width || 80;
-          canvas.height = img.naturalHeight || img.height || 80;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        } catch (e) {
-          resolve(targetUrl);
-        }
-      };
-      img.onerror = () => {
-        if (fallbackUrl && targetUrl !== fallbackUrl) {
-          const fbImg = new Image();
-          fbImg.onload = () => {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = fbImg.naturalWidth || 80;
-              canvas.height = fbImg.naturalHeight || 80;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(fbImg, 0, 0);
-              resolve(canvas.toDataURL('image/png'));
-            } catch (err) {
-              resolve(fallbackUrl);
-            }
-          };
-          fbImg.onerror = () => resolve(fallbackUrl);
-          fbImg.src = fallbackUrl;
-        } else {
-          resolve(fallbackUrl || '');
-        }
-      };
-      img.src = targetUrl;
-    });
-  };
-
-  // Generate clean HTML string for PDF rendering
-  const generatePdfHtml = (studentList, logoBase64, studentPhotos) => {
-    const examTitle = getSelectedExamName();
-    const yearShort = getSelectedYearShort();
-    const className = getSelectedClassName();
-    const sectionName = getSelectedSectionName();
-    const schoolName = user?.school_name || user?.schoolName || '';
-    const schoolAddress = user?.school_address || user?.address || '';
-
-    return `
-      <style>
-        .pdf-admit-card {
-          width: 720px;
-          margin: 0 auto 10px auto;
-          padding: 24px 30px;
-          border: 1px solid #ddd;
-          background: #ffffff;
-          box-sizing: border-box;
-          font-family: Arial, Helvetica, sans-serif;
-          color: #000;
-          page-break-inside: avoid;
-          page-break-after: always;
-        }
-        .pdf-admit-card:last-child {
-          page-break-after: auto;
-          margin-bottom: 0;
-        }
-        .pdf-admit-school {
-          border-bottom: 1px solid #000;
-          padding-bottom: 24px;
-          margin-top: 5px;
-          margin-bottom: 20px;
-        }
-        .pdf-admit-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-        }
-        .pdf-logo {
-          width: 80px;
-          height: auto;
-          object-fit: contain;
-        }
-        .pdf-profile {
-          width: 95px;
-          height: 125px;
-          object-fit: cover;
-          border: 1px solid #cfcfcf;
-          border-radius: 3px;
-          background: #fafafa;
-        }
-        .pdf-school-name {
-          text-align: center;
-          margin-top: -105px;
-          padding: 0 100px;
-        }
-        .pdf-school-name h1 {
-          margin: 0;
-          color: #22255b;
-          font-size: 30px;
-          font-weight: 700;
-        }
-        .pdf-address {
-          text-align: center;
-          color: #f59e0b;
-          font-size: 15px;
-          margin-top: 4px;
-          font-weight: 500;
-        }
-        .pdf-exam-title {
-          text-align: center;
-          margin-top: 6px;
-          font-size: 15px;
-          font-weight: 600;
-          color: #222;
-        }
-        .pdf-info {
-          display: flex;
-          justify-content: space-between;
-          font-size: 14px;
-          margin: 12px 0;
-          line-height: 1.8;
-        }
-        .pdf-subject-title {
-          text-align: center;
-          margin: 10px 0 8px 0;
-          font-weight: 700;
-          font-size: 14px;
-        }
-        .pdf-subject-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 13px;
-          margin-bottom: 12px;
-        }
-        .pdf-subject-table th,
-        .pdf-subject-table td {
-          border: 1px solid #cfcfcf;
-          padding: 5px 8px;
-          text-align: center;
-        }
-        .pdf-subject-table th {
-          background: #f2f2f2;
-          font-weight: 700;
-        }
-        .pdf-signature {
-          width: 180px;
-          text-align: center;
-          margin-top: 35px;
-          margin-left: auto;
-          border-top: 1px solid #000;
-          padding-top: 8px;
-          font-size: 14px;
-          font-weight: 600;
-        }
-      </style>
-      ${studentList
-        .map((std, idx) => {
-          const profileSrc = studentPhotos[idx] || getStudentProfileSrc(std);
-          return `
-          <div class="pdf-admit-card">
-            <div class="pdf-admit-school">
-              <div class="pdf-admit-header">
-                <img src="${logoBase64}" class="pdf-logo" alt="School Logo" />
-                <img src="${profileSrc}" class="pdf-profile" alt="Student Profile" />
-              </div>
-
-              <div class="pdf-school-name">
-                <h1>${schoolName}</h1>
-              </div>
-
-              <div class="pdf-address">
-                ${schoolAddress}
-              </div>
-
-              <div class="pdf-exam-title">
-                ${examTitle} Exam Admit Card - (${yearShort})
-              </div>
-            </div>
-
-            <div class="pdf-info">
-              <div>
-                <b>Name :</b> ${std.first_name || ''} ${std.last_name || ''}
-                <br />
-                <b>Class :</b> ${std.class_name || className}
-                <br />
-                <b>Roll :</b> ${std.roll_number || '1234'}
-              </div>
-
-              <div>
-                <b>Admission NO :</b> ${std.admission_number || `AD${std.id}`}
-                <br />
-                <b>Section :</b> ${std.section_name || sectionName}
-              </div>
-            </div>
-
-            <div class="pdf-subject-title">Subject in which Appearing</div>
-
-            <table class="pdf-subject-table">
-              <thead>
-                <tr>
-                  <th style="width: 40px;">#</th>
-                  <th style="width: 120px;">Date</th>
-                  <th>Subject Name</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${
-                  examSchedules.length > 0
-                    ? examSchedules
-                        .map(
-                          (sch, sIdx) => `
-                          <tr>
-                            <td>${sIdx + 1}</td>
-                            <td>${formatDate(sch.exam_date || sch.date)}</td>
-                            <td>${sch.subject_name || sch.subject || 'Subject'}</td>
-                          </tr>
-                        `
-                        )
-                        .join('')
-                    : `
-                      <tr><td>1</td><td>28/05/2026</td><td>Bengali</td></tr>
-                      <tr><td>2</td><td>29/05/2026</td><td>English</td></tr>
-                      <tr><td>3</td><td>30/05/2026</td><td>Math</td></tr>
-                    `
-                }
-              </tbody>
-            </table>
-
-            <div class="pdf-signature">Signature</div>
+    const viewerTab = window.open('about:blank', '_blank');
+    if (viewerTab) {
+      viewerTab.document.title = `Admit Card - ${studentName}`;
+      viewerTab.document.body.innerHTML = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8fafc; margin: 0;">
+          <div style="text-align: center; padding: 24px 32px; border-radius: 8px; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+            <div style="font-size: 16px; font-weight: 600; color: #0c2340; margin-bottom: 6px;">Opening Admit Card PDF...</div>
+            <div style="font-size: 13px; color: #64748b;">Loading into browser PDF viewer. Please wait...</div>
           </div>
-        `;
-        })
-        .join('')}
-    `;
+        </div>
+      `;
+    }
+
+    try {
+      setOpeningStudentId(student.id);
+      const blob = await adminExaminationApi.downloadStudentAdmitCardPdf(student.id, {
+        academicYearId: selectedYear || undefined,
+        classId: selectedClass || student.class || undefined,
+        sectionId: selectedSection || student.section || undefined,
+        examId: selectedExam || undefined,
+      });
+
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const fileUrl = window.URL.createObjectURL(pdfBlob);
+
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.location.href = fileUrl;
+      } else {
+        window.open(fileUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to open Admit Card PDF:', err);
+      if (viewerTab && !viewerTab.closed) viewerTab.close();
+      let errorMsg = 'Failed to generate Admit Card PDF.';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json?.message) errorMsg = json.message;
+        } catch (_) {}
+      } else if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      }
+      toast.error(errorMsg);
+    } finally {
+      setOpeningStudentId(null);
+    }
   };
 
-  // Direct PDF Download function for selected students
-  const getAdmit = async () => {
+  // Direct PDF Download / View in Native Browser Viewer for selected students
+  const handleDownloadBatchAdmitCards = async () => {
     if (selectedStudentIds.length === 0) {
       toast.warning('Please select at least one student.');
       return;
     }
-    const targetStudents = selectedStudentIds
-      .map((id) => selectedStudentsMap[id] || students.find((s) => s.id === id))
-      .filter(Boolean);
 
-    if (targetStudents.length === 0) {
-      toast.warning('No student data available to generate PDF.');
-      return;
+    const viewerTab = window.open('about:blank', '_blank');
+    if (viewerTab) {
+      viewerTab.document.title = `Admit Cards Batch (${selectedStudentIds.length})`;
+      viewerTab.document.body.innerHTML = `
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #f8fafc; margin: 0;">
+          <div style="text-align: center; padding: 24px 32px; border-radius: 8px; background: #ffffff; box-shadow: 0 4px 16px rgba(0,0,0,0.08);">
+            <div style="font-size: 16px; font-weight: 600; color: #0c2340; margin-bottom: 6px;">Opening Batch Admit Cards PDF...</div>
+            <div style="font-size: 13px; color: #64748b;">Generating ${selectedStudentIds.length} Admit Cards. Please wait...</div>
+          </div>
+        </div>
+      `;
     }
 
-    let iframe = null;
     try {
       setDownloading(true);
+      const blob = await adminExaminationApi.downloadAdmitCardPdf({
+        studentIds: selectedStudentIds,
+        academicYearId: selectedYear || undefined,
+        classId: selectedClass || undefined,
+        sectionId: selectedSection || undefined,
+        examId: selectedExam || undefined,
+      });
 
-      // Pre-convert school logo and all student profile pictures to Base64
-      const schoolLogoUrl =
-        resolveImageUrl(user?.schoolLogo || user?.school_logo || user?.logo) || schoolLogo;
-      
-      const [logoBase64, ...studentPhotos] = await Promise.all([
-        toBase64(schoolLogoUrl, schoolLogo),
-        ...targetStudents.map((s) => toBase64(getStudentProfileSrc(s), maleUser)),
-      ]);
+      const pdfBlob = new Blob([blob], { type: 'application/pdf' });
+      const fileUrl = window.URL.createObjectURL(pdfBlob);
 
-      // Create an isolated iframe to guarantee no stylesheet conflict with root app
-      iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.width = '750px';
-      iframe.style.height = '1100px';
-      iframe.style.border = 'none';
-      iframe.style.zIndex = '999999';
-      iframe.style.backgroundColor = '#ffffff';
-      document.body.appendChild(iframe);
-
-      const doc = iframe.contentWindow.document;
-      doc.open();
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8" />
-            <title>Admit Cards</title>
-            <style>
-              * { box-sizing: border-box; }
-              body { margin: 0; padding: 0; background: #ffffff; color: #000000; font-family: Arial, Helvetica, sans-serif; }
-            </style>
-          </head>
-          <body>
-            ${generatePdfHtml(targetStudents, logoBase64, studentPhotos)}
-          </body>
-        </html>
-      `);
-      doc.close();
-
-      // Give iframe time to parse and render fonts & base64 assets
-      await new Promise((resolve) => setTimeout(resolve, 350));
-
-      const examName = getSelectedExamName().replace(/[^a-zA-Z0-9_-]/g, '_');
-      const className = getSelectedClassName().replace(/[^a-zA-Z0-9_-]/g, '_');
-
-      const opt = {
-        margin: [4, 4, 4, 4],
-        filename: `AdmitCards_${examName}_${className}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          allowTaint: true,
-          scrollY: 0,
-          scrollX: 0,
-          windowWidth: 750,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'portrait',
-        },
-        pagebreak: { mode: ['css', 'legacy'] },
-      };
-
-      await html2pdf().set(opt).from(doc.body).save();
-      toast.success('Admit Card PDF downloaded successfully!');
-    } catch (err) {
-      console.error('PDF Export Error:', err);
-      toast.error('Failed to download Admit Card PDF.');
-    } finally {
-      if (iframe && document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.location.href = fileUrl;
+      } else {
+        window.open(fileUrl, '_blank');
       }
+      toast.success('Admit Cards opened in browser viewer!');
+    } catch (err) {
+      console.error('Batch Admit Card Export Error:', err);
+      if (viewerTab && !viewerTab.closed) viewerTab.close();
+      let errorMsg = 'Failed to generate batch Admit Cards PDF.';
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          if (json?.message) errorMsg = json.message;
+        } catch (_) {}
+      } else if (err.response?.data?.message) {
+        errorMsg = err.response.data.message;
+      }
+      toast.error(errorMsg);
+    } finally {
       setDownloading(false);
     }
-  };
-
-  // Print function
-  const printAdmit = () => {
-    const content = document.getElementById('printArea');
-    if (!content) return;
-    const win = window.open('', '', 'width=950,height=750');
-    win.document.write(`
-      <!DOCTYPE html>
-      <html>
-      <head>
-          <title>Admit Card - ${getSelectedExamName()}</title>
-          <style>
-              body { font-family: Arial, sans-serif; padding: 20px; background-color: #fff; }
-              .page { page-break-after: always; width: 900px; margin: 0 auto 30px; padding: 20px; border: 1px solid #ddd; }
-              .admit-school { border-bottom: 1px solid #000; padding-bottom: 24px; margin-top: 5px; margin-bottom: 20px; }
-              .admit-header { display: flex; justify-content: space-between; align-items: flex-start; }
-              .logo { width: 85px; height: auto; object-fit: contain; }
-              .profile { width: 95px; height: 125px; object-fit: cover; border: 1px solid #cfcfcf; border-radius: 3px; background: #fafafa; }
-              .school-name { text-align: center; margin-top: -105px; padding: 0 110px; }
-              .school-name h1 { margin: 0; color: #22255b; font-size: 34px; font-weight: 600; }
-              .address { text-align: center; color: #f59e0b; font-size: 16px; margin-top: 5px; }
-              .exam-title { text-align: center; margin-top: 5px; font-size: 16px; font-weight: 500; }
-              .info { display: flex; justify-content: space-between; font-size: 15px; margin: 15px 0; }
-              .subject-title { text-align: center; margin: 10px 0; font-weight: 600; font-size: 15px; }
-              .subject-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }
-              .subject-table th, .subject-table td { border: 1px solid #cfcfcf; padding: 6px; text-align: center; }
-              .subject-table th { background: #efefef; }
-              .signature { width: 200px; margin-top: 50px; margin-left: auto; border-top: 1px solid #000; text-align: center; }
-          </style>
-      </head>
-      <body>${content.innerHTML}</body>
-      </html>
-    `);
-    win.document.close();
-    win.focus();
-    setTimeout(() => { win.print(); }, 400);
-  };
-
-  // PDF export function
-  const exportPDF = () => {
-    const element = document.getElementById('printArea');
-    if (!element) return;
-    setDownloading(true);
-    const opt = {
-      filename: `AdmitCards_${getSelectedExamName()}.pdf`,
-      image: { type: 'jpeg', quality: 1 },
-      html2canvas: { scale: 2 },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-    };
-    html2pdf().set(opt).from(element).save().finally(() => setDownloading(false));
   };
 
   const getSelectedExamName = () => {
@@ -776,21 +468,6 @@ const AdmitCard = () => {
 
   return (
     <div className="content content-two">
-      <style>{`
-        .page { margin-top: 20px; width: 900px; max-width: 100%; margin: 0 auto 24px auto; padding: 20px 30px; border: 1px solid #ddd; background: #ffffff; box-sizing: border-box; }
-        .admit-header { display: flex; align-items: flex-start; justify-content: space-between; }
-        .logo { width: 85px; height: auto; object-fit: contain; }
-        .profile { width: 95px; height: 125px; object-fit: cover; border-radius: 3px; border: 1px solid #cfcfcf; background: #fafafa; }
-        .school-name { text-align: center; margin-top: -105px; padding: 0 110px; }
-        .school-name h1 { margin: 0; color: #22255b; font-size: 34px; font-weight: 600; }
-        .address { text-align: center; color: #f59e0b; font-size: 16px; margin-top: 5px; }
-        .exam-title { text-align: center; margin-top: 5px; font-size: 16px; font-weight: 500; }
-        .info { display: flex; justify-content: space-between; font-size: 15px; margin: 15px 0; }
-        .subject-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-        .subject-table th, .subject-table td { border: 1px solid #cfcfcf; padding: 6px; text-align: center; }
-        .subject-table th { background: #efefef; }
-        .signature { width: 200px; text-align: center; margin-top: 50px; margin-left: auto; border-top: 1px solid #000; padding-top: 10px; font-weight: 600; }
-      `}</style>
 
       <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
         <div className="my-auto mb-2">
@@ -918,16 +595,25 @@ const AdmitCard = () => {
                         <td>{student.class_name || getSelectedClassName()}</td>
                         <td>{student.section_name || getSelectedSectionName()}</td>
                         <td>
-                          <a
-                            href="#viewAdmitCard"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              getAdmitCard(student);
-                            }}
-                            className="text-primary cursor-pointer fw-semibold text-decoration-none"
+                          <button
+                            type="button"
+                            onClick={() => handleOpenSingleAdmitCard(student)}
+                            className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
+                            disabled={openingStudentId === student.id}
+                            title="View Admit Card"
                           >
-                            View Admit Card
-                          </a>
+                            {openingStudentId === student.id ? (
+                              <>
+                                <span className="spinner-border spinner-border-sm" role="status"></span>
+                                Opening...
+                              </>
+                            ) : (
+                              <>
+                                <i className="ti ti-eye"></i>
+                                View Admit Card
+                              </>
+                            )}
+                          </button>
                         </td>
                       </tr>
                     );
@@ -1007,19 +693,19 @@ const AdmitCard = () => {
               <button
                 id="getAdmitBtn"
                 type="button"
-                className="btn btn-info text-white d-flex align-items-center"
+                className="btn btn-primary text-white d-flex align-items-center gap-1"
                 disabled={selectedStudentIds.length === 0 || downloading}
-                onClick={getAdmit}
+                onClick={handleDownloadBatchAdmitCards}
               >
                 {downloading ? (
                   <>
                     <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                    Downloading PDF...
+                    Generating Admit Cards...
                   </>
                 ) : (
                   <>
-                    <i className="ti ti-download me-1"></i>
-                    Get Admit Card {selectedStudentIds.length > 0 ? `(${selectedStudentIds.length})` : ''}
+                    <i className="ti ti-printer me-1"></i>
+                    Print Selected Admit Cards {selectedStudentIds.length > 0 ? `(${selectedStudentIds.length})` : ''}
                   </>
                 )}
               </button>
@@ -1027,187 +713,6 @@ const AdmitCard = () => {
           </div>
         </div>
       </div>
-
-      <div id="admitCardDiv"></div>
-
-      {/* Fullscreen PDF downloading indicator */}
-      {downloading && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            zIndex: 1000000,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <div
-            className="spinner-border text-primary mb-3"
-            style={{ width: '3.5rem', height: '3.5rem' }}
-            role="status"
-          ></div>
-          <h4 className="fw-bold text-dark mb-1">Downloading Admit Card PDF</h4>
-          <p className="text-muted fs-14 mb-0">Please wait while your document is being generated...</p>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* Admit Card Preview Modal */}
-      {/* ========================================================================= */}
-      {showModal && (
-        <div
-          className="modal modal-lg fade show"
-          id="candidateModal"
-          tabIndex="-1"
-          aria-modal="true"
-          role="dialog"
-          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.65)', zIndex: 1060 }}
-        >
-          <div
-            className="modal-dialog modal-dialog-centered modal-dialog-scrollable"
-            style={{ maxWidth: '1020px', width: '96%', maxHeight: '92vh' }}
-          >
-            <div
-              className="modal-content position-relative"
-              style={{
-                width: 'auto',
-                maxHeight: '92vh',
-                overflowY: 'auto',
-                borderRadius: '10px',
-                backgroundColor: '#f8f9fa',
-                padding: '20px 30px 40px 30px',
-              }}
-            >
-              {/* Dedicated Top Action Bar for Close Button */}
-              <div className="d-flex justify-content-end align-items-center mb-3">
-                <button
-                  type="button"
-                  className="btn-close bg-white shadow-sm p-2 rounded-circle"
-                  aria-label="Close"
-                  style={{ opacity: 0.9, cursor: 'pointer' }}
-                  onClick={() => setShowModal(false)}
-                ></button>
-              </div>
-
-              {/* Modal Body */}
-              <div id="modalDiv" className="modal-body p-0">
-                <div id="printArea">
-                  {modalStudents.map((std, idx) => (
-                    <div
-                      key={std.id || idx}
-                      className="page shadow-sm"
-                      style={{ margin: '0 auto 28px auto' }}
-                    >
-                      <div className="admit-school">
-                        <div className="admit-header">
-                          <img
-                            src={
-                              resolveImageUrl(user?.schoolLogo || user?.school_logo || user?.logo) ||
-                              schoolLogo
-                            }
-                            className="logo"
-                            alt="School Logo"
-                            onError={(e) => {
-                              e.target.src = schoolLogo;
-                            }}
-                          />
-                          <img
-                            src={getStudentProfileSrc(std)}
-                            className="profile"
-                            alt="Student Profile"
-                            onError={(e) => {
-                              e.target.src = maleUser;
-                            }}
-                          />
-                        </div>
-
-                        <div className="school-name">
-                          <h1>{user?.school_name || user?.schoolName || ''}</h1>
-                        </div>
-
-                        <div className="address">
-                          {user?.school_address || user?.address || ''}
-                        </div>
-
-                        <div className="exam-title">
-                          {getSelectedExamName()} Exam Admit Card - ({getSelectedYearShort()})
-                        </div>
-                      </div>
-
-                      <div className="info">
-                        <div>
-                          <b>Name :</b> {std.first_name} {std.last_name || ''}
-                          <br />
-                          <b>Class :</b> {std.class_name || getSelectedClassName()}
-                          <br />
-                          <b>Roll :</b> {std.roll_number || '1234'}
-                        </div>
-
-                        <div>
-                          <b>Admission NO :</b> {std.admission_number || `AD${std.id}`}
-                          <br />
-                          <b>Section :</b> {std.section_name || getSelectedSectionName()}
-                        </div>
-                      </div>
-
-                      <div className="subject-title">Subject in which Appearing</div>
-
-                      <table className="subject-table">
-                        <thead>
-                          <tr>
-                            <th style={{ width: '40px' }} className="text-center">
-                              #
-                            </th>
-                            <th style={{ width: '130px' }}>Date</th>
-                            <th>Subject Name</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {examSchedules.length > 0 ? (
-                            examSchedules.map((sch, sIdx) => (
-                              <tr key={sch.id || sIdx}>
-                                <td className="text-center">{sIdx + 1}</td>
-                                <td>{formatDate(sch.exam_date || sch.date)}</td>
-                                <td>{sch.subject_name || sch.subject || 'Subject'}</td>
-                              </tr>
-                            ))
-                          ) : (
-                            <>
-                              <tr>
-                                <td className="text-center">1</td>
-                                <td>28/05/2026</td>
-                                <td>Bengali</td>
-                              </tr>
-                              <tr>
-                                <td className="text-center">2</td>
-                                <td>29/05/2026</td>
-                                <td>English</td>
-                              </tr>
-                              <tr>
-                                <td className="text-center">3</td>
-                                <td>30/05/2026</td>
-                                <td>Math</td>
-                              </tr>
-                            </>
-                          )}
-                        </tbody>
-                      </table>
-
-                      <div className="signature">Signature</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

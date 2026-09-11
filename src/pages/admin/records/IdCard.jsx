@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useSelector } from 'react-redux';
-import html2pdf from 'html2pdf.js';
 import apiClient from '../../../api/axios.config';
+import adminIdCardApi from '../../../api/adminIdCard.api';
 import Avatar, { resolveImageUrl } from '../../../components/common/Avatar';
 import schoolLogo from '../../../assets/school-logo.png';
 import maleUser from '../../../assets/male-user.png';
@@ -67,8 +67,9 @@ const getCandidateProfileSrc = (item) => {
 const IdCard = () => {
   const { user } = useSelector((state) => state.auth);
 
-  // Selected role id from role_master
-  const [idCardFor, setIdCardFor] = useState('');
+  // Selected role / category: 'student' | 'teacher' | 'staff'
+  const [idCardFor, setIdCardFor] = useState('student');
+  const [selectedStaffRole, setSelectedStaffRole] = useState('');
 
   // Dropdown options
   const [roles, setRoles] = useState([]);
@@ -101,17 +102,21 @@ const IdCard = () => {
   const [selectedCandidateIds, setSelectedCandidateIds] = useState([]);
   const [selectedCandidatesMap, setSelectedCandidatesMap] = useState({});
 
-  // Single Candidate Preview Modal
-  const [showModal, setShowModal] = useState(false);
-  const [modalCandidate, setModalCandidate] = useState(null);
-
-  // PDF Export
+  // Single and Batch PDF Generation state
   const [downloading, setDownloading] = useState(false);
+  const [openingCandidateId, setOpeningCandidateId] = useState(null);
 
   // Role detection
   const selectedRole = roles.find((r) => String(r.id) === String(idCardFor));
-  const isStudentRole = selectedRole ? /student/i.test(selectedRole.role_name || '') : false;
-  const isTeacherRole = selectedRole ? /teacher/i.test(selectedRole.role_name || '') : false;
+  const isStudentRole = idCardFor === 'student' || idCardFor === '1' || (selectedRole && /student/i.test(selectedRole.role_name || ''));
+  const isTeacherRole = idCardFor === 'teacher' || idCardFor === '2' || (selectedRole && /teacher/i.test(selectedRole.role_name || ''));
+  const isStaffRole = idCardFor === 'staff' || (!isStudentRole && !isTeacherRole && Boolean(idCardFor));
+
+  const getEffectiveType = () => {
+    if (isStudentRole) return 'student';
+    if (isTeacherRole) return 'teacher';
+    return 'staff';
+  };
 
   useEffect(() => {
     fetchInitialDropdowns();
@@ -171,6 +176,7 @@ const IdCard = () => {
 
   const switchMode = (val) => {
     setIdCardFor(val);
+    setSelectedStaffRole('');
     setCandidates([]);
     setHasSearched(false);
     setSelectedCandidateIds([]);
@@ -234,7 +240,8 @@ const IdCard = () => {
         endpoint = '/admin/teachers';
       } else {
         endpoint = '/admin/staff';
-        params.role = idCardFor;
+        const finalRole = selectedStaffRole || (!['student', 'teacher', 'staff'].includes(idCardFor) ? idCardFor : undefined);
+        if (finalRole) params.role = finalRole;
       }
 
       const res = await apiClient.get(endpoint, { params });
@@ -348,270 +355,96 @@ const IdCard = () => {
   const isAllCurrentPageSelected =
     candidates.length > 0 && candidates.every((c) => selectedCandidateIds.includes(c.id));
 
-  // Single candidate preview in modal
-  const getIdCard = (candidate) => {
-    setModalCandidate(candidate);
-    setShowModal(true);
+  // Open Single Candidate ID Card directly in browser tab
+  const handleOpenSingleIdCard = async (candidate) => {
+    if (!candidate || !candidate.id) return;
+    const type = getEffectiveType();
+    const candidateName = `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || 'Candidate';
+
+    // Pre-open new tab to avoid popup blockers
+    const viewerTab = window.open('about:blank', '_blank');
+    if (viewerTab) {
+      viewerTab.document.title = `ID Card - ${candidateName}`;
+      viewerTab.document.body.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background: #f8f9fa;">
+          <div style="border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; width: 44px; height: 44px; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+          <h3 style="color: #1e293b; margin: 0 0 8px 0; font-size: 18px;">Generating ID Card PDF...</h3>
+          <p style="color: #64748b; margin: 0; font-size: 14px;">Preparing high-resolution ID card badge for ${candidateName}</p>
+          <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+        </div>
+      `;
+    }
+
+    try {
+      setOpeningCandidateId(candidate.id);
+      const blob = await adminIdCardApi.downloadSingleIdCardPdf(type, candidate.id, {
+        classId: selectedClass || candidate.class || candidate.class_id || undefined,
+        sectionId: selectedSection || candidate.section || candidate.section_id || undefined,
+        academicYearId: selectedYear || undefined,
+      });
+
+      const fileUrl = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.location.href = fileUrl;
+      } else {
+        window.open(fileUrl, '_blank');
+      }
+    } catch (err) {
+      console.error('Failed to open ID Card PDF:', err);
+      if (viewerTab && !viewerTab.closed) viewerTab.close();
+      toast.error(err.response?.data?.message || 'Failed to generate ID Card PDF.');
+    } finally {
+      setOpeningCandidateId(null);
+    }
   };
 
-  // Helper to convert images to Base64
-  const toBase64 = (url, fallbackUrl = schoolLogo) => {
-    return new Promise((resolve) => {
-      const targetUrl = url || fallbackUrl;
-      if (!targetUrl || typeof targetUrl !== 'string') return resolve(fallbackUrl || '');
-      if (targetUrl.startsWith('data:')) return resolve(targetUrl);
-
-      const img = new Image();
-      img.crossOrigin = 'Anonymous';
-      img.onload = () => {
-        try {
-          const canvas = document.createElement('canvas');
-          canvas.width = img.naturalWidth || img.width || 94;
-          canvas.height = img.naturalHeight || img.height || 94;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0);
-          resolve(canvas.toDataURL('image/png'));
-        } catch (e) {
-          resolve(targetUrl);
-        }
-      };
-      img.onerror = () => {
-        if (fallbackUrl && targetUrl !== fallbackUrl) {
-          const fbImg = new Image();
-          fbImg.onload = () => {
-            try {
-              const canvas = document.createElement('canvas');
-              canvas.width = fbImg.naturalWidth || 94;
-              canvas.height = fbImg.naturalHeight || 94;
-              const ctx = canvas.getContext('2d');
-              ctx.drawImage(fbImg, 0, 0);
-              resolve(canvas.toDataURL('image/png'));
-            } catch (err) {
-              resolve(fallbackUrl);
-            }
-          };
-          fbImg.onerror = () => resolve(fallbackUrl);
-          fbImg.src = fallbackUrl;
-        } else {
-          resolve(fallbackUrl || '');
-        }
-      };
-      img.src = targetUrl;
-    });
-  };
-
-  // Generate clean HTML string for ID Card PDF rendering
-  const generatePdfHtml = (candidateList, candidatePhotos, schoolLogoBase64) => {
-    const schoolName = user?.school_name || user?.schoolName || '';
-    const schoolAddress = user?.school_address || user?.address || '';
-    const className = getSelectedClassName();
-    const sectionName = getSelectedSectionName();
-    const logoImgSrc = schoolLogoBase64 || schoolLogo;
-
-    return `
-      <style>
-        .pdf-id-page {
-          width: 720px;
-          margin: 0 auto;
-          padding: 20px 0;
-          page-break-inside: avoid;
-          page-break-after: always;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          box-sizing: border-box;
-          font-family: Arial, Helvetica, sans-serif;
-        }
-        .pdf-id-page:last-child {
-          page-break-after: auto;
-        }
-        .id-card {
-          width: 340px;
-          padding: 25px 22px 25px;
-          border-radius: 4px;
-          height: 410px;
-          border: 1px solid #ddd;
-          background: #ffffff;
-          box-sizing: border-box;
-          text-align: center;
-        }
-        .id-title {
-          margin: 12px 0 0 0;
-          font-size: 22px;
-          font-weight: 500;
-          color: #333;
-        }
-        .id-para {
-          margin-bottom: 26px;
-          font-size: 13px;
-          color: #6c757d;
-        }
-        .id-avatar {
-          margin: 20px 0;
-        }
-        .id-avatar img {
-          width: 94px;
-          height: 94px;
-          border-radius: 50%;
-          object-fit: cover;
-          background: #8cc0c8;
-          border: 1px solid #ddd;
-        }
-        .id-info {
-          text-align: left;
-          font-size: 14px;
-        }
-        .id-row {
-          display: flex;
-          margin: 6px 0;
-        }
-        .id-row span {
-          width: 116px;
-          color: #000;
-          font-weight: 600;
-        }
-        .id-row b {
-          font-weight: normal;
-        }
-      </style>
-      ${candidateList
-        .map((candidate, idx) => {
-          const profilePic = candidatePhotos[idx] || getCandidateProfileSrc(candidate);
-          const fullClass = candidate.class_name || className;
-          const fullSec = candidate.section_name || sectionName;
-          return `
-          <div class="pdf-id-page">
-            <div class="id-card">
-              <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 4px;">
-                <img src="${logoImgSrc}" alt="Logo" style="max-height: 28px; max-width: 28px; object-fit: contain;" />
-                <h2 class="id-title" style="margin: 0; font-size: 20px;">${schoolName}</h2>
-              </div>
-              <p class="id-para" style="margin-bottom: 16px;">${schoolAddress}</p>
-
-              <div class="id-avatar">
-                <img src="${profilePic}" alt="Student Photo" />
-              </div>
-
-              <div class="id-info">
-                <div class="id-row"><span>Name</span><b>: ${candidate.first_name || ''} ${candidate.last_name || ''}</b></div>
-                <div class="id-row"><span>${
-                  idCardFor === '1' ? 'Admission No.' : idCardFor === '2' ? 'Teacher ID' : 'Employee ID'
-                }</span><b>: ${
-                  candidate.admission_number || candidate.teacher_id || candidate.employee_id || `ID${candidate.id}`
-                }</b></div>
-                ${
-                  idCardFor === '1'
-                    ? `
-                  <div class="id-row"><span>Class</span><b>: ${fullClass}${fullSec ? ` (${fullSec})` : ''}</b></div>
-                  <div class="id-row"><span>Roll</span><b>: ${candidate.roll_number || '1234'}</b></div>
-                `
-                    : `
-                  <div class="id-row"><span>Designation</span><b>: ${
-                    candidate.designation || (idCardFor === '2' ? (candidate.qualification || 'Teacher') : (candidate.role_name || candidate.role || 'Staff'))
-                  }</b></div>
-                `
-                }
-                <div class="id-row"><span>Contact No.</span><b>: ${candidate.primary_contact_number || candidate.phone || '-'}</b></div>
-                <div class="id-row"><span>Blood Group</span><b>: ${candidate.blood_group || 'A+'}</b></div>
-              </div>
-            </div>
-          </div>
-        `;
-        })
-        .join('')}
-    `;
-  };
-
-  // Direct PDF Download function for selected candidates
-  const getAdmit = async () => {
+  // Batch ID Card PDF generation for selected candidates
+  const handleDownloadBatchIdCards = async () => {
     if (selectedCandidateIds.length === 0) {
       toast.warning('Please select at least one candidate.');
       return;
     }
-    const targetCandidates = selectedCandidateIds
-      .map((id) => selectedCandidatesMap[id] || candidates.find((c) => c.id === id))
-      .filter(Boolean);
 
-    if (targetCandidates.length === 0) {
-      toast.warning('No candidate data available to generate PDF.');
-      return;
+    const type = getEffectiveType();
+    const count = selectedCandidateIds.length;
+
+    // Pre-open new tab to avoid popup blockers
+    const viewerTab = window.open('about:blank', '_blank');
+    if (viewerTab) {
+      viewerTab.document.title = `ID Cards Batch (${count})`;
+      viewerTab.document.body.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; background: #f8f9fa;">
+          <div style="border: 4px solid #e2e8f0; border-top: 4px solid #4f46e5; border-radius: 50%; width: 44px; height: 44px; animation: spin 1s linear infinite; margin-bottom: 16px;"></div>
+          <h3 style="color: #1e293b; margin: 0 0 8px 0; font-size: 18px;">Generating ID Cards PDF...</h3>
+          <p style="color: #64748b; margin: 0; font-size: 14px;">Preparing ${count} ID card badges. Please wait...</p>
+          <style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>
+        </div>
+      `;
     }
 
-    let iframe = null;
     try {
       setDownloading(true);
+      const blob = await adminIdCardApi.downloadIdCardPdf({
+        type,
+        candidateIds: selectedCandidateIds,
+        classId: selectedClass || undefined,
+        sectionId: selectedSection || undefined,
+        academicYearId: selectedYear || undefined,
+        roleId: selectedStaffRole || undefined,
+      });
 
-      const schoolLogoUrl = resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogo;
-      const [schoolLogoBase64, ...candidatePhotos] = await Promise.all([
-        toBase64(schoolLogoUrl, schoolLogo),
-        ...targetCandidates.map((c) => toBase64(getCandidateProfileSrc(c), maleUser)),
-      ]);
-
-      // Create an isolated sandbox iframe
-      iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.width = '750px';
-      iframe.style.height = '1100px';
-      iframe.style.border = 'none';
-      iframe.style.zIndex = '999999';
-      iframe.style.backgroundColor = '#ffffff';
-      document.body.appendChild(iframe);
-
-      const doc = iframe.contentWindow.document;
-      doc.open();
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <meta charset="utf-8" />
-            <title>ID Cards</title>
-            <style>
-              * { box-sizing: border-box; }
-              body { margin: 0; padding: 0; background: #ffffff; color: #000000; font-family: Arial, Helvetica, sans-serif; }
-            </style>
-          </head>
-          <body>
-            ${generatePdfHtml(targetCandidates, candidatePhotos, schoolLogoBase64)}
-          </body>
-        </html>
-      `);
-      doc.close();
-
-      await new Promise((resolve) => setTimeout(resolve, 350));
-
-      const typeLabel = idCardFor === '1' ? 'Students' : idCardFor === '2' ? 'Teachers' : 'Users';
-      const opt = {
-        margin: [5, 5, 5, 5],
-        filename: `ID_Cards_${typeLabel}_(${targetCandidates.length}).pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          allowTaint: true,
-          scrollY: 0,
-          scrollX: 0,
-          windowWidth: 750,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'portrait',
-        },
-        pagebreak: { mode: ['css', 'legacy'] },
-      };
-
-      await html2pdf().set(opt).from(doc.body).save();
-      toast.success('ID Cards PDF downloaded successfully!');
-    } catch (err) {
-      console.error('PDF Export Error:', err);
-      toast.error('Failed to download ID Cards PDF.');
-    } finally {
-      if (iframe && document.body.contains(iframe)) {
-        document.body.removeChild(iframe);
+      const fileUrl = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      if (viewerTab && !viewerTab.closed) {
+        viewerTab.location.href = fileUrl;
+      } else {
+        window.open(fileUrl, '_blank');
       }
+      toast.success('ID Cards opened in browser viewer!');
+    } catch (err) {
+      console.error('Batch ID Cards Error:', err);
+      if (viewerTab && !viewerTab.closed) viewerTab.close();
+      toast.error(err.response?.data?.message || 'Failed to generate batch ID Cards PDF.');
+    } finally {
       setDownloading(false);
     }
   };
@@ -627,73 +460,8 @@ const IdCard = () => {
     return found ? found.section_name : 'A';
   };
 
-  // Filter candidates client-side if search box has value
-  const filteredCandidates = useMemo(() => {
-    if (!searchTerm.trim()) return candidates;
-    const term = searchTerm.toLowerCase();
-    return candidates.filter(
-      (c) =>
-        c.first_name?.toLowerCase().includes(term) ||
-        c.last_name?.toLowerCase().includes(term) ||
-        c.admission_number?.toLowerCase().includes(term) ||
-        c.employee_id?.toLowerCase().includes(term) ||
-        c.email?.toLowerCase().includes(term) ||
-        c.primary_contact_number?.toLowerCase().includes(term) ||
-        c.phone?.toLowerCase().includes(term)
-    );
-  }, [candidates, searchTerm]);
-
   return (
     <div className="content content-two">
-      <style>{`
-        .id-card {
-            width: 340px;
-            padding: 25px 22px 25px;
-            border-radius: 4px;
-            height: 410px;
-            border: 1px solid #ddd;
-            background: #ffffff;
-            margin: 0 auto;
-            box-sizing: border-box;
-        }
-        .id-title {
-            margin: 12px 0 0 0;
-            font-size: 22px;
-            font-weight: 500;
-            color: #333;
-        }
-        .id-para {
-            margin-bottom: 26px;
-            font-size: 13px;
-            color: #6c757d;
-        }
-        .id-avatar {
-            margin: 20px 0;
-        }
-        .id-avatar img {
-            width: 94px;
-            height: 94px;
-            border-radius: 50%;
-            object-fit: cover;
-            background: #8cc0c8;
-            border: 1px solid #ddd;
-        }
-        .id-info {
-            text-align: left;
-            font-size: 14px;
-        }
-        .id-row {
-            display: flex;
-            margin: 6px 0;
-        }
-        .id-row span {
-            width: 116px;
-            color: #000;
-        }
-        .id-row b {
-            font-weight: normal;
-        }
-      `}</style>
       {/* Page Header */}
         <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
           <div className="my-auto mb-2">
@@ -716,7 +484,7 @@ const IdCard = () => {
         {/* Filter Card */}
         <div className="bg-white p-3 border rounded-1 d-flex align-items-center justify-content-between flex-wrap mb-4 pb-0">
           <form onSubmit={handleSearchSubmit} className="row w-100 align-items-end">
-            <div className="col-md-2">
+            <div className={isStudentRole ? 'col-md-2' : 'col-md-3'}>
               <div className="mb-3">
                 <label className="form-label">
                   ID Card For <span className="text-danger">*</span>
@@ -729,15 +497,34 @@ const IdCard = () => {
                   onChange={(e) => switchMode(e.target.value)}
                   required
                 >
-                  <option value="">Select</option>
-                  {roles.map((r) => (
-                    <option key={r.id} value={String(r.id)}>
-                      {r.role_name || r.name}
-                    </option>
-                  ))}
+                  <option value="student">Student</option>
+                  <option value="teacher">Teacher</option>
+                  <option value="staff">Staff</option>
                 </select>
               </div>
             </div>
+
+            {isStaffRole && (
+              <div className="col-md-3">
+                <div className="mb-3">
+                  <label className="form-label">Staff Role</label>
+                  <select
+                    className="form-select select"
+                    name="staff_role"
+                    id="staff_role"
+                    value={selectedStaffRole}
+                    onChange={(e) => setSelectedStaffRole(e.target.value)}
+                  >
+                    <option value="">All Roles</option>
+                    {roles.map((r) => (
+                      <option key={r.id} value={String(r.id)}>
+                        {r.role_name || r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
 
             {isStudentRole && (
               <div id="idCardDiv" className="col-md-8">
@@ -837,8 +624,8 @@ const IdCard = () => {
               </div>
             )}
 
-            <div className={`${idCardFor === '1' ? 'col-md-2' : 'col-md-3'} d-flex align-items-center mb-3`}>
-              <button className="btn btn-outline-primary w-100" type="submit" disabled={loading}>
+            <div className={`${isStudentRole ? 'col-md-2' : 'col-md-3'} d-flex align-items-center mb-3`}>
+              <button className="btn btn-primary w-100" type="submit" disabled={loading}>
                 {loading ? <span className="spinner-border spinner-border-sm me-1"></span> : null}
                 Show Report
               </button>
@@ -1051,14 +838,24 @@ const IdCard = () => {
                             <td>{candidate.role_name || selectedRole?.role_name || 'Staff'}</td>
                           )}
                           <td>
-                            <a
-                              role="button"
-                              onClick={() => getIdCard(candidate)}
-                              className="text-primary fw-medium"
-                              style={{ cursor: 'pointer' }}
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary d-inline-flex align-items-center gap-1"
+                              disabled={openingCandidateId === candidate.id}
+                              onClick={() => handleOpenSingleIdCard(candidate)}
                             >
-                              View ID Card
-                            </a>
+                              {openingCandidateId === candidate.id ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm" role="status"></span>
+                                  <span>Opening...</span>
+                                </>
+                              ) : (
+                                <>
+                                  <i className="ti ti-id"></i>
+                                  <span>View ID Card</span>
+                                </>
+                              )}
+                            </button>
                           </td>
                         </tr>
                       );
@@ -1143,179 +940,26 @@ const IdCard = () => {
                 <button
                   id="getAdmitBtn"
                   type="button"
-                  className="btn btn-info text-white d-flex align-items-center"
+                  className="btn btn-primary text-white d-flex align-items-center"
                   disabled={selectedCandidateIds.length === 0 || downloading}
-                  onClick={getAdmit}
+                  onClick={handleDownloadBatchIdCards}
                 >
                   {downloading ? (
                     <>
                       <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                      Downloading...
+                      Generating...
                     </>
                   ) : (
-                    <>Get ID Card{selectedCandidateIds.length > 0 ? ` (${selectedCandidateIds.length})` : ''}</>
+                    <>
+                      <i className="ti ti-printer me-1"></i>
+                      Get ID Card{selectedCandidateIds.length > 0 ? ` (${selectedCandidateIds.length})` : ''}
+                    </>
                   )}
                 </button>
               </div>
             </div>
           </div>
         </div>
-
-        <div id="admitCardDiv"></div>
-
-        {/* Fullscreen PDF downloading indicator */}
-        {downloading && (
-          <div
-            style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              zIndex: 1000000,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <div
-              className="spinner-border text-primary mb-3"
-              style={{ width: '3.5rem', height: '3.5rem' }}
-              role="status"
-            ></div>
-            <h4 className="fw-bold text-dark mb-1">Downloading ID Card PDF</h4>
-            <p className="text-muted fs-14 mb-0">Please wait while your document is being generated...</p>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* ID Card Preview Modal */}
-        {/* ========================================================================= */}
-        {showModal && (
-          <div
-            className="modal fade show d-block"
-            id="candidateModal"
-            tabIndex="-1"
-            aria-labelledby="standard-modalLabel"
-            aria-modal="true"
-            role="dialog"
-            style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.55)',
-              zIndex: 1060,
-            }}
-            onClick={(e) => {
-              if (e.target.id === 'candidateModal') setShowModal(false);
-            }}
-          >
-            <div className="modal-dialog modal-dialog-centered" style={{ maxWidth: 'fit-content', margin: '1.75rem auto' }}>
-              <div className="modal-content position-relative p-4" style={{ width: 'auto' }}>
-                {/* Close Button Only */}
-                <button
-                  type="button"
-                  className="btn-close position-absolute top-0 end-0 m-3"
-                  style={{ zIndex: 999999, cursor: 'pointer' }}
-                  onClick={() => setShowModal(false)}
-                  data-bs-dismiss="modal"
-                  aria-label="Close"
-                ></button>
-
-                {/* Modal Body */}
-                <div id="modalDiv" className="modal-body text-center">
-                  {modalCandidate && (
-                    <div className="id-card">
-                      <div className="d-flex align-items-center justify-content-center gap-2 mb-1">
-                        <img
-                          src={resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogo}
-                          alt="Logo"
-                          style={{ maxHeight: '28px', maxWidth: '28px', objectFit: 'contain' }}
-                          onError={(e) => {
-                            e.currentTarget.onerror = null;
-                            e.currentTarget.src = schoolLogo;
-                          }}
-                        />
-                        <h2 className="id-title m-0" style={{ fontSize: '20px' }}>
-                          {user?.school_name || user?.schoolName || ''}
-                        </h2>
-                      </div>
-                      <p className="id-para mb-3">{user?.school_address || user?.address || ''}</p>
-
-                      <div className="id-avatar">
-                        <img
-                          src={getCandidateProfileSrc(modalCandidate)}
-                          alt="Student Photo"
-                          onError={(e) => {
-                            e.target.src = maleUser;
-                          }}
-                        />
-                      </div>
-
-                      <div className="id-info">
-                        <div className="id-row">
-                          <span>Name</span>
-                          <b>: {modalCandidate.first_name} {modalCandidate.last_name || ''}</b>
-                        </div>
-                        <div className="id-row">
-                          <span>
-                            {idCardFor === '1'
-                              ? 'Admission No.'
-                              : idCardFor === '2'
-                              ? 'Teacher ID'
-                              : 'Employee ID'}
-                          </span>
-                          <b>
-                            : {modalCandidate.admission_number ||
-                              modalCandidate.teacher_id ||
-                              modalCandidate.employee_id ||
-                              `ID${modalCandidate.id}`}
-                          </b>
-                        </div>
-                        {idCardFor === '1' ? (
-                          <>
-                            <div className="id-row">
-                              <span>Class</span>
-                              <b>
-                                : {modalCandidate.class_name || getSelectedClassName()}
-                                {modalCandidate.section_name
-                                  ? ` (${modalCandidate.section_name})`
-                                  : selectedSection
-                                  ? ` (${getSelectedSectionName()})`
-                                  : ''}
-                              </b>
-                            </div>
-                            <div className="id-row">
-                              <span>Roll</span>
-                              <b>: {modalCandidate.roll_number || '1234'}</b>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="id-row">
-                            <span>Designation</span>
-                            <b>
-                              : {modalCandidate.designation ||
-                                (idCardFor === '2'
-                                  ? (modalCandidate.qualification || 'Teacher')
-                                  : (modalCandidate.role_name || modalCandidate.role || 'Staff'))}
-                            </b>
-                          </div>
-                        )}
-                        <div className="id-row">
-                          <span>Contact No.</span>
-                          <b>: {modalCandidate.primary_contact_number || modalCandidate.phone || '-'}</b>
-                        </div>
-                        <div className="id-row">
-                          <span>Blood Group</span>
-                          <b>: {modalCandidate.blood_group || 'A+'}</b>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
   );
 };

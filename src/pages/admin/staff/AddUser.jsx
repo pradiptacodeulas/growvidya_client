@@ -42,6 +42,7 @@ const AddUser = () => {
   const [hostels, setHostels] = useState([]);
   const [rooms, setRooms] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
+  const [bloodGroups, setBloodGroups] = useState([]);
 
   // Form State
   const [pictureFile, setPictureFile] = useState(null);
@@ -52,6 +53,8 @@ const AddUser = () => {
     last_name: '',
     email: '',
     phone: '',
+    gender: '1',
+    blood_group: '',
     password: '',
     country_id: '',
     state_id: '',
@@ -112,6 +115,19 @@ const AddUser = () => {
           setVehicles(data.vehicles || []);
           setHostels(data.hostels || []);
           setDocumentTypes(data.documentTypes || []);
+          setBloodGroups(
+            data.bloodGroups || [
+              { id: 1, blood_group: 'A+' },
+              { id: 2, blood_group: 'A-' },
+              { id: 3, blood_group: 'B+' },
+              { id: 4, blood_group: 'B-' },
+              { id: 5, blood_group: 'AB+' },
+              { id: 6, blood_group: 'AB-' },
+              { id: 7, blood_group: 'AB-' },
+              { id: 8, blood_group: 'O+' },
+              { id: 9, blood_group: 'O-' },
+            ]
+          );
 
           if (!isEditMode && data.roles?.length > 0) {
             setPersonalInfo((prev) => ({
@@ -146,6 +162,8 @@ const AddUser = () => {
               last_name: u.last_name || '',
               email: u.email || '',
               phone: u.phone || '',
+              gender: u.gender !== undefined ? String(u.gender) : '1',
+              blood_group: u.blood_group ? String(u.blood_group) : '',
               password: '',
               country_id: u.country_id ? String(u.country_id) : '',
               state_id: u.state_id ? String(u.state_id) : '',
@@ -612,6 +630,8 @@ const AddUser = () => {
         last_name: String(personalInfo.last_name || '').trim(),
         email: String(personalInfo.email || '').trim(),
         phone: String(personalInfo.phone || '').trim(),
+        gender: personalInfo.gender || '1',
+        blood_group: personalInfo.blood_group ? Number(personalInfo.blood_group) : null,
         password: personalInfo.password ? String(personalInfo.password).trim() : undefined,
         country_id: personalInfo.country_id || null,
         state_id: personalInfo.state_id || null,
@@ -876,6 +896,47 @@ const AddUser = () => {
                         {errors.phone && (
                           <div className="invalid-feedback d-block">{errors.phone}</div>
                         )}
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">Gender</label>
+                        <select
+                          className="select form-select"
+                          name="gender"
+                          id="gender"
+                          value={personalInfo.gender || '1'}
+                          onChange={(e) =>
+                            setPersonalInfo({ ...personalInfo, gender: e.target.value })
+                          }
+                        >
+                          <option value="1">Male</option>
+                          <option value="2">Female</option>
+                          <option value="3">Other</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="col-md-6">
+                      <div className="mb-3">
+                        <label className="form-label">Blood Group</label>
+                        <select
+                          className="select form-select"
+                          name="blood_group"
+                          id="blood_group"
+                          value={personalInfo.blood_group}
+                          onChange={(e) =>
+                            setPersonalInfo({ ...personalInfo, blood_group: e.target.value })
+                          }
+                        >
+                          <option value="">Select Blood Group</option>
+                          {bloodGroups.map((bg) => (
+                            <option key={bg.id} value={String(bg.id)}>
+                              {bg.blood_group || bg.name}
+                            </option>
+                          ))}
+                        </select>
                       </div>
                     </div>
 
