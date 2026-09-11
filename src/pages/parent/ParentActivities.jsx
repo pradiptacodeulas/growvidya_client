@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { fetchChildActivitiesApi } from '../../api/parentChild.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const ParentActivities = () => {
   const { activeChild } = useSelector((state) => state.parentAuth);
@@ -128,22 +129,12 @@ const ParentActivities = () => {
               <span className="text-muted fw-semibold">Loading student activities...</span>
             </div>
           ) : activities.length === 0 ? (
-            <div className="text-center py-5 text-muted">
-              <div
-                className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle"
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  backgroundColor: 'rgba(13, 202, 240, 0.08)',
-                  color: '#0dcaf0',
-                  fontSize: '28px',
-                }}
-              >
-                <i className="ti ti-clipboard-off"></i>
-              </div>
-              <h6 className="fw-bold text-dark mb-1">No Activities Recorded</h6>
-              <p className="fs-13 text-muted mb-0">No extracurricular or behavioral activities have been logged for this student yet.</p>
-            </div>
+            <NoData
+              title="No Activities Recorded"
+              message="No extracurricular or behavioral activities have been logged for this student yet."
+              imageHeight={120}
+              py={4}
+            />
           ) : (
             <div className="list-group list-group-flush">
               {activities.map((act) => (

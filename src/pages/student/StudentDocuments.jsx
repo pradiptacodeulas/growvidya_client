@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { fetchStudentDocumentsApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const StudentDocuments = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
@@ -91,10 +92,13 @@ const StudentDocuments = () => {
           Loading student documents...
         </div>
       ) : documents.length === 0 ? (
-        <div className="card border shadow-sm rounded-3 text-center py-5 bg-white">
-          <i className="ti ti-files-off fs-48 text-muted mb-2 d-block"></i>
-          <h5 className="fw-bold text-dark">No Documents Uploaded</h5>
-          <p className="text-muted fs-13 mb-0">No institutional certificates or identification documents have been linked to your profile.</p>
+        <div className="card border shadow-sm rounded-3 bg-white">
+          <NoData
+            title="No Documents Uploaded"
+            message="No institutional certificates or identification documents have been linked to your profile."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <div className="row g-3">

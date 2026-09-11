@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { fetchStudentAttendanceApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const StudentAttendance = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
@@ -172,10 +173,12 @@ const StudentAttendance = () => {
               Loading attendance logs...
             </div>
           ) : records.length === 0 ? (
-            <div className="text-center py-5 text-muted">
-              <i className="ti ti-calendar-off fs-36 text-muted mb-2 d-block"></i>
-              No attendance records logged for this month.
-            </div>
+            <NoData
+              title="No Attendance Records Found"
+              message="No attendance records logged for this month."
+              imageHeight={120}
+              py={4}
+            />
           ) : (
             <div className="table-responsive">
               <table className="table table-hover align-middle mb-0">

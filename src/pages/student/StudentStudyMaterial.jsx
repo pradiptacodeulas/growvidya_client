@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { fetchStudentStudyMaterialsApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const StudentStudyMaterial = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
@@ -148,10 +149,13 @@ const StudentStudyMaterial = () => {
           Loading study materials...
         </div>
       ) : filteredMaterials.length === 0 ? (
-        <div className="card border shadow-sm rounded-3 text-center py-5">
-          <i className="ti ti-book-off fs-48 text-muted mb-2 d-block"></i>
-          <h5 className="fw-bold text-dark">No Materials Found</h5>
-          <p className="text-muted fs-13 mb-0">No study materials have been uploaded for the selected subject.</p>
+        <div className="card border shadow-sm rounded-3">
+          <NoData
+            title="No Materials Found"
+            message="No study materials have been uploaded for the selected subject."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <div className="row g-3">

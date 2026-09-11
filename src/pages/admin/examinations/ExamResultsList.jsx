@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 import {
   sortAcademicYearsDesc,
   sortExamsDesc,
@@ -485,15 +486,12 @@ const ExamResultsList = () => {
               <p className="mt-2 text-muted">Loading exam results...</p>
             </div>
           ) : filteredResults.length === 0 ? (
-            <div className="table-empty-state text-center py-5">
-              <div className="table-empty-icon mb-3 fs-32 text-muted">
-                <i className="ti ti-award"></i>
-              </div>
-              <h6 className="fw-semibold text-dark mb-1">No Exam Results Found</h6>
-              <p className="text-muted fs-13 mb-0">
-                Please select criteria and click Search to load exam score records.
-              </p>
-            </div>
+            <NoData
+              title="No Exam Results Found"
+              message="Please select criteria and click Search to load exam score records."
+              imageHeight={120}
+              py={4}
+            />
           ) : (
             <div className="table-responsive">
               <table className="table table-hover align-middle mb-0">

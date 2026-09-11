@@ -8,6 +8,7 @@ import {
   deleteNoticeApi,
 } from '../../../api/adminAnnouncement.api';
 import { fetchTeacherNoticesApi } from '../../../api/teacherAnnouncement.api';
+import NoData from '../../../components/common/NoData';
 
 const RECIPIENT_OPTIONS = [
   { id: 1, label: 'Student', icon: 'ti-school' },
@@ -993,9 +994,9 @@ const NoticeList = () => {
           <span className="text-muted">Loading notices...</span>
         </div>
       ) : filteredData.length === 0 ? (
-        <div className="card">
-          <div className="card-body text-center py-5 text-muted">
-            No notices found.
+        <div className="card shadow-sm border-0">
+          <div className="card-body py-5">
+            <NoData title="No Notices Found" message="No notices found matching your criteria." />
           </div>
         </div>
       ) : (

@@ -6,6 +6,7 @@ import apiClient from '../../../api/axios.config';
 import maleUser from '../../../assets/male-user.png';
 import Avatar from '../../../components/common/Avatar';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 import { encodeParam } from '../../../utils/idHelper';
 
 const StudentList = () => {
@@ -402,9 +403,13 @@ const StudentList = () => {
             </div>
           </div>
         ) : students.length === 0 ? (
-          <div className="col-12 text-center py-5 text-muted">
-            <i className="ti ti-users-minus fs-32 mb-2 d-block"></i>
-            No student records found matching your filters.
+          <div className="col-12">
+            <NoData
+              title="No Students Found"
+              message="No student records found matching your filters."
+              imageHeight={120}
+              py={4}
+            />
           </div>
         ) : (
           students.map((student) => (

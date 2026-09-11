@@ -9,6 +9,7 @@ import {
 import Avatar from '../../../components/common/Avatar';
 import { getPaginationRange } from '../../../utils/pagination.util';
 import { encodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const SERVER_BASE_URL = getServerBaseUrl();
 
@@ -227,9 +228,8 @@ const AddTeacherAttendance = () => {
               <p className="mt-2 text-muted">Fetching teachers...</p>
             </div>
           ) : teachers.length === 0 ? (
-            <div className="text-center py-5 text-muted">
-              <i className="ti ti-user-off fs-36 d-block mb-2 opacity-50"></i>
-              No active teachers found in the system.
+            <div className="py-4">
+              <NoData title="No Teachers Found" message="No active teachers found in the system." />
             </div>
           ) : (
             <form onSubmit={handleSubmit}>

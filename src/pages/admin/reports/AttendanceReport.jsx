@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getClassReportOptionsApi, getAttendanceReportApi } from '../../../api/adminReport.api';
 import defaultAvatar from '../../../assets/male-user.png';
+import NoData from '../../../components/common/NoData';
 
 const AttendanceReport = () => {
   // Tab state: 'student', 'teacher', 'user'
@@ -753,8 +754,13 @@ const AttendanceReport = () => {
                         </tr>
                       ) : reportResult.entities.length === 0 ? (
                         <tr>
-                          <td colSpan={7 + reportResult.daysMeta.length} className="text-center py-5 text-muted">
-                            No records found for the selected criteria.
+                          <td colSpan={7 + reportResult.daysMeta.length} className="text-center py-4">
+                            <NoData
+                              title="No Attendance Records Found"
+                              message="No records found for the selected criteria."
+                              imageHeight={100}
+                              py={2}
+                            />
                           </td>
                         </tr>
                       ) : (

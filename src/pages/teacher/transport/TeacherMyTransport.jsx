@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchTeacherAssignedTransportApi } from '../../../api/teacherTransport.api';
+import NoData from '../../../components/common/NoData';
 
 const TeacherMyTransport = () => {
   const [assignedTransports, setAssignedTransports] = useState([]);
@@ -87,15 +88,12 @@ const TeacherMyTransport = () => {
         </div>
       ) : assignedTransports.length === 0 ? (
         <div className="card shadow-sm border-0">
-          <div className="card-body text-center py-5">
-            <div className="avatar avatar-xxl bg-soft-primary text-primary rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
-              <i className="ti ti-bus fs-32"></i>
-            </div>
-            <h5 className="fw-semibold text-dark mb-1">No Transport Assigned</h5>
-            <p className="text-muted mb-0 max-w-md mx-auto">
-              You are currently not assigned to any transport route or vehicle. If you require transportation services, please contact your school administrator.
-            </p>
-          </div>
+          <NoData
+            title="No Transport Assigned"
+            message="You are currently not assigned to any transport route or vehicle. If you require transportation services, please contact your school administrator."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <>

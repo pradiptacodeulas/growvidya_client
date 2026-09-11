@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { fetchStudentFeesApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const StudentFees = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
@@ -134,11 +135,12 @@ const StudentFees = () => {
             </div>
           ) : activeTab === 'DUE' ? (
             dueInvoices.length === 0 ? (
-              <div className="text-center py-5 text-muted">
-                <i className="ti ti-circle-check fs-48 text-success mb-2 d-block"></i>
-                <h5 className="fw-bold text-dark">No Pending Invoices</h5>
-                <p className="text-muted fs-13 mb-0">Great job! All assigned fee installments are paid.</p>
-              </div>
+              <NoData
+                title="No Pending Invoices"
+                message="Great job! All assigned fee installments are paid."
+                imageHeight={120}
+                py={4}
+              />
             ) : (
               <div className="table-responsive">
                 <table className="table table-hover align-middle mb-0">
@@ -178,11 +180,12 @@ const StudentFees = () => {
               </div>
             )
           ) : paidReceipts.length === 0 ? (
-            <div className="text-center py-5 text-muted">
-              <i className="ti ti-receipt-off fs-48 text-muted mb-2 d-block"></i>
-              <h5 className="fw-bold text-dark">No Receipts Recorded</h5>
-              <p className="text-muted fs-13 mb-0">No past fee transactions logged in this academic year.</p>
-            </div>
+            <NoData
+              title="No Receipts Recorded"
+              message="No past fee transactions logged in this academic year."
+              imageHeight={120}
+              py={4}
+            />
           ) : (
             <div className="table-responsive">
               <table className="table table-hover align-middle mb-0">

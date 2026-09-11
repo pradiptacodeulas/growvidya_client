@@ -6,6 +6,7 @@ import { fetchAcademicYearsApi } from '../../api/adminAcademic.api';
 import { fetchNoticesApi } from '../../api/adminAnnouncement.api';
 import usePermission from '../../hooks/usePermission';
 import { useSubscription } from '../../context/SubscriptionContext';
+import NoData from './NoData';
 
 const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
@@ -301,9 +302,8 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-4 text-muted">
-                        <i className="ti ti-bell-off fs-28 d-block mb-1 opacity-50"></i>
-                        <p className="mb-0 fs-12">No notifications found</p>
+                      <div className="py-2">
+                        <NoData title="No Notifications" message="" imageHeight={55} py={1} />
                       </div>
                     )}
                   </div>

@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { getPaginationRange } from '../../../utils/pagination.util';
+import NoData from '../../../components/common/NoData';
 
 const FeesInvoices = () => {
   const [invoices, setInvoices] = useState([]);
@@ -626,9 +627,13 @@ const FeesInvoices = () => {
                         </tr>
                       ) : invoices.length === 0 ? (
                         <tr>
-                          <td colSpan="11" className="text-center py-5 text-muted">
-                            <i className="ti ti-file-invoice fs-28 mb-2 d-block opacity-50"></i>
-                            No invoices found matching the selected filters.
+                          <td colSpan="11" className="text-center py-4">
+                            <NoData
+                              title="No Invoices Found"
+                              message="No invoices found matching the selected filters."
+                              imageHeight={100}
+                              py={2}
+                            />
                           </td>
                         </tr>
                       ) : (

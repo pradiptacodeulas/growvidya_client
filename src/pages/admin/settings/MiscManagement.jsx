@@ -18,6 +18,7 @@ import {
   deleteCategoryApi,
 } from '../../../api/adminMiscSetting.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 
 const MiscManagement = () => {
   // ==================== RELIGION STATE ====================
@@ -500,7 +501,9 @@ const MiscManagement = () => {
                             </tr>
                           ) : religions.length === 0 ? (
                             <tr>
-                              <td colSpan="5" className="text-center py-4 text-muted">No religion records found</td>
+                              <td colSpan="5" className="text-center py-4">
+                                <NoData title="No Religions Found" message="No religion records found." imageHeight={80} py={2} />
+                              </td>
                             </tr>
                           ) : (
                             religions.map((item, idx) => (
@@ -626,7 +629,9 @@ const MiscManagement = () => {
                             </tr>
                           ) : motherTongues.length === 0 ? (
                             <tr>
-                              <td colSpan="5" className="text-center py-4 text-muted">No mother tongue records found</td>
+                              <td colSpan="5" className="text-center py-4">
+                                <NoData title="No Mother Tongues Found" message="No mother tongue records found." imageHeight={80} py={2} />
+                              </td>
                             </tr>
                           ) : (
                             motherTongues.map((item, idx) => (
@@ -745,7 +750,9 @@ const MiscManagement = () => {
                             </tr>
                           ) : genders.length === 0 ? (
                             <tr>
-                              <td colSpan="2" className="text-center py-4 text-muted">No gender records found</td>
+                              <td colSpan="2" className="text-center py-4">
+                                <NoData title="No Genders Found" message="No gender records found." imageHeight={80} py={2} />
+                              </td>
                             </tr>
                           ) : (
                             genders.map((item, idx) => (
@@ -846,7 +853,9 @@ const MiscManagement = () => {
                             </tr>
                           ) : categories.length === 0 ? (
                             <tr>
-                              <td colSpan="5" className="text-center py-4 text-muted">No category records found</td>
+                              <td colSpan="5" className="text-center py-4">
+                                <NoData title="No Categories Found" message="No category records found." imageHeight={80} py={2} />
+                              </td>
                             </tr>
                           ) : (
                             categories.map((item, idx) => (

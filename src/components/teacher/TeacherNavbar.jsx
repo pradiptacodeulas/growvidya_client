@@ -5,6 +5,7 @@ import { logoutTeacher } from '../../store/slices/teacherAuthSlice';
 import { fetchTeacherAcademicYearsApi } from '../../api/teacherAcademic.api';
 import { fetchTeacherNoticesApi } from '../../api/teacherAnnouncement.api';
 import Avatar from '../common/Avatar';
+import NoData from '../common/NoData';
 
 const TeacherNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
@@ -206,9 +207,8 @@ const TeacherNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                         ))}
                       </div>
                     ) : (
-                      <div className="text-center py-4 text-muted">
-                        <i className="ti ti-bell-off fs-28 d-block mb-1 opacity-50"></i>
-                        <p className="mb-0 fs-12">No notifications found</p>
+                      <div className="py-2">
+                        <NoData title="No Notifications" message="" imageHeight={55} py={1} />
                       </div>
                     )}
                   </div>

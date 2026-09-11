@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import { downloadPdfFromElement, printIsolatedTemplate, shareOrDownloadPdf } from '../../../utils/printPdf.util';
 import { decodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const ViewInvoice = () => {
   const { id: rawId } = useParams();
@@ -76,12 +77,15 @@ const ViewInvoice = () => {
     return (
       <div className="content">
         <div className="card border-0 shadow-sm p-5 text-center">
-          <i className="ti ti-file-alert fs-48 text-danger mb-3"></i>
-          <h4 className="fw-bold">Invoice Not Found</h4>
-          <p className="text-muted mb-4">The requested invoice could not be found or has been removed.</p>
-          <Link to="/admin/fees/invoices" className="btn btn-primary mx-auto">
-            <i className="ti ti-arrow-left me-1"></i> Back to Invoices
-          </Link>
+          <NoData
+            title="Invoice Not Found"
+            message="The requested invoice could not be found or has been removed."
+            action={
+              <Link to="/admin/fees/invoices" className="btn btn-primary mx-auto">
+                <i className="ti ti-arrow-left me-1"></i> Back to Invoices
+              </Link>
+            }
+          />
         </div>
       </div>
     );
@@ -198,8 +202,8 @@ const ViewInvoice = () => {
               <tbody>
                 {(invoice.items || []).length === 0 ? (
                   <tr>
-                    <td colSpan="3" className="text-center text-muted py-3">
-                      No line items specified.
+                    <td colSpan="3" className="text-center py-4">
+                      <NoData title="No Items Found" message="No line items specified for this invoice." imageHeight={80} py={2} />
                     </td>
                   </tr>
                 ) : (

@@ -7,6 +7,7 @@ import {
 } from '../../../api/adminCertificate.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const CertificateTemplate = () => {
   const [templates, setTemplates] = useState([]);
@@ -329,8 +330,8 @@ const CertificateTemplate = () => {
                       </tr>
                     ) : currentRecords.length === 0 ? (
                       <tr>
-                        <td colSpan="5" className="text-center py-4 text-muted align-middle">
-                          No certificate templates found.
+                        <td colSpan="5" className="text-center py-4 align-middle">
+                          <NoData title="No Templates Found" message="No certificate templates found." imageHeight={80} py={2} />
                         </td>
                       </tr>
                     ) : (

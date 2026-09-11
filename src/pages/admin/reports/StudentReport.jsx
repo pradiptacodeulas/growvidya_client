@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getClassReportOptionsApi, getStudentReportApi } from '../../../api/adminReport.api';
 import defaultAvatar from '../../../assets/male-user.png';
+import NoData from '../../../components/common/NoData';
 import { encodeParam } from '../../../utils/idHelper';
 
 const StudentReport = () => {
@@ -508,8 +509,13 @@ const StudentReport = () => {
                           </tr>
                         ) : students.length === 0 ? (
                           <tr>
-                            <td colSpan="14" className="text-center py-5 text-muted">
-                              No students found for the selected criteria.
+                            <td colSpan="14" className="text-center py-4">
+                              <NoData
+                                title="No Students Found"
+                                message="No students found for the selected criteria."
+                                imageHeight={100}
+                                py={2}
+                              />
                             </td>
                           </tr>
                         ) : (

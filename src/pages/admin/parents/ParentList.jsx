@@ -14,6 +14,7 @@ import {
 import { fetchClassesApi, fetchSectionsApi } from '../../../api/adminAcademic.api';
 import { toast } from 'react-toastify';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 import { encodeParam } from '../../../utils/idHelper';
 
 const SERVER_BASE_URL = getServerBaseUrl();
@@ -491,8 +492,8 @@ const ParentList = () => {
             <p className="mt-2 text-muted">Loading parents...</p>
           </div>
         ) : parents.length === 0 ? (
-          <div className="col-12 text-center py-5 text-muted">
-            No parent records found.
+          <div className="col-12 py-5">
+            <NoData title="No Parents Found" message="No parent records found matching your filters." />
           </div>
         ) : (
           parents.map((p, idx) => (
@@ -983,7 +984,7 @@ const ParentList = () => {
                     </div>
                   </>
                 ) : (
-                  <div className="text-center py-4 text-muted">No details found.</div>
+                  <NoData title="No Details Found" message="No details found for this parent." />
                 )}
               </div>
             </div>

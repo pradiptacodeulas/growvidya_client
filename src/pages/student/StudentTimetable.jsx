@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { fetchStudentTimetableApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 // Normalize backend day IDs or day names to 1-7 (1=Mon, ..., 7=Sun)
 const normalizeDayId = (r) => {
@@ -160,10 +161,13 @@ const StudentTimetable = () => {
           Loading class routine...
         </div>
       ) : timetable.length === 0 ? (
-        <div className="card border shadow-sm rounded-3 text-center py-5">
-          <i className="ti ti-calendar-off fs-48 text-muted mb-2 d-block"></i>
-          <h5 className="fw-bold text-dark">No Routine Scheduled</h5>
-          <p className="text-muted fs-13 mb-0">No class timetable has been assigned for your class and section.</p>
+        <div className="card border shadow-sm rounded-3">
+          <NoData
+            title="No Routine Scheduled"
+            message="No class timetable has been assigned for your class and section."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <div className="d-flex flex-column gap-4">
@@ -182,7 +186,7 @@ const StudentTimetable = () => {
                 </div>
                 <div className="card-body p-3">
                   {periods.length === 0 ? (
-                    <p className="text-muted fs-13 mb-0 py-2 text-center">No periods scheduled for {day.name}.</p>
+                    <NoData title={`No periods scheduled for ${day.name}.`} message="" imageHeight={60} py={2} />
                   ) : (
                     <div className="row g-3">
                       {periods.map((p, pIdx) => (

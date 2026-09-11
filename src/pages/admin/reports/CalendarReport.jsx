@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Modal } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import { getCalendarEventsApi } from '../../../api/adminReport.api';
+import NoData from '../../../components/common/NoData';
 
 const CalendarReport = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -459,10 +460,12 @@ const CalendarReport = () => {
                 </div>
                 <div className="d-flex flex-column gap-3">
                   {getEventsForDate(toDateString(currentDate)).length === 0 ? (
-                    <div className="text-center py-5 text-muted">
-                      <i className="ti ti-calendar-event fs-36 d-block mb-2 text-secondary"></i>
-                      No events scheduled for this day.
-                    </div>
+                    <NoData
+                      title="No Events Scheduled"
+                      message="No events scheduled for this day."
+                      imageHeight={100}
+                      py={3}
+                    />
                   ) : (
                     getEventsForDate(toDateString(currentDate)).map((ev) => (
                       <div

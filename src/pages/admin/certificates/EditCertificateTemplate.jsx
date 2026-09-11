@@ -10,6 +10,7 @@ import {
   fetchCertificateBordersApi,
 } from '../../../api/adminCertificate.api';
 import { decodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const ENTITIES_LIST = [
   { label: 'Name', key: 'name' },
@@ -383,20 +384,18 @@ const EditCertificateTemplate = () => {
                         </div>
 
                         {borders.length === 0 ? (
-                          <div className="alert alert-warning d-flex align-items-center justify-content-between p-3 mb-0 rounded">
-                            <div className="d-flex align-items-center">
-                              <i className="ti ti-alert-circle fs-20 me-2 text-warning"></i>
-                              <span>
-                                No border templates available. Please upload borders on the{' '}
-                                <Link to="/admin/certificates/border" className="fw-bold text-dark text-decoration-underline">
-                                  Certificate Border
-                                </Link>{' '}
-                                page.
-                              </span>
-                            </div>
-                            <Link to="/admin/certificates/border" className="btn btn-sm btn-warning ms-3 text-nowrap">
-                              Go to Borders
-                            </Link>
+                          <div className="border border-dashed rounded p-3 text-center">
+                            <NoData
+                              title="No Borders Available"
+                              message="No border templates available. Please upload borders on the Certificate Border page."
+                              imageHeight={70}
+                              py={1}
+                              action={
+                                <Link to="/admin/certificates/border" className="btn btn-sm btn-outline-primary mt-2">
+                                  Go to Borders
+                                </Link>
+                              }
+                            />
                           </div>
                         ) : (
                           <div className="row g-3">

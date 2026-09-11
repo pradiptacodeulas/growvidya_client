@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 import { encodeParam, decodeParam } from '../../../utils/idHelper';
 import { sortExamsDesc, sortClassesDesc } from '../../../utils/dropdownSort.util';
 
@@ -343,23 +344,22 @@ const ExamSubjectList = () => {
               </tbody>
             </table>
           ) : (
-            <div className="table-empty-state py-5 text-center">
-              <div className="table-empty-icon mb-2">
-                <i className="ti ti-books fs-40 text-muted"></i>
-              </div>
-              <h6 className="fw-semibold text-dark mb-1">No Exam Subjects Configured</h6>
-              <p className="text-muted fs-13 mb-3">
-                No active exam subject configuration found for {selectedExamName} ({selectedClassName}).
-              </p>
-              {selectedExamId && selectedClassId && (
-                <Link
-                  to={`/admin/examinations/exam-subjects/add?exam_id=${encodeParam(selectedExamId)}&class_id=${encodeParam(selectedClassId)}`}
-                  className="btn btn-primary btn-sm d-inline-flex align-items-center"
-                >
-                  <i className="ti ti-square-rounded-plus me-1"></i>Configure Exam Subjects
-                </Link>
-              )}
-            </div>
+            <NoData
+              title="No Exam Subjects Configured"
+              message={`No active exam subject configuration found for ${selectedExamName} (${selectedClassName}).`}
+              imageHeight={120}
+              py={4}
+              action={
+                selectedExamId && selectedClassId ? (
+                  <Link
+                    to={`/admin/examinations/exam-subjects/add?exam_id=${encodeParam(selectedExamId)}&class_id=${encodeParam(selectedClassId)}`}
+                    className="btn btn-primary btn-sm d-inline-flex align-items-center"
+                  >
+                    <i className="ti ti-square-rounded-plus me-1"></i>Configure Exam Subjects
+                  </Link>
+                ) : null
+              }
+            />
           )}
         </div>
       </div>

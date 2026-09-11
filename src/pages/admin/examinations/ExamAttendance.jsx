@@ -6,6 +6,7 @@ import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { fetchTeacherClassesApi } from '../../../api/teacherAcademic.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 import { encodeParam, decodeParam } from '../../../utils/idHelper';
 import {
   sortAcademicYearsDesc,
@@ -553,15 +554,12 @@ const ExamAttendance = () => {
               <p className="mt-2 text-muted">Loading exam attendance...</p>
             </div>
           ) : students.length === 0 ? (
-            <div className="table-empty-state">
-              <div className="table-empty-icon">
-                <i className="ti ti-clipboard-x"></i>
-              </div>
-              <h6 className="fw-semibold text-dark mb-1">No Attendance Records Found</h6>
-              <p className="text-muted fs-13 mb-0">
-                Please select exam and class filters and click Search to load attendance records.
-              </p>
-            </div>
+            <NoData
+              title="No Attendance Records Found"
+              message="Please select exam and class filters and click Search to load attendance records."
+              imageHeight={120}
+              py={4}
+            />
           ) : (
             <table className="table-modern table-hover">
               <thead>

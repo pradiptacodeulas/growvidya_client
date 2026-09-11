@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { getPaginationRange } from '../../../utils/pagination.util';
+import NoData from '../../../components/common/NoData';
 
 const FeesAllocations = () => {
   const [allocations, setAllocations] = useState([]);
@@ -246,8 +247,8 @@ const FeesAllocations = () => {
                   </tr>
                 ) : allocations.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-4 text-muted">
-                      No fee allocations found for selected filters.
+                    <td colSpan="9" className="text-center py-4">
+                      <NoData title="No Allocations Found" message="No fee allocations found for selected filters." />
                     </td>
                   </tr>
                 ) : (

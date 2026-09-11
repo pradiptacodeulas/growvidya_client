@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { fetchChildDocumentsApi } from '../../api/parentChild.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const ParentDocuments = () => {
   const { activeChild } = useSelector((state) => state.parentAuth);
@@ -143,24 +144,12 @@ const ParentDocuments = () => {
               <span className="text-muted fw-semibold">Loading student documents...</span>
             </div>
           ) : documents.length === 0 ? (
-            <div className="text-center py-5 text-muted">
-              <div
-                className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle"
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  backgroundColor: 'rgba(13, 110, 253, 0.08)',
-                  color: '#0d6efd',
-                  fontSize: '28px',
-                }}
-              >
-                <i className="fa-solid fa-folder-open"></i>
-              </div>
-              <h6 className="fw-bold text-dark mb-1">No Documents Uploaded Yet</h6>
-              <p className="fs-13 text-muted mb-0">
-                Official documents or certificates have not been uploaded to this student profile.
-              </p>
-            </div>
+            <NoData
+              title="No Documents Uploaded Yet"
+              message="Official documents or certificates have not been uploaded to this student profile."
+              imageHeight={120}
+              py={4}
+            />
           ) : (
             <div className="row g-3">
               {documents.map((doc) => {

@@ -4,7 +4,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import { logoutParent } from '../../store/slices/parentAuthSlice';
 import logoDark from '../../assets/logo_dark.png';
 import logoSmall from '../../assets/logo-small.png';
-import schoolLogoDefault from '../../assets/school-logo.png';
 import { resolveImageUrl } from '../../utils/url.util';
 
 const ParentSidebar = ({

@@ -6,6 +6,7 @@ import { fetchTeacherMyLeavesApi } from '../../api/teacherLeave.api';
 import { fetchTeacherSyllabusApi } from '../../api/teacherAcademic.api';
 import Avatar from '../../components/common/Avatar';
 import LoadingScreen from '../../components/common/LoadingScreen';
+import NoData from '../../components/common/NoData';
 import { resolveImageUrl } from '../../utils/url.util';
 
 const TeacherDashboard = () => {
@@ -274,32 +275,12 @@ const TeacherDashboard = () => {
             </div>
             <div className="card-body">
               {todayClasses.length === 0 ? (
-                <div className="row">
-                  <div className="col-md-3 col-sm-6 col-12 mb-3">
-                    <div className="bg-light-400 rounded p-3 border">
-                      <span className="badge badge-primary badge-lg mb-2">
-                        <i className="ti ti-clock me-1"></i>08:00 AM - 08:30 AM
-                      </span>
-                      <p className="text-dark fw-semibold mb-0">Class II, A</p>
-                    </div>
-                  </div>
-                  <div className="col-md-3 col-sm-6 col-12 mb-3">
-                    <div className="bg-light-400 rounded p-3 border">
-                      <span className="badge badge-primary badge-lg mb-2">
-                        <i className="ti ti-clock me-1"></i>08:30 AM - 09:00 AM
-                      </span>
-                      <p className="text-dark fw-semibold mb-0">Class II, A</p>
-                    </div>
-                  </div>
-                  <div className="col-md-3 col-sm-6 col-12 mb-3">
-                    <div className="bg-light-400 rounded p-3 border">
-                      <span className="badge badge-primary badge-lg mb-2">
-                        <i className="ti ti-clock me-1"></i>09:30 AM - 10:00 AM
-                      </span>
-                      <p className="text-dark fw-semibold mb-0">Class I, A</p>
-                    </div>
-                  </div>
-                </div>
+                <NoData
+                  title="No Classes Scheduled Today"
+                  message="You have no classes scheduled on your routine for today."
+                  imageHeight={90}
+                  py={2}
+                />
               ) : (
                 <div className="row g-3">
                   {todayClasses.map((cls, idx) => (
@@ -398,43 +379,12 @@ const TeacherDashboard = () => {
                 </div>
                 <div className="card-body">
                   {leavesList.length === 0 ? (
-                    <>
-                      <div className="bg-light-300 d-sm-flex align-items-center justify-content-between p-3 mb-3 rounded border">
-                        <div className="d-flex align-items-center mb-2 mb-sm-0">
-                          <div className="avatar avatar-lg bg-danger-transparent flex-shrink-0 me-2 rounded-circle d-flex align-items-center justify-content-center">
-                            <i className="ti ti-brand-socket-io fs-18"></i>
-                          </div>
-                          <div>
-                            <h6 className="mb-1 text-dark">Casual Leaves</h6>
-                            <p className="mb-0 text-muted small">Date : 28 Jan 2026 - 29 Jan 2026</p>
-                          </div>
-                        </div>
-                        <div className="d-flex gap-1 flex-wrap">
-                          <span className="badge bg-skyblue d-inline-flex align-items-center">
-                            <i className="ti ti-circle-filled fs-5 me-1"></i>Pending
-                          </span>
-                          <span className="badge bg-success d-inline-flex align-items-center">
-                            <i className="ti ti-circle-filled fs-5 me-1"></i>Approve
-                          </span>
-                        </div>
-                      </div>
-                      <div className="bg-light-300 d-sm-flex align-items-center justify-content-between p-3 mb-3 rounded border">
-                        <div className="d-flex align-items-center mb-2 mb-sm-0">
-                          <div className="avatar avatar-lg bg-danger-transparent flex-shrink-0 me-2 rounded-circle d-flex align-items-center justify-content-center">
-                            <i className="ti ti-brand-socket-io fs-18"></i>
-                          </div>
-                          <div>
-                            <h6 className="mb-1 text-dark">Sick Leave</h6>
-                            <p className="mb-0 text-muted small">Date : 21 Jul 2026</p>
-                          </div>
-                        </div>
-                        <div className="d-flex gap-1 flex-wrap">
-                          <span className="badge bg-skyblue d-inline-flex align-items-center">
-                            <i className="ti ti-circle-filled fs-5 me-1"></i>Pending
-                          </span>
-                        </div>
-                      </div>
-                    </>
+                    <NoData
+                      title="No Leave Applications"
+                      message="No recent leave applications found."
+                      imageHeight={80}
+                      py={2}
+                    />
                   ) : (
                     leavesList.slice(0, 3).map((lv, lIdx) => (
                       <div key={lv.id || lIdx} className="bg-light-300 d-sm-flex align-items-center justify-content-between p-3 mb-3 rounded border">
@@ -541,13 +491,12 @@ const TeacherDashboard = () => {
 
               <div className="event-scroll">
                 {events.length === 0 ? (
-                  <div className="col-xxl-12 d-flex flex-column justify-content-center align-items-center pb-4 text-center py-4">
-                    <div className="avatar avatar-xxl bg-light-300 rounded-circle mb-3 d-flex align-items-center justify-content-center">
-                      <i className="ti ti-calendar-event fs-32 text-primary"></i>
-                    </div>
-                    <h5 className="text-dark">No Data Found!</h5>
-                    <p className="text-muted small mb-0">No upcoming school events scheduled.</p>
-                  </div>
+                  <NoData
+                    title="No Upcoming Events"
+                    message="No upcoming school events scheduled."
+                    imageHeight={90}
+                    py={2}
+                  />
                 ) : (
                   events.map((evt, eIdx) => (
                     <div key={evt.id || eIdx} className="d-flex align-items-start border rounded p-3 mb-2 bg-light-300">
@@ -579,112 +528,12 @@ const TeacherDashboard = () => {
             </div>
             <div className="card-body">
               {syllabusList.length === 0 ? (
-                <div className="d-flex gap-3 overflow-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-                  <div className="card mb-0 flex-shrink-0 border" style={{ width: '240px' }}>
-                    <div className="card-body">
-                      <div className="bg-warning-transparent rounded p-2 fw-semibold mb-3 text-center">
-                        Class II
-                      </div>
-                      <div className="border-bottom mb-3 pb-2">
-                        <h6 className="mb-3 text-dark text-truncate" title="A Smile (Poem), The Wind and the Sun">
-                          A Smile (Poem), The Wind and the Sun (Story)
-                        </h6>
-                        <div className="progress progress-xs mb-3">
-                          <div className="progress-bar bg-warning" role="progressbar" style={{ width: '5%' }} aria-valuenow="5" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                      </div>
-                      <div className="d-flex align-items-center justify-content-end">
-                        <span className="badge bg-danger d-inline-flex align-items-center">
-                          <i className="ti ti-circle-filled fs-5 me-1"></i>Pending
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="card mb-0 flex-shrink-0 border" style={{ width: '240px' }}>
-                    <div className="card-body">
-                      <div className="bg-info-transparent rounded p-2 fw-semibold mb-3 text-center">
-                        Class I
-                      </div>
-                      <div className="border-bottom mb-3 pb-2">
-                        <h6 className="mb-3 text-dark text-truncate" title="History of computer">
-                          History of computer
-                        </h6>
-                        <div className="progress progress-xs mb-3">
-                          <div className="progress-bar bg-info" role="progressbar" style={{ width: '100%' }} aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                      </div>
-                      <div className="d-flex align-items-center justify-content-end">
-                        <span className="badge bg-success d-inline-flex align-items-center">
-                          <i className="ti ti-circle-filled fs-5 me-1"></i>Completed
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="card mb-0 flex-shrink-0 border" style={{ width: '240px' }}>
-                    <div className="card-body">
-                      <div className="bg-danger-transparent rounded p-2 fw-semibold mb-3 text-center">
-                        Class II
-                      </div>
-                      <div className="border-bottom mb-3 pb-2">
-                        <h6 className="mb-3 text-dark text-truncate" title="Zoo Manners (Poem)">
-                          Zoo Manners (Poem), Funny Bunny (Story)
-                        </h6>
-                        <div className="progress progress-xs mb-3">
-                          <div className="progress-bar bg-danger" role="progressbar" style={{ width: '5%' }} aria-valuenow="5" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                      </div>
-                      <div className="d-flex align-items-center justify-content-end">
-                        <span className="badge bg-danger d-inline-flex align-items-center">
-                          <i className="ti ti-circle-filled fs-5 me-1"></i>Pending
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="card mb-0 flex-shrink-0 border" style={{ width: '240px' }}>
-                    <div className="card-body">
-                      <div className="bg-success-transparent rounded p-2 fw-semibold mb-3 text-center">
-                        Class I
-                      </div>
-                      <div className="border-bottom mb-3 pb-2">
-                        <h6 className="mb-3 text-dark text-truncate" title="Unit 1 : A Happy Child">
-                          Unit 1 : A Happy Child
-                        </h6>
-                        <div className="progress progress-xs mb-3">
-                          <div className="progress-bar bg-success" role="progressbar" style={{ width: '100%' }} aria-valuenow="100" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                      </div>
-                      <div className="d-flex align-items-center justify-content-end">
-                        <span className="badge bg-success d-inline-flex align-items-center">
-                          <i className="ti ti-circle-filled fs-5 me-1"></i>Completed
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="card mb-0 flex-shrink-0 border" style={{ width: '240px' }}>
-                    <div className="card-body">
-                      <div className="bg-info-transparent rounded p-2 fw-semibold mb-3 text-center">
-                        Class I
-                      </div>
-                      <div className="border-bottom mb-3 pb-2">
-                        <h6 className="mb-3 text-dark text-truncate" title="Unit 7: A Kite">
-                          Unit 7: A Kite
-                        </h6>
-                        <div className="progress progress-xs mb-3">
-                          <div className="progress-bar bg-info" role="progressbar" style={{ width: '70%' }} aria-valuenow="70" aria-valuemin="0" aria-valuemax="100"></div>
-                        </div>
-                      </div>
-                      <div className="d-flex align-items-center justify-content-end">
-                        <span className="badge bg-primary d-inline-flex align-items-center">
-                          <i className="ti ti-circle-filled fs-5 me-1"></i>Progress
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                <NoData
+                  title="No Syllabus / Lesson Plans"
+                  message="No lesson plans or syllabus topics found."
+                  imageHeight={90}
+                  py={2}
+                />
               ) : (
                 <div className="d-flex gap-3 overflow-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
                   {syllabusList.map((syl, sIdx) => {

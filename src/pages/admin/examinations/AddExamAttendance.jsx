@@ -6,6 +6,7 @@ import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { fetchTeacherClassesApi } from '../../../api/teacherAcademic.api';
 import { encodeParam, decodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 import {
   sortAcademicYearsDesc,
   sortExamsDesc,
@@ -710,14 +711,13 @@ const AddExamAttendance = () => {
                   </tr>
                 ) : scheduleNotFound || (selectedExamId && selectedClassId && subjects.length === 0) ? (
                   <tr>
-                    <td colSpan="6" className="text-center py-5">
-                      <div className="text-warning mb-2">
-                        <i className="ti ti-calendar-off fs-36"></i>
-                      </div>
-                      <h6 className="text-dark fw-semibold mb-1">No Exam Schedule Found</h6>
-                      <p className="text-muted fs-13 mb-0">
-                        No exam schedule has been created for this Exam and Class. Please schedule the exam before taking attendance.
-                      </p>
+                    <td colSpan="6" className="text-center py-4">
+                      <NoData
+                        title="No Exam Schedule Found"
+                        message="No exam schedule has been created for this Exam and Class. Please schedule the exam before taking attendance."
+                        imageHeight={100}
+                        py={2}
+                      />
                     </td>
                   </tr>
                 ) : !hasSearched && students.length === 0 ? (
@@ -728,8 +728,13 @@ const AddExamAttendance = () => {
                   </tr>
                 ) : students.length === 0 ? (
                   <tr>
-                    <td colSpan="6" className="text-center text-muted py-4">
-                      No students found for this class.
+                    <td colSpan="6" className="text-center py-4">
+                      <NoData
+                        title="No Students Found"
+                        message="No students found for this class."
+                        imageHeight={100}
+                        py={2}
+                      />
                     </td>
                   </tr>
                 ) : (

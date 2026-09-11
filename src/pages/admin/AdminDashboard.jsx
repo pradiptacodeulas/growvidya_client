@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { fetchDashboardStatsApi } from '../../api/adminDashboard.api';
 import Avatar from '../../components/common/Avatar';
 import usePermission from '../../hooks/usePermission';
+import NoData from '../../components/common/NoData';
 
 const FEES_MODULES = [
   'feesmanagement/payments',
@@ -563,9 +564,8 @@ const AdminDashboard = () => {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-4 text-muted">
-                  <i className="ti ti-calendar-off fs-32 d-block mb-2 text-muted"></i>
-                  No leave requests found.
+                <div className="py-2">
+                  <NoData title="No Leave Requests" message="No leave requests found." imageHeight={70} py={2} />
                 </div>
               )}
             </div>
@@ -862,9 +862,8 @@ const AdminDashboard = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="text-center py-4 text-muted">
-                    <i className="ti ti-bell-off fs-32 d-block mb-2 text-muted"></i>
-                    No notices available.
+                  <div className="py-2">
+                    <NoData title="No Notices Available" message="No notices available." imageHeight={70} py={2} />
                   </div>
                 )}
               </div>
@@ -915,9 +914,8 @@ const AdminDashboard = () => {
                   </div>
                 ))
               ) : (
-                <div className="text-center py-4 text-muted">
-                  <i className="ti ti-activity fs-32 d-block mb-2 text-muted"></i>
-                  No student activity recorded.
+                <div className="py-2">
+                  <NoData title="No Student Activity" message="No student activity recorded." imageHeight={70} py={2} />
                 </div>
               )}
             </div>

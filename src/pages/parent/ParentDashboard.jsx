@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { fetchParentDashboardApi } from '../../api/parentDashboard.api';
 import { switchStudent } from '../../store/slices/parentAuthSlice';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const ParentDashboard = () => {
   const dispatch = useDispatch();
@@ -379,9 +380,13 @@ const ParentDashboard = () => {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 text-muted">
-                  <i className="ti ti-calendar-event fs-32 mb-2 d-block text-muted opacity-50"></i>
-                  <p className="mb-0 fs-13">No classes scheduled for today or it's a school holiday.</p>
+                <div className="py-2">
+                  <NoData
+                    title="No Classes Scheduled"
+                    message="No classes scheduled for today or it's a school holiday."
+                    imageHeight={65}
+                    py={2}
+                  />
                 </div>
               )}
             </div>
@@ -414,9 +419,13 @@ const ParentDashboard = () => {
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-4 text-muted">
-                  <i className="ti ti-bell-off fs-32 mb-2 d-block text-muted opacity-50"></i>
-                  <p className="mb-0 fs-13">No recent notices published.</p>
+                <div className="py-2">
+                  <NoData
+                    title="No Notices Published"
+                    message="No recent notices published."
+                    imageHeight={65}
+                    py={2}
+                  />
                 </div>
               )}
             </div>

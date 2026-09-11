@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchRouteByIdApi } from '../../../api/adminTransport.api';
 import { decodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const ViewRoute = () => {
   const navigate = useNavigate();
@@ -89,8 +90,16 @@ const ViewRoute = () => {
             </div>
           ) : !route ? (
             <div className="card">
-              <div className="card-body text-center py-5 text-muted">
-                Route information could not be found.
+              <div className="card-body py-5">
+                <NoData
+                  title="Route Not Found"
+                  message="Route information could not be found."
+                  action={
+                    <Link to="/admin/transport/route" className="btn btn-primary btn-sm mt-3">
+                      Back to Routes
+                    </Link>
+                  }
+                />
               </div>
             </div>
           ) : (
@@ -212,10 +221,12 @@ const ViewRoute = () => {
                           </table>
                         </div>
                       ) : (
-                        <div className="text-center py-4 text-muted">
-                          <i className="ti ti-user-x fs-24 d-block mb-1"></i>
-                          No driver currently assigned to this bus.
-                        </div>
+                        <NoData
+                          title="No Driver Assigned"
+                          message="No driver currently assigned to this bus."
+                          imageHeight={70}
+                          py={2}
+                        />
                       )}
                     </div>
                   </div>
@@ -261,10 +272,12 @@ const ViewRoute = () => {
                           </table>
                         </div>
                       ) : (
-                        <div className="text-center py-4 text-muted">
-                          <i className="ti ti-user-x fs-24 d-block mb-1"></i>
-                          No helpers currently assigned to this bus.
-                        </div>
+                        <NoData
+                          title="No Helpers Assigned"
+                          message="No helpers currently assigned to this bus."
+                          imageHeight={70}
+                          py={2}
+                        />
                       )}
                     </div>
                   </div>

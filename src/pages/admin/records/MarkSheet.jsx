@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import apiClient from '../../../api/axios.config';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import maleUser from '../../../assets/male-user.png';
+import NoData from '../../../components/common/NoData';
 
 // Helper to format academic year with month duration
 const formatYearDuration = (yearObj) => {
@@ -537,9 +538,13 @@ const MarkSheet = () => {
                   </tr>
                 ) : students.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="text-center py-5 text-muted">
-                      <i className="ti ti-users-minus fs-32 mb-2 d-block opacity-50"></i>
-                      No student records found matching the selected criteria.
+                    <td colSpan="10" className="text-center py-4">
+                      <NoData
+                        title="No Students Found"
+                        message="No student records found matching the selected criteria."
+                        imageHeight={100}
+                        py={2}
+                      />
                     </td>
                   </tr>
                 ) : (

@@ -6,6 +6,7 @@ import {
   fetchTeacherSectionsApi,
   fetchTeacherRoutineApi,
 } from '../../../api/teacherAcademic.api';
+import NoData from '../../../components/common/NoData';
 
 const DAYS_LIST = [
   { id: 1, name: 'Monday' },
@@ -322,6 +323,13 @@ const TeacherRoutine = () => {
                 </div>
                 <p className="mt-2 text-muted fs-13">Loading timetable routine...</p>
               </div>
+            ) : routines.length === 0 ? (
+              <NoData
+                title="No Routine Scheduled"
+                message="No timetable periods have been assigned to your routine."
+                imageHeight={120}
+                py={4}
+              />
             ) : (
               <div className="d-flex flex-nowrap overflow-auto pb-2 gap-3">
                 {DAYS_LIST.map((day) => {

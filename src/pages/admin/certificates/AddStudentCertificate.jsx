@@ -23,6 +23,7 @@ import { triggerPdfDownload } from '../../../utils/generateCertificatePdf';
 
 import schoolLogo from '../../../assets/school-logo.png';
 import defaultAvatar from '../../../assets/male-user.png';
+import NoData from '../../../components/common/NoData';
 
 const getBorderUrl = (borderPath) => {
   if (!borderPath) return '';
@@ -1689,10 +1690,17 @@ const AddStudentCertificate = () => {
                   </tr>
                 ) : students.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-5 text-muted">
-                      {hasSearched
-                        ? 'No students found for this class and section.'
-                        : 'Click "Show Report" to view eligible students.'}
+                    <td colSpan="9" className="text-center py-4">
+                      {hasSearched ? (
+                        <NoData
+                          title="No Students Found"
+                          message="No students found for this class and section."
+                          imageHeight={100}
+                          py={2}
+                        />
+                      ) : (
+                        <span className="text-muted">Click "Show Report" to view eligible students.</span>
+                      )}
                     </td>
                   </tr>
                 ) : (

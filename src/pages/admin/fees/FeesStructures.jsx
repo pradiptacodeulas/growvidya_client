@@ -5,6 +5,7 @@ import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { fetchRoutesApi } from '../../../api/adminTransport.api';
 import { fetchHostelsApi } from '../../../api/adminHostel.api';
+import NoData from '../../../components/common/NoData';
 
 const FeesStructures = () => {
   const [structures, setStructures] = useState([]);
@@ -510,8 +511,13 @@ const FeesStructures = () => {
                   </tr>
                 ) : filteredStructures.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-4 text-muted">
-                      No fee structures found. Click "Create Fee Structure" to build one.
+                    <td colSpan="9" className="text-center py-4">
+                      <NoData
+                        title="No Fee Structures Found"
+                        message='No fee structures found. Click "Create Fee Structure" to build one.'
+                        imageHeight={100}
+                        py={2}
+                      />
                     </td>
                   </tr>
                 ) : (

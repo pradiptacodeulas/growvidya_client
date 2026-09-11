@@ -12,6 +12,7 @@ import {
   deleteAssignmentApi,
 } from '../../../api/adminAcademic.api';
 import { decodeParam, encodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const AssignmentSubjectView = () => {
   const { classId: rawClassId, sectionId: rawSectionId } = useParams();
@@ -247,9 +248,12 @@ const AssignmentSubjectView = () => {
 
             <div className="card-body p-4">
               {subjects.length === 0 ? (
-                <div className="text-center py-4">
-                  <p className="text-muted mb-0 fst-italic">No subjects found for this class.</p>
-                </div>
+                <NoData
+                  title="No Subjects Found"
+                  message="No subjects found for this class."
+                  imageHeight={110}
+                  py={3}
+                />
               ) : (
                 <div className="row g-3">
                   {subjects.map((sub) => {

@@ -7,6 +7,7 @@ import {
 } from '../../api/parentChild.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const ParentStudyMaterial = () => {
   const { activeChild } = useSelector((state) => state.parentAuth);
@@ -302,12 +303,13 @@ const ParentStudyMaterial = () => {
           <span className="text-muted">Loading study materials...</span>
         </div>
       ) : filteredMaterials.length === 0 ? (
-        <div id="noMatchMessage" className="card border-0 shadow-sm rounded-3 p-5 text-center mt-3">
-          <i className="fa-solid fa-magnifying-glass fs-1 text-muted mb-3 opacity-50"></i>
-          <h5 className="fw-bold text-dark">No matching study materials found</h5>
-          <p className="text-muted fs-14 mb-0">
-            Try searching for a different keyword or select another subject filter.
-          </p>
+        <div id="noMatchMessage" className="card border-0 shadow-sm rounded-3 mt-3">
+          <NoData
+            title="No Matching Study Materials Found"
+            message="Try searching for a different keyword or select another subject filter."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <div className="row g-3" id="materialsGrid">

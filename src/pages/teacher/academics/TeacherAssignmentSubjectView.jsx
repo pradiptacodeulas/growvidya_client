@@ -9,6 +9,7 @@ import {
   fetchTeacherAssignmentsApi,
 } from '../../../api/teacherAcademic.api';
 import { decodeParam, encodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const TeacherAssignmentSubjectView = () => {
   const { teacher } = useSelector((state) => state.teacherAuth);
@@ -129,17 +130,13 @@ const TeacherAssignmentSubjectView = () => {
               <p className="text-muted mb-0">Loading assigned subjects...</p>
             </div>
           ) : subjects.length === 0 ? (
-            <div className="card p-5 text-center shadow-sm border-0">
-              <div
-                className="avatar avatar-xl bg-light rounded-circle text-muted mx-auto mb-3 d-flex align-items-center justify-content-center"
-                style={{ width: '60px', height: '60px' }}
-              >
-                <i className="fa-solid fa-book-open fs-28"></i>
-              </div>
-              <h5 className="text-dark fw-bold mb-1">No Assigned Subjects</h5>
-              <p className="text-muted fs-13 mb-0">
-                There are no active subjects assigned for this class and section.
-              </p>
+            <div className="card p-4 text-center shadow-sm border-0">
+              <NoData
+                title="No Assigned Subjects"
+                message="There are no active subjects assigned for this class and section."
+                imageHeight={110}
+                py={2}
+              />
             </div>
           ) : (
             <div className="row g-3">

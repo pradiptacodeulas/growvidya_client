@@ -12,6 +12,7 @@ import { fetchClassesApi, fetchSectionsApi, fetchSubjectsApi } from '../../../ap
 import maleUser from '../../../assets/male-user.png';
 import Avatar from '../../../components/common/Avatar';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 import { encodeParam } from '../../../utils/idHelper';
 
 const SERVER_BASE_URL = getServerBaseUrl();
@@ -483,25 +484,29 @@ const TeacherList = () => {
           </div>
         ) : teachers.length === 0 ? (
           <div className="col-12">
-            <div className="card text-center py-5 shadow-sm">
+            <div className="card text-center py-4 shadow-sm">
               <div className="card-body">
-                <i className="ti ti-users-off fs-40 text-muted mb-3 d-block"></i>
-                <h5>No Teachers Found</h5>
-                <p className="text-muted mb-3">
-                  {appliedFilters.search || appliedFilters.email || appliedFilters.status
-                    ? 'Try adjusting your search criteria or filters.'
-                    : 'Get started by adding your first teacher.'}
-                </p>
-                <div className="d-flex justify-content-center gap-2">
-                  {appliedFilters.search || appliedFilters.email || appliedFilters.status ? (
-                    <button className="btn btn-outline-secondary" onClick={handleResetFilters}>
-                      <i className="ti ti-refresh me-1"></i>Reset Filters
-                    </button>
-                  ) : null}
-                  <Link to="/admin/teachers/add" className="btn btn-primary">
-                    <i className="ti ti-square-rounded-plus me-2"></i>Add Teacher
-                  </Link>
-                </div>
+                <NoData
+                  title="No Teachers Found"
+                  message={
+                    appliedFilters.search || appliedFilters.email || appliedFilters.status
+                      ? 'Try adjusting your search criteria or filters.'
+                      : 'Get started by adding your first teacher.'
+                  }
+                  imageHeight={130}
+                  action={
+                    <div className="d-flex justify-content-center gap-2">
+                      {appliedFilters.search || appliedFilters.email || appliedFilters.status ? (
+                        <button className="btn btn-outline-secondary btn-sm" onClick={handleResetFilters}>
+                          <i className="ti ti-refresh me-1"></i>Reset Filters
+                        </button>
+                      ) : null}
+                      <Link to="/admin/teachers/add" className="btn btn-primary btn-sm">
+                        <i className="ti ti-square-rounded-plus me-2"></i>Add Teacher
+                      </Link>
+                    </div>
+                  }
+                />
               </div>
             </div>
           </div>
@@ -602,8 +607,10 @@ const TeacherList = () => {
                             {teacher.first_name} {teacher.last_name}
                           </Link>
                         </h6>
-                        <p className="text-muted text-xs mb-0 text-truncate">
-                          {teacher.class_name
+                        <p className="text-muted text-xs mb-0 text-truncate" title={teacher.assigned_classes ? `Classes: ${teacher.assigned_classes}` : (teacher.class_name ? `Class: ${teacher.class_name}` : (teacher.subject_name || 'Faculty'))}>
+                          {teacher.assigned_classes
+                            ? `Class: ${teacher.assigned_classes}`
+                            : teacher.class_name
                             ? `${teacher.class_name}${
                                 teacher.section_name ? `, ${teacher.section_name}` : ''
                               }`
@@ -613,6 +620,24 @@ const TeacherList = () => {
                     </div>
                   </div>
                   <div>
+                    <div className="mb-2">
+                      <p className="mb-0 text-muted text-xs">Classes</p>
+                      <div className="d-flex flex-wrap gap-1 mt-1">
+                        {teacher.assigned_classes_list && teacher.assigned_classes_list.length > 0 ? (
+                          teacher.assigned_classes_list.map((cls, cIdx) => (
+                            <span key={cIdx} className="badge bg-primary-subtle text-primary border border-primary-subtle fs-11">
+                              Class {cls}
+                            </span>
+                          ))
+                        ) : teacher.class_name ? (
+                          <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-11">
+                            Class {teacher.class_name}{teacher.section_name ? ` (${teacher.section_name})` : ''}
+                          </span>
+                        ) : (
+                          <span className="text-muted fs-13">Not Assigned</span>
+                        )}
+                      </div>
+                    </div>
                     <div className="mb-2">
                       <p className="mb-0 text-muted text-xs">Email</p>
                       <p className="text-dark fw-semibold text-truncate mb-0">
@@ -987,9 +1012,11 @@ const TeacherList = () => {
                     <p className="fw-semibold mb-0">{selectedTeacher.teacher_id || `CPS00${selectedTeacher.id}`}</p>
                   </div>
                   <div className="col-6">
-                    <small className="text-muted d-block">Assigned Class</small>
+                    <small className="text-muted d-block">Assigned Classes</small>
                     <p className="fw-semibold mb-0">
-                      {selectedTeacher.class_name
+                      {selectedTeacher.assigned_classes
+                        ? selectedTeacher.assigned_classes
+                        : selectedTeacher.class_name
                         ? `${selectedTeacher.class_name} (${selectedTeacher.section_name || 'All'})`
                         : 'Not Assigned'}
                     </p>

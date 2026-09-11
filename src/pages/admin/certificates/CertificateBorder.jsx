@@ -9,6 +9,7 @@ import {
   deleteCertificateBorderApi,
 } from '../../../api/adminCertificate.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 
 const getBorderUrl = (borderPath) => {
   if (!borderPath) return '';
@@ -578,21 +579,22 @@ const CertificateBorder = () => {
                     </tr>
                   ) : currentRecords.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="text-center py-5 text-muted align-middle">
-                        <div className="avatar avatar-xl bg-light rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
-                          <i className="ti ti-photo-off fs-28 text-muted"></i>
-                        </div>
-                        <h6 className="fw-semibold mb-1">No Certificate Borders Found</h6>
-                        <p className="text-muted small mb-3">
-                          Upload your custom certificate border frames to design templates.
-                        </p>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-primary"
-                          onClick={handleOpenUpload}
-                        >
-                          <i className="ti ti-upload me-1"></i> Upload Border
-                        </button>
+                      <td colSpan="7" className="text-center py-4 align-middle">
+                        <NoData
+                          title="No Certificate Borders Found"
+                          message="Upload your custom certificate border frames to design templates."
+                          imageHeight={80}
+                          py={2}
+                          action={
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-primary mt-2"
+                              onClick={handleOpenUpload}
+                            >
+                              <i className="ti ti-upload me-1"></i> Upload Border
+                            </button>
+                          }
+                        />
                       </td>
                     </tr>
                   ) : (
@@ -701,21 +703,20 @@ const CertificateBorder = () => {
                   Loading borders...
                 </div>
               ) : currentRecords.length === 0 ? (
-                <div className="text-center py-5 text-muted">
-                  <div className="avatar avatar-xl bg-light rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
-                    <i className="ti ti-photo-off fs-28 text-muted"></i>
-                  </div>
-                  <h6 className="fw-semibold mb-1">No Certificate Borders Found</h6>
-                  <p className="text-muted small mb-3">
-                    Upload your custom certificate border frames to design templates.
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-primary"
-                    onClick={handleOpenUpload}
-                  >
-                    <i className="ti ti-upload me-1"></i> Upload Border
-                  </button>
+                <div className="py-4">
+                  <NoData
+                    title="No Certificate Borders Found"
+                    message="Upload your custom certificate border frames to design templates."
+                    action={
+                      <button
+                        type="button"
+                        className="btn btn-sm btn-primary mt-2"
+                        onClick={handleOpenUpload}
+                      >
+                        <i className="ti ti-upload me-1"></i> Upload Border
+                      </button>
+                    }
+                  />
                 </div>
               ) : (
                 <div className="row g-3">

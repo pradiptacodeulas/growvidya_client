@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import apiClient from '../../../api/axios.config';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import Avatar from '../../../components/common/Avatar';
+import NoData from '../../../components/common/NoData';
 
 // Helper to format academic year with month duration (e.g. "January 2026 - November 2026")
 const formatYearDuration = (yearObj) => {
@@ -544,9 +545,13 @@ const AdmitCard = () => {
                   </tr>
                 ) : students.length === 0 ? (
                   <tr>
-                    <td colSpan="10" className="text-center py-5 text-muted">
-                      <i className="ti ti-users-minus fs-32 mb-2 d-block opacity-50"></i>
-                      No students found matching the selected parameters.
+                    <td colSpan="10" className="text-center py-4">
+                      <NoData
+                        title="No Students Found"
+                        message="No students found matching the selected parameters."
+                        imageHeight={100}
+                        py={2}
+                      />
                     </td>
                   </tr>
                 ) : (

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import NoData from '../../../components/common/NoData';
 
 const AcademicMasterList = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -535,7 +536,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {years.length === 0 ? (
-                            <tr><td colSpan="6" className="text-center py-4 text-muted">No academic years found.</td></tr>
+                            <tr>
+                              <td colSpan="6" className="text-center py-4">
+                                <NoData title="No Academic Years Found" message="No academic years found." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             years.map((y, idx) => (
                               <tr key={y.id}>
@@ -626,7 +631,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {classes.length === 0 ? (
-                            <tr><td colSpan="4" className="text-center py-4 text-muted">No classes found.</td></tr>
+                            <tr>
+                              <td colSpan="4" className="text-center py-4">
+                                <NoData title="No Classes Found" message="No classes found." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             classes.map((c, idx) => (
                               <tr key={c.id}>
@@ -719,7 +728,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {sections.length === 0 ? (
-                            <tr><td colSpan="5" className="text-center py-4 text-muted">No sections found.</td></tr>
+                            <tr>
+                              <td colSpan="5" className="text-center py-4">
+                                <NoData title="No Sections Found" message="No sections found." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             sections.map((s, idx) => (
                               <tr key={s.id}>
@@ -803,7 +816,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {subjects.length === 0 ? (
-                            <tr><td colSpan="4" className="text-center py-4 text-muted">No subjects found.</td></tr>
+                            <tr>
+                              <td colSpan="4" className="text-center py-4">
+                                <NoData title="No Subjects Found" message="No subjects found." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             subjects.map((sub, idx) => (
                               <tr key={sub.id}>
@@ -873,7 +890,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {shifts.length === 0 ? (
-                            <tr><td colSpan="4" className="text-center py-4 text-muted">No shifts found.</td></tr>
+                            <tr>
+                              <td colSpan="4" className="text-center py-4">
+                                <NoData title="No Shifts Found" message="No shifts found." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             shifts.map((s, idx) => (
                               <tr key={s.id}>
@@ -999,7 +1020,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {periods.length === 0 ? (
-                            <tr><td colSpan="5" className="text-center py-4 text-muted">No periods defined.</td></tr>
+                            <tr>
+                              <td colSpan="5" className="text-center py-4">
+                                <NoData title="No Periods Defined" message="No periods defined yet." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             periods.map((p, idx) => (
                               <tr key={p.id}>
@@ -1069,7 +1094,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {houses.length === 0 ? (
-                            <tr><td colSpan="3" className="text-center py-4 text-muted">No houses found.</td></tr>
+                            <tr>
+                              <td colSpan="3" className="text-center py-4">
+                                <NoData title="No Houses Found" message="No student houses found." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             houses.map((h, idx) => (
                               <tr key={h.id}>
@@ -1137,7 +1166,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {docTypes.length === 0 ? (
-                            <tr><td colSpan="3" className="text-center py-4 text-muted">No document types found.</td></tr>
+                            <tr>
+                              <td colSpan="3" className="text-center py-4">
+                                <NoData title="No Document Types Found" message="No document types found." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             docTypes.map((d, idx) => (
                               <tr key={d.id}>
@@ -1266,7 +1299,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {routines.length === 0 ? (
-                            <tr><td colSpan="6" className="text-center py-4 text-muted">No timetable periods scheduled yet.</td></tr>
+                            <tr>
+                              <td colSpan="6" className="text-center py-4">
+                                <NoData title="No Routines Scheduled" message="No timetable periods scheduled yet." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             routines.map((r) => (
                               <tr key={r.id}>
@@ -1376,7 +1413,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {lessons.length === 0 ? (
-                            <tr><td colSpan="5" className="text-center py-4 text-muted">No syllabus lessons added yet.</td></tr>
+                            <tr>
+                              <td colSpan="5" className="text-center py-4">
+                                <NoData title="No Syllabus Lessons Found" message="No syllabus lessons added yet." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             lessons.map((l, idx) => (
                               <tr key={l.id}>
@@ -1490,7 +1531,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {assignments.length === 0 ? (
-                            <tr><td colSpan="6" className="text-center py-4 text-muted">No assignments found.</td></tr>
+                            <tr>
+                              <td colSpan="6" className="text-center py-4">
+                                <NoData title="No Assignments Found" message="No assignments found." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             assignments.map((a, idx) => (
                               <tr key={a.id}>
@@ -1568,7 +1613,11 @@ const AcademicMasterList = () => {
                         </thead>
                         <tbody>
                           {assignmentTypes.length === 0 ? (
-                            <tr><td colSpan="3" className="text-center py-4 text-muted">No assignment types defined.</td></tr>
+                            <tr>
+                              <td colSpan="3" className="text-center py-4">
+                                <NoData title="No Assignment Types Found" message="No assignment types defined." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
                           ) : (
                             assignmentTypes.map((at, idx) => (
                               <tr key={at.id}>

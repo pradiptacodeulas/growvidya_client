@@ -8,6 +8,7 @@ import {
 } from '../../../api/adminTeacher.api';
 import maleUser from '../../../assets/male-user.png';
 import Avatar from '../../../components/common/Avatar';
+import NoData from '../../../components/common/NoData';
 import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 const SERVER_BASE_URL = getServerBaseUrl();
@@ -267,7 +268,12 @@ const TeacherDetails = () => {
                     </span>
                   </dd>
 
-                  <dt className="col-6 fw-medium text-dark mb-3">Class &amp; Section</dt>
+                  <dt className="col-6 fw-medium text-dark mb-3">Assigned Classes</dt>
+                  <dd className="col-6 mb-3 text-dark">
+                    {teacher.assigned_classes || teacher.class_name || 'N/A'}
+                  </dd>
+
+                  <dt className="col-6 fw-medium text-dark mb-3">Class Teacher Of</dt>
                   <dd className="col-6 mb-3 text-dark">
                     {teacher.class_name
                       ? `${teacher.class_name}${teacher.section_name ? `, ${teacher.section_name}` : ''}`
@@ -642,9 +648,8 @@ const TeacherDetails = () => {
                             );
                           })
                         ) : (
-                          <div className="text-center py-4 text-muted">
-                            <i className="ti ti-file-off fs-32 mb-2 d-block opacity-50"></i>
-                            <p className="mb-0">No documents uploaded for this teacher.</p>
+                          <div className="py-3">
+                            <NoData title="No Documents Found" message="No documents uploaded for this teacher." imageHeight={70} py={2} />
                           </div>
                         )}
                       </div>
@@ -1026,8 +1031,7 @@ const TeacherDetails = () => {
                         ))
                       ) : (
                         <div className="py-4 text-center text-muted w-100">
-                          <i className="ti ti-calendar-off fs-32 mb-2 d-block opacity-50"></i>
-                          No routine timetable found for this teacher.
+                          <NoData title="No Routine Found" message="No routine timetable found for this teacher." imageHeight={90} py={3} />
                         </div>
                       )}
                     </div>
@@ -1185,9 +1189,13 @@ const TeacherDetails = () => {
                                   })
                                 ) : (
                                   <tr>
-                                    <td colSpan="6" className="text-center py-4 text-muted">
-                                      <i className="ti ti-calendar-off fs-24 mb-1 d-block opacity-50"></i>
-                                      No leave applications recorded.
+                                    <td colSpan="6" className="text-center py-4">
+                                      <NoData
+                                        title="No Leave Applications Found"
+                                        message="No leave applications recorded."
+                                        imageHeight={80}
+                                        py={2}
+                                      />
                                     </td>
                                   </tr>
                                 )}

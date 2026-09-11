@@ -7,6 +7,7 @@ import {
   updateLeaveDateStatusApi,
 } from '../../../api/adminLeave.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 import { decodeParam } from '../../../utils/idHelper';
 
 const SERVER_BASE_URL = getServerBaseUrl();
@@ -101,10 +102,15 @@ const LeaveDetails = () => {
   if (!leave) {
     return (
       <div className="content py-5 text-center">
-        <h4>Leave Record Not Found</h4>
-        <Link to="/admin/leaves" className="btn btn-primary mt-3">
-          Back to Applied Leaves
-        </Link>
+        <NoData
+          title="Leave Record Not Found"
+          message="The requested leave record could not be found."
+          action={
+            <Link to="/admin/leaves" className="btn btn-primary mt-3">
+              Back to Applied Leaves
+            </Link>
+          }
+        />
       </div>
     );
   }
@@ -266,8 +272,8 @@ const LeaveDetails = () => {
                     <tbody>
                       {paginatedDates.length === 0 ? (
                         <tr>
-                          <td colSpan="4" className="text-center py-4 text-muted">
-                            No leave date records found.
+                          <td colSpan="4" className="text-center py-4">
+                            <NoData title="No Leave Dates Found" message="No leave date records found." imageHeight={80} py={2} />
                           </td>
                         </tr>
                       ) : (

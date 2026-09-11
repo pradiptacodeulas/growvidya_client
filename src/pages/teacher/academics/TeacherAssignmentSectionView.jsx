@@ -8,6 +8,7 @@ import {
   fetchTeacherSectionsApi,
 } from '../../../api/teacherAcademic.api';
 import { decodeParam, encodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const TeacherAssignmentSectionView = () => {
   const { teacher } = useSelector((state) => state.teacherAuth);
@@ -110,11 +111,13 @@ const TeacherAssignmentSectionView = () => {
               <p className="text-muted mb-0">Loading sections...</p>
             </div>
           ) : sections.length === 0 ? (
-            <div className="card p-5 text-center shadow-sm border-0">
-              <h5 className="text-dark fw-bold mb-1">No Active Sections Found</h5>
-              <p className="text-muted fs-13 mb-0">
-                No active sections are configured for Class {className}.
-              </p>
+            <div className="card p-4 text-center shadow-sm border-0">
+              <NoData
+                title="No Active Sections Found"
+                message={`No active sections are configured for Class ${className}.`}
+                imageHeight={110}
+                py={2}
+              />
             </div>
           ) : (
             <div className="row g-3">

@@ -6,6 +6,7 @@ import { fetchChildFeesApi, payChildFeeApi } from '../../api/parentChild.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
 import { printHtmlContent } from '../../utils/printPdf.util';
+import NoData from '../../components/common/NoData';
 
 const formatCurrency = (val) => {
   const num = parseFloat(val) || 0;
@@ -499,13 +500,12 @@ const ParentFees = () => {
               {activeTab === 'due_month' && (
                 <div className="tab-pane fade show active">
                   {dueInvoices.length === 0 ? (
-                    <div className="text-center py-5 text-muted">
-                      <i className="fa-solid fa-circle-check fs-1 text-success opacity-50 mb-3 d-block"></i>
-                      <h5 className="fw-bold text-dark">All Dues Cleared!</h5>
-                      <p className="fs-13 text-muted mb-0">
-                        There are no outstanding invoices due for your child at this time.
-                      </p>
-                    </div>
+                    <NoData
+                      title="All Dues Cleared!"
+                      message="There are no outstanding invoices due for your child at this time."
+                      imageHeight={120}
+                      py={4}
+                    />
                   ) : (
                     <div className="row g-3">
                       {dueInvoices.map((inv) => (
@@ -564,11 +564,12 @@ const ParentFees = () => {
               {activeTab === 'all_due' && (
                 <div className="tab-pane fade show active">
                   {dueInvoices.length === 0 ? (
-                    <div className="text-center py-5 text-muted">
-                      <i className="fa-solid fa-circle-check fs-1 text-success opacity-50 mb-3 d-block"></i>
-                      <h5 className="fw-bold text-dark">No Pending Invoices</h5>
-                      <p className="fs-13 text-muted mb-0">All invoices are settled.</p>
-                    </div>
+                    <NoData
+                      title="No Pending Invoices"
+                      message="All invoices are settled."
+                      imageHeight={120}
+                      py={4}
+                    />
                   ) : (
                     <div className="table-responsive border rounded-3">
                       <table className="table table-hover align-middle mb-0">
@@ -632,13 +633,12 @@ const ParentFees = () => {
               {activeTab === 'paid' && (
                 <div className="tab-pane fade show active">
                   {paidReceipts.length === 0 ? (
-                    <div className="text-center py-5 text-muted">
-                      <i className="fa-solid fa-receipt fs-1 text-secondary opacity-50 mb-3 d-block"></i>
-                      <h5 className="fw-bold text-dark">No Payment Receipts Found</h5>
-                      <p className="fs-13 text-muted mb-0">
-                        When you make fee payments, verified receipts will appear here.
-                      </p>
-                    </div>
+                    <NoData
+                      title="No Payment Receipts Found"
+                      message="When you make fee payments, verified receipts will appear here."
+                      imageHeight={120}
+                      py={4}
+                    />
                   ) : (
                     <div className="table-responsive border rounded-3">
                       <table className="table table-hover align-middle mb-0">

@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { fetchStudentActivitiesApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const StudentActivities = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
@@ -80,10 +81,13 @@ const StudentActivities = () => {
           Loading student activities...
         </div>
       ) : activities.length === 0 ? (
-        <div className="card border shadow-sm rounded-3 text-center py-5">
-          <i className="ti ti-award-off fs-48 text-muted mb-2 d-block"></i>
-          <h5 className="fw-bold text-dark">No Activities Recorded</h5>
-          <p className="text-muted fs-13 mb-0">No co-curricular or extracurricular activities have been logged for your profile.</p>
+        <div className="card border shadow-sm rounded-3">
+          <NoData
+            title="No Activities Recorded"
+            message="No co-curricular or extracurricular activities have been logged for your profile."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <div className="row g-3">

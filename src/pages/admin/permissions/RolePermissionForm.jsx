@@ -3,6 +3,7 @@ import { Link, useParams, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminPermissionApi from '../../../api/adminPermission.api';
 import { decodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const RolePermissionForm = () => {
   const { id: rawRoleId } = useParams();
@@ -528,8 +529,13 @@ const RolePermissionForm = () => {
                     <tbody>
                       {sortedSectionKeys.length === 0 ? (
                         <tr>
-                          <td colSpan="7" className="text-center py-4 text-muted">
-                            No modules found matching "{searchQuery}".
+                          <td colSpan="7" className="text-center py-4">
+                            <NoData
+                              title="No Modules Found"
+                              message={`No modules found matching "${searchQuery}".`}
+                              imageHeight={80}
+                              py={2}
+                            />
                           </td>
                         </tr>
                       ) : (

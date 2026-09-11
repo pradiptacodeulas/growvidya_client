@@ -8,6 +8,7 @@ import {
 } from '../../../api/adminStudent.api';
 import { toast } from 'react-toastify';
 import Avatar from '../../../components/common/Avatar';
+import NoData from '../../../components/common/NoData';
 import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 const SERVER_BASE_URL = getServerBaseUrl();
@@ -684,17 +685,7 @@ const StudentDetails = () => {
                     <div className="card border-white w-100">
                       <div className="card-body">
                         <h5 className="mb-3">Sibling Information</h5>
-                        <div className="text-center p-3">
-                          <img
-                            src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                            style={{ width: '50px' }}
-                            alt="no data"
-                          />
-                          <h5 className="mt-2 text-muted">No Data Found!</h5>
-                        </div>
+                        <NoData title="No Data Found" message="" imageHeight={80} py={2} />
                       </div>
                     </div>
                   </div>
@@ -737,17 +728,7 @@ const StudentDetails = () => {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="text-center p-3">
-                                  <img
-                                    src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
-                                    onError={(e) => {
-                                      e.target.style.display = 'none';
-                                    }}
-                                    style={{ width: '45px' }}
-                                    alt="no data"
-                                  />
-                                  <h6 className="mt-2 text-muted">No Data Found!</h6>
-                                </div>
+                                <NoData title="No Hostel Details Found" message="" imageHeight={70} py={2} />
                               )}
                             </div>
                           )}
@@ -817,17 +798,7 @@ const StudentDetails = () => {
                                   </div>
                                 </>
                               ) : (
-                                <div className="text-center p-3">
-                                  <img
-                                    src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
-                                    onError={(e) => {
-                                      e.target.style.display = 'none';
-                                    }}
-                                    style={{ width: '45px' }}
-                                    alt="no data"
-                                  />
-                                  <h6 className="mt-2 text-muted">No Data Found!</h6>
-                                </div>
+                                <NoData title="No Transport Details Found" message="" imageHeight={70} py={2} />
                               )}
                             </div>
                           )}
@@ -1232,16 +1203,8 @@ const StudentDetails = () => {
                   ) : (
                     <div className="col-xxl-12">
                       <div className="card">
-                        <div className="card-body text-center p-4">
-                          <img
-                            src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                            style={{ width: '50px' }}
-                            alt="no data"
-                          />
-                          <h5 className="mt-2 text-muted">No Transport Details Found!</h5>
+                        <div className="card-body">
+                          <NoData title="No Transport Details Found" message="" imageHeight={90} py={3} />
                         </div>
                       </div>
                     </div>
@@ -1276,17 +1239,7 @@ const StudentDetails = () => {
                           </div>
                         </div>
                       ) : (
-                        <div className="text-center p-4">
-                          <img
-                            src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                            style={{ width: '50px' }}
-                            alt="no data"
-                          />
-                          <h5 className="mt-2 text-muted">No Hostel Details Found!</h5>
-                        </div>
+                        <NoData title="No Hostel Details Found" message="" imageHeight={90} py={3} />
                       )}
                     </div>
                   </div>
@@ -1365,9 +1318,8 @@ const StudentDetails = () => {
                           );
                         })
                       ) : (
-                        <div className="text-center py-4 text-muted">
-                          <i className="ti ti-file-off fs-32 mb-2 d-block opacity-50"></i>
-                          <p className="mb-0">No documents uploaded for this student.</p>
+                        <div className="py-3">
+                          <NoData title="No Documents Found" message="No documents uploaded for this student." imageHeight={70} py={2} />
                         </div>
                       )}
                     </div>
@@ -1435,16 +1387,8 @@ const StudentDetails = () => {
                   ) : (
                     <div className="col-xxl-12">
                       <div className="card">
-                        <div className="card-body text-center p-4">
-                          <img
-                            src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                            style={{ width: '50px' }}
-                            alt="no data"
-                          />
-                          <h5 className="mt-2 text-muted">No Medical History Found!</h5>
+                        <div className="card-body">
+                          <NoData title="No Medical History Found" message="" imageHeight={90} py={3} />
                         </div>
                       </div>
                     </div>
@@ -1649,17 +1593,7 @@ const StudentDetails = () => {
                           </div>
                         </div>
                       ) : (
-                        <div className="text-center p-4">
-                          <img
-                            src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
-                            onError={(e) => {
-                              e.target.style.display = 'none';
-                            }}
-                            style={{ width: '50px' }}
-                            alt="no data"
-                          />
-                          <h5 className="mt-2 text-muted">No Previous School Details Found!</h5>
-                        </div>
+                        <NoData title="No Previous School Details Found" message="" imageHeight={90} py={3} />
                       )}
                     </div>
                   </div>
@@ -1677,16 +1611,8 @@ const StudentDetails = () => {
                 activeTab !== 'activity' && (
                   <div className="col-xxl-12">
                     <div className="card">
-                      <div className="card-body text-center p-4">
-                        <img
-                          src={`${SERVER_BASE_URL}/vidya_assets/images/no_data.png`}
-                          onError={(e) => {
-                            e.target.style.display = 'none';
-                          }}
-                          style={{ width: '50px' }}
-                          alt="no data"
-                        />
-                        <h5 className="mt-2 text-muted">No Additional Records Found!</h5>
+                      <div className="card-body">
+                        <NoData title="No Additional Records Found" message="" imageHeight={90} py={3} />
                       </div>
                     </div>
                   </div>

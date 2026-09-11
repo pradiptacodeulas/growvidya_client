@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { fetchStudentMedicalApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return 'N/A';
@@ -127,10 +128,13 @@ const StudentMedical = () => {
           Loading health records...
         </div>
       ) : medicalList.length === 0 ? (
-        <div className="card border shadow-sm rounded-3 text-center py-5 bg-white">
-          <i className="ti ti-heart-rate-monitor fs-48 text-muted mb-2 d-block"></i>
-          <h5 className="fw-bold text-dark">No Medical Records Logged</h5>
-          <p className="text-muted fs-13 mb-0">Health checkups and medical alerts will appear here once conducted by institutional medical staff.</p>
+        <div className="card border shadow-sm rounded-3 bg-white">
+          <NoData
+            title="No Medical Records Logged"
+            message="Health checkups and medical alerts will appear here once conducted by institutional medical staff."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <div className="row g-3">

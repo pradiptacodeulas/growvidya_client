@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchTeacherAssignedHostelApi } from '../../../api/teacherHostel.api';
+import NoData from '../../../components/common/NoData';
 
 const TeacherMyHostel = () => {
   const [assignedHostels, setAssignedHostels] = useState([]);
@@ -87,15 +88,12 @@ const TeacherMyHostel = () => {
         </div>
       ) : assignedHostels.length === 0 ? (
         <div className="card shadow-sm border-0">
-          <div className="card-body text-center py-5">
-            <div className="avatar avatar-xxl bg-soft-primary text-primary rounded-circle mx-auto mb-3 d-flex align-items-center justify-content-center">
-              <i className="ti ti-building-community fs-32"></i>
-            </div>
-            <h5 className="fw-semibold text-dark mb-1">No Hostel Assigned</h5>
-            <p className="text-muted mb-0 max-w-md mx-auto">
-              You are currently not assigned to any hostel accommodation. If you require hostel facilities, please contact your school administrator.
-            </p>
-          </div>
+          <NoData
+            title="No Hostel Assigned"
+            message="You are currently not assigned to any hostel accommodation. If you require hostel facilities, please contact your school administrator."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <>

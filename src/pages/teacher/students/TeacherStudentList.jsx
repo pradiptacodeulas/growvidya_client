@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { fetchStudentsApi } from '../../../api/adminStudent.api';
 import { fetchTeacherClassesApi, fetchTeacherSectionsApi } from '../../../api/teacherAcademic.api';
 import Avatar from '../../../components/common/Avatar';
+import NoData from '../../../components/common/NoData';
 import { encodeParam } from '../../../utils/idHelper';
 
 const PAGE_SIZE = 12;
@@ -354,14 +355,13 @@ const TeacherStudentList = () => {
             <p className="mt-2 text-muted fs-13">Loading students...</p>
           </div>
         ) : students.length === 0 ? (
-          <div className="col-12 text-center py-5">
-            <div className="avatar avatar-xl bg-light rounded-circle text-muted mx-auto mb-3">
-              <i className="ti ti-users-minus fs-28"></i>
-            </div>
-            <h5 className="text-dark fw-semibold">No Students Found</h5>
-            <p className="text-muted fs-13">
-              No student records matched the search criteria.
-            </p>
+          <div className="col-12">
+            <NoData
+              title="No Students Found"
+              message="No student records matched the search criteria."
+              imageHeight={120}
+              py={4}
+            />
           </div>
         ) : (
           students.map((student, idx) => {

@@ -22,6 +22,7 @@ import {
   deleteTeacherAssignmentApi,
 } from '../../../api/teacherAcademic.api';
 import { decodeParam, encodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '—';
@@ -352,9 +353,13 @@ const ViewSubjectAssignments = () => {
                             </tr>
                           ) : currentRows.length === 0 ? (
                             <tr>
-                              <td colSpan="8" className="text-center py-5 text-muted">
-                                <i className="ti ti-clipboard-x fs-24 mb-2 d-block text-muted"></i>
-                                No assignments found for this subject.
+                              <td colSpan="8" className="text-center py-4">
+                                <NoData
+                                  title="No Assignments Found"
+                                  message="No assignments found for this subject."
+                                  imageHeight={100}
+                                  py={2}
+                                />
                               </td>
                             </tr>
                           ) : (
@@ -551,10 +556,13 @@ const ViewSubjectAssignments = () => {
                     <p className="text-muted mt-3 mb-0">Loading questions...</p>
                   </div>
                 ) : questions.length === 0 ? (
-                  <div className="text-center py-5 bg-white rounded-3 shadow-sm text-muted">
-                    <i className="ti ti-file-unknown fs-36 mb-2 d-block text-muted"></i>
-                    <h6 className="fw-bold text-dark">No Questions Found</h6>
-                    <p className="text-muted small mb-0">No questions have been attached to this assignment yet.</p>
+                  <div className="bg-white rounded-3 shadow-sm p-4">
+                    <NoData
+                      title="No Questions Found"
+                      message="No questions have been attached to this assignment yet."
+                      imageHeight={100}
+                      py={2}
+                    />
                   </div>
                 ) : (
                   questions.map((q, qIdx) => {

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { fetchStudentAssignmentsApi } from '../../api/studentPortal.api';
 import { encodeParam } from '../../utils/idHelper';
+import NoData from '../../components/common/NoData';
 
 const StudentAssignments = () => {
   const [assignments, setAssignments] = useState([]);
@@ -165,11 +166,13 @@ const StudentAssignments = () => {
                       </tr>
                     ) : paginated.length === 0 ? (
                       <tr>
-                        <td colSpan="8" className="text-center py-5 text-muted">
-                          <div className="py-3">
-                            <i className="fa-solid fa-folder-open fs-36 text-muted mb-2 d-block"></i>
-                            <span>No assignments found matching your criteria.</span>
-                          </div>
+                        <td colSpan="8" className="text-center py-4">
+                          <NoData
+                            title="No Assignments Found"
+                            message="No assignments found matching your criteria."
+                            imageHeight={100}
+                            py={2}
+                          />
                         </td>
                       </tr>
                     ) : (

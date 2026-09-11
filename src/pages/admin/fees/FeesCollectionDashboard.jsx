@@ -5,6 +5,7 @@ import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import adminStudentApi from '../../../api/adminStudent.api';
 import { downloadPdfFromElement, printIsolatedTemplate } from '../../../utils/printPdf.util';
+import NoData from '../../../components/common/NoData';
 
 const FeesCollectionDashboard = () => {
   const [stats, setStats] = useState({
@@ -456,8 +457,13 @@ const FeesCollectionDashboard = () => {
                       </tr>
                     ) : studentInvoices.length === 0 ? (
                       <tr>
-                        <td colSpan="9" className="text-center py-4 text-muted">
-                          No pending fee invoices found for this student.
+                        <td colSpan="9" className="text-center py-4">
+                          <NoData
+                            title="No Invoices Found"
+                            message="No pending fee invoices found for this student."
+                            imageHeight={90}
+                            py={2}
+                          />
                         </td>
                       </tr>
                     ) : (
@@ -547,8 +553,13 @@ const FeesCollectionDashboard = () => {
                   </tr>
                 ) : recentPayments.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-4 text-muted">
-                      No fee payment records found.
+                    <td colSpan="9" className="text-center py-4">
+                      <NoData
+                        title="No Payment Records Found"
+                        message="No fee payment records found."
+                        imageHeight={90}
+                        py={2}
+                      />
                     </td>
                   </tr>
                 ) : (

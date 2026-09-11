@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { fetchChildExamResultsApi } from '../../api/parentChild.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const ParentExamResults = () => {
   const { activeChild } = useSelector((state) => state.parentAuth);
@@ -175,13 +176,12 @@ const ParentExamResults = () => {
               <span className="text-muted">Loading exam results...</span>
             </div>
           ) : displayResults.length === 0 ? (
-            <div className="text-center py-5">
-              <i className="fa-solid fa-square-poll-vertical text-muted fs-40 mb-3 d-block opacity-50"></i>
-              <h6 className="fw-semibold text-dark mb-1">No Exam Results Published Yet</h6>
-              <p className="text-muted small mb-0">
-                Exam results and marksheets will appear here once published by the school administration.
-              </p>
-            </div>
+            <NoData
+              title="No Exam Results Published Yet"
+              message="Exam results and marksheets will appear here once published by the school administration."
+              imageHeight={120}
+              py={4}
+            />
           ) : (
             <div className="accordion accordion-flush" id="examResultAccordion">
               {displayResults.map((exam, idx) => {

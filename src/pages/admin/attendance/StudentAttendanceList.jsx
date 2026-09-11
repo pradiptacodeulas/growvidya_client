@@ -232,7 +232,7 @@ const StudentAttendanceList = () => {
         sortable: true,
         cell: ({ value, row }) => (
           <Link
-            to={`/admin/students/${encodeParam(row.student_id)}`}
+            to={`${basePath}/students/${encodeParam(row.student_id)}`}
             className="fw-semibold text-primary text-decoration-none"
           >
             {value || 'N/A'}
@@ -290,7 +290,7 @@ const StudentAttendanceList = () => {
         cell: ({ value }) => <span className="text-muted fs-13">{value || '—'}</span>,
       },
     ],
-    []
+    [basePath]
   );
 
   return (

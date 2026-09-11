@@ -16,6 +16,7 @@ import {
 import Avatar from '../../../components/common/Avatar';
 import { getPaginationRange } from '../../../utils/pagination.util';
 import { encodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const SERVER_BASE_URL = getServerBaseUrl();
 
@@ -398,9 +399,11 @@ const AddStudentAttendance = () => {
               <p className="mt-2 text-muted">Fetching students...</p>
             </div>
           ) : students.length === 0 ? (
-            <div className="text-center py-5 text-muted">
-              <i className="ti ti-users-group fs-36 d-block mb-2 opacity-50"></i>
-              Select Class and click Search to load students roster.
+            <div className="py-4">
+              <NoData
+                title={filter.class_id ? 'No Students Found' : 'No Students Loaded'}
+                message={filter.class_id ? 'No students found matching the selected class and criteria.' : 'Select Class and click Search to load students roster.'}
+              />
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
@@ -423,7 +426,7 @@ const AddStudentAttendance = () => {
                         <tr key={st.id}>
                           <td>
                             <Link
-                              to={`/admin/students/${encodeParam(st.id)}`}
+                              to={`${basePath}/students/${encodeParam(st.id)}`}
                               className="link-primary"
                             >
                               {st.admission_number || 'N/A'}

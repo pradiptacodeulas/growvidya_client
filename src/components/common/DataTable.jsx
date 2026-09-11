@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import TableActionMenu from './TableActionMenu';
+import NoData from './NoData';
 
 /**
  * Modern, Full-Featured Data Table Component
@@ -312,13 +313,12 @@ const DataTable = ({
               // Empty State
               <tr>
                 <td colSpan={columns.length + (selectable ? 1 : 0)} className="p-0">
-                  <div className="table-empty-state">
-                    <div className="table-empty-icon">
-                      <i className={emptyIcon}></i>
-                    </div>
-                    <h6 className="fw-semibold text-dark mb-1">No Data Found</h6>
-                    <p className="text-muted fs-13 mb-0">{emptyMessage}</p>
-                  </div>
+                  <NoData
+                    title="No Data Found"
+                    message={emptyMessage}
+                    imageHeight={120}
+                    py={5}
+                  />
                 </td>
               </tr>
             ) : (

@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { decodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 import {
   sortExamsDesc,
   sortClassesDesc,
@@ -355,8 +356,11 @@ const AddExamSubject = () => {
                     <p className="mt-2 text-muted">Loading subject marks matrix...</p>
                   </div>
                 ) : matrixData.subjects.length === 0 ? (
-                  <div className="text-center py-4 text-muted">
-                    Please select an Exam and Class to configure subjects.
+                  <div className="py-4">
+                    <NoData
+                      title="No Subjects Configured"
+                      message={selectedExamId && selectedClassId ? 'No subjects found for the selected exam and class.' : 'Please select an Exam and Class to configure subjects.'}
+                    />
                   </div>
                 ) : (
                   <div className="table-responsive mb-4">

@@ -4,6 +4,7 @@ import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import NoData from '../../../components/common/NoData';
 import {
   sortAcademicYearsDesc,
   sortExamsDesc,
@@ -756,14 +757,24 @@ const AddExamResult = () => {
                             </tr>
                           ) : !hasSearched && paginatedStudents.length === 0 ? (
                             <tr>
-                              <td colSpan="6" className="text-center py-4 text-muted">
-                                Please select Exam and Class, then click Search.
+                              <td colSpan="6" className="text-center py-4">
+                                <NoData
+                                  title="Search Students"
+                                  message="Please select Exam and Class, then click Search."
+                                  imageHeight={80}
+                                  py={2}
+                                />
                               </td>
                             </tr>
                           ) : paginatedStudents.length === 0 ? (
                             <tr>
-                              <td colSpan="6" className="text-center text-danger fw-bold py-4">
-                                No Record Found
+                              <td colSpan="6" className="text-center py-4">
+                                <NoData
+                                  title="No Students Found"
+                                  message="No student records found for this exam and class."
+                                  imageHeight={80}
+                                  py={2}
+                                />
                               </td>
                             </tr>
                           ) : (
@@ -928,8 +939,13 @@ const AddExamResult = () => {
                     <p className="mt-2 text-muted">Loading subjects and previously given marks...</p>
                   </div>
                 ) : subjects.length === 0 ? (
-                  <div className="text-center py-4 text-muted">
-                    No subjects configured for this class and exam.
+                  <div className="py-4">
+                    <NoData
+                      title="No Subjects Configured"
+                      message="No subjects configured for this class and exam."
+                      imageHeight={80}
+                      py={2}
+                    />
                   </div>
                 ) : (
                   <div className="table-responsive">

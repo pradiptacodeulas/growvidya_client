@@ -5,6 +5,7 @@ import { useSelector } from 'react-redux';
 import apiClient from '../../../api/axios.config';
 import adminIdCardApi from '../../../api/adminIdCard.api';
 import Avatar, { resolveImageUrl } from '../../../components/common/Avatar';
+import NoData from '../../../components/common/NoData';
 import schoolLogo from '../../../assets/school-logo.png';
 import maleUser from '../../../assets/male-user.png';
 
@@ -751,10 +752,14 @@ const IdCard = () => {
                     <tr>
                       <td
                         colSpan={isStudentRole ? 10 : isTeacherRole ? 9 : 8}
-                        className="text-center py-5 text-muted"
+                        className="text-center py-4"
                       >
-                        <i className="ti ti-users-minus fs-32 mb-2 d-block opacity-50"></i>
-                        No records found matching the selected criteria.
+                        <NoData
+                          title="No Records Found"
+                          message="No records found matching the selected criteria."
+                          imageHeight={100}
+                          py={2}
+                        />
                       </td>
                     </tr>
                   ) : (

@@ -6,6 +6,7 @@ import {
 } from '../../api/studentPortal.api';
 import { decodeParam, encodeParam } from '../../utils/idHelper';
 import { toast } from 'react-toastify';
+import NoData from '../../components/common/NoData';
 
 const getOptionLetter = (index) => String.fromCharCode(65 + index); // 0 -> A, 1 -> B, 2 -> C, 3 -> D
 
@@ -113,10 +114,15 @@ const StudentAttemptAssignment = () => {
   if (!assignment) {
     return (
       <div className="content content-two text-center py-5">
-        <h5 className="text-danger">Assignment not found</h5>
-        <Link to="/student/assignments" className="btn btn-primary btn-sm mt-3">
-          Back to Assignments
-        </Link>
+        <NoData
+          title="Assignment Not Found"
+          message="The requested assignment could not be found."
+          action={
+            <Link to="/student/assignments" className="btn btn-primary btn-sm mt-3">
+              Back to Assignments
+            </Link>
+          }
+        />
       </div>
     );
   }
@@ -174,8 +180,8 @@ const StudentAttemptAssignment = () => {
             <input type="hidden" name="assignment_id" value={assignment.id} />
 
             {questions.length === 0 ? (
-              <div className="card shadow-sm border-0 mb-4 p-4 text-center text-muted">
-                No questions found in this assignment.
+              <div className="card shadow-sm border-0 mb-4 p-4 text-center">
+                <NoData title="No Questions Found" message="No questions found in this assignment." imageHeight={90} py={3} />
               </div>
             ) : (
               questions.map((q, qIdx) => (

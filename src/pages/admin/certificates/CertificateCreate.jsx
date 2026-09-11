@@ -13,6 +13,7 @@ import {
 import schoolLogo from '../../../assets/school-logo.png';
 import defaultAvatar from '../../../assets/male-user.png';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
 import { triggerPdfDownload } from '../../../utils/generateCertificatePdf';
 
@@ -1192,8 +1193,8 @@ const CertificateCreate = () => {
                         </tr>
                       ) : paginatedRecords.length === 0 ? (
                         <tr>
-                          <td colSpan="10" className="text-center py-5 text-muted">
-                            No student certificates found.
+                          <td colSpan="10" className="text-center py-4">
+                            <NoData title="No Certificates Found" message="No student certificates found." imageHeight={80} py={2} />
                           </td>
                         </tr>
                       ) : (

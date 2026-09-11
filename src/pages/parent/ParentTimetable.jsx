@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { fetchChildTimetableApi } from '../../api/parentChild.api';
 import Avatar from '../../components/common/Avatar';
+import NoData from '../../components/common/NoData';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
 
@@ -247,24 +248,12 @@ const ParentTimetable = () => {
               <span className="text-muted fw-semibold">Loading class routine...</span>
             </div>
           ) : routines.length === 0 ? (
-            <div className="text-center py-5 text-muted">
-              <div
-                className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle"
-                style={{
-                  width: '64px',
-                  height: '64px',
-                  backgroundColor: 'rgba(13, 110, 253, 0.08)',
-                  color: '#0d6efd',
-                  fontSize: '28px',
-                }}
-              >
-                <i className="ti ti-calendar-off"></i>
-              </div>
-              <h6 className="fw-bold text-dark mb-1">No Routine Scheduled Yet</h6>
-              <p className="fs-13 text-muted mb-0">
-                The school has not published the class routine for Class {className} {sectionName !== '-' ? `(${sectionName})` : ''} yet.
-              </p>
-            </div>
+            <NoData
+              title="No Routine Scheduled Yet"
+              message={`The school has not published the class routine for Class ${className} ${sectionName !== '-' ? `(${sectionName})` : ''} yet.`}
+              imageHeight={120}
+              py={4}
+            />
           ) : selectedDay === 'all' ? (
             /* All Days Grid View */
             <div className="row g-4">
@@ -345,9 +334,8 @@ const ParentTimetable = () => {
                             ))}
                           </div>
                         ) : (
-                          <div className="text-center py-4 text-muted fs-13">
-                            <i className="ti ti-coffee fs-24 d-block mb-1 opacity-50"></i>
-                            No periods scheduled for {d.name}.
+                          <div className="py-2">
+                            <NoData title="No Periods Scheduled" message={`No periods scheduled for ${d.name}.`} imageHeight={60} py={1} />
                           </div>
                         )}
                       </div>

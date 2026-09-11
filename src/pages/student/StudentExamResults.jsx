@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { fetchStudentExamResultsApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import NoData from '../../components/common/NoData';
 
 const StudentExamResults = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
@@ -75,10 +76,13 @@ const StudentExamResults = () => {
           Loading examination results...
         </div>
       ) : examData.length === 0 ? (
-        <div className="card border shadow-sm rounded-3 text-center py-5">
-          <i className="ti ti-file-certificate fs-48 text-muted mb-2 d-block"></i>
-          <h5 className="fw-bold text-dark">No Exam Results Published</h5>
-          <p className="text-muted fs-13 mb-0">Exam marksheets will appear here once published by the examination authority.</p>
+        <div className="card border shadow-sm rounded-3">
+          <NoData
+            title="No Exam Results Published"
+            message="Exam marksheets will appear here once published by the examination authority."
+            imageHeight={120}
+            py={4}
+          />
         </div>
       ) : (
         <div className="d-flex flex-column gap-4">

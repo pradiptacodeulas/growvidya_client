@@ -8,6 +8,7 @@ import {
 } from '../../../api/adminAttendance.api';
 import Avatar from '../../../components/common/Avatar';
 import { getPaginationRange } from '../../../utils/pagination.util';
+import NoData from '../../../components/common/NoData';
 
 const SERVER_BASE_URL = getServerBaseUrl();
 
@@ -226,9 +227,8 @@ const AddStaffAttendance = () => {
               <p className="mt-2 text-muted">Fetching staff members...</p>
             </div>
           ) : staffs.length === 0 ? (
-            <div className="text-center py-5 text-muted">
-              <i className="ti ti-users-minus fs-36 d-block mb-2 opacity-50"></i>
-              No active staff members found in the system.
+            <div className="py-4">
+              <NoData title="No Staff Found" message="No active staff members found in the system." />
             </div>
           ) : (
             <form onSubmit={handleSubmit}>

@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import { fetchTeacherClassesApi } from '../../../api/teacherAcademic.api';
 import { fetchShiftsApi } from '../../../api/adminAcademic.api';
 import { encodeParam } from '../../../utils/idHelper';
+import NoData from '../../../components/common/NoData';
 
 const TeacherAssignments = () => {
   const { teacher } = useSelector((state) => state.teacherAuth);
@@ -103,6 +104,15 @@ const TeacherAssignments = () => {
             </div>
             <p className="mt-2 text-muted fs-13">Loading class assignments...</p>
           </div>
+        ) : groupedShifts.length === 0 && unassignedClasses.length === 0 ? (
+          <div className="col-12">
+            <NoData
+              title="No Assigned Classes Found"
+              message="You do not have any classes or shifts assigned yet."
+              imageHeight={120}
+              py={4}
+            />
+          </div>
         ) : (
           <>
             {groupedShifts.map((shift) => {
@@ -125,9 +135,12 @@ const TeacherAssignments = () => {
                     </div>
                     <div className="card-body p-4 bg-light">
                       {shift.classes.length === 0 ? (
-                        <p className="text-muted mb-0 fst-italic">
-                          No classes assigned to this shift.
-                        </p>
+                        <NoData
+                          title="No Classes Assigned"
+                          message="No classes assigned to this shift."
+                          imageHeight={80}
+                          py={2}
+                        />
                       ) : (
                         <div className="row g-3">
                           {shift.classes.map((cls) => {

@@ -9,6 +9,7 @@ import {
   deleteSalaryDateApi,
 } from '../../../api/adminMiscSetting.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 
 const SalaryDate = () => {
   const [salaryDates, setSalaryDates] = useState([]);
@@ -361,8 +362,13 @@ const SalaryDate = () => {
                         </tr>
                       ) : salaryDates.length === 0 ? (
                         <tr>
-                          <td colSpan="3" className="text-center py-4 text-muted">
-                            No salary date records found
+                          <td colSpan="3" className="text-center py-4">
+                            <NoData
+                              title="No Salary Dates Found"
+                              message="No salary date records found."
+                              imageHeight={100}
+                              py={2}
+                            />
                           </td>
                         </tr>
                       ) : (

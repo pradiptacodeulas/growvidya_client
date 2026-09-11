@@ -9,6 +9,7 @@ import { numberToWords } from '../../../utils/numberToWords';
 import { resolveImageUrl } from '../../../utils/url.util';
 import schoolLogoDefault from '../../../assets/school-logo.png';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
 
 const SalaryManagement = () => {
   const authUser = useSelector((state) => state.auth?.user);
@@ -431,8 +432,8 @@ const SalaryManagement = () => {
                         </tr>
                       ) : paginatedData.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center py-5 text-muted">
-                            No salary records found.
+                          <td colSpan="9" className="text-center py-4">
+                            <NoData title="No Salary Records Found" message="No salary records found." />
                           </td>
                         </tr>
                       ) : (
