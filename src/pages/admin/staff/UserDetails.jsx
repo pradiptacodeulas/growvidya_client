@@ -210,50 +210,77 @@ const UserDetails = () => {
             </div>
             <div className="card-body">
               <h6 className="mb-3 fw-bold fs-15 text-dark">Basic Information</h6>
-              <dl className="row mb-0 fs-13">
-                <dt className="col-5 fw-medium text-muted mb-2.5">Status</dt>
-                <dd className="col-7 mb-2.5">
-                  <span
-                    className={`badge ${
-                      isActive ? 'badge-soft-success' : 'badge-soft-danger'
-                    } d-inline-flex align-items-center px-2 py-1`}
-                  >
-                    <i className={`ti ${isActive ? 'ti-circle-check' : 'ti-circle-x'} fs-12 me-1`}></i>
-                    {isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </dd>
-
-                <dt className="col-5 fw-medium text-muted mb-2.5">Role</dt>
-                <dd className="col-7 mb-2.5 text-dark fw-semibold">{roleName}</dd>
-
-                <dt className="col-5 fw-medium text-muted mb-2.5">Campus</dt>
-                <dd className="col-7 mb-2.5 text-dark">
-                  {user.branch_name ? (
-                    <span className="badge bg-primary-transparent text-primary fs-11">
-                      <i className="ti ti-building me-1"></i>{user.branch_name}
+              <div className="fs-13">
+                <div className="row mb-2.5 align-items-center">
+                  <div className="col-5 fw-medium text-muted">Status</div>
+                  <div className="col-7">
+                    <span
+                      className={`badge ${
+                        isActive ? 'badge-soft-success' : 'badge-soft-danger'
+                      } d-inline-flex align-items-center px-2 py-1`}
+                    >
+                      <i className={`ti ${isActive ? 'ti-circle-check' : 'ti-circle-x'} fs-12 me-1`}></i>
+                      {isActive ? 'Active' : 'Inactive'}
                     </span>
-                  ) : (
-                    <span className="text-muted">Main Campus</span>
-                  )}
-                </dd>
+                  </div>
+                </div>
 
-                <dt className="col-5 fw-medium text-muted mb-2.5">Gender</dt>
-                <dd className="col-7 mb-2.5 text-dark">{user.gender_name || 'N/A'}</dd>
+                <div className="row mb-2.5 align-items-center">
+                  <div className="col-5 fw-medium text-muted">Role</div>
+                  <div className="col-7 text-dark fw-semibold text-break">{roleName}</div>
+                </div>
 
-                <dt className="col-5 fw-medium text-muted mb-2.5">Blood Group</dt>
-                <dd className="col-7 mb-2.5 text-dark">
-                  {user.blood_group_name ? (
-                    <span className="badge badge-soft-danger px-2 py-0.5 fw-semibold">
-                      {user.blood_group_name}
-                    </span>
-                  ) : (
-                    <span className="text-muted">N/A</span>
-                  )}
-                </dd>
+                <div className="row mb-2.5 align-items-start">
+                  <div className="col-5 fw-medium text-muted pt-0.5">Campus</div>
+                  <div className="col-7 text-dark">
+                    {user.branch_name ? (
+                      <span
+                        className="badge bg-primary-transparent text-primary fs-11 text-wrap text-break d-inline-flex align-items-start text-start py-1 px-2 border border-primary-subtle"
+                        style={{
+                          maxWidth: '100%',
+                          whiteSpace: 'normal',
+                          wordBreak: 'break-word',
+                          lineHeight: '1.35',
+                        }}
+                        title={user.branch_name}
+                      >
+                        <i className="ti ti-building me-1 flex-shrink-0 mt-0.5"></i>
+                        <span className="text-break">{user.branch_name}</span>
+                      </span>
+                    ) : (
+                      <span className="text-muted">Main Campus</span>
+                    )}
+                    {user.branch_code && (
+                      <span className="text-muted fs-11 d-block mt-0.5">
+                        Code: {user.branch_code}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-                <dt className="col-5 fw-medium text-muted mb-0">Joined Date</dt>
-                <dd className="col-7 mb-0 text-dark">{formatDate(user.created_on)}</dd>
-              </dl>
+                <div className="row mb-2.5 align-items-center">
+                  <div className="col-5 fw-medium text-muted">Gender</div>
+                  <div className="col-7 text-dark">{user.gender_name || 'N/A'}</div>
+                </div>
+
+                <div className="row mb-2.5 align-items-center">
+                  <div className="col-5 fw-medium text-muted">Blood Group</div>
+                  <div className="col-7 text-dark">
+                    {user.blood_group_name ? (
+                      <span className="badge badge-soft-danger px-2 py-0.5 fw-semibold">
+                        {user.blood_group_name}
+                      </span>
+                    ) : (
+                      <span className="text-muted">N/A</span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="row mb-0 align-items-center">
+                  <div className="col-5 fw-medium text-muted">Joined Date</div>
+                  <div className="col-7 text-dark">{formatDate(user.created_on)}</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -477,11 +504,21 @@ const UserDetails = () => {
                         </div>
                       </div>
                       <div className="col-md-6 col-lg-4">
-                        <div className="p-3 bg-light-300 rounded border">
+                        <div className="p-3 bg-light-300 rounded border h-100">
                           <span className="text-muted fs-12 d-block mb-1">Campus / Branch</span>
-                          <span className="fw-semibold text-dark fs-14">
-                            {user.branch_name || 'Main Campus'}
-                          </span>
+                          <div className="d-flex align-items-start">
+                            <i className="ti ti-building text-primary me-1.5 mt-0.5 fs-15 flex-shrink-0"></i>
+                            <div className="overflow-hidden">
+                              <span className="fw-semibold text-dark fs-14 d-block text-break">
+                                {user.branch_name || 'Main Campus'}
+                              </span>
+                              {user.branch_code && (
+                                <span className="text-muted fs-12 d-block">
+                                  Code: {user.branch_code}
+                                </span>
+                              )}
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <div className="col-md-6 col-lg-4">

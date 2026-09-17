@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import MultiSelect from '../../../components/common/MultiSelect';
 import {
   fetchRouteByIdApi,
   createRouteApi,
@@ -92,16 +93,17 @@ const EditRoute = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleHelperChange = (e) => {
-    const selectedOptions = Array.from(e.target.selectedOptions, (option) => option.value);
-    setFormData((prev) => ({ ...prev, helper: selectedOptions }));
-  };
-
-  const handleRemoveHelper = (helperId) => {
-    setFormData((prev) => ({
-      ...prev,
-      helper: prev.helper.filter((id) => id !== helperId),
+  const helperOptions = useMemo(() => {
+    return helpersList.map((h) => ({
+      value: String(h.id),
+      label: h.helper_name || `${h.first_name || ''} ${h.last_name || ''}`.trim() || `Helper #${h.id}`,
+      subtitle: h.phone ? `Phone: ${h.phone}` : null,
+      badge: h.assigned_bus ? `Bus: ${h.assigned_bus}` : null,
     }));
+  }, [helpersList]);
+
+  const handleHelpersChange = (selectedValues) => {
+    setFormData((prev) => ({ ...prev, helper: selectedValues }));
   };
 
   const handleSubmit = async (e) => {
@@ -252,51 +254,24 @@ const EditRoute = () => {
 
                     <div className="col-md-4">
                       <div className="mb-3">
-                        <label className="form-label">
-                          Helpers <span className="text-danger">*</span>
+                        <label className="form-label" htmlFor="route-helpers">
+                          Helpers
                         </label>
-                        <select
-                          className="form-select"
-                          name="helper"
-                          id="helper"
-                          multiple
+                        <MultiSelect
+                          id="route-helpers"
+                          options={helperOptions}
                           value={formData.helper}
-                          onChange={handleHelperChange}
-                          style={{ minHeight: '85px' }}
-                        >
-                          {helpersList.map((h) => (
-                            <option key={h.id} value={String(h.id)}>
-                              {h.helper_name || `${h.first_name || ''} ${h.last_name || ''}`.trim()}
-                            </option>
-                          ))}
-                        </select>
-                        <div className="form-text text-muted small">
-                          Hold Ctrl (or Cmd) to select multiple helpers.
+                          onChange={handleHelpersChange}
+                          placeholder="-- Select Helpers --"
+                          searchPlaceholder="Search helpers by name or phone..."
+                          disabled={loading || submitting}
+                          isClearable={true}
+                          showSelectAll={true}
+                          maxDisplay={2}
+                        />
+                        <div className="form-text text-muted small mt-1">
+                          Select one or multiple helpers assigned to this route.
                         </div>
-                        {formData.helper.length > 0 && (
-                          <div className="d-flex flex-wrap gap-1 mt-2">
-                            {formData.helper.map((hid) => {
-                              const found = helpersList.find((h) => String(h.id) === String(hid));
-                              const name = found
-                                ? found.helper_name || `${found.first_name || ''} ${found.last_name || ''}`.trim()
-                                : `Helper #${hid}`;
-                              return (
-                                <span
-                                  key={hid}
-                                  className="badge bg-light text-dark border d-inline-flex align-items-center gap-1"
-                                >
-                                  {name}
-                                  <button
-                                    type="button"
-                                    className="btn-close"
-                                    style={{ fontSize: '8px' }}
-                                    onClick={() => handleRemoveHelper(hid)}
-                                  ></button>
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
                       </div>
                     </div>
 
