@@ -1,0 +1,223 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { useSelector, useDispatch } from 'react-redux';
+import { Link } from 'react-router-dom';
+import { logoutTeacher } from '../../store/slices/teacherAuthSlice';
+import { fetchTeacherAcademicYearsApi } from '../../api/teacherAcademic.api';
+import { fetchTeacherNoticesApi } from '../../api/teacherAnnouncement.api';
+import Avatar from '../common/Avatar';
+import NoData from '../common/NoData';
+import NavbarNotificationDropdown from '../common/NavbarNotificationDropdown';
+
+const TeacherNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
+  const dispatch = useDispatch();
+  const { teacher } = useSelector((state) => state.teacherAuth);
+  const [currentYearText, setCurrentYearText] = useState('2026 - 2027');
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [hasUnread, setHasUnread] = useState(true);
+  const notificationRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target)) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadTeacherNotices = async () => {
+      try {
+        const res = await fetchTeacherNoticesApi();
+        const list = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.notices)
+          ? res.notices
+          : Array.isArray(res)
+          ? res
+          : [];
+        setNotifications(list);
+      } catch (err) {
+        console.error('Failed to load notices for teacher navbar:', err);
+      }
+    };
+    loadTeacherNotices();
+  }, []);
+
+  useEffect(() => {
+    const loadCurrentAcademicYear = async () => {
+      try {
+        const res = await fetchTeacherAcademicYearsApi();
+        const years = Array.isArray(res?.data)
+          ? res.data
+          : Array.isArray(res?.data?.academicYears)
+          ? res.data.academicYears
+          : Array.isArray(res)
+          ? res
+          : [];
+
+        const activeYear =
+          years.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+          years[0];
+        if (activeYear) {
+          setCurrentYearText(activeYear.academic_year || activeYear.name || '');
+        }
+      } catch (err) {
+        console.error('Failed to load academic year for teacher navbar:', err);
+      }
+    };
+
+    loadCurrentAcademicYear();
+  }, []);
+
+  const handleLogout = (e) => {
+    e.preventDefault();
+    dispatch(logoutTeacher());
+  };
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
+
+  return (
+    <div className="header">
+      {/* Mobile Hamburger / Close Toggle Button */}
+      <a
+        id="mobile_btn"
+        className={`mobile_btn ${isMobileMenuOpen ? 'menu-opened' : ''}`}
+        href="#sidebar"
+        onClick={(e) => {
+          e.preventDefault();
+          onToggleMobileMenu();
+        }}
+        title={isMobileMenuOpen ? 'Close Menu' : 'Open Menu'}
+      >
+        {isMobileMenuOpen ? (
+          <i className="ti ti-x fs-22 text-primary"></i>
+        ) : (
+          <span className="bar-icon">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+        )}
+      </a>
+
+      {/* Header User Navigation Controls */}
+      <div className="header-user">
+        <div className="nav user-menu">
+          {/* Left Spacer */}
+          <div className="me-auto"></div>
+
+          <div className="d-flex align-items-center">
+            {/* Current Academic Year Badge */}
+            <div className="me-2 d-none d-sm-flex align-items-center bg-white border rounded px-2 py-1 text-dark fw-medium fs-13 shadow-none">
+              <i className="ti ti-calendar-due me-1 text-primary"></i>
+              <span>Academic Year : <strong className="text-primary">{currentYearText}</strong></span>
+            </div>
+
+            {/* Portal Badge */}
+            <div className="me-2 d-none d-md-flex align-items-center">
+              <span className="badge bg-primary-transparent text-primary px-2 py-1 fs-12 fw-semibold">
+                <i className="ti ti-user-star me-1"></i>Teacher Portal
+              </span>
+            </div>
+
+            {/* Notifications Dropdown (Notices & Messages) */}
+            <NavbarNotificationDropdown
+              messagesPath="/teacher/messages"
+              noticesPath="/teacher/dashboard"
+              notices={notifications}
+            />
+
+            {/* Fullscreen Toggle */}
+            <div className="pe-1">
+              <a
+                href="#fullscreen"
+                onClick={(e) => {
+                  e.preventDefault();
+                  toggleFullscreen();
+                }}
+                className="btn btn-outline-light bg-white btn-icon me-1"
+                title="Toggle Fullscreen"
+              >
+                <i className="ti ti-maximize"></i>
+              </a>
+            </div>
+
+            {/* User Profile Dropdown */}
+            <div className="dropdown ms-1">
+              <a
+                href="#"
+                className="dropdown-toggle d-flex align-items-center"
+                data-bs-toggle="dropdown"
+                aria-expanded="false"
+              >
+                <span className="avatar avatar-md rounded">
+                  <Avatar
+                    src={teacher?.picture}
+                    alt={teacher?.name || `${teacher?.firstName || ''} ${teacher?.lastName || ''}`.trim() || 'Teacher'}
+                    className="img-fluid rounded"
+                  />
+                </span>
+              </a>
+              <div className="dropdown-menu dropdown-menu-end shadow-sm border">
+                <div className="d-block">
+                  <div className="d-flex align-items-center p-2">
+                    <span className="avatar avatar-md me-2 avatar-rounded">
+                      <Avatar
+                        src={teacher?.picture}
+                        alt={teacher?.name || `${teacher?.firstName || ''} ${teacher?.lastName || ''}`.trim() || 'Teacher'}
+                        className="img-fluid"
+                      />
+                    </span>
+                    <div>
+                      <h6 className="mb-0 fs-14 fw-semibold">
+                        {teacher?.name || `${teacher?.firstName || ''} ${teacher?.lastName || ''}`.trim() || 'Teacher'}
+                      </h6>
+                      <p className="text-muted mb-0 fs-12">
+                        {teacher?.teacherId ? `#${teacher.teacherId}` : 'Teacher'}
+                        {teacher?.className ? ` • ${teacher.className}` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <hr className="m-0" />
+                  <Link
+                    to="/teacher/profile"
+                    className="dropdown-item d-inline-flex align-items-center p-2"
+                  >
+                    <i className="ti ti-user-circle me-2 text-primary"></i>My Profile
+                  </Link>
+                  <Link
+                    to="/teacher/profile"
+                    className="dropdown-item d-inline-flex align-items-center p-2"
+                  >
+                    <i className="ti ti-edit me-2 text-muted"></i>Edit Profile
+                  </Link>
+                  <hr className="m-0" />
+                  <a
+                    className="dropdown-item d-inline-flex align-items-center p-2 text-danger"
+                    href="#logout"
+                    onClick={handleLogout}
+                  >
+                    <i className="ti ti-logout me-2"></i>Logout
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default TeacherNavbar;

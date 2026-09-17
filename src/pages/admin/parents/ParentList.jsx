@@ -1,0 +1,975 @@
+import { getServerBaseUrl, resolveImageUrl, maleUserDefault, femaleUserDefault } from '../../../utils/url.util';
+import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  fetchParentsApi,
+  fetchParentByIdApi,
+  createParentApi,
+  updateParentApi,
+  deleteParentApi,
+  checkParentEmailApi,
+  checkParentPhoneApi,
+  checkParentDuplicateApi,
+} from '../../../api/adminParent.api';
+import { fetchClassesApi, fetchSectionsApi } from '../../../api/adminAcademic.api';
+import { toast } from 'react-toastify';
+import TableActionMenu from '../../../components/common/TableActionMenu';
+import NoData from '../../../components/common/NoData';
+import { encodeParam } from '../../../utils/idHelper';
+
+const SERVER_BASE_URL = getServerBaseUrl();
+
+const ParentList = () => {
+  const [parents, setParents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pagination, setPagination] = useState({ page: 1, limit: 12, totalPages: 1, total: 0 });
+  const [classes, setClasses] = useState([]);
+  const [sections, setSections] = useState([]);
+
+  // Search Filter State
+  const [filters, setFilters] = useState({
+    email: '',
+    name: '',
+    classId: '',
+    sectionId: '',
+  });
+
+  // Modal States
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingParentId, setEditingParentId] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedParentDetails, setSelectedParentDetails] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  const [formErrors, setFormErrors] = useState({});
+
+  // Form State
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    occupation: '',
+    relation: 'Father',
+    parent_type: 1,
+    picture: '',
+  });
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 4 * 1024 * 1024) {
+        toast.error('Upload image size must be less than 4MB');
+        return;
+      }
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+        setFormData((prev) => ({ ...prev, picture: reader.result }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setImageFile(null);
+    setImagePreview('');
+    setFormData((prev) => ({ ...prev, picture: '' }));
+  };
+
+  // Load Classes on mount
+  useEffect(() => {
+    const loadAcademicOptions = async () => {
+      try {
+        const res = await fetchClassesApi();
+        if (res.success) {
+          setClasses(res.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load classes:', err);
+      }
+    };
+    loadAcademicOptions();
+  }, []);
+
+  // Fetch sections when class filter changes
+  const handleClassChange = async (classId) => {
+    setFilters((prev) => ({ ...prev, classId, sectionId: '' }));
+    if (!classId) {
+      setSections([]);
+      return;
+    }
+    try {
+      const res = await fetchSectionsApi(classId);
+      if (res.success) {
+        setSections(res.data || []);
+      }
+    } catch (err) {
+      console.error('Failed to load sections:', err);
+    }
+  };
+
+  // Fetch Parent List (Server-Level Pagination)
+  const fetchParents = async (pageNumber = 1, overrideFilters = null) => {
+    try {
+      setLoading(true);
+      const activeFilters = overrideFilters || filters;
+      const params = {
+        page: pageNumber,
+        limit: pagination.limit || 12,
+      };
+      if (activeFilters.email?.trim()) params.email = activeFilters.email.trim();
+      if (activeFilters.name?.trim()) params.name = activeFilters.name.trim();
+      if (activeFilters.classId) params.classId = activeFilters.classId;
+      if (activeFilters.sectionId) params.sectionId = activeFilters.sectionId;
+
+      const res = await fetchParentsApi(params);
+      if (res?.success && res.data) {
+        setParents(res.data.parents || []);
+        setPagination(res.data.pagination || { page: pageNumber, limit: 12, totalPages: 1, total: 0 });
+      }
+    } catch (err) {
+      console.error('Failed to load parents:', err);
+      toast.error(err.message || 'Failed to load parents.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchParents(1);
+  }, []);
+
+  const handleSearchSubmit = (e) => {
+    if (e && e.preventDefault) e.preventDefault();
+    fetchParents(1);
+  };
+
+  const handleResetFilters = () => {
+    const defaultFilters = { email: '', name: '', classId: '', sectionId: '' };
+    setFilters(defaultFilters);
+    setSections([]);
+    fetchParents(1, defaultFilters);
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages && newPage !== pagination.page) {
+      fetchParents(newPage);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  const getPageNumbers = () => {
+    const { page, totalPages } = pagination;
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+    if (page <= 4) {
+      return [1, 2, 3, 4, 5, '...', totalPages];
+    }
+    if (page >= totalPages - 3) {
+      return [1, '...', totalPages - 4, totalPages - 3, totalPages - 2, totalPages - 1, totalPages];
+    }
+    return [1, '...', page - 1, page, page + 1, '...', totalPages];
+  };
+
+  // Live Phone & Email Checks
+  const handlePhoneBlur = async (phone) => {
+    const trimmed = String(phone || '').trim();
+    if (!trimmed) return;
+    try {
+      const res = await checkParentPhoneApi(trimmed, editingParentId || null);
+      if (res?.data?.exists) {
+        setFormErrors((prev) => ({ ...prev, phone: 'Mobile number already registered.' }));
+      } else {
+        setFormErrors((prev) => {
+          const next = { ...prev };
+          delete next.phone;
+          return next;
+        });
+      }
+    } catch {
+      // Ignore network errors on blur
+    }
+  };
+
+  const handleEmailBlur = async (email) => {
+    const trimmed = String(email || '').trim();
+    if (!trimmed || !trimmed.includes('@')) return;
+    try {
+      const res = await checkParentEmailApi(trimmed, editingParentId || null);
+      if (res?.data?.exists) {
+        setFormErrors((prev) => ({ ...prev, email: 'Email address already registered.' }));
+      } else {
+        setFormErrors((prev) => {
+          const next = { ...prev };
+          delete next.email;
+          return next;
+        });
+      }
+    } catch {
+      // Ignore network errors on blur
+    }
+  };
+
+  // Save (Create / Update) Parent
+  const handleSaveParent = async (e) => {
+    e.preventDefault();
+    if (!formData.first_name.trim()) {
+      return toast.warning('Please enter First Name.');
+    }
+
+    if (formData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(formData.email).trim())) {
+      setFormErrors((prev) => ({ ...prev, email: 'Please enter a valid email address.' }));
+      return toast.warning('Please enter a valid email address.');
+    }
+
+    try {
+      // Pre-submission duplicate check
+      try {
+        const dupRes = await checkParentDuplicateApi(
+          {
+            email: String(formData.email || '').trim(),
+            phone: String(formData.phone || '').trim(),
+          },
+          editingParentId || null
+        );
+
+        if (dupRes?.data?.isEmailDuplicate || dupRes?.data?.isPhoneDuplicate) {
+          const errors = {};
+          if (dupRes.data.isEmailDuplicate) {
+            errors.email = 'Email address already registered.';
+          }
+          if (dupRes.data.isPhoneDuplicate) {
+            errors.phone = 'Mobile number already registered.';
+          }
+          setFormErrors((prev) => ({ ...prev, ...errors }));
+          toast.error(dupRes.data.message || 'Duplicate email or mobile number detected.');
+          return;
+        }
+      } catch (checkErr) {
+        console.warn('Pre-submit parent duplicate check warning:', checkErr);
+      }
+
+      if (editingParentId) {
+        await updateParentApi(editingParentId, formData);
+        toast.success('Parent profile updated successfully!');
+      } else {
+        await createParentApi(formData);
+        toast.success('Parent registered successfully!');
+      }
+      setShowAddModal(false);
+      resetForm();
+      fetchParents(pagination.page);
+    } catch (err) {
+      const serverMsg = err.message || 'Operation failed.';
+      const msgLower = serverMsg.toLowerCase();
+      if (msgLower.includes('email')) {
+        setFormErrors((prev) => ({ ...prev, email: serverMsg }));
+      } else if (msgLower.includes('mobile') || msgLower.includes('phone')) {
+        setFormErrors((prev) => ({ ...prev, phone: serverMsg }));
+      }
+      toast.error(serverMsg);
+    }
+  };
+
+  // Open Edit Modal
+  const handleEditParent = (parent) => {
+    setEditingParentId(parent.id);
+    setFormErrors({});
+    setFormData({
+      first_name: parent.first_name || '',
+      last_name: parent.last_name || '',
+      email: parent.email || '',
+      phone: parent.phone || '',
+      occupation: parent.occupation || '',
+      relation: parent.relation || 'Father',
+      parent_type: parent.parent_type || 1,
+      picture: parent.picture || '',
+    });
+    setImageFile(null);
+    setImagePreview(getParentAvatar(parent));
+    setShowAddModal(true);
+  };
+
+  // Delete Parent
+  const handleDeleteParent = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this parent record?')) return;
+    try {
+      await deleteParentApi(id);
+      toast.success('Parent record deleted.');
+      fetchParents(1);
+    } catch (err) {
+      toast.error(err.message);
+    }
+  };
+
+  // View Parent & Children Details
+  const handleViewDetails = async (parentId) => {
+    setShowDetailsModal(true);
+    setDetailsLoading(true);
+    try {
+      const res = await fetchParentByIdApi(parentId);
+      if (res.success && res.data) {
+        setSelectedParentDetails(res.data.parent);
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to fetch details.');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setEditingParentId(null);
+    setFormErrors({});
+    setImageFile(null);
+    setImagePreview('');
+    setFormData({
+      first_name: '',
+      last_name: '',
+      email: '',
+      phone: '',
+      occupation: '',
+      relation: 'Father',
+      parent_type: 1,
+      picture: '',
+    });
+  };
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '15 Jun 2026';
+    try {
+      const d = new Date(dateStr);
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // Construct image URL with Base URL formatting
+  const getDefaultFallbackAvatar = (p) => {
+    return p?.parent_type === 2 || p?.relation === 'Mother'
+      ? femaleUserDefault
+      : maleUserDefault;
+  };
+
+  const getParentAvatar = (p) => {
+    const fallback = getDefaultFallbackAvatar(p);
+    return resolveImageUrl(p?.picture, fallback);
+  };
+
+  return (
+    <div className="content content-two">
+      {/* Page Header */}
+      <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
+        <div className="my-auto mb-2">
+          <h3 className="page-title mb-1">Parents</h3>
+          <nav>
+            <ol className="breadcrumb mb-0">
+              <li className="breadcrumb-item">
+                <Link to="/admin/dashboard">Dashboard</Link>
+              </li>
+              <li className="breadcrumb-item">Peoples</li>
+              <li className="breadcrumb-item active" aria-current="page">
+                Parents
+              </li>
+            </ol>
+          </nav>
+        </div>
+      </div>
+      {/* /Page Header */}
+
+      {/* Filter */}
+      <div className="bg-white p-3 border rounded-1 d-flex align-items-center justify-content-between flex-wrap mb-4 pb-0">
+        <form onSubmit={handleSearchSubmit} className="row w-100">
+          <div className="col-md-2">
+            <div className="mb-3">
+              <label className="form-label">Email</label>
+              <input
+                type="email"
+                name="email"
+                className="form-control"
+                placeholder="Parent Email"
+                value={filters.email}
+                onChange={(e) => setFilters({ ...filters, email: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="col-md-2">
+            <div className="mb-3">
+              <label className="form-label">Name</label>
+              <input
+                type="text"
+                name="name"
+                className="form-control"
+                placeholder="Parent name"
+                value={filters.name}
+                onChange={(e) => setFilters({ ...filters, name: e.target.value })}
+              />
+            </div>
+          </div>
+          <div className="col-md-2">
+            <div className="mb-3">
+              <label className="form-label">Student Class</label>
+              <select
+                className="form-select"
+                name="class"
+                value={filters.classId}
+                onChange={(e) => handleClassChange(e.target.value)}
+              >
+                <option value="">Select</option>
+                {classes.map((c, idx) => (
+                  <option key={`cls-${c.id || idx}-${idx}`} value={c.id}>
+                    {c.class_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="col-md-2">
+            <div className="mb-3">
+              <label className="form-label">Student Section</label>
+              <select
+                className="form-select"
+                name="section"
+                value={filters.sectionId}
+                onChange={(e) => setFilters({ ...filters, sectionId: e.target.value })}
+                disabled={!filters.classId}
+              >
+                <option value="">
+                  {filters.classId ? 'Select' : 'Select'}
+                </option>
+                {sections.map((s, idx) => (
+                  <option key={`sec-${s.id || idx}-${idx}`} value={s.id}>
+                    {s.section_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div className="col-md-2 d-flex align-items-center mb-3 gap-2">
+            <button type="submit" className="btn btn-outline-primary flex-fill">
+              Search
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-secondary"
+              onClick={handleResetFilters}
+              title="Reset all filters"
+            >
+              <i className="ti ti-rotate-clockwise"></i>
+            </button>
+          </div>
+        </form>
+      </div>
+      {/* /Filter */}
+
+      {/* Parent Cards Grid */}
+      <div className="row" id="parentCardDiv">
+        {loading ? (
+          <div className="col-12 text-center py-5">
+            <div className="spinner-border text-primary" role="status"></div>
+            <p className="mt-2 text-muted">Loading parents...</p>
+          </div>
+        ) : parents.length === 0 ? (
+          <div className="col-12 py-5">
+            <NoData title="No Parents Found" message="No parent records found matching your filters." />
+          </div>
+        ) : (
+          parents.map((p, idx) => (
+            <div key={`parent-card-${p.id || idx}-${idx}`} className="parent-grid col-xl-3 col-md-6 d-flex mb-4">
+              <input type="hidden" name="parent" className="parentId" value={p.id} />
+              <div className="card flex-fill">
+                <div className="card-header d-flex align-items-center justify-content-between">
+                  <a
+                    href="#"
+                    className="link-primary fw-semibold"
+                    onClick={(e) => {
+                      e.preventDefault();
+                      handleViewDetails(p.id);
+                    }}
+                  >
+                    {p.relation || (p.parent_type === 2 ? 'Mother' : p.parent_type === 1 ? 'Father' : 'Guardian')}
+                  </a>
+                  <TableActionMenu
+                    items={[
+                      {
+                        label: 'View Details',
+                        icon: 'ti ti-eye text-info',
+                        onClick: () => handleViewDetails(p.id),
+                      },
+                      {
+                        label: 'Edit',
+                        icon: 'ti ti-edit-circle text-primary',
+                        onClick: () => handleEditParent(p),
+                      },
+                      {
+                        label: 'Delete',
+                        icon: 'ti ti-trash-x',
+                        variant: 'danger',
+                        onClick: () => handleDeleteParent(p.id),
+                      },
+                    ]}
+                  />
+                </div>
+                <div className="card-body">
+                  <div className="bg-light-300 rounded-2 p-3 mb-3">
+                    <div className="d-flex align-items-center">
+                      <a
+                        href="#"
+                        className="avatar avatar-lg flex-shrink-0"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleViewDetails(p.id);
+                        }}
+                      >
+                        <img
+                          src={getParentAvatar(p)}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = getDefaultFallbackAvatar(p);
+                          }}
+                          className="img-fluid rounded-circle"
+                          alt="parent picture"
+                          style={{ width: '48px', height: '48px', objectFit: 'cover' }}
+                        />
+                      </a>
+                      <div className="ms-2 overflow-hidden">
+                        <h6 className="text-dark text-truncate mb-0">
+                          <a
+                            href="#"
+                            className="text-dark"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleViewDetails(p.id);
+                            }}
+                          >
+                            {p.full_name || 'N/A'}
+                          </a>
+                        </h6>
+                        <p className="mb-0 text-muted small">Added on {formatDate(p.created_at)}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="d-flex align-items-center justify-content-between gx-2">
+                    <div className="flex-grow-1 me-2 overflow-hidden">
+                      <p className="mb-0 small text-muted">Email</p>
+                      <p className="text-dark mb-0 small text-break fw-medium" title={p.email || 'N/A'}>
+                        {p.email || 'N/A'}
+                      </p>
+                    </div>
+                    <div className="text-end flex-shrink-0">
+                      <p className="mb-0 small text-muted">Phone</p>
+                      <p className="text-dark mb-0 small fw-medium">{p.phone || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="card-footer d-flex align-items-center justify-content-between">
+                  <button
+                    type="button"
+                    className="btn btn-light btn-sm"
+                    onClick={() => handleViewDetails(p.id)}
+                  >
+                    View Details
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+
+      </div>
+
+      {/* Pagination Footer */}
+      {!loading && parents.length > 0 && (
+        <div className="d-flex align-items-center justify-content-between my-4 px-2 flex-wrap gap-2">
+          <div className="fs-14 text-muted">
+            Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} parents
+          </div>
+          <ul className="pagination pagination-sm m-0">
+            <li className={`page-item ${pagination.page === 1 ? 'disabled' : ''}`}>
+              <button
+                type="button"
+                className="page-link"
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page === 1}
+              >
+                Previous
+              </button>
+            </li>
+            {getPageNumbers().map((p, idx) =>
+              p === '...' ? (
+                <li key={`ellipsis-${idx}`} className="page-item disabled">
+                  <span className="page-link">…</span>
+                </li>
+              ) : (
+                <li key={p} className={`page-item ${pagination.page === p ? 'active' : ''}`}>
+                  <button
+                    type="button"
+                    className="page-link"
+                    onClick={() => handlePageChange(p)}
+                  >
+                    {p}
+                  </button>
+                </li>
+              )
+            )}
+            <li className={`page-item ${pagination.page === pagination.totalPages ? 'disabled' : ''}`}>
+              <button
+                type="button"
+                className="page-link"
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page === pagination.totalPages}
+              >
+                Next
+              </button>
+            </li>
+          </ul>
+        </div>
+      )}
+
+      {/* Add / Edit Parent Modal */}
+      {showAddModal && (
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h4 className="modal-title">{editingParentId ? 'Edit Parent' : 'Add Parent'}</h4>
+                <button
+                  type="button"
+                  className="btn-close custom-btn-close"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    resetForm();
+                  }}
+                  aria-label="Close"
+                >
+                  <i className="ti ti-x"></i>
+                </button>
+              </div>
+              <form onSubmit={handleSaveParent} method="post" encType="multipart/form-data">
+                <div className="modal-body">
+                  <div className="row">
+                    <div className="col-md-12">
+                      <div className="d-flex align-items-center upload-pic flex-wrap row-gap-3 mb-3">
+                        <div
+                          id="profile_picture"
+                          className="d-flex align-items-center justify-content-center avatar avatar-xxl border border-dashed me-2 flex-shrink-0 text-dark frames"
+                          style={{ lineHeight: '0px !important', fontSize: '0px !important', width: '100px', height: '100px' }}
+                        >
+                          {imagePreview ? (
+                            <img
+                              src={imagePreview}
+                              alt="Profile"
+                              width="100px"
+                              height="100px"
+                              style={{ width: '100px', height: '100px', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <i id="picture-icon" className="ti ti-photo-plus fs-16"></i>
+                          )}
+                        </div>
+                        <div className="profile-upload">
+                          <div className="profile-uploader d-flex align-items-center">
+                            <label className="drag-upload-btn mb-3 me-2" style={{ cursor: 'pointer' }}>
+                              Upload
+                              <input
+                                type="file"
+                                className="form-control d-none"
+                                name="parent_image"
+                                accept="image/*"
+                                onChange={handleImageChange}
+                              />
+                            </label>
+                            <button
+                              type="button"
+                              onClick={removeImage}
+                              className="btn btn-primary mb-3"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                          <p className="mb-0 text-muted small">Upload image size 4MB, Format JPG, PNG, SVG</p>
+                        </div>
+                      </div>
+
+                      {editingParentId && <input type="hidden" name="parent_id" id="parent_id" value={editingParentId} />}
+
+                      <div className="mb-3">
+                        <label className="form-label">First Name</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Enter Name"
+                          name="first_name"
+                          id="first_name"
+                          value={formData.first_name}
+                          onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                          required
+                        />
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="form-label">Last Name</label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="Enter Name"
+                          name="last_name"
+                          id="last_name"
+                          value={formData.last_name}
+                          onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                          required
+                        />
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="form-label">Phone Number</label>
+                        <input
+                          type="text"
+                          className={`form-control ${formErrors.phone ? 'is-invalid border-danger' : ''}`}
+                          placeholder="Enter Phone Number"
+                          name="phone"
+                          id="phone"
+                          value={formData.phone}
+                          onChange={(e) => {
+                            setFormData({ ...formData, phone: e.target.value });
+                            if (formErrors.phone) {
+                              setFormErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.phone;
+                                return copy;
+                              });
+                            }
+                          }}
+                          onBlur={(e) => handlePhoneBlur(e.target.value)}
+                        />
+                        {formErrors.phone && <div className="invalid-feedback">{formErrors.phone}</div>}
+                        <small className="text-muted d-block mt-1">
+                          <i className="ti ti-info-circle me-1 text-primary"></i>
+                          Default login password will be their phone number.
+                        </small>
+                      </div>
+
+                      <div className="mb-3">
+                        <label className="form-label">Email Address</label>
+                        <input
+                          type="email"
+                          className={`form-control ${formErrors.email ? 'is-invalid border-danger' : ''}`}
+                          placeholder="Enter Email Address"
+                          name="email"
+                          id="email"
+                          value={formData.email}
+                          onChange={(e) => {
+                            setFormData({ ...formData, email: e.target.value });
+                            if (formErrors.email) {
+                              setFormErrors((prev) => {
+                                const copy = { ...prev };
+                                delete copy.email;
+                                return copy;
+                              });
+                            }
+                          }}
+                          onBlur={(e) => handleEmailBlur(e.target.value)}
+                        />
+                        {formErrors.email && <div className="invalid-feedback">{formErrors.email}</div>}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-light me-2"
+                    onClick={() => {
+                      setShowAddModal(false);
+                      resetForm();
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button type="submit" className="btn btn-primary">
+                    Save Changes
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Parent Details Modal */}
+      {showDetailsModal && (
+        <div className="modal d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h4 className="modal-title">View Details</h4>
+                <button
+                  type="button"
+                  className="btn-close custom-btn-close"
+                  onClick={() => setShowDetailsModal(false)}
+                  aria-label="Close"
+                >
+                  <i className="ti ti-x"></i>
+                </button>
+              </div>
+              <div className="modal-body mb-0">
+                {detailsLoading ? (
+                  <div className="text-center py-4">
+                    <div className="spinner-border text-primary" role="status"></div>
+                    <p className="mt-2 text-muted">Loading parent details...</p>
+                  </div>
+                ) : selectedParentDetails ? (
+                  <>
+                    <div className="parent-wrap mb-4">
+                      <div className="row align-items-center">
+                        <div className="col-lg-6">
+                          <div className="d-flex align-items-center mb-3">
+                            <span className="avatar avatar-xl me-2 flex-shrink-0">
+                              <img
+                                id="parent_picture"
+                                src={getParentAvatar(selectedParentDetails)}
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = getDefaultFallbackAvatar(selectedParentDetails);
+                                }}
+                                className="img-fluid rounded-circle"
+                                alt="img"
+                                style={{ width: '64px', height: '64px', objectFit: 'cover' }}
+                              />
+                            </span>
+                            <div className="parent-name ms-2">
+                              <h5 className="mb-1 text-dark fw-bold" id="parent_name">
+                                {selectedParentDetails.full_name}
+                              </h5>
+                              <p className="mb-0 text-muted">
+                                Added on{' '}
+                                <span id="parent_created_on">
+                                  {formatDate(selectedParentDetails.created_at)}
+                                </span>
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="col-lg-6">
+                          <ul className="d-flex align-items-center list-unstyled mb-0">
+                            <li className="mb-3 me-5">
+                              <p className="mb-1 text-muted">Email</p>
+                              <h6 className="fw-normal text-dark" id="parent_email">
+                                {selectedParentDetails.email || 'N/A'}
+                              </h6>
+                            </li>
+                            <li className="mb-3">
+                              <p className="mb-1 text-muted">Phone</p>
+                              <h6 className="fw-normal text-dark" id="parent_phone">
+                                {selectedParentDetails.phone || 'N/A'}
+                              </h6>
+                            </li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+
+                    <h5 className="mb-3 fw-bold">Children Details</h5>
+                    <div id="studentDiv">
+                      {selectedParentDetails.children && selectedParentDetails.children.length > 0 ? (
+                        Array.from(new Map(selectedParentDetails.children.map((c) => [c.student_id || c.id, c])).values()).map((child, idx) => (
+                          <div key={`admin-child-${child.student_id || child.id || idx}-${idx}`} className="border rounded p-4 pb-1 mb-3">
+                            <div className="d-flex align-items-center justify-content-between flex-wrap pb-1 mb-3 border-bottom">
+                              <Link
+                                to={`/admin/students/${encodeParam(child.student_id)}`}
+                                className="link-primary mb-2 fw-semibold"
+                                onClick={() => setShowDetailsModal(false)}
+                              >
+                                {child.admission_number || 'N/A'}
+                              </Link>
+                              <span className="badge badge-soft-success badge-md mb-2">
+                                Active
+                              </span>
+                            </div>
+                            <div className="d-flex align-items-center justify-content-between flex-wrap">
+                              <div className="d-flex align-items-center mb-3">
+                                <Link
+                                  to={`/admin/students/${encodeParam(child.student_id)}`}
+                                  className="avatar flex-shrink-0"
+                                  onClick={() => setShowDetailsModal(false)}
+                                >
+                                   <img
+                                     src={resolveImageUrl(child.picture, maleUserDefault)}
+                                     onError={(e) => {
+                                       e.target.onerror = null;
+                                       e.target.src = maleUserDefault;
+                                     }}
+                                     className="img-fluid rounded-circle"
+                                     alt="img"
+                                     style={{ width: '40px', height: '40px', objectFit: 'cover' }}
+                                   />
+                                </Link>
+                                <div className="ms-2">
+                                  <p className="mb-0 fw-semibold">
+                                    <Link
+                                      to={`/admin/students/${encodeParam(child.student_id)}`}
+                                      className="text-dark"
+                                      onClick={() => setShowDetailsModal(false)}
+                                    >
+                                      {child.full_name}
+                                    </Link>
+                                  </p>
+                                  <span className="text-muted small">
+                                    {child.class_name || 'N/A'}
+                                    {child.section_name ? `, ${child.section_name}` : ''}
+                                  </span>
+                                </div>
+                              </div>
+                              <ul className="d-flex align-items-center flex-wrap list-unstyled mb-0">
+                                <li className="mb-3 me-4">
+                                  <p className="mb-1 text-muted small">Roll No</p>
+                                  <h6 className="fw-normal">{child.roll_number || 'N/A'}</h6>
+                                </li>
+                                <li className="mb-3 me-4">
+                                  <p className="mb-1 text-muted small">Gender</p>
+                                  <h6 className="fw-normal">{child.gender || 'N/A'}</h6>
+                                </li>
+                                <li className="mb-3 me-4">
+                                  <p className="mb-1 text-muted small">Date of Joined</p>
+                                  <h6 className="fw-normal">
+                                    {formatDate(child.admission_date || child.created_at)}
+                                  </h6>
+                                </li>
+                              </ul>
+                              <div className="d-flex align-items-center">
+                                <Link
+                                  to={`/admin/students/${encodeParam(child.student_id)}`}
+                                  className="btn btn-primary mb-3"
+                                  onClick={() => setShowDetailsModal(false)}
+                                >
+                                  View Details
+                                </Link>
+                              </div>
+                            </div>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="alert alert-info small">
+                          No student wards currently linked to this parent profile.
+                        </div>
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  <NoData title="No Details Found" message="No details found for this parent." />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ParentList;
