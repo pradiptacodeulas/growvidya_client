@@ -132,18 +132,43 @@ const SchoolRegistrationWizard = () => {
     end_date: `${currentYear + 1}-03-31`,
   });
 
+  // Dynamic Genders List
+  const [genders, setGenders] = useState([]);
+
   // Step 4: Super Admin Credentials
   const [adminForm, setAdminForm] = useState({
     first_name: '',
     last_name: '',
     email: '',
     phone: '',
-    gender: 'Male',
+    gender: '',
+    picture: '',
     password: '',
     confirm_password: '',
     agree_terms: false,
   });
+  const [adminAvatarPreview, setAdminAvatarPreview] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Load genders dynamically on mount
+  useEffect(() => {
+    const fetchGenders = async () => {
+      try {
+        const res = await saasApi.getGenders();
+        const list = res?.data || [];
+        setGenders(list);
+        if (list.length > 0) {
+          setAdminForm((prev) => ({
+            ...prev,
+            gender: prev.gender || String(list[0].id),
+          }));
+        }
+      } catch (err) {
+        console.error('Failed to load genders:', err);
+      }
+    };
+    fetchGenders();
+  }, []);
 
   // Load available subscription plans for Step 5
   useEffect(() => {
@@ -183,6 +208,24 @@ const SchoolRegistrationWizard = () => {
     reader.onloadend = () => {
       setLogoPreview(reader.result);
       setSchoolForm((prev) => ({ ...prev, school_logo: reader.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  // Handle Super Admin Avatar Upload & Base64 preview
+  const handleAdminAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.warning('Profile photo size should be less than 2MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAdminAvatarPreview(reader.result);
+      setAdminForm((prev) => ({ ...prev, picture: reader.result }));
     };
     reader.readAsDataURL(file);
   };
@@ -227,6 +270,10 @@ const SchoolRegistrationWizard = () => {
       }
       if (!adminForm.email.trim() || !/\S+@\S+\.\S+/.test(adminForm.email)) {
         toast.warning('Please enter a valid Super Admin Email.');
+        return;
+      }
+      if (!adminForm.gender) {
+        toast.warning('Please select a Gender.');
         return;
       }
       if (!adminForm.password || adminForm.password.length < 6) {
@@ -288,6 +335,11 @@ const SchoolRegistrationWizard = () => {
         email: adminForm.email,
         phone: adminForm.phone,
         gender: adminForm.gender,
+        picture: adminForm.picture || null,
+        country_id: campusForm.country,
+        state_id: campusForm.state,
+        city: campusForm.city,
+        role: 0,
         password: adminForm.password,
       },
     };
@@ -996,16 +1048,54 @@ const SchoolRegistrationWizard = () => {
                   </div>
 
                   <div className="col-lg-3">
-                    <label className="form-label fw-semibold text-dark fs-14">Gender</label>
+                    <label className="form-label fw-semibold text-dark fs-14">
+                      Gender <span className="text-danger">*</span>
+                    </label>
                     <select
                       className="form-select"
                       value={adminForm.gender}
                       onChange={(e) => setAdminForm({ ...adminForm, gender: e.target.value })}
+                      required
                     >
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
+                      <option value="" disabled>Select Gender</option>
+                      {genders.map((g) => (
+                        <option key={g.id} value={g.id}>
+                          {g.gender}
+                        </option>
+                      ))}
                     </select>
+                  </div>
+
+                  {/* Super Admin Profile Photo */}
+                  <div className="col-12">
+                    <label className="form-label fw-semibold text-dark fs-14">Administrator Profile Photo (Optional)</label>
+                    <div className="d-flex align-items-center gap-3 p-3 bg-light border rounded-3">
+                      <div
+                        className="border rounded-circle bg-white d-flex align-items-center justify-content-center shadow-xs"
+                        style={{ width: '64px', height: '64px', overflow: 'hidden', flexShrink: 0 }}
+                      >
+                        {adminAvatarPreview ? (
+                          <img
+                            src={adminAvatarPreview}
+                            alt="Admin Avatar"
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        ) : (
+                          <i className="ti ti-user text-muted fs-2"></i>
+                        )}
+                      </div>
+                      <div className="flex-grow-1">
+                        <input
+                          type="file"
+                          className="form-control form-control-sm"
+                          accept="image/png, image/jpeg, image/webp"
+                          onChange={handleAdminAvatarChange}
+                        />
+                        <small className="text-muted fs-12 mt-1 d-block">
+                          Recommended: JPG or PNG up to 2MB. Appears as the profile picture for the Super Administrator account.
+                        </small>
+                      </div>
+                    </div>
                   </div>
 
                   <div className="col-lg-6">

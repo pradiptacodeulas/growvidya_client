@@ -43,6 +43,14 @@ export const saasApi = {
     const res = await apiClient.get(`/saas/locations/cities/${stateId}`);
     return res.data;
   },
+
+  /**
+   * Fetch genders from gender_master
+   */
+  getGenders: async () => {
+    const res = await apiClient.get('/saas/genders');
+    return res.data;
+  },
 };
 
 export default saasApi;
