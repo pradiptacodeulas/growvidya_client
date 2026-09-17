@@ -263,11 +263,21 @@ const FeesStructures = () => {
         class_name: detail.class_name || struct.class_name,
         class_names: detail.class_names || struct.class_names,
         academic_year: detail.academic_year || struct.academic_year,
+        branch_name: detail.branch_name || struct.branch_name,
       };
+      if (!merged.branch_name && merged.branch_id) {
+        const foundBranch = branches.find((b) => String(b.id) === String(merged.branch_id));
+        if (foundBranch) merged.branch_name = foundBranch.branch_name;
+      }
       setViewStructure(merged);
       setShowViewModal(true);
     } catch {
-      setViewStructure(struct);
+      const fallback = { ...struct };
+      if (!fallback.branch_name && fallback.branch_id) {
+        const foundBranch = branches.find((b) => String(b.id) === String(fallback.branch_id));
+        if (foundBranch) fallback.branch_name = foundBranch.branch_name;
+      }
+      setViewStructure(fallback);
       setShowViewModal(true);
     }
   };
@@ -553,11 +563,16 @@ const FeesStructures = () => {
                       <td>
                         <div className="fw-bold text-dark">{struct.name}</div>
                         {struct.branch_name ? (
-                          <span className="badge bg-primary-transparent text-primary fs-11" title={`Campus: ${struct.branch_name}`}>
-                            <i className="ti ti-building me-1"></i>{struct.branch_name}
+                          <span
+                            className="badge bg-primary-transparent text-primary fs-11 text-wrap text-start text-break py-1 px-2 border border-primary-subtle d-inline-flex align-items-center mt-1"
+                            title={`Campus: ${struct.branch_name}`}
+                            style={{ whiteSpace: 'normal', wordBreak: 'break-word', maxWidth: '240px', lineHeight: '1.3' }}
+                          >
+                            <i className="ti ti-building me-1 flex-shrink-0"></i>
+                            <span>{struct.branch_name}</span>
                           </span>
                         ) : (
-                          <span className="badge bg-light text-muted border fs-11">
+                          <span className="badge bg-light text-muted border fs-11 mt-1">
                             All Campuses
                           </span>
                         )}
@@ -632,9 +647,9 @@ const FeesStructures = () => {
           role="dialog"
         >
           <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
-            <div className="modal-content border-0 shadow-lg">
-              <form onSubmit={handleSubmit}>
-                <div className="modal-header py-3 px-4 border-bottom">
+            <div className="modal-content border-0 shadow-lg" style={{ maxHeight: 'calc(100vh - 3.5rem)', display: 'flex', flexDirection: 'column' }}>
+              <form onSubmit={handleSubmit} className="d-flex flex-column h-100 overflow-hidden" style={{ maxHeight: '100%', minHeight: 0 }}>
+                <div className="modal-header py-3 px-4 border-bottom flex-shrink-0">
                   <h5 className="modal-title text-dark fw-bold" id="structureModalTitle">
                     {modalMode === 'add'
                       ? 'Create Master Fee Structure'
@@ -650,7 +665,7 @@ const FeesStructures = () => {
                   ></button>
                 </div>
 
-                <div className="modal-body p-4">
+                <div className="modal-body p-4" style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
                   <input type="hidden" name="id" value={currentId || ''} />
 
                   {/* Row 1: Structure Name & Campus / Branch */}
@@ -1007,7 +1022,7 @@ const FeesStructures = () => {
                   </div>
                 </div>
 
-                <div className="modal-footer bg-light gap-2">
+                <div className="modal-footer bg-light gap-2 flex-shrink-0">
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -1070,37 +1085,69 @@ const FeesStructures = () => {
                   ></button>
                 </div>
                 <div className="modal-body p-4">
-                  <div className="row g-3 mb-4">
-                    <div className="col-md-5">
-                      <label className="text-muted fs-12 uppercase fw-semibold d-block mb-1">
+                  <div className="row g-3 mb-4 pb-3 border-bottom align-items-start">
+                    <div className="col-12 col-md-6">
+                      <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
                         Structure Name
                       </label>
-                      <h5 className="fw-bold text-dark mb-0">{viewStructure.name || '-'}</h5>
+                      <h5 className="fw-bold text-dark mb-0 text-break">{viewStructure.name || '-'}</h5>
                     </div>
-                    <div className="col-md-3">
-                      <label className="text-muted fs-12 uppercase fw-semibold d-block mb-1">
+                    <div className="col-12 col-md-6">
+                      <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
                         Campus / Branch
                       </label>
-                      <span className="badge bg-primary-transparent text-primary fs-12">
-                        <i className="ti ti-building me-1"></i>
-                        {viewStructure.branch_name || 'All Campuses (School-wide)'}
-                      </span>
+                      <div>
+                        {viewStructure.branch_name ? (
+                          <span
+                            className="badge bg-primary-transparent text-primary fs-12 text-wrap text-start text-break py-1.5 px-2.5 border border-primary-subtle d-inline-flex align-items-center"
+                            style={{
+                              whiteSpace: 'normal',
+                              wordBreak: 'break-word',
+                              maxWidth: '100%',
+                              lineHeight: '1.4',
+                            }}
+                          >
+                            <i className="ti ti-building me-1.5 flex-shrink-0 fs-13"></i>
+                            <span>{viewStructure.branch_name}</span>
+                          </span>
+                        ) : (
+                          <span
+                            className="badge bg-light text-muted fs-12 text-wrap text-start py-1.5 px-2.5 border d-inline-flex align-items-center"
+                            style={{ whiteSpace: 'normal', lineHeight: '1.4' }}
+                          >
+                            <i className="ti ti-building me-1.5 flex-shrink-0 fs-13"></i>
+                            <span>All Campuses (School-wide)</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <div className="col-md-2">
-                      <label className="text-muted fs-12 uppercase fw-semibold d-block mb-1">
+                    <div className="col-12 col-md-6">
+                      <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
                         Target Class
                       </label>
-                      <span className="badge bg-primary text-white fs-13">
-                        {getClassNamesDisplay(viewStructure)}
-                      </span>
+                      <div>
+                        <span
+                          className="badge bg-primary text-white fs-12 text-wrap text-start text-break py-1.5 px-2.5 d-inline-flex align-items-center"
+                          style={{
+                            whiteSpace: 'normal',
+                            wordBreak: 'break-word',
+                            maxWidth: '100%',
+                            lineHeight: '1.4',
+                          }}
+                        >
+                          <i className="ti ti-school me-1.5 flex-shrink-0 fs-13"></i>
+                          <span>{getClassNamesDisplay(viewStructure)}</span>
+                        </span>
+                      </div>
                     </div>
-                    <div className="col-md-2">
-                      <label className="text-muted fs-12 uppercase fw-semibold d-block mb-1">
+                    <div className="col-12 col-md-6">
+                      <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
                         Academic Year
                       </label>
-                      <span className="fw-semibold text-dark fs-14">
-                        {viewStructure.academic_year || '-'}
-                      </span>
+                      <div className="d-inline-flex align-items-center gap-1.5 py-1 text-dark fw-semibold fs-14">
+                        <i className="ti ti-calendar text-muted fs-15"></i>
+                        <span>{viewStructure.academic_year || '-'}</span>
+                      </div>
                     </div>
                   </div>
 
