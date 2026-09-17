@@ -6,6 +6,7 @@ import {
   fetchClassesApi,
   fetchSectionsApi,
 } from '../../../api/adminAcademic.api';
+import NoData from '../../../components/common/NoData';
 import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 const AssignmentSectionView = () => {
@@ -99,9 +100,17 @@ const AssignmentSectionView = () => {
 
             <div className="card-body p-4">
               {sections.length === 0 ? (
-                <div className="text-center py-4">
-                  <p className="text-muted mb-0 fst-italic">No active sections found for this class.</p>
-                </div>
+                <NoData
+                  title="No Active Sections Found"
+                  message={`No active sections are configured for Class ${classInfo?.class_name || classId}.`}
+                  imageHeight={110}
+                  py={3}
+                  action={
+                    <Link to="/admin/academics/sections" className="btn btn-primary btn-sm">
+                      <i className="ti ti-plus me-1"></i> Add Section
+                    </Link>
+                  }
+                />
               ) : (
                 <div className="row g-3">
                   {sections.map((sec) => {
