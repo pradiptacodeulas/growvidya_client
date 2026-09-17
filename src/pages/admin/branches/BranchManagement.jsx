@@ -192,12 +192,11 @@ const BranchManagement = () => {
       countryList = await loadCountries();
     }
 
-    // Default to India in countries_master (ID 58 or code IN or name India) if present
+    // Default to India in countries table (ID 101 or code IN or name India) if present
     const india = countryList.find(
       (c) =>
         String(c.name || c.country_name || '').toLowerCase() === 'india' ||
         String(c.country_code || '').toUpperCase() === 'IN' ||
-        c.id === 58 ||
         c.id === 101
     );
     if (india) {
