@@ -70,6 +70,11 @@ const adminFeesApi = {
     return res.data;
   },
 
+  togglePublishStructure: async (id, is_published) => {
+    const res = await apiClient.patch(`/admin/fees/structures/${id}/publish`, { is_published });
+    return res.data;
+  },
+
   // 3. Student Fee Allocations
   getAllocations: async (params) => {
     const res = await apiClient.get('/admin/fees/allocations', { params });

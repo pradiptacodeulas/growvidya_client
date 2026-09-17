@@ -363,8 +363,8 @@ const FeesStructures = () => {
     });
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (e, publishOverride = null) => {
+    if (e && e.preventDefault) e.preventDefault();
 
     if (!formData.name.trim()) {
       toast.warning('Please enter Structure Name.');
@@ -400,8 +400,14 @@ const FeesStructures = () => {
       return;
     }
 
+    const isPublishedVal =
+      publishOverride !== null && publishOverride !== undefined
+        ? publishOverride
+        : (formData.is_published === 1 ? 1 : 0);
+
     const payload = {
       ...formData,
+      is_published: isPublishedVal,
       id: currentId,
       branch_id: formData.branch_id ? Number(formData.branch_id) : null,
       class_id: formData.class_id.join(','),
@@ -425,6 +431,33 @@ const FeesStructures = () => {
       toast.error(err.response?.data?.message || err.message || 'Failed to save structure.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const [togglingId, setTogglingId] = useState(null);
+
+  const handleTogglePublish = async (struct) => {
+    const nextStatus = struct.is_published === 1 ? 0 : 1;
+    const confirmMsg =
+      nextStatus === 1
+        ? `Are you sure you want to publish "${struct.name}"? It will become active for student billing.`
+        : `Are you sure you want to revert "${struct.name}" to Draft? You will be able to edit its classes and line items again.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      setTogglingId(struct.id);
+      const res = await adminFeesApi.togglePublishStructure(struct.id, nextStatus);
+      toast.success(
+        res?.message ||
+          `Fee structure status changed to ${nextStatus === 1 ? 'Published' : 'Draft'}.`
+      );
+      setReloadTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.error('Failed to toggle publish status:', err);
+      toast.error(err.response?.data?.message || err.message || 'Failed to update status.');
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -596,21 +629,35 @@ const FeesStructures = () => {
                         </span>
                       </td>
                       <td>
-                        {struct.is_published === 1 ? (
-                          <span className="badge bg-success">
-                            <i className="ti ti-check me-1"></i>Published
-                          </span>
-                        ) : (
-                          <span className="badge bg-warning text-dark">
-                            <i className="ti ti-clock me-1"></i>Draft
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          className="btn btn-link p-0 text-decoration-none border-0"
+                          onClick={() => handleTogglePublish(struct)}
+                          disabled={togglingId === struct.id}
+                          title={`Click to switch to ${struct.is_published === 1 ? 'Draft' : 'Published'}`}
+                        >
+                          {togglingId === struct.id ? (
+                            <span className="badge bg-secondary">
+                              <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                              Updating...
+                            </span>
+                          ) : struct.is_published === 1 ? (
+                            <span className="badge bg-success shadow-sm" style={{ cursor: 'pointer' }}>
+                              <i className="ti ti-check me-1"></i>Published
+                            </span>
+                          ) : (
+                            <span className="badge bg-warning text-dark shadow-sm" style={{ cursor: 'pointer' }}>
+                              <i className="ti ti-clock me-1"></i>Draft
+                            </span>
+                          )}
+                        </button>
                       </td>
                       <td>
                         <button
                           type="button"
                           className="btn btn-sm btn-outline-info me-1"
                           onClick={() => handleOpenViewModal(struct)}
+                          title="View Details"
                         >
                           <i className="ti ti-eye me-1"></i>View
                         </button>
@@ -618,13 +665,36 @@ const FeesStructures = () => {
                           type="button"
                           className="btn btn-sm btn-outline-primary me-1"
                           onClick={() => handleOpenEditModal(struct)}
+                          title="Edit"
                         >
                           <i className="ti ti-edit me-1"></i>Edit
                         </button>
+                        {struct.is_published === 1 ? (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-warning me-1"
+                            onClick={() => handleTogglePublish(struct)}
+                            disabled={togglingId === struct.id}
+                            title="Revert to Draft"
+                          >
+                            <i className="ti ti-clock me-1"></i>Draft
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-success me-1"
+                            onClick={() => handleTogglePublish(struct)}
+                            disabled={togglingId === struct.id}
+                            title="Publish Structure"
+                          >
+                            <i className="ti ti-check me-1"></i>Publish
+                          </button>
+                        )}
                         <button
                           type="button"
                           className="btn btn-sm btn-outline-danger"
                           onClick={() => handleDelete(struct.id, struct.name)}
+                          title="Delete"
                         >
                           <i className="ti ti-trash me-1"></i>Delete
                         </button>
@@ -1020,6 +1090,53 @@ const FeesStructures = () => {
                       </div>
                     </div>
                   </div>
+
+                  {/* Publish Status Setting */}
+                  <div className="card bg-light border-0 shadow-none mt-3 mb-0">
+                    <div className="card-body p-3">
+                      <div className="d-flex align-items-center justify-content-between">
+                        <div className="me-3">
+                          <div className="d-flex align-items-center gap-2 mb-1">
+                            <i
+                              className={`ti ${
+                                formData.is_published === 1
+                                  ? 'ti-circle-check text-success'
+                                  : 'ti-clock text-warning'
+                              } fs-18`}
+                            ></i>
+                            <label
+                              htmlFor="is_published_toggle"
+                              className="form-check-label fw-bold text-dark cursor-pointer mb-0"
+                            >
+                              Publish Status:{' '}
+                              {formData.is_published === 1 ? (
+                                <span className="badge bg-success ms-1">Published</span>
+                              ) : (
+                                <span className="badge bg-warning text-dark ms-1">Draft</span>
+                              )}
+                            </label>
+                          </div>
+                          <p className="text-muted fs-12 mb-0">
+                            {formData.is_published === 1
+                              ? 'This structure will be published immediately upon saving and active for student billing.'
+                              : 'Keep in Draft mode. You can freely edit target classes and fee components anytime.'}
+                          </p>
+                        </div>
+                        <div className="form-check form-switch fs-5 mb-0">
+                          <input
+                            className="form-check-input cursor-pointer"
+                            type="checkbox"
+                            role="switch"
+                            id="is_published_toggle"
+                            checked={formData.is_published === 1}
+                            onChange={(e) =>
+                              setFormData({ ...formData, is_published: e.target.checked ? 1 : 0 })
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="modal-footer bg-light gap-2 flex-shrink-0">
@@ -1030,8 +1147,31 @@ const FeesStructures = () => {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary" disabled={saving}>
-                    {saving ? (
+                  <button
+                    type="button"
+                    className="btn btn-outline-secondary"
+                    disabled={saving}
+                    onClick={(e) => handleSubmit(e, 0)}
+                  >
+                    {saving && formData.is_published === 0 ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="ti ti-file me-1"></i>
+                        Save as Draft
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-success"
+                    disabled={saving}
+                    onClick={(e) => handleSubmit(e, 1)}
+                  >
+                    {saving && formData.is_published === 1 ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-1" role="status"></span>
                         Saving...
@@ -1039,7 +1179,7 @@ const FeesStructures = () => {
                     ) : (
                       <>
                         <i className="ti ti-check me-1"></i>
-                        Save Structure
+                        {modalMode === 'add' ? 'Save & Publish' : 'Save as Published'}
                       </>
                     )}
                   </button>
@@ -1121,7 +1261,7 @@ const FeesStructures = () => {
                         )}
                       </div>
                     </div>
-                    <div className="col-12 col-md-6">
+                    <div className="col-12 col-md-5">
                       <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
                         Target Class
                       </label>
@@ -1140,13 +1280,29 @@ const FeesStructures = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="col-12 col-md-6">
+                    <div className="col-12 col-md-4">
                       <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
                         Academic Year
                       </label>
                       <div className="d-inline-flex align-items-center gap-1.5 py-1 text-dark fw-semibold fs-14">
                         <i className="ti ti-calendar text-muted fs-15"></i>
                         <span>{viewStructure.academic_year || '-'}</span>
+                      </div>
+                    </div>
+                    <div className="col-12 col-md-3">
+                      <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
+                        Status
+                      </label>
+                      <div>
+                        {viewStructure.is_published === 1 ? (
+                          <span className="badge bg-success fs-12 py-1 px-2.5">
+                            <i className="ti ti-check me-1"></i>Published
+                          </span>
+                        ) : (
+                          <span className="badge bg-warning text-dark fs-12 py-1 px-2.5">
+                            <i className="ti ti-clock me-1"></i>Draft
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>

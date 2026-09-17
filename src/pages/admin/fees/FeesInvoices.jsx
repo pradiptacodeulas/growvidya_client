@@ -288,11 +288,19 @@ const FeesInvoices = () => {
   const handleBulkGenerateSubmit = async (e) => {
     e.preventDefault();
 
+    const publishedStructures = structures.filter((st) => Number(st.is_published) === 1);
+    if (publishedStructures.length === 0) {
+      toast.warning(
+        'No published fee structures found. Invoices can only be generated for Published fee structures.'
+      );
+      return;
+    }
+
     try {
       setBulkGenerating(true);
-      // Run generation for each configured structure to bulk-create for all allocated students
+      // Run generation ONLY for published structures to bulk-create for all allocated students
       let count = 0;
-      for (const st of structures) {
+      for (const st of publishedStructures) {
         try {
           const res = await adminFeesApi.generateInvoices({
             fee_structure_id: st.id,
@@ -850,6 +858,12 @@ const FeesInvoices = () => {
                     <label className="form-label fw-semibold">
                       Fee Structure <span className="text-danger">*</span>
                     </label>
+                    {structures.filter((st) => Number(st.is_published) === 1).length === 0 && (
+                      <div className="alert alert-warning py-2 fs-12 mb-2">
+                        <i className="ti ti-alert-triangle me-1"></i>
+                        No published fee structures found. Invoices can only be generated for <strong>Published</strong> structures. Please go to <Link to="/admin/fees/structures" className="alert-link">Master Fee Structure</Link> to publish one first.
+                      </div>
+                    )}
                     <select
                       className="form-select"
                       required
@@ -857,14 +871,20 @@ const FeesInvoices = () => {
                       onChange={(e) =>
                         setGenFormData({ ...genFormData, fee_structure_id: e.target.value })
                       }
+                      disabled={structures.filter((st) => Number(st.is_published) === 1).length === 0}
                     >
-                      <option value="">-- Select Structure --</option>
-                      {structures.map((st) => (
-                        <option key={st.id} value={st.id}>
-                          {st.name} ({st.frequency})
-                        </option>
-                      ))}
+                      <option value="">-- Select Published Structure --</option>
+                      {structures
+                        .filter((st) => Number(st.is_published) === 1)
+                        .map((st) => (
+                          <option key={st.id} value={st.id}>
+                            {st.name} ({st.frequency})
+                          </option>
+                        ))}
                     </select>
+                    <small className="text-muted fs-11 mt-1 d-block">
+                      Only active, published fee structures are eligible for invoice generation.
+                    </small>
                   </div>
 
                   <div className="mb-3">
@@ -917,7 +937,11 @@ const FeesInvoices = () => {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary" disabled={generating}>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={generating || structures.filter((st) => Number(st.is_published) === 1).length === 0}
+                  >
                     {generating ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-1"></span>
@@ -963,8 +987,15 @@ const FeesInvoices = () => {
                 <div className="modal-body p-4">
                   <div className="alert alert-info py-2 fs-13 mb-3">
                     <i className="ti ti-info-circle me-1"></i>
-                    This will automatically create demand invoices for <strong>all active students</strong> across all classes according to their assigned fee structures.
+                    This will automatically create demand invoices for <strong>all active students</strong> across all classes according to their assigned <strong>Published</strong> fee structures ({structures.filter((st) => Number(st.is_published) === 1).length} published structure(s) active). Draft fee structures are excluded.
                   </div>
+
+                  {structures.filter((st) => Number(st.is_published) === 1).length === 0 && (
+                    <div className="alert alert-warning py-2 fs-12 mb-3">
+                      <i className="ti ti-alert-triangle me-1"></i>
+                      No published fee structures found. Invoices can only be generated for <strong>Published</strong> structures. Please go to <Link to="/admin/fees/structures" className="alert-link">Master Fee Structure</Link> to publish one first.
+                    </div>
+                  )}
 
                   <div className="mb-3">
                     <label className="form-label fw-semibold">
@@ -1037,7 +1068,11 @@ const FeesInvoices = () => {
                   >
                     Cancel
                   </button>
-                  <button type="submit" className="btn btn-primary" disabled={bulkGenerating}>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={bulkGenerating || structures.filter((st) => Number(st.is_published) === 1).length === 0}
+                  >
                     {bulkGenerating ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-1"></span>
