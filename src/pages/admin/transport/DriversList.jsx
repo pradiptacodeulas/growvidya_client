@@ -27,7 +27,11 @@ const DriversList = () => {
       const res = await fetchDriversApi();
       setDrivers(res?.data?.drivers || res?.drivers || []);
     } catch (err) {
-      toast.error('Failed to load driver list.');
+      if (err?.isFeatureNotInPlan || err?.response?.data?.errors?.code === 'FEATURE_NOT_IN_PLAN') {
+        toast.warning(err);
+      } else {
+        toast.error('Failed to load driver list.');
+      }
     } finally {
       setLoading(false);
     }

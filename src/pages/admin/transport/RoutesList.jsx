@@ -32,7 +32,11 @@ const RoutesList = () => {
       const res = await fetchRoutesApi();
       setRoutes(res?.data?.routes || res?.routes || []);
     } catch (err) {
-      toast.error('Failed to load routes list.');
+      if (err?.isFeatureNotInPlan || err?.response?.data?.errors?.code === 'FEATURE_NOT_IN_PLAN') {
+        toast.warning(err);
+      } else {
+        toast.error('Failed to load routes list.');
+      }
     } finally {
       setLoading(false);
     }

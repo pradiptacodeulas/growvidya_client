@@ -119,9 +119,22 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
-    const friendlyMsg = extractUserFriendlyMessage(error);
+    const isFeatureNotInPlan =
+      error.response?.data?.errors?.code === 'FEATURE_NOT_IN_PLAN' ||
+      error.response?.data?.code === 'FEATURE_NOT_IN_PLAN' ||
+      (typeof error.response?.data?.message === 'string' &&
+        (error.response.data.message.includes('not included in your') ||
+         error.response.data.message.includes('upgrade your current plan') ||
+         error.response.data.message.includes('upgrade your subscription plan')));
+
+    const friendlyMsg = isFeatureNotInPlan
+      ? 'You are not allow to use this features try to upgrade your current plan'
+      : extractUserFriendlyMessage(error);
+
     error.message = friendlyMsg;
     error.userFriendlyMessage = friendlyMsg;
+    error.isFeatureNotInPlan = isFeatureNotInPlan;
+    error.isFeatureWarning = isFeatureNotInPlan;
     if (error.response && error.response.data && typeof error.response.data === 'object') {
       error.response.data.message = friendlyMsg;
     }

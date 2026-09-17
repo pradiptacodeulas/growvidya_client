@@ -25,10 +25,14 @@ const VehiclesList = () => {
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetchVehiclesApi().catch(() => ({ data: { vehicles: [] } }));
+      const res = await fetchVehiclesApi();
       setVehicles(res?.data?.vehicles || res?.vehicles || []);
     } catch (err) {
-      toast.error('Failed to load bus list.');
+      if (err?.isFeatureNotInPlan || err?.response?.data?.errors?.code === 'FEATURE_NOT_IN_PLAN') {
+        toast.warning(err);
+      } else {
+        toast.error('Failed to load bus list.');
+      }
     } finally {
       setLoading(false);
     }

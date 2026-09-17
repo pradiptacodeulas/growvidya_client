@@ -85,8 +85,23 @@ export const apiFetch = async (endpoint, options = {}) => {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
-    const errorMsg = extractUserFriendlyMessage({ response: { status: response.status, data } });
-    throw new Error(errorMsg);
+    const isFeatureNotInPlan =
+      data?.errors?.code === 'FEATURE_NOT_IN_PLAN' ||
+      data?.code === 'FEATURE_NOT_IN_PLAN' ||
+      (typeof data?.message === 'string' &&
+        (data.message.includes('not included in your') ||
+         data.message.includes('upgrade your current plan') ||
+         data.message.includes('upgrade your subscription plan')));
+
+    const errorMsg = isFeatureNotInPlan
+      ? 'You are not allow to use this features try to upgrade your current plan'
+      : extractUserFriendlyMessage({ response: { status: response.status, data } });
+
+    const err = new Error(errorMsg);
+    err.isFeatureNotInPlan = isFeatureNotInPlan;
+    err.isFeatureWarning = isFeatureNotInPlan;
+    err.response = { status: response.status, data };
+    throw err;
   }
 
   // Automatically sort dropdown lists in descending order

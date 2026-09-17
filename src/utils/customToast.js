@@ -11,6 +11,36 @@ import {
 } from '../../node_modules/react-toastify/dist/index.mjs';
 
 /**
+ * Warning message when a feature is not included in current subscription plan
+ */
+export const FEATURE_WARNING_MESSAGE =
+  'You are not allow to use this features try to upgrade your current plan';
+
+export function isFeaturePlanWarning(target) {
+  if (!target) return false;
+  if (typeof target === 'string') {
+    const lower = target.toLowerCase();
+    return (
+      lower.includes('feature_not_in_plan') ||
+      lower.includes('not included in your') ||
+      lower.includes('upgrade your subscription plan') ||
+      lower.includes('upgrade your current plan') ||
+      lower.includes('not allow to use this features') ||
+      lower.includes('not allowed to use this feature')
+    );
+  }
+  if (target.isFeatureNotInPlan || target.isFeatureWarning) return true;
+  const data = target.response?.data;
+  if (data) {
+    if (data.errors?.code === 'FEATURE_NOT_IN_PLAN' || data.code === 'FEATURE_NOT_IN_PLAN') return true;
+    if (typeof data.message === 'string' && isFeaturePlanWarning(data.message)) return true;
+    if (typeof data.error === 'string' && isFeaturePlanWarning(data.error)) return true;
+  }
+  if (target.message && isFeaturePlanWarning(target.message)) return true;
+  return false;
+}
+
+/**
  * Normalizes and cleans raw error messages, SQL errors, HTTP statuses, and network failures
  * into clear, actionable, user-friendly warnings.
  */
@@ -19,6 +49,11 @@ export function cleanErrorMessage(msg) {
   if (typeof msg !== 'string') return String(msg);
 
   let text = msg.trim();
+
+  // Feature plan restriction check
+  if (isFeaturePlanWarning(text)) {
+    return FEATURE_WARNING_MESSAGE;
+  }
 
   // 1. Axios default status strings: "Request failed with status code 400/404/500"
   const statusMatch = text.match(/Request failed with status code (\d+)/i);
@@ -101,6 +136,10 @@ export function cleanErrorMessage(msg) {
 export function extractUserFriendlyMessage(target) {
   if (!target) return 'An unexpected error occurred. Please try again.';
 
+  if (isFeaturePlanWarning(target)) {
+    return FEATURE_WARNING_MESSAGE;
+  }
+
   if (typeof target === 'string') {
     return cleanErrorMessage(target);
   }
@@ -109,6 +148,9 @@ export function extractUserFriendlyMessage(target) {
   if (target.response && typeof target.response === 'object') {
     const data = target.response.data;
     if (data) {
+      if (isFeaturePlanWarning(data)) {
+        return FEATURE_WARNING_MESSAGE;
+      }
       // 1. Validation errors array
       if (Array.isArray(data.errors) && data.errors.length > 0) {
         const list = data.errors
@@ -145,6 +187,9 @@ export function extractUserFriendlyMessage(target) {
 
   // If it's a standard JS Error object
   if (target instanceof Error || target.message) {
+    if (isFeaturePlanWarning(target.message)) {
+      return FEATURE_WARNING_MESSAGE;
+    }
     return cleanErrorMessage(target.message);
   }
 
@@ -153,7 +198,13 @@ export function extractUserFriendlyMessage(target) {
 
 // Proxied toast function
 const toast = (content, options) => {
+  if (isFeaturePlanWarning(content)) {
+    return realToast.warn(FEATURE_WARNING_MESSAGE, options);
+  }
   const resolved = typeof content === 'string' ? cleanErrorMessage(content) : extractUserFriendlyMessage(content);
+  if (isFeaturePlanWarning(resolved)) {
+    return realToast.warn(FEATURE_WARNING_MESSAGE, options);
+  }
   return realToast(resolved, options);
 };
 
@@ -162,12 +213,21 @@ Object.assign(toast, realToast);
 
 // Enhance toast.error
 toast.error = (content, options) => {
+  if (isFeaturePlanWarning(content)) {
+    return realToast.warn(FEATURE_WARNING_MESSAGE, options);
+  }
   const resolved = extractUserFriendlyMessage(content);
+  if (isFeaturePlanWarning(resolved)) {
+    return realToast.warn(FEATURE_WARNING_MESSAGE, options);
+  }
   return realToast.error(resolved, options);
 };
 
 // Enhance toast.warn / warning
 toast.warn = (content, options) => {
+  if (isFeaturePlanWarning(content)) {
+    return realToast.warn(FEATURE_WARNING_MESSAGE, options);
+  }
   const resolved = typeof content === 'string' ? cleanErrorMessage(content) : extractUserFriendlyMessage(content);
   return realToast.warn(resolved, options);
 };

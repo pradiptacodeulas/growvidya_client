@@ -57,15 +57,44 @@ const ClassReport = () => {
         const currentYear = res.data.academicYears.find(
           (y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent
         );
+        let defaultYear = '';
         if (currentYear) {
-          setFilters((prev) => ({ ...prev, academicYear: String(currentYear.id) }));
+          defaultYear = String(currentYear.id);
         } else if (res.data.academicYears.length > 0) {
-          setFilters((prev) => ({ ...prev, academicYear: String(res.data.academicYears[0].id) }));
+          defaultYear = String(res.data.academicYears[0].id);
         }
 
+        let defaultShift = '';
         if (res.data.shifts.length > 0) {
-          const firstShift = res.data.shifts[0];
-          setFilters((prev) => ({ ...prev, shift: String(firstShift.id) }));
+          defaultShift = String(res.data.shifts[0].id);
+        }
+
+        const shiftClasses = defaultShift
+          ? res.data.classes.filter((c) => String(c.shift_id) === String(defaultShift))
+          : res.data.classes;
+        const defaultClass = shiftClasses.length > 0 ? String(shiftClasses[0].id) : (res.data.classes.length > 0 ? String(res.data.classes[0].id) : '');
+
+        const classSections = defaultClass
+          ? res.data.sections.filter((s) => String(s.class_id) === String(defaultClass))
+          : [];
+        const defaultSection = classSections.length > 0 ? String(classSections[0].id) : '';
+
+        setFilters({
+          academicYear: defaultYear,
+          shift: defaultShift,
+          class: defaultClass,
+          section: defaultSection,
+        });
+
+        if (defaultYear && defaultShift && defaultClass && defaultSection) {
+          const params = {
+            academicYearId: defaultYear,
+            shiftId: defaultShift,
+            classId: defaultClass,
+            sectionId: defaultSection,
+          };
+          setActiveParams(params);
+          fetchReport(params, 1, pageSize, '');
         }
       }
     } catch (err) {
@@ -91,21 +120,35 @@ const ClassReport = () => {
   // When shift changes, update available class
   const handleShiftChange = (e) => {
     const shiftVal = e.target.value;
+    const shiftClasses = shiftVal
+      ? options.classes.filter((c) => String(c.shift_id) === String(shiftVal))
+      : options.classes;
+    const defaultClass = shiftClasses.length > 0 ? String(shiftClasses[0].id) : '';
+    const classSections = defaultClass
+      ? options.sections.filter((s) => String(s.class_id) === String(defaultClass))
+      : [];
+    const defaultSection = classSections.length > 0 ? String(classSections[0].id) : '';
+
     setFilters((prev) => ({
       ...prev,
       shift: shiftVal,
-      class: '',
-      section: '',
+      class: defaultClass,
+      section: defaultSection,
     }));
   };
 
   // When class changes, reset section
   const handleClassChange = (e) => {
     const classVal = e.target.value;
+    const classSections = classVal
+      ? options.sections.filter((s) => String(s.class_id) === String(classVal))
+      : [];
+    const defaultSection = classSections.length > 0 ? String(classSections[0].id) : '';
+
     setFilters((prev) => ({
       ...prev,
       class: classVal,
-      section: '',
+      section: defaultSection,
     }));
   };
 
@@ -350,7 +393,59 @@ const ClassReport = () => {
       {/* /Filter */}
 
       {/* Report Content Section */}
-      {summary && (
+      {optionsLoading ? (
+        <div className="card p-5 text-center shadow-sm border-0 mb-4">
+          <div className="spinner-border text-primary mx-auto mb-3" role="status"></div>
+          <p className="text-muted mb-0">Loading class report...</p>
+        </div>
+      ) : options.classes.length === 0 ? (
+        <div className="card shadow-sm border p-5 text-center mb-4">
+          <NoData
+            title="No Classes Found"
+            message="No classes are available to generate a class report. Please configure classes in Academics."
+            imageHeight={120}
+            py={3}
+            action={
+              <div className="d-flex justify-content-center gap-2 flex-wrap">
+                <Link to="/admin/academics/classes" className="btn btn-primary btn-sm">
+                  <i className="ti ti-school me-1"></i> Add Classes
+                </Link>
+                <Link to="/admin/academics/sections" className="btn btn-outline-primary btn-sm">
+                  <i className="ti ti-layout-grid me-1"></i> Add Sections
+                </Link>
+              </div>
+            }
+          />
+        </div>
+      ) : options.sections.length === 0 ? (
+        <div className="card shadow-sm border p-5 text-center mb-4">
+          <NoData
+            title="No Sections Found"
+            message="No sections are available to generate a class report. Please configure sections in Academics."
+            imageHeight={120}
+            py={3}
+            action={
+              <Link to="/admin/academics/sections" className="btn btn-primary btn-sm">
+                <i className="ti ti-layout-grid me-1"></i> Add Sections
+              </Link>
+            }
+          />
+        </div>
+      ) : loading ? (
+        <div className="card p-5 text-center shadow-sm border-0 mb-4">
+          <div className="spinner-border text-primary mx-auto mb-3" role="status"></div>
+          <p className="text-muted mb-0">Loading class report data...</p>
+        </div>
+      ) : !summary ? (
+        <div className="card shadow-sm border p-5 text-center mb-4">
+          <NoData
+            title="No Report Generated"
+            message="Please select an Academic Year, Shift, Class, and Section, then click 'Show Report' to view the class report."
+            imageHeight={120}
+            py={3}
+          />
+        </div>
+      ) : (
         <div className="row">
           <div id="classTableBody" className="col-12">
             {/* Basic Information Card */}
@@ -373,8 +468,18 @@ const ClassReport = () => {
 
             {/* Students Table Card */}
             <div className="card shadow-sm border-0 mb-4">
-              <div className="card-body p-0">
-                <div id="DataTables_Table_0_wrapper" className="dataTables_wrapper dt-bootstrap5 no-footer">
+              {students.length === 0 && !searchTerm ? (
+                <div className="card-body p-5 text-center">
+                  <NoData
+                    title="No Students Found"
+                    message="No students found for the selected class and section."
+                    imageHeight={120}
+                    py={3}
+                  />
+                </div>
+              ) : (
+                <div className="card-body p-0">
+                  <div id="DataTables_Table_0_wrapper" className="dataTables_wrapper dt-bootstrap5 no-footer">
                   {/* Table Header Controls */}
                   <div className="row g-3 p-3 align-items-center">
                     <div className="col-12 col-sm-6">
@@ -463,7 +568,7 @@ const ClassReport = () => {
                             Email
                           </th>
                           <th className="text-center" style={{ width: '90px', whiteSpace: 'nowrap' }}>
-                            Gander
+                            Gender
                           </th>
                           <th className="text-center" style={{ width: '85px', whiteSpace: 'nowrap' }}>
                             Marks
@@ -620,6 +725,7 @@ const ClassReport = () => {
                   </div>
                 </div>
               </div>
+              )}
             </div>
           </div>
         </div>

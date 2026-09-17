@@ -74,7 +74,11 @@ const AssignTransportList = () => {
       );
       setClasses(classesRes?.data || classesRes || []);
     } catch (err) {
-      toast.error('Failed to load allocations data.');
+      if (err?.isFeatureNotInPlan || err?.response?.data?.errors?.code === 'FEATURE_NOT_IN_PLAN') {
+        toast.warning(err);
+      } else {
+        toast.error('Failed to load allocations data.');
+      }
     } finally {
       setLoading(false);
     }

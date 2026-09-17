@@ -27,7 +27,11 @@ const HelpersList = () => {
       const res = await fetchHelpersApi();
       setHelpers(res?.data?.helpers || res?.helpers || []);
     } catch (err) {
-      toast.error('Failed to load helpers list.');
+      if (err?.isFeatureNotInPlan || err?.response?.data?.errors?.code === 'FEATURE_NOT_IN_PLAN') {
+        toast.warning(err);
+      } else {
+        toast.error('Failed to load helpers list.');
+      }
     } finally {
       setLoading(false);
     }
