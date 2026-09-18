@@ -27,6 +27,7 @@ const FeesStructures = () => {
   const [modalMode, setModalMode] = useState('add'); // 'add' | 'edit'
   const [saving, setSaving] = useState(false);
   const [currentId, setCurrentId] = useState(null);
+  const [isOriginallyPublished, setIsOriginallyPublished] = useState(false);
 
   // Modal State for View / Details
   const [showViewModal, setShowViewModal] = useState(false);
@@ -156,6 +157,7 @@ const FeesStructures = () => {
   const handleOpenAddModal = () => {
     setModalMode('add');
     setCurrentId(null);
+    setIsOriginallyPublished(false);
 
     const defaultYear =
       academicYears.find((a) => Number(a.is_current) === 1 || String(a.is_current) === '1' || a.isCurrent)?.id ||
@@ -194,6 +196,8 @@ const FeesStructures = () => {
   const handleOpenEditModal = async (struct) => {
     setModalMode('edit');
     setCurrentId(struct.id);
+    const structIsPub = Number(struct.is_published) === 1;
+    setIsOriginallyPublished(structIsPub);
 
     try {
       const res = await adminFeesApi.getStructureById(struct.id);
@@ -206,7 +210,8 @@ const FeesStructures = () => {
             .filter(Boolean)
         : [];
 
-      const isPublished = detail.is_published === 1;
+      const isPublished = Number(detail.is_published) === 1;
+      setIsOriginallyPublished(isPublished);
       const detailComps = detail.components || [];
 
       let mappedComps = [];
@@ -222,7 +227,7 @@ const FeesStructures = () => {
           {
             fee_component_id: feeComponents.length > 0 ? String(feeComponents[0].id) : '',
             amount: '0.00',
-            isLocked: false,
+            isLocked: isPublished,
           },
         ];
       }
@@ -283,7 +288,7 @@ const FeesStructures = () => {
   };
 
   const handleClassCheckboxToggle = (classId) => {
-    if (formData.is_published === 1) return;
+    if (isOriginallyPublished || formData.is_published === 1) return;
     const cidStr = String(classId);
     setFormData((prev) => {
       const exists = prev.class_id.includes(cidStr);
@@ -295,7 +300,7 @@ const FeesStructures = () => {
   };
 
   const handleSelectAllClasses = (e) => {
-    if (formData.is_published === 1) return;
+    if (isOriginallyPublished || formData.is_published === 1) return;
     if (e.target.checked) {
       setFormData((prev) => ({
         ...prev,
@@ -311,6 +316,7 @@ const FeesStructures = () => {
 
   // Line Item Row Handlers
   const handleAddRow = () => {
+    if (isOriginallyPublished || formData.is_published === 1) return;
     setFormData((prev) => ({
       ...prev,
       components: [
@@ -401,9 +407,13 @@ const FeesStructures = () => {
     }
 
     const isPublishedVal =
-      publishOverride !== null && publishOverride !== undefined
+      isOriginallyPublished
+        ? 1
+        : publishOverride !== null && publishOverride !== undefined
         ? publishOverride
-        : (formData.is_published === 1 ? 1 : 0);
+        : formData.is_published === 1
+        ? 1
+        : 0;
 
     const payload = {
       ...formData,
@@ -437,24 +447,24 @@ const FeesStructures = () => {
   const [togglingId, setTogglingId] = useState(null);
 
   const handleTogglePublish = async (struct) => {
-    const nextStatus = struct.is_published === 1 ? 0 : 1;
-    const confirmMsg =
-      nextStatus === 1
-        ? `Are you sure you want to publish "${struct.name}"? It will become active for student billing.`
-        : `Are you sure you want to revert "${struct.name}" to Draft? You will be able to edit its classes and line items again.`;
+    if (Number(struct.is_published) === 1) {
+      toast.info('A published fee structure cannot be reverted to Draft. It must remain published.');
+      return;
+    }
+
+    const confirmMsg = `Are you sure you want to publish "${struct.name}"? It will become active for student billing.`;
 
     if (!window.confirm(confirmMsg)) return;
 
     try {
       setTogglingId(struct.id);
-      const res = await adminFeesApi.togglePublishStructure(struct.id, nextStatus);
+      const res = await adminFeesApi.togglePublishStructure(struct.id, 1);
       toast.success(
-        res?.message ||
-          `Fee structure status changed to ${nextStatus === 1 ? 'Published' : 'Draft'}.`
+        res?.message || 'Fee structure published successfully.'
       );
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
-      console.error('Failed to toggle publish status:', err);
+      console.error('Failed to publish fee structure:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to update status.');
     } finally {
       setTogglingId(null);
@@ -629,28 +639,33 @@ const FeesStructures = () => {
                         </span>
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="btn btn-link p-0 text-decoration-none border-0"
-                          onClick={() => handleTogglePublish(struct)}
-                          disabled={togglingId === struct.id}
-                          title={`Click to switch to ${struct.is_published === 1 ? 'Draft' : 'Published'}`}
-                        >
-                          {togglingId === struct.id ? (
-                            <span className="badge bg-secondary">
-                              <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                              Updating...
-                            </span>
-                          ) : struct.is_published === 1 ? (
-                            <span className="badge bg-success shadow-sm" style={{ cursor: 'pointer' }}>
-                              <i className="ti ti-check me-1"></i>Published
-                            </span>
-                          ) : (
-                            <span className="badge bg-warning text-dark shadow-sm" style={{ cursor: 'pointer' }}>
-                              <i className="ti ti-clock me-1"></i>Draft
-                            </span>
-                          )}
-                        </button>
+                        {struct.is_published === 1 ? (
+                          <span
+                            className="badge bg-success shadow-sm"
+                            title="Published (A published fee structure cannot be reverted to Draft)"
+                          >
+                            <i className="ti ti-check me-1"></i>Published
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-link p-0 text-decoration-none border-0"
+                            onClick={() => handleTogglePublish(struct)}
+                            disabled={togglingId === struct.id}
+                            title="Click to publish this structure"
+                          >
+                            {togglingId === struct.id ? (
+                              <span className="badge bg-secondary">
+                                <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                                Updating...
+                              </span>
+                            ) : (
+                              <span className="badge bg-warning text-dark shadow-sm" style={{ cursor: 'pointer' }}>
+                                <i className="ti ti-clock me-1"></i>Draft
+                              </span>
+                            )}
+                          </button>
+                        )}
                       </td>
                       <td>
                         <button
@@ -669,17 +684,7 @@ const FeesStructures = () => {
                         >
                           <i className="ti ti-edit me-1"></i>Edit
                         </button>
-                        {struct.is_published === 1 ? (
-                          <button
-                            type="button"
-                            className="btn btn-sm btn-outline-warning me-1"
-                            onClick={() => handleTogglePublish(struct)}
-                            disabled={togglingId === struct.id}
-                            title="Revert to Draft"
-                          >
-                            <i className="ti ti-clock me-1"></i>Draft
-                          </button>
-                        ) : (
+                        {struct.is_published !== 1 && (
                           <button
                             type="button"
                             className="btn btn-sm btn-outline-success me-1"
@@ -723,7 +728,7 @@ const FeesStructures = () => {
                   <h5 className="modal-title text-dark fw-bold" id="structureModalTitle">
                     {modalMode === 'add'
                       ? 'Create Master Fee Structure'
-                      : formData.is_published === 1
+                      : isOriginallyPublished || formData.is_published === 1
                       ? 'Edit Fee Structure (Published)'
                       : 'Edit Master Fee Structure'}
                   </h5>
@@ -762,7 +767,7 @@ const FeesStructures = () => {
                       <select
                         name="branch_id"
                         className="form-select"
-                        disabled={formData.is_published === 1}
+                        disabled={isOriginallyPublished || formData.is_published === 1}
                         value={formData.branch_id || ''}
                         onChange={(e) => setFormData({ ...formData, branch_id: e.target.value })}
                       >
@@ -784,7 +789,7 @@ const FeesStructures = () => {
                         <label className="form-label fw-semibold mb-0">
                           Target Classes <span className="text-danger">*</span>
                         </label>
-                        {formData.is_published !== 1 && (
+                        {!(isOriginallyPublished || formData.is_published === 1) && (
                           <div className="form-check form-check-inline mb-0">
                             <input
                               type="checkbox"
@@ -805,7 +810,7 @@ const FeesStructures = () => {
                         )}
                       </div>
 
-                      {formData.is_published === 1 ? (
+                      {isOriginallyPublished || formData.is_published === 1 ? (
                         <div className="p-2 border rounded bg-light" style={{ maxHeight: '120px', overflowY: 'auto' }}>
                           <div className="d-flex flex-wrap gap-1">
                             {formData.class_id.map((cid) => {
@@ -855,7 +860,7 @@ const FeesStructures = () => {
                         name="academic_year_id"
                         className="form-select"
                         required
-                        disabled={formData.is_published === 1}
+                        disabled={isOriginallyPublished || formData.is_published === 1}
                         value={formData.academic_year_id}
                         onChange={(e) => setFormData({ ...formData, academic_year_id: e.target.value })}
                       >
@@ -1049,13 +1054,15 @@ const FeesStructures = () => {
                     </table>
                   </div>
 
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-outline-primary mt-2"
-                    onClick={handleAddRow}
-                  >
-                    <i className="ti ti-plus me-1"></i>Add Another Line Item
-                  </button>
+                  {!(isOriginallyPublished || formData.is_published === 1) && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary mt-2"
+                      onClick={handleAddRow}
+                    >
+                      <i className="ti ti-plus me-1"></i>Add Another Line Item
+                    </button>
+                  )}
 
                   {/* Auto Allocation Setting */}
                   <div className="card bg-light border-0 shadow-none mt-3 mb-0">
@@ -1099,17 +1106,19 @@ const FeesStructures = () => {
                           <div className="d-flex align-items-center gap-2 mb-1">
                             <i
                               className={`ti ${
-                                formData.is_published === 1
+                                isOriginallyPublished || formData.is_published === 1
                                   ? 'ti-circle-check text-success'
                                   : 'ti-clock text-warning'
                               } fs-18`}
                             ></i>
                             <label
                               htmlFor="is_published_toggle"
-                              className="form-check-label fw-bold text-dark cursor-pointer mb-0"
+                              className={`form-check-label fw-bold text-dark mb-0 ${
+                                isOriginallyPublished ? '' : 'cursor-pointer'
+                              }`}
                             >
                               Publish Status:{' '}
-                              {formData.is_published === 1 ? (
+                              {isOriginallyPublished || formData.is_published === 1 ? (
                                 <span className="badge bg-success ms-1">Published</span>
                               ) : (
                                 <span className="badge bg-warning text-dark ms-1">Draft</span>
@@ -1117,21 +1126,30 @@ const FeesStructures = () => {
                             </label>
                           </div>
                           <p className="text-muted fs-12 mb-0">
-                            {formData.is_published === 1
+                            {isOriginallyPublished
+                              ? 'This fee structure is published and active for student billing. Once published, a fee structure cannot be reverted to Draft.'
+                              : formData.is_published === 1
                               ? 'This structure will be published immediately upon saving and active for student billing.'
                               : 'Keep in Draft mode. You can freely edit target classes and fee components anytime.'}
                           </p>
                         </div>
                         <div className="form-check form-switch fs-5 mb-0">
                           <input
-                            className="form-check-input cursor-pointer"
+                            className={`form-check-input ${isOriginallyPublished ? '' : 'cursor-pointer'}`}
                             type="checkbox"
                             role="switch"
                             id="is_published_toggle"
-                            checked={formData.is_published === 1}
-                            onChange={(e) =>
-                              setFormData({ ...formData, is_published: e.target.checked ? 1 : 0 })
+                            checked={isOriginallyPublished || formData.is_published === 1}
+                            disabled={isOriginallyPublished}
+                            title={
+                              isOriginallyPublished
+                                ? 'A published fee structure cannot be reverted to Draft'
+                                : ''
                             }
+                            onChange={(e) => {
+                              if (isOriginallyPublished) return;
+                              setFormData({ ...formData, is_published: e.target.checked ? 1 : 0 });
+                            }}
                           />
                         </div>
                       </div>
@@ -1147,31 +1165,33 @@ const FeesStructures = () => {
                   >
                     Cancel
                   </button>
-                  <button
-                    type="button"
-                    className="btn btn-outline-secondary"
-                    disabled={saving}
-                    onClick={(e) => handleSubmit(e, 0)}
-                  >
-                    {saving && formData.is_published === 0 ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <i className="ti ti-file me-1"></i>
-                        Save as Draft
-                      </>
-                    )}
-                  </button>
+                  {!isOriginallyPublished && (
+                    <button
+                      type="button"
+                      className="btn btn-outline-secondary"
+                      disabled={saving}
+                      onClick={(e) => handleSubmit(e, 0)}
+                    >
+                      {saving && formData.is_published === 0 ? (
+                        <>
+                          <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <i className="ti ti-file me-1"></i>
+                          Save as Draft
+                        </>
+                      )}
+                    </button>
+                  )}
                   <button
                     type="button"
                     className="btn btn-success"
                     disabled={saving}
                     onClick={(e) => handleSubmit(e, 1)}
                   >
-                    {saving && formData.is_published === 1 ? (
+                    {saving && (formData.is_published === 1 || isOriginallyPublished) ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-1" role="status"></span>
                         Saving...
@@ -1179,7 +1199,11 @@ const FeesStructures = () => {
                     ) : (
                       <>
                         <i className="ti ti-check me-1"></i>
-                        {modalMode === 'add' ? 'Save & Publish' : 'Save as Published'}
+                        {modalMode === 'add'
+                          ? 'Save & Publish'
+                          : isOriginallyPublished
+                          ? 'Save Changes'
+                          : 'Save as Published'}
                       </>
                     )}
                   </button>
