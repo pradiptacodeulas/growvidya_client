@@ -288,7 +288,7 @@ const FeesStructures = () => {
   };
 
   const handleClassCheckboxToggle = (classId) => {
-    if (isOriginallyPublished || formData.is_published === 1) return;
+    if (isOriginallyPublished) return;
     const cidStr = String(classId);
     setFormData((prev) => {
       const exists = prev.class_id.includes(cidStr);
@@ -300,7 +300,7 @@ const FeesStructures = () => {
   };
 
   const handleSelectAllClasses = (e) => {
-    if (isOriginallyPublished || formData.is_published === 1) return;
+    if (isOriginallyPublished) return;
     if (e.target.checked) {
       setFormData((prev) => ({
         ...prev,
@@ -316,7 +316,7 @@ const FeesStructures = () => {
 
   // Line Item Row Handlers
   const handleAddRow = () => {
-    if (isOriginallyPublished || formData.is_published === 1) return;
+    if (isOriginallyPublished) return;
     setFormData((prev) => ({
       ...prev,
       components: [
@@ -406,10 +406,16 @@ const FeesStructures = () => {
       return;
     }
 
-    const isPublishedVal =
-      publishOverride !== null && publishOverride !== undefined
-        ? publishOverride
-        : 1;
+    let isPublishedVal = 0;
+    if (isOriginallyPublished) {
+      isPublishedVal = 1; // Once published, it must remain published permanently
+    } else if (publishOverride !== null && publishOverride !== undefined) {
+      isPublishedVal = publishOverride ? 1 : 0;
+    } else if (modalMode === 'add') {
+      isPublishedVal = 0; // First-time creation is always saved as Draft
+    } else {
+      isPublishedVal = Number(formData.is_published) === 1 ? 1 : 0;
+    }
 
     const payload = {
       ...formData,
@@ -427,7 +433,9 @@ const FeesStructures = () => {
       toast.success(
         res?.message ||
           (modalMode === 'add'
-            ? 'Fee structure created successfully.'
+            ? 'Fee structure created as Draft successfully.'
+            : isPublishedVal === 1
+            ? 'Fee structure published successfully.'
             : 'Fee structure updated successfully.')
       );
       setShowModal(false);
@@ -739,9 +747,9 @@ const FeesStructures = () => {
                 <div className="modal-body p-4" style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
                   <input type="hidden" name="id" value={currentId || ''} />
 
-                  {/* Row 1: Structure Name & Campus / Branch */}
+                  {/* Row 1: Structure Name, Campus / Branch & Status */}
                   <div className="row g-3 mb-3">
-                    <div className="col-md-7">
+                    <div className="col-md-5">
                       <label className="form-label fw-semibold">
                         Structure Name <span className="text-danger">*</span>
                       </label>
@@ -756,14 +764,14 @@ const FeesStructures = () => {
                       />
                     </div>
 
-                    <div className="col-md-5">
+                    <div className="col-md-4">
                       <label className="form-label fw-semibold">
                         Campus / Branch
                       </label>
                       <select
                         name="branch_id"
                         className="form-select"
-                        disabled={isOriginallyPublished || formData.is_published === 1}
+                        disabled={isOriginallyPublished || (modalMode === 'edit' && formData.is_published === 1)}
                         value={formData.branch_id || ''}
                         onChange={(e) => setFormData({ ...formData, branch_id: e.target.value })}
                       >
@@ -776,6 +784,45 @@ const FeesStructures = () => {
                       </select>
                       <small className="text-muted fs-11">Applies across school or to this campus</small>
                     </div>
+
+                    <div className="col-md-3">
+                      <label className="form-label fw-semibold">Status</label>
+                      {modalMode === 'add' ? (
+                        <div>
+                          <span className="badge bg-warning text-dark py-2 px-3 fs-12 d-inline-flex align-items-center">
+                            <i className="ti ti-clock me-1"></i>Draft
+                          </span>
+                          <small className="text-muted d-block mt-1 fs-11">Saved initially as Draft</small>
+                        </div>
+                      ) : isOriginallyPublished ? (
+                        <div>
+                          <span
+                            className="badge bg-success py-2 px-3 fs-12 d-inline-flex align-items-center"
+                            title="A published fee structure cannot be reverted to Draft"
+                          >
+                            <i className="ti ti-check me-1"></i>Published
+                          </span>
+                          <small className="text-muted d-block mt-1 fs-11">Published permanently</small>
+                        </div>
+                      ) : (
+                        <div>
+                          <select
+                            name="is_published"
+                            className="form-select"
+                            value={formData.is_published}
+                            onChange={(e) =>
+                              setFormData({ ...formData, is_published: parseInt(e.target.value, 10) })
+                            }
+                          >
+                            <option value="0">Draft</option>
+                            <option value="1">Published</option>
+                          </select>
+                          <small className="text-muted d-block mt-1 fs-11">
+                            {formData.is_published === 1 ? 'Will publish on save' : 'Draft status'}
+                          </small>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
                   {/* Row 1b: Target Classes */}
@@ -785,7 +832,7 @@ const FeesStructures = () => {
                         <label className="form-label fw-semibold mb-0">
                           Target Classes <span className="text-danger">*</span>
                         </label>
-                        {!(isOriginallyPublished || formData.is_published === 1) && (
+                        {!isOriginallyPublished && (
                           <div className="form-check form-check-inline mb-0">
                             <input
                               type="checkbox"
@@ -806,7 +853,7 @@ const FeesStructures = () => {
                         )}
                       </div>
 
-                      {isOriginallyPublished || formData.is_published === 1 ? (
+                      {isOriginallyPublished ? (
                         <div className="p-2 border rounded bg-light" style={{ maxHeight: '120px', overflowY: 'auto' }}>
                           <div className="d-flex flex-wrap gap-1">
                             {formData.class_id.map((cid) => {
@@ -856,7 +903,7 @@ const FeesStructures = () => {
                         name="academic_year_id"
                         className="form-select"
                         required
-                        disabled={isOriginallyPublished || formData.is_published === 1}
+                        disabled={isOriginallyPublished}
                         value={formData.academic_year_id}
                         onChange={(e) => setFormData({ ...formData, academic_year_id: e.target.value })}
                       >
@@ -1050,7 +1097,7 @@ const FeesStructures = () => {
                     </table>
                   </div>
 
-                  {!(isOriginallyPublished || formData.is_published === 1) && (
+                  {!isOriginallyPublished && (
                     <button
                       type="button"
                       className="btn btn-sm btn-outline-primary mt-2"
@@ -1383,7 +1430,7 @@ const FeesStructures = () => {
                     </div>
                   )}
                 </div>
-                <div className="modal-footer bg-light py-2">
+                <div className="modal-footer bg-light py-2 gap-2">
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -1391,6 +1438,20 @@ const FeesStructures = () => {
                   >
                     Close
                   </button>
+                  {viewStructure.is_published !== 1 && (
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      disabled={togglingId === viewStructure.id}
+                      onClick={async () => {
+                        await handleTogglePublish(viewStructure);
+                        setShowViewModal(false);
+                      }}
+                    >
+                      <i className="ti ti-check me-1"></i>
+                      Publish Structure
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
