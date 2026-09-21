@@ -407,13 +407,9 @@ const FeesStructures = () => {
     }
 
     const isPublishedVal =
-      isOriginallyPublished
-        ? 1
-        : publishOverride !== null && publishOverride !== undefined
+      publishOverride !== null && publishOverride !== undefined
         ? publishOverride
-        : formData.is_published === 1
-        ? 1
-        : 0;
+        : 1;
 
     const payload = {
       ...formData,
@@ -1063,98 +1059,6 @@ const FeesStructures = () => {
                       <i className="ti ti-plus me-1"></i>Add Another Line Item
                     </button>
                   )}
-
-                  {/* Auto Allocation Setting */}
-                  <div className="card bg-light border-0 shadow-none mt-3 mb-0">
-                    <div className="card-body p-3">
-                      <div className="d-flex align-items-center justify-content-between">
-                        <div className="me-3">
-                          <div className="d-flex align-items-center gap-2 mb-1">
-                            <i className="ti ti-users-group text-primary fs-18"></i>
-                            <label
-                              htmlFor="auto_allocate_toggle"
-                              className="form-check-label fw-bold text-dark cursor-pointer mb-0"
-                            >
-                              Auto-assign to students in selected classes
-                            </label>
-                          </div>
-                          <p className="text-muted fs-12 mb-0">
-                            Automatically assigns this fee structure to all active students enrolled in the selected class(es) upon saving, without needing manual allocation.
-                          </p>
-                        </div>
-                        <div className="form-check form-switch fs-5 mb-0">
-                          <input
-                            className="form-check-input cursor-pointer"
-                            type="checkbox"
-                            role="switch"
-                            id="auto_allocate_toggle"
-                            checked={formData.auto_allocate !== false}
-                            onChange={(e) =>
-                              setFormData({ ...formData, auto_allocate: e.target.checked })
-                            }
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Publish Status Setting */}
-                  <div className="card bg-light border-0 shadow-none mt-3 mb-0">
-                    <div className="card-body p-3">
-                      <div className="d-flex align-items-center justify-content-between">
-                        <div className="me-3">
-                          <div className="d-flex align-items-center gap-2 mb-1">
-                            <i
-                              className={`ti ${
-                                isOriginallyPublished || formData.is_published === 1
-                                  ? 'ti-circle-check text-success'
-                                  : 'ti-clock text-warning'
-                              } fs-18`}
-                            ></i>
-                            <label
-                              htmlFor="is_published_toggle"
-                              className={`form-check-label fw-bold text-dark mb-0 ${
-                                isOriginallyPublished ? '' : 'cursor-pointer'
-                              }`}
-                            >
-                              Publish Status:{' '}
-                              {isOriginallyPublished || formData.is_published === 1 ? (
-                                <span className="badge bg-success ms-1">Published</span>
-                              ) : (
-                                <span className="badge bg-warning text-dark ms-1">Draft</span>
-                              )}
-                            </label>
-                          </div>
-                          <p className="text-muted fs-12 mb-0">
-                            {isOriginallyPublished
-                              ? 'This fee structure is published and active for student billing. Once published, a fee structure cannot be reverted to Draft.'
-                              : formData.is_published === 1
-                              ? 'This structure will be published immediately upon saving and active for student billing.'
-                              : 'Keep in Draft mode. You can freely edit target classes and fee components anytime.'}
-                          </p>
-                        </div>
-                        <div className="form-check form-switch fs-5 mb-0">
-                          <input
-                            className={`form-check-input ${isOriginallyPublished ? '' : 'cursor-pointer'}`}
-                            type="checkbox"
-                            role="switch"
-                            id="is_published_toggle"
-                            checked={isOriginallyPublished || formData.is_published === 1}
-                            disabled={isOriginallyPublished}
-                            title={
-                              isOriginallyPublished
-                                ? 'A published fee structure cannot be reverted to Draft'
-                                : ''
-                            }
-                            onChange={(e) => {
-                              if (isOriginallyPublished) return;
-                              setFormData({ ...formData, is_published: e.target.checked ? 1 : 0 });
-                            }}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  </div>
                 </div>
 
                 <div className="modal-footer bg-light gap-2 flex-shrink-0">
@@ -1162,49 +1066,22 @@ const FeesStructures = () => {
                     type="button"
                     className="btn btn-secondary"
                     onClick={() => setShowModal(false)}
+                    disabled={saving}
                   >
                     Cancel
                   </button>
-                  {!isOriginallyPublished && (
-                    <button
-                      type="button"
-                      className="btn btn-outline-secondary"
-                      disabled={saving}
-                      onClick={(e) => handleSubmit(e, 0)}
-                    >
-                      {saving && formData.is_published === 0 ? (
-                        <>
-                          <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                          Saving...
-                        </>
-                      ) : (
-                        <>
-                          <i className="ti ti-file me-1"></i>
-                          Save as Draft
-                        </>
-                      )}
-                    </button>
-                  )}
                   <button
-                    type="button"
-                    className="btn btn-success"
+                    type="submit"
+                    className="btn btn-primary"
                     disabled={saving}
-                    onClick={(e) => handleSubmit(e, 1)}
                   >
-                    {saving && (formData.is_published === 1 || isOriginallyPublished) ? (
+                    {saving ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Saving...
+                        Submitting...
                       </>
                     ) : (
-                      <>
-                        <i className="ti ti-check me-1"></i>
-                        {modalMode === 'add'
-                          ? 'Save & Publish'
-                          : isOriginallyPublished
-                          ? 'Save Changes'
-                          : 'Save as Published'}
-                      </>
+                      'Submit'
                     )}
                   </button>
                 </div>
