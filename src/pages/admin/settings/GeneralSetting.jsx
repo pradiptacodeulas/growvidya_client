@@ -45,6 +45,12 @@ const GeneralSetting = () => {
     established_year: '',
     website: '',
     affiliation_board: '',
+    bank_name: '',
+    account_holder_name: '',
+    account_number: '',
+    ifsc_code: '',
+    branch_name: '',
+    upi_id: '',
   });
 
   // School Logo Upload State
@@ -83,6 +89,12 @@ const GeneralSetting = () => {
             established_year: school?.established_year || '',
             website: school?.website || '',
             affiliation_board: school?.affiliation_board || '',
+            bank_name: school?.bank_name || '',
+            account_holder_name: school?.account_holder_name || '',
+            account_number: school?.account_number || '',
+            ifsc_code: school?.ifsc_code || '',
+            branch_name: school?.branch_name || '',
+            upi_id: school?.upi_id || '',
           });
 
           if (Array.isArray(weekends)) {
@@ -700,6 +712,143 @@ const GeneralSetting = () => {
                             setFormData({ ...formData, affiliation_board: e.target.value })
                           }
                           required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Bank Details Section */}
+                    <div className="col-12 mt-3 mb-2">
+                      <div className="d-flex align-items-center justify-content-between p-2.5 px-3 bg-light rounded border">
+                        <div className="d-flex align-items-center gap-2">
+                          <span className="avatar avatar-sm bg-primary text-white rounded d-flex align-items-center justify-content-center">
+                            <i className="ti ti-building-bank fs-18"></i>
+                          </span>
+                          <div>
+                            <h5 className="mb-0 text-dark fw-bold fs-14">Bank Account Details</h5>
+                            <span className="text-muted fs-11">
+                              Manage school bank account and UPI details for fee collection and invoices.
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bank Name */}
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label text-dark fw-medium fs-13">
+                          Bank Name
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          name="bank_name"
+                          id="bank_name"
+                          placeholder="e.g. State Bank of India"
+                          value={formData.bank_name}
+                          onChange={(e) =>
+                            setFormData({ ...formData, bank_name: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Account Holder Name */}
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label text-dark fw-medium fs-13">
+                          Account Holder Name
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          name="account_holder_name"
+                          id="account_holder_name"
+                          placeholder="e.g. St. Xavier's International School"
+                          value={formData.account_holder_name}
+                          onChange={(e) =>
+                            setFormData({ ...formData, account_holder_name: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Account Number */}
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label text-dark fw-medium fs-13">
+                          Account Number
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm font-monospace"
+                          name="account_number"
+                          id="account_number"
+                          placeholder="e.g. 50100123456789"
+                          value={formData.account_number}
+                          onChange={(e) =>
+                            setFormData({ ...formData, account_number: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* IFSC Code */}
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label text-dark fw-medium fs-13">
+                          IFSC Code
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm font-monospace text-uppercase"
+                          name="ifsc_code"
+                          id="ifsc_code"
+                          placeholder="e.g. SBIN0001234"
+                          value={formData.ifsc_code}
+                          onChange={(e) =>
+                            setFormData({ ...formData, ifsc_code: e.target.value.toUpperCase() })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* Branch Name */}
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label text-dark fw-medium fs-13">
+                          Branch Name
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          name="branch_name"
+                          id="branch_name"
+                          placeholder="e.g. Main Campus Branch, MG Road"
+                          value={formData.branch_name}
+                          onChange={(e) =>
+                            setFormData({ ...formData, branch_name: e.target.value })
+                          }
+                        />
+                      </div>
+                    </div>
+
+                    {/* UPI ID */}
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label text-dark fw-medium fs-13">
+                          UPI ID / VPA
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          name="upi_id"
+                          id="upi_id"
+                          placeholder="e.g. schoolname@upi"
+                          value={formData.upi_id}
+                          onChange={(e) =>
+                            setFormData({ ...formData, upi_id: e.target.value })
+                          }
                         />
                       </div>
                     </div>
