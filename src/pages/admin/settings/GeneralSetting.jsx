@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -45,6 +45,7 @@ const GeneralSetting = () => {
     established_year: '',
     website: '',
     affiliation_board: '',
+    qr_code: '',
     bank_name: '',
     account_holder_name: '',
     account_number: '',
@@ -57,14 +58,32 @@ const GeneralSetting = () => {
   const [logoFile, setLogoFile] = useState(null);
   const [logoPreview, setLogoPreview] = useState(null);
 
+  // Payment QR Code Upload State
+  const [qrFile, setQrFile] = useState(null);
+  const [qrPreview, setQrPreview] = useState(null);
+
   // Weekends State (array of day numbers, e.g. [6, 7])
   const [selectedWeekends, setSelectedWeekends] = useState([6, 7]);
   const [weekendDropdownOpen, setWeekendDropdownOpen] = useState(false);
+  const weekendDropdownRef = useRef(null);
 
   // Dynamic Options
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
+
+  // Close weekends dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (weekendDropdownRef.current && !weekendDropdownRef.current.contains(event.target)) {
+        setWeekendDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
   // Fetch initial general settings
   useEffect(() => {
@@ -89,6 +108,7 @@ const GeneralSetting = () => {
             established_year: school?.established_year || '',
             website: school?.website || '',
             affiliation_board: school?.affiliation_board || '',
+            qr_code: school?.qr_code || '',
             bank_name: school?.bank_name || '',
             account_holder_name: school?.account_holder_name || '',
             account_number: school?.account_number || '',
@@ -98,7 +118,7 @@ const GeneralSetting = () => {
           });
 
           if (Array.isArray(weekends)) {
-            setSelectedWeekends(weekends);
+            setSelectedWeekends(weekends.map(Number));
           }
 
           setCountries(countryList || []);
@@ -176,11 +196,50 @@ const GeneralSetting = () => {
     setFormData((prev) => ({ ...prev, school_logo: '' }));
   };
 
+  // Handle QR Code file selection
+  const handleQrFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/svg+xml'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Invalid image format. Please select PNG, JPG, WEBP, or SVG.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('File size exceeds 5MB. Please choose a smaller image.');
+      return;
+    }
+
+    setQrFile(file);
+    setQrPreview(URL.createObjectURL(file));
+  };
+
+  // Handle Remove QR Code
+  const handleRemoveQr = () => {
+    setQrFile(null);
+    setQrPreview(null);
+    setFormData((prev) => ({ ...prev, qr_code: '' }));
+  };
+
   // Weekend toggle helper
   const toggleWeekend = (dayId) => {
-    setSelectedWeekends((prev) =>
-      prev.includes(dayId) ? prev.filter((id) => id !== dayId) : [...prev, dayId]
-    );
+    const id = Number(dayId);
+    setSelectedWeekends((prev) => {
+      const current = (prev || []).map(Number);
+      return current.includes(id)
+        ? current.filter((d) => d !== id)
+        : [...current, id].sort((a, b) => a - b);
+    });
+  };
+
+  const handleSelectAllWeekends = () => {
+    setSelectedWeekends(DAYS_OF_WEEK.map((d) => d.id));
+  };
+
+  const handleClearAllWeekends = () => {
+    setSelectedWeekends([]);
   };
 
   // Handle Form Submission
@@ -227,6 +286,7 @@ const GeneralSetting = () => {
     try {
       setSaving(true);
       let uploadedLogoPath = formData.school_logo;
+      let uploadedQrPath = formData.qr_code;
 
       // If user selected a new logo file, upload it first
       if (logoFile) {
@@ -237,17 +297,33 @@ const GeneralSetting = () => {
         }
       }
 
+      // If user selected a new QR code file, upload it
+      if (qrFile) {
+        toast.info('Uploading payment QR code...');
+        const qrUploadRes = await uploadFileApi(qrFile, 'schools');
+        if (qrUploadRes?.data?.file_path) {
+          uploadedQrPath = qrUploadRes.data.file_path;
+        }
+      }
+
       const payload = {
         ...formData,
         school_logo: uploadedLogoPath,
-        weekends: selectedWeekends,
+        qr_code: uploadedQrPath,
+        weekends: selectedWeekends.map(Number),
       };
 
       await updateGeneralSettingsApi(payload);
 
-      setFormData((prev) => ({ ...prev, school_logo: uploadedLogoPath }));
+      setFormData((prev) => ({
+        ...prev,
+        school_logo: uploadedLogoPath,
+        qr_code: uploadedQrPath,
+      }));
       setLogoFile(null);
       setLogoPreview(null);
+      setQrFile(null);
+      setQrPreview(null);
 
       // Instantly update Redux store for global sidebar and components
       dispatch(
@@ -587,66 +663,145 @@ const GeneralSetting = () => {
                       </div>
                     </div>
 
-                    {/* Weekends (Select2 Tag-style Multi-picker) */}
+                    {/* Weekends Multiple Select Dropdown */}
                     <div className="col-md-3">
-                      <div className="mb-3 position-relative">
+                      <div className="mb-3 position-relative" ref={weekendDropdownRef}>
                         <label className="form-label text-dark fw-medium fs-13">
                           Weekends <span className="text-danger">*</span>
                         </label>
                         <div
-                          className="form-control form-control-sm d-flex align-items-center flex-wrap gap-1 p-1 bg-white cursor-pointer"
+                          className={`form-control form-control-sm d-flex align-items-center justify-content-between p-1 bg-white cursor-pointer ${
+                            selectedWeekends.length === 0 ? 'border-secondary-subtle' : ''
+                          }`}
                           style={{ minHeight: '34px', cursor: 'pointer' }}
-                          onClick={() => setWeekendDropdownOpen(!weekendDropdownOpen)}
+                          onClick={() => setWeekendDropdownOpen((prev) => !prev)}
                         >
-                          {selectedWeekends.length === 0 ? (
-                            <span className="text-muted fs-12 px-1">Select Weekend Days</span>
-                          ) : (
-                            selectedWeekends.map((dayId) => {
-                              const dayObj = DAYS_OF_WEEK.find((d) => d.id === dayId);
-                              return (
-                                <span
-                                  key={dayId}
-                                  className="badge bg-primary text-white d-inline-flex align-items-center py-1 px-2 fs-11 rounded-1"
-                                >
-                                  {dayObj?.name || dayId}
-                                  <button
-                                    type="button"
-                                    className="btn-close btn-close-white ms-1"
-                                    style={{ fontSize: '8px' }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      toggleWeekend(dayId);
-                                    }}
-                                  />
-                                </span>
-                              );
-                            })
-                          )}
+                          <div className="d-flex align-items-center flex-wrap gap-1 flex-grow-1 overflow-hidden">
+                            {selectedWeekends.length === 0 ? (
+                              <span className="text-muted fs-12 px-1">Select Weekend Days</span>
+                            ) : (
+                              selectedWeekends.map((dayId) => {
+                                const dayObj = DAYS_OF_WEEK.find((d) => d.id === Number(dayId));
+                                return (
+                                  <span
+                                    key={dayId}
+                                    className="badge bg-primary text-white d-inline-flex align-items-center py-1 px-1.5 fs-11 rounded-1"
+                                  >
+                                    {dayObj?.name || dayId}
+                                    <button
+                                      type="button"
+                                      className="btn-close btn-close-white ms-1"
+                                      style={{ fontSize: '7px' }}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        toggleWeekend(dayId);
+                                      }}
+                                      aria-label="Remove"
+                                    />
+                                  </span>
+                                );
+                              })
+                            )}
+                          </div>
+                          <div className="d-flex align-items-center gap-1 ps-1 pe-1 flex-shrink-0 text-muted">
+                            {selectedWeekends.length > 0 && (
+                              <button
+                                type="button"
+                                className="btn btn-link p-0 text-muted hover-text-danger text-decoration-none"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleClearAllWeekends();
+                                }}
+                                title="Clear all"
+                              >
+                                <i className="ti ti-x fs-12"></i>
+                              </button>
+                            )}
+                            <i
+                              className="ti ti-chevron-down fs-13"
+                              style={{
+                                transform: weekendDropdownOpen ? 'rotate(180deg)' : 'none',
+                                transition: 'transform 0.15s ease',
+                              }}
+                            ></i>
+                          </div>
                         </div>
 
                         {/* Dropdown menu */}
                         {weekendDropdownOpen && (
                           <div
-                            className="position-absolute start-0 end-0 bg-white border rounded shadow-sm p-2 z-3 mt-1"
-                            style={{ zIndex: 1050 }}
+                            className="position-absolute start-0 end-0 bg-white border rounded shadow-lg p-2 mt-1"
+                            style={{ zIndex: 1060, minWidth: '220px' }}
+                            onClick={(e) => e.stopPropagation()}
                           >
+                            {/* Header with Quick Actions */}
+                            <div className="d-flex align-items-center justify-content-between pb-1.5 mb-1.5 border-bottom px-1">
+                              <span className="fs-11 text-muted fw-semibold">
+                                {selectedWeekends.length} of {DAYS_OF_WEEK.length} selected
+                              </span>
+                              <div className="d-flex gap-2">
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 text-decoration-none text-primary fs-11 fw-semibold"
+                                  onClick={handleSelectAllWeekends}
+                                >
+                                  Select All
+                                </button>
+                                <span className="text-muted fs-11">|</span>
+                                <button
+                                  type="button"
+                                  className="btn btn-link btn-sm p-0 text-decoration-none text-danger fs-11 fw-semibold"
+                                  onClick={handleClearAllWeekends}
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Days List with Checkboxes */}
                             <div className="d-flex flex-column gap-1">
                               {DAYS_OF_WEEK.map((day) => {
-                                const isSelected = selectedWeekends.includes(day.id);
+                                const isSelected = selectedWeekends.map(Number).includes(day.id);
                                 return (
-                                  <div
+                                  <label
                                     key={day.id}
-                                    className={`d-flex align-items-center justify-content-between p-2 rounded cursor-pointer ${
-                                      isSelected ? 'bg-light-primary text-primary fw-semibold' : 'hover-bg-light text-dark'
+                                    className={`d-flex align-items-center justify-content-between p-1.5 px-2 rounded cursor-pointer mb-0 user-select-none ${
+                                      isSelected ? 'bg-primary-subtle text-primary fw-semibold' : 'text-dark'
                                     }`}
-                                    style={{ cursor: 'pointer' }}
-                                    onClick={() => toggleWeekend(day.id)}
+                                    style={{
+                                      cursor: 'pointer',
+                                      backgroundColor: isSelected ? '#eef2ff' : 'transparent',
+                                    }}
+                                    onClick={(e) => {
+                                      e.preventDefault();
+                                      toggleWeekend(day.id);
+                                    }}
                                   >
-                                    <span className="fs-13">{day.name}</span>
-                                    {isSelected && <i className="ti ti-check text-primary"></i>}
-                                  </div>
+                                    <div className="d-flex align-items-center gap-2">
+                                      <input
+                                        type="checkbox"
+                                        className="form-check-input mt-0 cursor-pointer"
+                                        checked={isSelected}
+                                        onChange={() => {}}
+                                        style={{ width: '15px', height: '15px' }}
+                                      />
+                                      <span className="fs-13">{day.name}</span>
+                                    </div>
+                                    {isSelected && <i className="ti ti-check text-primary fs-14 fw-bold"></i>}
+                                  </label>
                                 );
                               })}
+                            </div>
+
+                            {/* Dropdown Footer */}
+                            <div className="pt-2 mt-2 border-top text-end px-1">
+                              <button
+                                type="button"
+                                className="btn btn-primary btn-sm py-0.5 px-2 fs-11"
+                                onClick={() => setWeekendDropdownOpen(false)}
+                              >
+                                Done
+                              </button>
                             </div>
                           </div>
                         )}
@@ -724,10 +879,87 @@ const GeneralSetting = () => {
                             <i className="ti ti-building-bank fs-18"></i>
                           </span>
                           <div>
-                            <h5 className="mb-0 text-dark fw-bold fs-14">Bank Account Details</h5>
+                            <h5 className="mb-0 text-dark fw-bold fs-14">Bank Account & Payment Details</h5>
                             <span className="text-muted fs-11">
-                              Manage school bank account and UPI details for fee collection and invoices.
+                              Manage school bank account, payment QR code, and UPI details for fee collection and invoices.
                             </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Payment QR Code Upload Field */}
+                    <div className="col-12 mb-3">
+                      <div className="p-3 border rounded bg-white shadow-none">
+                        <label className="form-label text-dark fw-bold fs-13 mb-2 d-block">
+                          Payment QR Code
+                        </label>
+                        <div className="d-flex align-items-center flex-wrap gap-4">
+                          {/* QR Code Preview Box */}
+                          <div
+                            className="border rounded p-2 d-flex align-items-center justify-content-center bg-light position-relative"
+                            style={{
+                              width: '100px',
+                              height: '100px',
+                              minWidth: '100px',
+                            }}
+                          >
+                            {qrPreview || formData.qr_code ? (
+                              <img
+                                src={qrPreview || resolveImageUrl(formData.qr_code)}
+                                alt="Payment QR Code Preview"
+                                style={{
+                                  maxWidth: '100%',
+                                  maxHeight: '100%',
+                                  objectFit: 'contain',
+                                }}
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                            ) : (
+                              <div className="text-center text-muted">
+                                <i className="ti ti-qrcode fs-28 d-block mb-1 opacity-50"></i>
+                                <span className="fs-11">No QR Code</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Upload Controls & Instructions */}
+                          <div className="flex-grow-1">
+                            <div className="d-flex align-items-center gap-2 mb-2 flex-wrap">
+                              <label
+                                htmlFor="school_qr_input"
+                                className="btn btn-primary btn-sm d-inline-flex align-items-center cursor-pointer mb-0"
+                              >
+                                <i className="ti ti-upload me-1 fs-15"></i>
+                                {qrPreview || formData.qr_code ? 'Change QR Code' : 'Upload QR Code'}
+                              </label>
+                              <input
+                                type="file"
+                                id="school_qr_input"
+                                className="d-none"
+                                accept="image/png,image/jpeg,image/jpg,image/webp,image/svg+xml"
+                                onChange={handleQrFileChange}
+                              />
+                              {(qrPreview || formData.qr_code) && (
+                                <button
+                                  type="button"
+                                  className="btn btn-outline-danger btn-sm d-inline-flex align-items-center"
+                                  onClick={handleRemoveQr}
+                                >
+                                  <i className="ti ti-trash me-1 fs-15"></i>
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                            <small className="text-muted d-block fs-12">
+                              Upload official payment QR Code (UPI, PhonePe, Google Pay, Paytm, or bank QR). Supported formats: PNG, JPG, WEBP, SVG. Max file size: 5MB.
+                            </small>
+                            <small className="text-primary d-block fs-11 mt-1">
+                              <i className="ti ti-info-circle me-1"></i>
+                              This QR code can be printed on student fee receipts, invoices, and shown on the parent portal for quick payments.
+                            </small>
                           </div>
                         </div>
                       </div>
