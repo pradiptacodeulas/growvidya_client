@@ -102,6 +102,11 @@ const adminFeesApi = {
     return res.data;
   },
 
+  checkDuplicateInvoice: async (params) => {
+    const res = await apiClient.get('/admin/fees/invoices/check-duplicate', { params });
+    return res.data;
+  },
+
   generateInvoices: async (data) => {
     const res = await apiClient.post('/admin/fees/invoices/generate', data);
     return res.data;

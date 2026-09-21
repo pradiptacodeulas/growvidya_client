@@ -53,6 +53,49 @@ const FeesInvoices = () => {
     due_date: '',
   });
 
+  // Duplicate Fee Prevention State
+  const [duplicateWarning, setDuplicateWarning] = useState('');
+  const [checkingDuplicate, setCheckingDuplicate] = useState(false);
+
+  useEffect(() => {
+    if (!showGenModal) {
+      setDuplicateWarning('');
+      return;
+    }
+    if (!genFormData.fee_structure_id || !genFormData.issue_date) {
+      setDuplicateWarning('');
+      return;
+    }
+
+    let isMounted = true;
+    const checkDup = async () => {
+      try {
+        setCheckingDuplicate(true);
+        const res = await adminFeesApi.checkDuplicateInvoice({
+          fee_structure_id: genFormData.fee_structure_id,
+          issue_date: genFormData.issue_date,
+        });
+        if (isMounted) {
+          if (res?.data?.exists) {
+            setDuplicateWarning(res.data.message);
+          } else {
+            setDuplicateWarning('');
+          }
+        }
+      } catch (err) {
+        if (isMounted) setDuplicateWarning('');
+      } finally {
+        if (isMounted) setCheckingDuplicate(false);
+      }
+    };
+
+    const timer = setTimeout(checkDup, 250);
+    return () => {
+      isMounted = false;
+      clearTimeout(timer);
+    };
+  }, [genFormData.fee_structure_id, genFormData.issue_date, showGenModal]);
+
   useEffect(() => {
     fetchInitialDropdowns();
 
@@ -249,6 +292,11 @@ const FeesInvoices = () => {
       return;
     }
 
+    if (duplicateWarning) {
+      toast.error(duplicateWarning);
+      return;
+    }
+
     try {
       setGenerating(true);
       const res = await adminFeesApi.generateInvoices({
@@ -300,6 +348,7 @@ const FeesInvoices = () => {
       setBulkGenerating(true);
       // Run generation ONLY for published structures to bulk-create for all allocated students
       let count = 0;
+      let skippedCount = 0;
       for (const st of publishedStructures) {
         try {
           const res = await adminFeesApi.generateInvoices({
@@ -311,11 +360,21 @@ const FeesInvoices = () => {
           });
           count += res?.data?.count || 1;
         } catch (err) {
-          // ignore structures with no allocated students
+          // Skip structures with no allocated students or where fees already exist on this issue date
+          skippedCount++;
         }
       }
 
-      toast.success(`Bulk invoice generation completed successfully.`);
+      if (count > 0) {
+        toast.success(
+          `Bulk invoice generation completed. Generated ${count} invoice(s).` +
+            (skippedCount > 0 ? ` (${skippedCount} structure(s) skipped as fees were already created or had no students).` : '')
+        );
+      } else {
+        toast.warning(
+          `No new invoices generated. Fee entries have already been created for all structures on ${bulkFormData.issue_date}.`
+        );
+      }
       setShowBulkGenModal(false);
       loadInvoices(1, pageSize);
     } catch (err) {
@@ -927,6 +986,22 @@ const FeesInvoices = () => {
                       />
                     </div>
                   </div>
+
+                  {checkingDuplicate && (
+                    <div className="text-muted fs-12 mt-2 d-flex align-items-center">
+                      <span className="spinner-border spinner-border-sm me-1.5" role="status"></span>
+                      Checking for existing fee entries...
+                    </div>
+                  )}
+
+                  {duplicateWarning && (
+                    <div className="alert alert-danger py-2 px-3 fs-13 mt-3 d-flex align-items-center mb-0 shadow-sm border">
+                      <i className="ti ti-alert-circle fs-18 text-danger me-2 flex-shrink-0"></i>
+                      <div>
+                        <strong>Duplicate Entry Prevented:</strong> {duplicateWarning}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="modal-footer bg-light">
@@ -940,7 +1015,12 @@ const FeesInvoices = () => {
                   <button
                     type="submit"
                     className="btn btn-primary"
-                    disabled={generating || structures.filter((st) => Number(st.is_published) === 1).length === 0}
+                    disabled={
+                      generating ||
+                      checkingDuplicate ||
+                      Boolean(duplicateWarning) ||
+                      structures.filter((st) => Number(st.is_published) === 1).length === 0
+                    }
                   >
                     {generating ? (
                       <>
@@ -1056,6 +1136,13 @@ const FeesInvoices = () => {
                           setBulkFormData({ ...bulkFormData, due_date: e.target.value })
                         }
                       />
+                    </div>
+                  </div>
+
+                  <div className="alert alert-info py-2 px-3 fs-12 mt-3 mb-0 d-flex align-items-center">
+                    <i className="ti ti-shield-check fs-16 me-2 text-info flex-shrink-0"></i>
+                    <div>
+                      <strong>Duplicate Prevention:</strong> Fee structures that already have fees created for this Issue Date will be automatically skipped to prevent duplicate entries.
                     </div>
                   </div>
                 </div>
