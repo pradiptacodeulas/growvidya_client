@@ -3,6 +3,7 @@ import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchChildFeesApi, payChildFeeApi } from '../../api/parentChild.api';
+import { uploadFileApi } from '../../api/upload.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
 import { printHtmlContent } from '../../utils/printPdf.util';
@@ -45,6 +46,7 @@ const ParentFees = () => {
     invoices: [],
     dueFees: [],
     paidFees: [],
+    bank_details: null,
     summary: {
       totalDue: 0,
       totalOutstandingDue: 0,
@@ -60,8 +62,13 @@ const ParentFees = () => {
 
   const [payingInvoice, setPayingInvoice] = useState(null);
   const [payAmount, setPayAmount] = useState('');
-  const [payMethod, setPayMethod] = useState('UPI / Online Transfer');
+  const [payMethod, setPayMethod] = useState('UPI / QR Code');
+  const [referenceNo, setReferenceNo] = useState('');
   const [payNotes, setPayNotes] = useState('');
+  const [receiptFile, setReceiptFile] = useState(null);
+  const [receiptPreview, setReceiptPreview] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+  const [qrZoom, setQrZoom] = useState(false);
   const [submittingPayment, setSubmittingPayment] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
 
@@ -78,6 +85,7 @@ const ParentFees = () => {
         invoices: data.invoices || data.dueFees || [],
         dueFees: data.dueFees || [],
         paidFees: data.paidFees || [],
+        bank_details: data.bank_details || null,
         summary: data.summary || {
           totalDue: 0,
           totalOutstandingDue: 0,
@@ -97,6 +105,60 @@ const ParentFees = () => {
   useEffect(() => {
     loadFees();
   }, [activeChild?.id]);
+
+  const handleCopy = (text, fieldName) => {
+    if (!text) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(String(text));
+    } else {
+      const ta = document.createElement('textarea');
+      ta.value = String(text);
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    }
+    setCopiedField(fieldName);
+    toast.info(`${fieldName} copied to clipboard!`, { autoClose: 1500 });
+    setTimeout(() => {
+      setCopiedField((prev) => (prev === fieldName ? null : prev));
+    }, 2500);
+  };
+
+  const handleReceiptChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('Receipt file size must be less than 5MB.');
+      return;
+    }
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf'];
+    if (!validTypes.includes(file.type)) {
+      toast.error('Please upload an image (JPG, PNG) or PDF document.');
+      return;
+    }
+
+    if (receiptPreview) {
+      URL.revokeObjectURL(receiptPreview);
+    }
+
+    setReceiptFile(file);
+    if (file.type.startsWith('image/')) {
+      setReceiptPreview(URL.createObjectURL(file));
+    } else {
+      setReceiptPreview(null);
+    }
+  };
+
+  const handleRemoveReceipt = () => {
+    if (receiptPreview) {
+      URL.revokeObjectURL(receiptPreview);
+    }
+    setReceiptFile(null);
+    setReceiptPreview(null);
+  };
 
   const fullName =
     activeChild?.full_name ||
@@ -127,8 +189,11 @@ const ParentFees = () => {
   const handleOpenPayModal = (inv) => {
     setPayingInvoice(inv);
     setPayAmount(String(inv.due_amount || inv.total_amount || ''));
-    setPayMethod('UPI / Online Transfer');
+    setPayMethod('UPI / QR Code');
+    setReferenceNo('');
     setPayNotes('');
+    handleRemoveReceipt();
+    setCopiedField(null);
     setShowPayModal(true);
   };
 
@@ -153,17 +218,42 @@ const ParentFees = () => {
       return;
     }
 
+    if (!receiptFile) {
+      toast.warning('Please upload payment receipt screenshot / photo before submitting.');
+      return;
+    }
+
     try {
       setSubmittingPayment(true);
+
+      // 1. Upload receipt to server
+      const uploadRes = await uploadFileApi(receiptFile, 'fees');
+      const uploadedPath =
+        uploadRes?.data?.file_path ||
+        uploadRes?.data?.url ||
+        uploadRes?.file_path ||
+        uploadRes?.url;
+
+      if (!uploadedPath) {
+        throw new Error(uploadRes?.message || 'Failed to upload payment receipt file.');
+      }
+
+      const bankDetails = feesData.bank_details;
+
+      // 2. Submit payment record with receipt proof
       await payChildFeeApi(activeChild.id, {
         invoiceId: payingInvoice.id,
         amountPaid: numAmount,
-        paymentMethod: payMethod,
-        referenceNo: `TXN-P-${Date.now()}`,
-        notes: payNotes || 'Parent Online Portal Fee Payment',
+        paymentMethod: payMethod || 'UPI / QR Code',
+        referenceNo: referenceNo.trim() || `TXN-P-${Date.now()}`,
+        bankName: bankDetails?.bank_name || null,
+        receiptFile: uploadedPath,
+        receipt_file: uploadedPath,
+        notes: payNotes.trim() || `Receipt uploaded for ${payingInvoice.title || 'School Fees'}`,
       });
 
-      toast.success('Fee payment processed successfully!');
+      toast.success('Payment receipt submitted successfully! Pending school verification.');
+      handleRemoveReceipt();
       setShowPayModal(false);
       setPayingInvoice(null);
       await loadFees();
@@ -273,6 +363,13 @@ const ParentFees = () => {
         </span>
       );
     }
+    if (s.includes('pending') || s.includes('verification')) {
+      return (
+        <span className="badge bg-warning bg-opacity-25 text-warning-emphasis border border-warning px-2 py-1">
+          <i className="fa-solid fa-hourglass-start me-1"></i>Pending Verification
+        </span>
+      );
+    }
     if (s === 'partial') {
       return (
         <span className="badge bg-info text-white px-2 py-1">
@@ -297,6 +394,65 @@ const ParentFees = () => {
 
   return (
     <div className="content content-two">
+      {/* Embedded CSS for Custom Modern Scrollbars & Fixed Heights */}
+      <style>{`
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #cbd5e1 #f8fafc;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: #f8fafc;
+          border-radius: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #cbd5e1;
+          border-radius: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: #94a3b8;
+        }
+        .modal-dialog-fixed {
+          max-height: calc(100vh - 40px);
+          display: flex;
+          flex-direction: column;
+        }
+        .modal-content-fixed {
+          max-height: calc(100vh - 40px);
+          display: flex;
+          flex-direction: column;
+          overflow: hidden;
+        }
+        .modal-body-scrollable {
+          max-height: calc(100vh - 180px);
+          overflow-y: auto;
+          min-height: 0;
+          flex: 1 1 auto;
+        }
+        .bank-details-scrollable {
+          max-height: 280px;
+          overflow-y: auto;
+        }
+        .cards-scrollable {
+          max-height: 580px;
+          overflow-y: auto;
+        }
+        .table-scrollable {
+          max-height: 520px;
+          overflow-y: auto;
+        }
+        .table-scrollable thead th {
+          position: sticky;
+          top: 0;
+          background-color: #f8fafc;
+          z-index: 2;
+          box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        }
+      `}</style>
+
       {/* Student Profile Card (Clean Light Theme) */}
       <div className="card border shadow-sm rounded-3 mb-4 bg-white">
         <div className="card-body p-3 p-md-4">
@@ -507,7 +663,7 @@ const ParentFees = () => {
                       py={4}
                     />
                   ) : (
-                    <div className="row g-3">
+                    <div className="row g-3 cards-scrollable custom-scrollbar pe-1">
                       {dueInvoices.map((inv) => (
                         <div key={inv.id} className="col-md-6 col-lg-4">
                           <div className="card border border-warning border-2 shadow-sm h-100 rounded-3">
@@ -543,13 +699,24 @@ const ParentFees = () => {
                                 >
                                   <i className="fa-solid fa-eye me-1"></i> Details
                                 </button>
-                                <button
-                                  type="button"
-                                  className="btn btn-primary w-50 fw-bold py-2 shadow-sm"
-                                  onClick={() => handleOpenPayModal(inv)}
-                                >
-                                  <i className="fa-solid fa-wallet me-1"></i> Pay Now
-                                </button>
+                                {String(inv.status || '').toLowerCase().includes('pending') ? (
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline-warning w-50 fw-bold py-2 shadow-sm text-truncate"
+                                    disabled
+                                    title="Payment proof submitted, awaiting school verification"
+                                  >
+                                    <i className="fa-solid fa-clock me-1"></i> Under Review
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary w-50 fw-bold py-2 shadow-sm"
+                                    onClick={() => handleOpenPayModal(inv)}
+                                  >
+                                    <i className="fa-solid fa-wallet me-1"></i> Pay Now
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -571,9 +738,9 @@ const ParentFees = () => {
                       py={4}
                     />
                   ) : (
-                    <div className="table-responsive border rounded-3">
+                    <div className="table-responsive table-scrollable custom-scrollbar border rounded-3">
                       <table className="table table-hover align-middle mb-0">
-                        <thead className="bg-light">
+                        <thead className="bg-light sticky-top">
                           <tr>
                             <th className="ps-3 py-3">Invoice Details</th>
                             <th className="text-center py-3">Due Date</th>
@@ -611,13 +778,24 @@ const ParentFees = () => {
                                   >
                                     <i className="fa-solid fa-eye me-1"></i> View Details
                                   </button>
-                                  <button
-                                    type="button"
-                                    className="btn btn-sm btn-primary fw-bold px-3 py-1 shadow-sm"
-                                    onClick={() => handleOpenPayModal(inv)}
-                                  >
-                                    <i className="fa-solid fa-credit-card me-1"></i> Pay Fee
-                                  </button>
+                                  {String(inv.status || '').toLowerCase().includes('pending') ? (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-warning fw-bold px-2 py-1 shadow-sm"
+                                      disabled
+                                      title="Payment proof submitted, awaiting school verification"
+                                    >
+                                      <i className="fa-solid fa-clock me-1"></i> Under Review
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-primary fw-bold px-3 py-1 shadow-sm"
+                                      onClick={() => handleOpenPayModal(inv)}
+                                    >
+                                      <i className="fa-solid fa-credit-card me-1"></i> Pay Fee
+                                    </button>
+                                  )}
                                 </div>
                               </td>
                             </tr>
@@ -640,9 +818,9 @@ const ParentFees = () => {
                       py={4}
                     />
                   ) : (
-                    <div className="table-responsive border rounded-3">
+                    <div className="table-responsive table-scrollable custom-scrollbar border rounded-3">
                       <table className="table table-hover align-middle mb-0">
-                        <thead className="bg-light">
+                        <thead className="bg-light sticky-top">
                           <tr>
                             <th className="ps-3 py-3">Receipt No</th>
                             <th className="py-3">Txn Ref No</th>
@@ -702,10 +880,10 @@ const ParentFees = () => {
 
       {/* MODAL 1: Invoice Details Modal */}
       {showInvoiceModal && selectedInvoice && (
-        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content border-0 shadow">
-              <div className="modal-header bg-light py-3">
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-dialog-fixed">
+            <div className="modal-content modal-content-fixed border-0 shadow">
+              <div className="modal-header bg-light py-3 flex-shrink-0">
                 <div>
                   <h5 className="modal-title fw-bold text-dark">
                     Invoice Details - {selectedInvoice.invoice_no}
@@ -718,7 +896,7 @@ const ParentFees = () => {
                   onClick={() => setShowInvoiceModal(false)}
                 ></button>
               </div>
-              <div className="modal-body p-4">
+              <div className="modal-body modal-body-scrollable custom-scrollbar p-4">
                 <div className="row g-3 mb-4">
                   <div className="col-sm-6 col-md-3">
                     <span className="text-muted fs-12 d-block">Issue Date</span>
@@ -781,7 +959,7 @@ const ParentFees = () => {
                   </table>
                 </div>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer flex-shrink-0">
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -789,130 +967,536 @@ const ParentFees = () => {
                 >
                   Close
                 </button>
-                <button
-                  type="button"
-                  className="btn btn-primary fw-bold"
-                  onClick={() => {
-                    setShowInvoiceModal(false);
-                    handleOpenPayModal(selectedInvoice);
-                  }}
-                >
-                  <i className="fa-solid fa-wallet me-1"></i> Proceed to Pay
-                </button>
+                {String(selectedInvoice.status || '').toLowerCase().includes('pending') ? (
+                  <button
+                    type="button"
+                    className="btn btn-warning text-dark fw-bold px-4"
+                    disabled
+                  >
+                    <i className="fa-solid fa-clock me-1"></i> Verification Pending
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn btn-primary fw-bold"
+                    onClick={() => {
+                      setShowInvoiceModal(false);
+                      handleOpenPayModal(selectedInvoice);
+                    }}
+                  >
+                    <i className="fa-solid fa-wallet me-1"></i> Proceed to Pay
+                  </button>
+                )}
               </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* MODAL 2: Pay Fee Modal */}
+      {/* MODAL 2: Pay Fee Modal (School Bank Details, QR Code & Receipt Upload Verification) */}
       {showPayModal && payingInvoice && (
-        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow">
-              <form onSubmit={handleSubmitPayment}>
-                <div className="modal-header bg-primary text-white py-3">
-                  <h5 className="modal-title fw-bold text-white">
-                    <i className="fa-solid fa-wallet me-2"></i>Pay Student Fee
-                  </h5>
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)', zIndex: 1050 }}
+        >
+          <div
+            className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-dialog-fixed"
+            style={{ maxWidth: '840px' }}
+          >
+            <div className="modal-content modal-content-fixed border-0 shadow-lg rounded-3 overflow-hidden">
+              <form onSubmit={handleSubmitPayment} className="d-flex flex-column h-100 overflow-hidden" style={{ minHeight: 0, flex: '1 1 auto' }}>
+                {/* Modal Header */}
+                <div className="modal-header bg-primary text-white py-3 px-4 flex-shrink-0">
+                  <div>
+                    <h5 className="modal-title fw-bold text-white mb-0">
+                      <i className="fa-solid fa-wallet me-2"></i>Pay School Fee
+                    </h5>
+                    <span className="fs-12 text-white-75">
+                      {parent?.school_name || parent?.schoolName || 'Official School Fee Portal'} • Invoice #{payingInvoice.invoice_no}
+                    </span>
+                  </div>
                   <button
                     type="button"
                     className="btn-close btn-close-white"
-                    onClick={() => setShowPayModal(false)}
+                    onClick={() => {
+                      handleRemoveReceipt();
+                      setShowPayModal(false);
+                    }}
                   ></button>
                 </div>
-                <div className="modal-body p-4">
-                  <div className="bg-light p-3 rounded-3 mb-3 border">
-                    <div className="d-flex justify-content-between mb-1">
-                      <span className="text-muted fs-13">Fee Invoice:</span>
-                      <strong className="text-dark fs-13">{payingInvoice.title}</strong>
+
+                <div className="modal-body modal-body-scrollable custom-scrollbar p-4">
+                  {/* Invoice Summary Banner */}
+                  <div
+                    className="p-3 rounded-3 mb-4 border d-flex flex-wrap align-items-center justify-content-between gap-2"
+                    style={{ backgroundColor: '#f8fafc' }}
+                  >
+                    <div>
+                      <span className="badge bg-primary bg-opacity-10 text-primary fw-bold px-2 py-1 mb-1 d-inline-block">
+                        {payingInvoice.fee_structure_name || 'Academic Fee'}
+                      </span>
+                      <h6 className="fw-bold text-dark mb-1">{payingInvoice.title}</h6>
+                      <div className="text-muted fs-12">
+                        <span>Student: <strong className="text-dark">{fullName}</strong></span>
+                        <span className="mx-2">•</span>
+                        <span>Due Date: <strong className="text-dark">{formatDate(payingInvoice.due_date)}</strong></span>
+                      </div>
                     </div>
-                    <div className="d-flex justify-content-between mb-1">
-                      <span className="text-muted fs-13">Invoice No:</span>
-                      <span className="text-dark fs-13 font-monospace">{payingInvoice.invoice_no}</span>
-                    </div>
-                    <div className="d-flex justify-content-between">
-                      <span className="text-muted fs-13">Outstanding Due:</span>
-                      <strong className="text-danger fs-15">
+                    <div className="text-end bg-white px-3 py-2 rounded-2 border shadow-2xs">
+                      <span className="text-muted fs-11 text-uppercase fw-bold d-block">Amount Due</span>
+                      <span className="fs-20 fw-bold text-danger">
                         ₹{formatCurrency(payingInvoice.due_amount || payingInvoice.total_amount)}
-                      </strong>
+                      </span>
                     </div>
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label fw-bold text-dark fs-13">
-                      Payment Amount (₹) <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className="form-control"
-                      value={payAmount}
-                      onChange={(e) => setPayAmount(e.target.value)}
-                      max={payingInvoice.due_amount || payingInvoice.total_amount}
-                      min="1"
-                      required
-                    />
-                    {Number(payingInvoice.allow_partial_payment) === 1 ? (
-                      <small className="text-muted fs-12">
-                        <i className="fa-solid fa-circle-info me-1 text-info"></i>
-                        Partial payment is enabled for this invoice.
-                      </small>
-                    ) : (
-                      <small className="text-muted fs-12">
-                        <i className="fa-solid fa-lock me-1 text-warning"></i>
-                        Full payment is required for this invoice.
-                      </small>
-                    )}
+                  {/* STEP 1: School Bank Details & QR Code (Live Dynamic Data from Database) */}
+                  <div className="card border rounded-3 mb-4 shadow-2xs">
+                    <div className="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
+                      <h6 className="fw-bold text-dark mb-0 fs-14 d-flex align-items-center">
+                        <span
+                          className="badge bg-primary text-white rounded-circle me-2 d-inline-flex align-items-center justify-content-center"
+                          style={{ width: '22px', height: '22px', fontSize: '11px' }}
+                        >
+                          1
+                        </span>
+                        School Bank Details &amp; QR Code
+                      </h6>
+                      <span className="fs-11 text-muted">
+                        <i className="fa-solid fa-shield-halved text-success me-1"></i>Official School Account
+                      </span>
+                    </div>
+
+                    <div className="card-body p-3">
+                      {feesData.bank_details ? (
+                        <div className="row g-3">
+                          {/* Left Column: QR Code & UPI */}
+                          <div className="col-md-5 d-flex flex-column align-items-center justify-content-center border-end-md pb-3 pb-md-0">
+                            {feesData.bank_details.qr_code ? (
+                              <div className="text-center w-100">
+                                <div
+                                  className="position-relative d-inline-block p-2 bg-white border rounded-3 shadow-sm mb-2"
+                                  style={{ cursor: 'pointer' }}
+                                  onClick={() => setQrZoom(true)}
+                                  title="Click to zoom QR code"
+                                >
+                                  <img
+                                    src={resolveImageUrl(feesData.bank_details.qr_code)}
+                                    alt="School Payment QR Code"
+                                    style={{ width: '160px', height: '160px', objectFit: 'contain' }}
+                                    className="rounded"
+                                  />
+                                  <div
+                                    className="position-absolute bottom-0 end-0 m-2 badge bg-dark bg-opacity-75 text-white"
+                                    style={{ fontSize: '10px' }}
+                                  >
+                                    <i className="fa-solid fa-magnifying-glass-plus me-1"></i>Zoom
+                                  </div>
+                                </div>
+                                <div className="fs-12 text-muted fw-semibold mb-1">
+                                  <i className="fa-solid fa-qrcode text-primary me-1"></i>Scan to Pay
+                                </div>
+                                <div className="fs-11 text-muted">
+                                  Supports GPay, PhonePe, Paytm &amp; BHIM
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="text-center py-4 px-2 w-100 bg-light rounded-3 border">
+                                <i className="fa-solid fa-qrcode fs-36 text-muted mb-2"></i>
+                                <div className="fs-13 fw-semibold text-dark">Scan &amp; Pay QR Code</div>
+                                <p className="fs-11 text-muted mb-0">
+                                  Use the bank details on the right to transfer directly via Net Banking or UPI.
+                                </p>
+                              </div>
+                            )}
+
+                            {/* UPI ID Row */}
+                            {feesData.bank_details.upi_id && (
+                              <div className="mt-2 w-100 bg-light p-2 rounded-2 border d-flex align-items-center justify-content-between">
+                                <div className="text-truncate me-2">
+                                  <span className="fs-10 text-muted d-block fw-semibold text-uppercase">UPI ID</span>
+                                  <span className="fs-12 font-monospace fw-bold text-dark text-truncate d-block">
+                                    {feesData.bank_details.upi_id}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  className={`btn btn-sm py-1 px-2 fs-11 ${
+                                    copiedField === 'upi' ? 'btn-success text-white' : 'btn-outline-primary'
+                                  }`}
+                                  onClick={() => handleCopy(feesData.bank_details.upi_id, 'UPI ID')}
+                                >
+                                  {copiedField === 'upi' ? (
+                                    <>
+                                      <i className="fa-solid fa-check me-1"></i>Copied
+                                    </>
+                                  ) : (
+                                    <>
+                                      <i className="fa-solid fa-copy me-1"></i>Copy
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Right Column: Bank Details Stack */}
+                          <div className="col-md-7 ps-md-3">
+                            <div className="d-flex flex-column gap-2 bank-details-scrollable custom-scrollbar pe-1">
+                              {/* Bank Name */}
+                              {feesData.bank_details.bank_name && (
+                                <div className="p-2 px-3 rounded-2 border bg-light d-flex align-items-center justify-content-between">
+                                  <div className="d-flex align-items-center">
+                                    <i className="fa-solid fa-building-columns text-primary me-2 fs-14"></i>
+                                    <div>
+                                      <span className="fs-10 text-uppercase text-muted fw-bold d-block">Bank Name</span>
+                                      <strong className="fs-13 text-dark">{feesData.bank_details.bank_name}</strong>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Account Holder Name */}
+                              {feesData.bank_details.account_holder_name && (
+                                <div className="p-2 px-3 rounded-2 border bg-light d-flex align-items-center justify-content-between">
+                                  <div className="d-flex align-items-center text-truncate me-2">
+                                    <i className="fa-solid fa-user-tie text-primary me-2 fs-14"></i>
+                                    <div className="text-truncate">
+                                      <span className="fs-10 text-uppercase text-muted fw-bold d-block">Account Holder</span>
+                                      <strong className="fs-13 text-dark text-truncate d-block">
+                                        {feesData.bank_details.account_holder_name}
+                                      </strong>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm py-0 px-2 fs-11 flex-shrink-0 ${
+                                      copiedField === 'holder' ? 'btn-success text-white' : 'btn-outline-primary'
+                                    }`}
+                                    onClick={() => handleCopy(feesData.bank_details.account_holder_name, 'Account Holder Name')}
+                                  >
+                                    {copiedField === 'holder' ? (
+                                      <>
+                                        <i className="fa-solid fa-check me-1"></i>Copied
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="fa-solid fa-copy me-1"></i>Copy
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Account Number (Highlighted) */}
+                              {feesData.bank_details.account_number && (
+                                <div
+                                  className="p-2 px-3 rounded-2 border border-primary border-opacity-50 d-flex align-items-center justify-content-between"
+                                  style={{ backgroundColor: '#f0f4ff' }}
+                                >
+                                  <div className="d-flex align-items-center">
+                                    <i className="fa-solid fa-credit-card text-primary me-2 fs-15"></i>
+                                    <div>
+                                      <span className="fs-10 text-uppercase text-primary fw-bold d-block">Account Number</span>
+                                      <span className="font-monospace fs-15 fw-bold text-dark letter-spacing-1">
+                                        {feesData.bank_details.account_number}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm py-1 px-2 fs-11 ${
+                                      copiedField === 'acc' ? 'btn-success text-white' : 'btn-primary'
+                                    }`}
+                                    onClick={() => handleCopy(feesData.bank_details.account_number, 'Account Number')}
+                                  >
+                                    {copiedField === 'acc' ? (
+                                      <>
+                                        <i className="fa-solid fa-check me-1"></i>Copied
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="fa-solid fa-copy me-1"></i>Copy
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* IFSC Code */}
+                              {feesData.bank_details.ifsc_code && (
+                                <div className="p-2 px-3 rounded-2 border bg-light d-flex align-items-center justify-content-between">
+                                  <div className="d-flex align-items-center">
+                                    <i className="fa-solid fa-id-card text-primary me-2 fs-14"></i>
+                                    <div>
+                                      <span className="fs-10 text-uppercase text-muted fw-bold d-block">IFSC Code</span>
+                                      <span className="font-monospace fs-13 fw-bold text-dark">
+                                        {feesData.bank_details.ifsc_code}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm py-0 px-2 fs-11 ${
+                                      copiedField === 'ifsc' ? 'btn-success text-white' : 'btn-outline-primary'
+                                    }`}
+                                    onClick={() => handleCopy(feesData.bank_details.ifsc_code, 'IFSC Code')}
+                                  >
+                                    {copiedField === 'ifsc' ? (
+                                      <>
+                                        <i className="fa-solid fa-check me-1"></i>Copied
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="fa-solid fa-copy me-1"></i>Copy
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              )}
+
+                              {/* Branch Name */}
+                              {feesData.bank_details.branch_name && (
+                                <div className="p-2 px-3 rounded-2 border bg-light d-flex align-items-center">
+                                  <i className="fa-solid fa-location-dot text-primary me-2 fs-14"></i>
+                                  <div>
+                                    <span className="fs-10 text-uppercase text-muted fw-bold d-block">Branch</span>
+                                    <span className="fs-12 text-dark">{feesData.bank_details.branch_name}</span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="alert alert-warning d-flex align-items-center mb-0 py-3">
+                          <i className="fa-solid fa-circle-exclamation fs-24 me-3 text-warning"></i>
+                          <div>
+                            <strong className="d-block fs-14">School Bank Details Not Configured</strong>
+                            <span className="fs-12 text-muted">
+                              The school administrative office has not configured official bank account or QR code details in the system yet. Please contact the school office to get payment instructions.
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   </div>
 
-                  <div className="mb-3">
-                    <label className="form-label fw-bold text-dark fs-13">Payment Method</label>
-                    <select
-                      className="form-select"
-                      value={payMethod}
-                      onChange={(e) => setPayMethod(e.target.value)}
-                    >
-                      <option value="UPI / Online Transfer">UPI / Online Transfer</option>
-                      <option value="Credit / Debit Card">Credit / Debit Card</option>
-                      <option value="Net Banking">Net Banking</option>
-                      <option value="Cash / Cheque (Bank Deposit)">Cash / Cheque (Bank Deposit)</option>
-                    </select>
-                  </div>
+                  {/* STEP 2: Submit Proof of Payment & Receipt Upload */}
+                  <div className="card border rounded-3 mb-0 shadow-2xs">
+                    <div className="card-header bg-white py-2 px-3 border-bottom d-flex align-items-center justify-content-between">
+                      <h6 className="fw-bold text-dark mb-0 fs-14 d-flex align-items-center">
+                        <span
+                          className="badge bg-primary text-white rounded-circle me-2 d-inline-flex align-items-center justify-content-center"
+                          style={{ width: '22px', height: '22px', fontSize: '11px' }}
+                        >
+                          2
+                        </span>
+                        Submit Proof of Payment for Verification
+                      </h6>
+                      <span className="fs-11 text-danger fw-semibold">* Required for verification</span>
+                    </div>
 
-                  <div className="mb-0">
-                    <label className="form-label fw-bold text-dark fs-13">Remarks / Transaction Note</label>
-                    <input
-                      type="text"
-                      className="form-control"
-                      placeholder="Optional transaction reference or note..."
-                      value={payNotes}
-                      onChange={(e) => setPayNotes(e.target.value)}
-                    />
+                    <div className="card-body p-3">
+                      <div className="row g-3 mb-3">
+                        {/* Payment Amount */}
+                        <div className="col-md-4">
+                          <label className="form-label fw-bold text-dark fs-12 mb-1">
+                            Amount Paid (₹) <span className="text-danger">*</span>
+                          </label>
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="form-control"
+                            value={payAmount}
+                            onChange={(e) => setPayAmount(e.target.value)}
+                            max={payingInvoice.due_amount || payingInvoice.total_amount}
+                            min="1"
+                            required
+                          />
+                          <small className="text-muted fs-11">
+                            Max: ₹{formatCurrency(payingInvoice.due_amount || payingInvoice.total_amount)}
+                          </small>
+                        </div>
+
+                        {/* Payment Mode */}
+                        <div className="col-md-4">
+                          <label className="form-label fw-bold text-dark fs-12 mb-1">
+                            Payment Mode <span className="text-danger">*</span>
+                          </label>
+                          <select
+                            className="form-select"
+                            value={payMethod}
+                            onChange={(e) => setPayMethod(e.target.value)}
+                          >
+                            <option value="UPI / QR Code">UPI / QR Code</option>
+                            <option value="Net Banking (NEFT/RTGS/IMPS)">Net Banking (NEFT/RTGS/IMPS)</option>
+                            <option value="Direct Bank Deposit">Direct Bank Deposit</option>
+                            <option value="Debit / Credit Card">Debit / Credit Card</option>
+                          </select>
+                        </div>
+
+                        {/* Transaction Reference / UTR */}
+                        <div className="col-md-4">
+                          <label className="form-label fw-bold text-dark fs-12 mb-1">
+                            Transaction / UTR No.
+                          </label>
+                          <input
+                            type="text"
+                            className="form-control"
+                            placeholder="e.g. UPI Ref / UTR / Txn ID"
+                            value={referenceNo}
+                            onChange={(e) => setReferenceNo(e.target.value)}
+                          />
+                          <small className="text-muted fs-11">Helps school verify faster</small>
+                        </div>
+                      </div>
+
+                      {/* Payment Receipt Upload Box */}
+                      <div className="mb-3">
+                        <label className="form-label fw-bold text-dark fs-12 mb-1">
+                          Payment Receipt Screenshot / Photo <span className="text-danger">*</span>
+                        </label>
+
+                        {receiptFile ? (
+                          <div className="p-3 rounded-3 border border-success border-2 bg-success bg-opacity-10 d-flex align-items-center justify-content-between">
+                            <div className="d-flex align-items-center text-truncate me-3">
+                              {receiptPreview ? (
+                                <img
+                                  src={receiptPreview}
+                                  alt="Receipt Preview"
+                                  className="rounded border me-3 shadow-2xs"
+                                  style={{ width: '60px', height: '60px', objectFit: 'cover' }}
+                                />
+                              ) : (
+                                <div
+                                  className="rounded bg-white border d-flex align-items-center justify-content-center me-3"
+                                  style={{ width: '60px', height: '60px' }}
+                                >
+                                  <i className="fa-solid fa-file-pdf fs-24 text-danger"></i>
+                                </div>
+                              )}
+                              <div className="text-truncate">
+                                <div className="d-flex align-items-center gap-1 mb-1">
+                                  <i className="fa-solid fa-circle-check text-success fs-14"></i>
+                                  <span className="fs-12 fw-bold text-success">Receipt Attached</span>
+                                </div>
+                                <span className="fw-bold text-dark fs-13 text-truncate d-block">
+                                  {receiptFile.name}
+                                </span>
+                                <span className="text-muted fs-11">
+                                  {(receiptFile.size / 1024).toFixed(1)} KB
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="d-flex gap-2 flex-shrink-0">
+                              <label className="btn btn-sm btn-outline-primary mb-0" style={{ cursor: 'pointer' }}>
+                                <i className="fa-solid fa-arrows-rotate me-1"></i>Change
+                                <input
+                                  type="file"
+                                  hidden
+                                  accept="image/jpeg,image/png,image/jpg,image/webp,application/pdf"
+                                  onChange={handleReceiptChange}
+                                />
+                              </label>
+                              <button
+                                type="button"
+                                className="btn btn-sm btn-outline-danger"
+                                onClick={handleRemoveReceipt}
+                              >
+                                <i className="fa-solid fa-trash-can me-1"></i>Remove
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <label
+                            className="w-100 p-4 rounded-3 border border-2 border-primary border-opacity-50 text-center d-block"
+                            style={{
+                              borderStyle: 'dashed',
+                              backgroundColor: '#f8fafc',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <input
+                              type="file"
+                              hidden
+                              accept="image/jpeg,image/png,image/jpg,image/webp,application/pdf"
+                              onChange={handleReceiptChange}
+                            />
+                            <div
+                              className="rounded-circle bg-primary bg-opacity-10 text-primary mx-auto mb-2 d-flex align-items-center justify-content-center"
+                              style={{ width: '48px', height: '48px' }}
+                            >
+                              <i className="fa-solid fa-cloud-arrow-up fs-20"></i>
+                            </div>
+                            <h6 className="fw-bold text-dark mb-1 fs-14">
+                              Click to Upload Payment Receipt
+                            </h6>
+                            <p className="text-muted fs-12 mb-2">
+                              Attach screenshot or photo of transaction confirmation from your bank or UPI app
+                            </p>
+                            <span className="badge bg-white border text-primary px-3 py-2 fs-12 fw-bold shadow-2xs">
+                              <i className="fa-solid fa-image me-1"></i> Choose from Files / Gallery
+                            </span>
+                            <div className="text-muted fs-11 mt-2">
+                              Supported formats: JPG, PNG, WEBP, PDF (Max 5MB)
+                            </div>
+                          </label>
+                        )}
+                      </div>
+
+                      {/* Remarks / Notes */}
+                      <div className="mb-3">
+                        <label className="form-label fw-bold text-dark fs-12 mb-1">
+                          Remarks / Notes (Optional)
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="e.g. Paid via GPay from father's account"
+                          value={payNotes}
+                          onChange={(e) => setPayNotes(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="alert alert-info py-2 px-3 fs-12 mb-0 d-flex align-items-center">
+                        <i className="fa-solid fa-circle-info fs-16 text-info me-2"></i>
+                        <span>
+                          After submitting, the school accounts office will verify your payment receipt. The invoice status will show <strong>Pending Verification</strong> until approved.
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="modal-footer">
+
+                {/* Modal Footer */}
+                <div className="modal-footer bg-light py-3 px-4 flex-shrink-0">
                   <button
                     type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowPayModal(false)}
+                    className="btn btn-secondary px-3"
+                    onClick={() => {
+                      handleRemoveReceipt();
+                      setShowPayModal(false);
+                    }}
                     disabled={submittingPayment}
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="btn btn-primary fw-bold px-4"
-                    disabled={submittingPayment}
+                    className="btn btn-primary fw-bold px-4 shadow-sm"
+                    disabled={submittingPayment || !receiptFile}
                   >
                     {submittingPayment ? (
                       <>
                         <span className="spinner-border spinner-border-sm me-2"></span>
-                        Processing...
+                        Uploading &amp; Submitting...
                       </>
                     ) : (
                       <>
-                        <i className="fa-solid fa-lock me-1"></i> Pay ₹{formatCurrency(payAmount || 0)}
+                        <i className="fa-solid fa-circle-check me-2"></i>Submit Payment for Verification
                       </>
                     )}
                   </button>
@@ -923,12 +1507,68 @@ const ParentFees = () => {
         </div>
       )}
 
+      {/* QR ZOOM MODAL */}
+      {qrZoom && feesData.bank_details?.qr_code && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1060 }}
+          onClick={() => setQrZoom(false)}
+        >
+          <div
+            className="modal-dialog modal-dialog-centered"
+            style={{ maxWidth: '420px' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content border-0 shadow-lg rounded-3 overflow-hidden text-center p-4">
+              <div className="d-flex justify-content-between align-items-center mb-3">
+                <h6 className="fw-bold mb-0 text-dark">
+                  <i className="fa-solid fa-qrcode text-primary me-2"></i>School Payment QR Code
+                </h6>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setQrZoom(false)}
+                ></button>
+              </div>
+              <div className="p-2 border rounded bg-white shadow-sm mb-3">
+                <img
+                  src={resolveImageUrl(feesData.bank_details.qr_code)}
+                  alt="School Payment QR Code"
+                  className="img-fluid rounded"
+                  style={{ maxHeight: '320px', objectFit: 'contain' }}
+                />
+              </div>
+              {feesData.bank_details.upi_id && (
+                <div className="d-flex align-items-center justify-content-between p-2 bg-light rounded border mb-2">
+                  <span className="fs-12 text-muted font-monospace text-truncate me-2">
+                    UPI: <strong>{feesData.bank_details.upi_id}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    className={`btn btn-sm py-0 px-2 fs-11 ${
+                      copiedField === 'zoom_upi' ? 'btn-success text-white' : 'btn-outline-primary'
+                    }`}
+                    onClick={() => handleCopy(feesData.bank_details.upi_id, 'zoom_upi')}
+                  >
+                    {copiedField === 'zoom_upi' ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              )}
+              <p className="fs-12 text-muted mb-0">
+                Scan with Google Pay, PhonePe, Paytm, BHIM or any banking UPI app
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL 3: Receipt Modal */}
       {showReceiptModal && selectedReceipt && (
-        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content border-0 shadow">
-              <div className="modal-header bg-light py-3">
+        <div className="modal fade show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}>
+          <div className="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable modal-dialog-fixed">
+            <div className="modal-content modal-content-fixed border-0 shadow">
+              <div className="modal-header bg-light py-3 flex-shrink-0">
                 <h5 className="modal-title fw-bold text-dark">
                   <i className="fa-solid fa-receipt me-2 text-primary"></i>Fee Payment Receipt
                 </h5>
@@ -938,7 +1578,7 @@ const ParentFees = () => {
                   onClick={() => setShowReceiptModal(false)}
                 ></button>
               </div>
-              <div className="modal-body p-4">
+              <div className="modal-body modal-body-scrollable custom-scrollbar p-4">
                 <div className="border rounded-3 p-4 bg-white shadow-sm mb-3">
                   <div className="text-center border-bottom pb-3 mb-3">
                     <h4 className="fw-bold text-dark mb-1">
@@ -1015,7 +1655,7 @@ const ParentFees = () => {
                   </div>
                 </div>
               </div>
-              <div className="modal-footer">
+              <div className="modal-footer flex-shrink-0">
                 <button
                   type="button"
                   className="btn btn-secondary"

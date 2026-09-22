@@ -137,6 +137,11 @@ const adminFeesApi = {
     const res = await apiClient.post('/admin/fees/payments/collect', data);
     return res.data;
   },
+
+  verifyPayment: async (id, data) => {
+    const res = await apiClient.patch(`/admin/fees/payments/${id}/verify`, data);
+    return res.data;
+  },
 };
 
 export default adminFeesApi;
