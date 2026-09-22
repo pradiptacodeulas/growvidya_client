@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import { printIsolatedTemplate } from '../../../utils/printPdf.util';
 import { decodeParam } from '../../../utils/idHelper';
+import { resolveImageUrl } from '../../../utils/url.util';
 
 const ViewReceipt = () => {
   const { id: rawId } = useParams();
   const id = decodeParam(rawId);
+  const { user } = useSelector((state) => state.auth);
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -71,6 +74,10 @@ const ViewReceipt = () => {
     );
   }
 
+  const schoolName = receipt.school_name || user?.schoolName || user?.school_name || '';
+  const schoolAddress = receipt.branch_address || receipt.school_address || '';
+  const schoolLogoUrl = resolveImageUrl(receipt.school_logo || user?.schoolLogo || user?.school_logo);
+
   return (
     <div className="content">
       {/* Page Header */}
@@ -111,12 +118,25 @@ const ViewReceipt = () => {
         <div className="card-body p-5 border border-3 border-light">
           {/* School & Receipt Banner */}
           <div className="row align-items-center mb-4 border-bottom pb-4">
-            <div className="col-sm-7">
-              <h2 className="fw-bold text-primary mb-1">CIBL School</h2>
-              <p className="text-muted mb-0 fs-13">09/245, Kalyani, Nadia</p>
-              <span className="badge bg-success mt-2 fs-12 px-3 py-1">
-                <i className="ti ti-check-circle me-1"></i>FEE PAYMENT RECEIPT
-              </span>
+            <div className="col-sm-7 d-flex align-items-center gap-3">
+              {schoolLogoUrl && (
+                <img
+                  src={schoolLogoUrl}
+                  alt={schoolName}
+                  style={{ maxHeight: '64px', maxWidth: '64px', objectFit: 'contain' }}
+                  className="rounded flex-shrink-0"
+                />
+              )}
+              <div>
+                <h2 className="fw-bold text-primary mb-1">{schoolName}</h2>
+                {receipt.branch_name && receipt.branch_name !== schoolName && (
+                  <p className="fw-semibold text-dark mb-0 fs-13">{receipt.branch_name}</p>
+                )}
+                {schoolAddress && <p className="text-muted mb-0 fs-13">{schoolAddress}</p>}
+                <span className="badge bg-success mt-2 fs-12 px-3 py-1">
+                  <i className="ti ti-check-circle me-1"></i>FEE PAYMENT RECEIPT
+                </span>
+              </div>
             </div>
             <div className="col-sm-5 text-sm-end mt-3 mt-sm-0">
               <div className="p-3 bg-light rounded border">
@@ -124,9 +144,11 @@ const ViewReceipt = () => {
                   RECEIPT NUMBER
                 </span>
                 <h4 className="text-success fw-bold mb-1">{receipt.receipt_no}</h4>
-                <small className="text-muted">
-                  Txn No: {receipt.txn_no || receipt.transaction_id || receipt.reference_no || `TXN-P-${receipt.id}`}
-                </small>
+                {(receipt.txn_no || receipt.transaction_id || receipt.reference_no) && (
+                  <small className="text-muted">
+                    Txn No: {receipt.txn_no || receipt.transaction_id || receipt.reference_no}
+                  </small>
+                )}
               </div>
             </div>
           </div>
@@ -137,7 +159,7 @@ const ViewReceipt = () => {
               <div className="p-3 bg-light rounded border h-100">
                 <h6 className="text-uppercase text-muted fs-12 fw-bold mb-2">Student Details:</h6>
                 <h5 className="fw-bold text-dark mb-1">
-                  {receipt.first_name} {receipt.last_name || ''}
+                  {receipt.first_name || ''} {receipt.last_name || ''}
                 </h5>
                 <p className="mb-1 text-muted fs-14">
                   <strong>Admission No:</strong> {receipt.admission_number || '-'}
@@ -163,9 +185,7 @@ const ViewReceipt = () => {
                 <p className="mb-1 text-muted fs-14">
                   <strong>Payment Method:</strong>{' '}
                   <span className="badge bg-primary text-white">
-                    {receipt.payment_method === 'UPI'
-                      ? 'UPI / Online Transfer'
-                      : receipt.payment_method || 'Cash'}
+                    {receipt.payment_method || '-'}
                   </span>
                 </p>
                 <p className="mb-1 text-muted fs-14">
@@ -173,7 +193,7 @@ const ViewReceipt = () => {
                   {receipt.reference_no || receipt.cheque_no || '-'}
                 </p>
                 <p className="mb-0 text-muted fs-14">
-                  <strong>Bank:</strong> {receipt.bank_name || 'N/A'}
+                  <strong>Bank:</strong> {receipt.bank_name || '-'}
                 </p>
               </div>
             </div>
@@ -192,9 +212,9 @@ const ViewReceipt = () => {
               <tbody>
                 <tr>
                   <td>
-                    <span className="fw-bold text-dark">{receipt.invoice_no || 'Direct Payment'}</span>
+                    <span className="fw-bold text-dark">{receipt.invoice_no || '-'}</span>
                   </td>
-                  <td>{receipt.invoice_title || receipt.title || 'Tuition & Academic Fees'}</td>
+                  <td>{receipt.invoice_title || receipt.title || '-'}</td>
                   <td className="text-end fw-bold text-success fs-16">
                     {formatCurrency(receipt.amount_paid)}
                   </td>
@@ -245,16 +265,16 @@ const ViewReceipt = () => {
           )}
 
           {/* Remaining Invoice Balance */}
-          <div className="p-3 bg-light rounded border mb-4">
-            <span className="text-muted fs-12 text-uppercase fw-semibold d-block">
-              REMAINING INVOICE BALANCE
-            </span>
-            <h5 className="fw-bold text-danger mb-0">
-              {formatCurrency(
-                receipt.invoice_due !== undefined ? receipt.invoice_due : receipt.due_amount || 0
-              )}
-            </h5>
-          </div>
+          {receipt.invoice_due !== undefined && receipt.invoice_due !== null && (
+            <div className="p-3 bg-light rounded border mb-4">
+              <span className="text-muted fs-12 text-uppercase fw-semibold d-block">
+                REMAINING INVOICE BALANCE
+              </span>
+              <h5 className="fw-bold text-danger mb-0">
+                {formatCurrency(receipt.invoice_due)}
+              </h5>
+            </div>
+          )}
 
           {/* Remarks */}
           {receipt.notes && (

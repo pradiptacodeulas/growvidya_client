@@ -267,7 +267,7 @@ const Sidebar = ({
                       <div className="d-flex align-items-center mb-1">
                         <i className="ti ti-bolt text-warning-emphasis fs-16 me-1"></i>
                         <span className="fw-bold fs-11 text-uppercase">
-                          {subscription?.plan_name || '14-Day Free Trial'}
+                          {subscription?.plan_name || 'Trial'}
                         </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
@@ -307,7 +307,7 @@ const Sidebar = ({
                           } fs-16 me-1`}
                         ></i>
                         <span className="fw-bold fs-11 text-uppercase">
-                          {subscription?.plan_name || 'Active Plan'}
+                          {subscription?.plan_name}
                         </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
@@ -362,15 +362,19 @@ const Sidebar = ({
                       <div className="d-flex align-items-center mb-1">
                         <i className="ti ti-lock fs-16 me-1 text-danger"></i>
                         <span className="fw-bold fs-11 text-uppercase">
-                          {isTrial
+                          {subscription?.plan_name
+                            ? `${subscription.plan_name} Expired`
+                            : isTrial
                             ? 'Trial Expired'
-                            : `${subscription?.plan_name || 'Subscription'} Expired`}
+                            : 'Subscription Expired'}
                         </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
                         {isTrial
                           ? 'All operational menus are locked. Upgrade to restore full access.'
-                          : `Your ${subscription?.plan_name || 'subscription'} has expired. Renew or upgrade to restore full access.`}
+                          : subscription?.plan_name
+                          ? `Your ${subscription.plan_name} has expired. Renew or upgrade to restore full access.`
+                          : 'Your subscription has expired. Renew or upgrade to restore full access.'}
                       </p>
                       <div className="d-flex flex-column gap-1">
                         {!isTrial && (

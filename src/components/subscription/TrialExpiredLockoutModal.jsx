@@ -17,28 +17,21 @@ const TrialExpiredLockoutModal = ({
   const activePlanName = subscription?.plan_name || user?.subscription?.plan_name || '';
   const planNameLower = activePlanName.toLowerCase();
 
-  const isTrial = subscription !== null
+  const activeSubscription = subscription || user?.subscription || null;
+  const isTrial = activeSubscription
     ? Boolean(
-        subscription?.isTrial !== undefined
-          ? subscription.isTrial
-          : (subscription?.billing_cycle === 'trial' ||
-             (subscription?.plan_code || '').toLowerCase().includes('trial') ||
-             planNameLower.includes('trial') ||
-             subscription?.status === 'trial') &&
-            subscription?.billing_cycle !== 'annual' &&
-            subscription?.billing_cycle !== 'monthly' &&
-            !planNameLower.includes('starter') &&
-            !planNameLower.includes('growth') &&
-            !planNameLower.includes('enterprise')
-      )
-    : Boolean(
-        (user?.isTrial || user?.is_trial) &&
-        !planNameLower.includes('starter') &&
-        !planNameLower.includes('growth') &&
-        !planNameLower.includes('enterprise')
-      );
+        activeSubscription.isTrial ||
+        activeSubscription.billing_cycle === 'trial' ||
+        (activeSubscription.plan_code || '').toLowerCase().includes('trial')
+      ) &&
+      activeSubscription.billing_cycle !== 'annual' &&
+      activeSubscription.billing_cycle !== 'monthly' &&
+      !planNameLower.includes('starter') &&
+      !planNameLower.includes('growth') &&
+      !planNameLower.includes('enterprise')
+    : false;
 
-  const currentPlanName = activePlanName || (isTrial ? '14-Day Free Trial' : 'Subscription');
+  const currentPlanName = activePlanName || '';
 
   const [selectedPlanId, setSelectedPlanId] = useState(() => {
     if (subscription?.plan_id && plans.some((p) => Number(p.id) === Number(subscription.plan_id))) {
@@ -200,7 +193,7 @@ const TrialExpiredLockoutModal = ({
           </div>
 
           <h3 className="fw-bold mb-1 text-white">
-            {isTrial ? '14-Day Free Trial Ended' : `${currentPlanName} Expired`}
+            {currentPlanName ? `${currentPlanName} Expired` : isTrial ? 'Trial Ended' : 'Subscription Expired'}
           </h3>
           <p className="text-white-50 mb-0 fs-14">
             {isTrial

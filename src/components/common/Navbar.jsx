@@ -169,7 +169,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             {isTrial && !isExpired && (
               <div className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none">
                 <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
-                <span className="d-none d-sm-inline">{subscription?.plan_name || '14-Day Free Trial'}:&nbsp;</span>
+                <span className="d-none d-sm-inline">{subscription?.plan_name ? `${subscription.plan_name}: ` : ''}</span>
                 <strong className="text-danger">{daysLeft} days remaining</strong>
                 <button
                   type="button"
@@ -223,7 +223,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                     ? 'bg-warning-subtle border-warning text-dark'
                     : 'bg-success-subtle border-success-subtle text-success-emphasis'
                 }`}
-                title={`Valid until ${subscription?.end_date || 'end of term'} (${daysLeft} days remaining)`}
+                title={subscription?.end_date ? `Valid until ${subscription.end_date} (${daysLeft} days remaining)` : `${daysLeft} days remaining`}
               >
                 <i
                   className={`ti ${
@@ -231,7 +231,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   } me-1 fs-14`}
                 ></i>
                 <span className="d-none d-sm-inline">
-                  {subscription?.plan_name || 'Active License'}:&nbsp;
+                  {subscription?.plan_name ? `${subscription.plan_name}: ` : ''}
                 </span>
                 <strong
                   className={

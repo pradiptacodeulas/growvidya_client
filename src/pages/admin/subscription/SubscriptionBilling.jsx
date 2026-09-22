@@ -25,7 +25,7 @@ const SubscriptionBilling = () => {
     );
   }
 
-  const planName = subscription?.plan_name || 'No Active Subscription';
+  const planName = subscription?.plan_name || '';
   const maxStudents = subscription?.max_students || 0;
   const maxTeachers = subscription?.max_teachers || 0;
 
@@ -41,7 +41,7 @@ const SubscriptionBilling = () => {
           <h3 className="page-title mb-1 fw-bold text-dark">Subscription & Billing</h3>
           <p className="text-muted fs-13 mb-0">
             {isTrial
-              ? 'Monitor your 14-day free trial evaluation status, quotas, and manage annual licensing.'
+              ? `Monitor your ${planName || 'trial'} evaluation status, quotas, and manage annual licensing.`
               : 'Monitor your institutional subscription status, renewal countdown, quotas, and manage licensing tiers.'}
           </p>
         </div>
@@ -187,12 +187,12 @@ const SubscriptionBilling = () => {
           <div className="flex-grow-1">
             <h6 className="alert-heading fw-bold mb-1 text-danger">
               {isTrial
-                ? '14-Day Free Trial Expired — All Menus Locked'
+                ? `${planName || 'Trial'} Expired — All Menus Locked`
                 : `${planName} Expired — All Menus Locked`}
             </h6>
             <p className="mb-0 fs-13 text-secondary">
               {isTrial
-                ? 'Your 14-day free trial has expired and all operational modules (Students, Teachers, Academics, Attendance, Fees, Examination, Reports) are disabled. Select an annual license plan below to restore full institutional access immediately.'
+                ? `Your evaluation period for ${planName || 'the platform'} has expired and all operational modules are disabled. Select an annual license plan below to restore full access.`
                 : `Your subscription to ${planName} expired on ${subscription?.end_date || 'recently'}. All operational modules are locked. Renew your ${planName} or upgrade to a higher tier to restore access.`}
             </p>
           </div>
@@ -258,18 +258,18 @@ const SubscriptionBilling = () => {
               <p className="text-white-50 mb-3 fs-14">
                 {isExpired
                   ? isTrial
-                    ? 'Your 14-day trial has concluded. Upgrade now to restore administrative workflows.'
+                    ? `Your evaluation period for ${planName || 'trial'} has concluded. Upgrade now to restore administrative workflows.`
                     : `Your ${planName} subscription expired on ${subscription?.end_date || 'recently'}. Renew your current plan or upgrade to restore administrative workflows.`
                   : isTrial
-                  ? `You are currently experiencing the full platform under the 14-day trial period. Trial ends on ${subscription?.end_date || 'N/A'}.`
-                  : `Your institutional license is active until ${subscription?.end_date || 'N/A'} (${daysLeft} days remaining). Cloud hosting, security patches, and support are included.`}
+                  ? `You are currently experiencing the platform under ${planName || 'trial'}. Period ends on ${subscription?.end_date || ''}.`
+                  : `Your institutional license is active until ${subscription?.end_date || ''} (${daysLeft} days remaining). Cloud hosting, security patches, and support are included.`}
               </p>
 
               {isTrial && !isExpired && (
                 <div className="mb-2" style={{ maxWidth: '500px' }}>
                   <div className="d-flex justify-content-between text-white-50 fs-12 mb-1">
                     <span>Trial Usage</span>
-                    <span>{daysLeft} days remaining of 14 days</span>
+                    <span>{daysLeft} days remaining</span>
                   </div>
                   <div className="progress" style={{ height: '8px', backgroundColor: 'rgba(255,255,255,0.2)' }}>
                     <div
@@ -288,9 +288,11 @@ const SubscriptionBilling = () => {
                 <div className="fs-24 fw-bold text-white mb-1">
                   ₹{Number(subscription?.amount_paid || 0).toLocaleString('en-IN')}
                 </div>
-                <div className="text-white-50 fs-11">
-                  Payment Ref: {subscription?.payment_transaction_id || (isTrial ? 'Free Trial Onboarding' : 'Subscription Active')}
-                </div>
+                {subscription?.payment_transaction_id && (
+                  <div className="text-white-50 fs-11">
+                    Payment Ref: {subscription.payment_transaction_id}
+                  </div>
+                )}
               </div>
             </div>
           </div>

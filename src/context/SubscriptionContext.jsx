@@ -33,42 +33,35 @@ export const SubscriptionProvider = ({ children }) => {
   const [isLockoutModalOpen, setIsLockoutModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
-  const activePlanName = subscription?.plan_name || user?.subscription?.plan_name || '';
+  const activeSubscription = subscription || user?.subscription || null;
+  const activePlanName = activeSubscription?.plan_name || '';
   const planNameLower = activePlanName.toLowerCase();
 
-  const isTrial = subscription !== null
+  const isTrial = activeSubscription
     ? Boolean(
-        subscription?.isTrial !== undefined
-          ? subscription.isTrial
-          : (subscription?.billing_cycle === 'trial' ||
-             (subscription?.plan_code || '').toLowerCase().includes('trial') ||
-             planNameLower.includes('trial') ||
-             subscription?.status === 'trial') &&
-            subscription?.billing_cycle !== 'annual' &&
-            subscription?.billing_cycle !== 'monthly' &&
-            !planNameLower.includes('starter') &&
-            !planNameLower.includes('growth') &&
-            !planNameLower.includes('enterprise')
+        activeSubscription.isTrial ||
+        activeSubscription.billing_cycle === 'trial' ||
+        (activeSubscription.plan_code || '').toLowerCase().includes('trial')
+      ) &&
+      activeSubscription.billing_cycle !== 'annual' &&
+      activeSubscription.billing_cycle !== 'monthly' &&
+      !planNameLower.includes('starter') &&
+      !planNameLower.includes('growth') &&
+      !planNameLower.includes('enterprise')
+    : false;
+
+  const daysLeft = activeSubscription?.days_left !== undefined
+    ? Math.max(0, Number(activeSubscription.days_left))
+    : 0;
+
+  const isExpired = activeSubscription
+    ? Boolean(
+        activeSubscription.isExpired ||
+        activeSubscription.liveStatus === 'expired' ||
+        activeSubscription.status === 'expired' ||
+        daysLeft <= 0
       )
-    : Boolean(
-        (user?.isTrial || user?.is_trial) &&
-        !planNameLower.includes('starter') &&
-        !planNameLower.includes('growth') &&
-        !planNameLower.includes('enterprise')
-      );
-
-  const daysLeft = subscription?.days_left !== undefined
-    ? Number(subscription.days_left)
-    : (user?.subscription?.days_left !== undefined ? Number(user.subscription.days_left) : 0);
-
-  const isExpired = Boolean(
-    subscription?.isExpired ||
-    subscription?.liveStatus === 'expired' ||
-    subscription?.status === 'expired' ||
-    user?.subscription?.isExpired ||
-    user?.subscription?.status === 'expired' ||
-    daysLeft <= 0
-  );
+    : false;
 
   const refreshSubscription = useCallback(async () => {
     const hasAdminToken =
