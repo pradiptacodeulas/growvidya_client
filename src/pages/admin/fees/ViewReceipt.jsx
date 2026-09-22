@@ -1,21 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import { printIsolatedTemplate } from '../../../utils/printPdf.util';
-import { decodeParam } from '../../../utils/idHelper';
-import { resolveImageUrl } from '../../../utils/url.util';
+import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 const ViewReceipt = () => {
   const { id: rawId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const id = decodeParam(rawId);
   const { user } = useSelector((state) => state.auth);
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // If rawId is unencoded (e.g. raw numeric ID "4"), replace the URL with encoded ID
   useEffect(() => {
-    fetchReceiptDetails();
+    if (rawId && /^\d+$/.test(String(rawId).trim())) {
+      const encoded = encodeParam(rawId);
+      const newPath = location.pathname.replace(new RegExp(`/${rawId}$`), `/${encoded}`);
+      navigate(newPath, { replace: true });
+    }
+  }, [rawId, navigate, location.pathname]);
+
+  useEffect(() => {
+    if (id) {
+      fetchReceiptDetails();
+    }
   }, [id]);
 
   const fetchReceiptDetails = async () => {
@@ -76,7 +88,23 @@ const ViewReceipt = () => {
 
   const schoolName = receipt.school_name || user?.schoolName || user?.school_name || '';
   const schoolAddress = receipt.branch_address || receipt.school_address || '';
-  const schoolLogoUrl = resolveImageUrl(receipt.school_logo || user?.schoolLogo || user?.school_logo);
+
+  // Clean branch name so it doesn't repeat the school name anywhere on the receipt
+  const rawBranch = receipt.branch_name || '';
+  let branchName = rawBranch;
+  if (schoolName && branchName) {
+    const escapedSchoolName = schoolName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    branchName = branchName.replace(new RegExp(escapedSchoolName, 'gi'), '');
+    branchName = branchName.replace(/^[\s(\-–/]+/, '').replace(/[\s)\-–/]+$/, '').trim();
+  }
+
+  // Clean address in case school name was included in address string
+  let cleanAddress = schoolAddress;
+  if (schoolName && cleanAddress) {
+    const escapedSchoolName = schoolName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    cleanAddress = cleanAddress.replace(new RegExp(escapedSchoolName, 'gi'), '');
+    cleanAddress = cleanAddress.replace(/^[\s,(\-–/]+/, '').replace(/[\s,)\-–/]+$/, '').trim();
+  }
 
   return (
     <div className="content">
@@ -118,21 +146,13 @@ const ViewReceipt = () => {
         <div className="card-body p-5 border border-3 border-light">
           {/* School & Receipt Banner */}
           <div className="row align-items-center mb-4 border-bottom pb-4">
-            <div className="col-sm-7 d-flex align-items-center gap-3">
-              {schoolLogoUrl && (
-                <img
-                  src={schoolLogoUrl}
-                  alt={schoolName}
-                  style={{ maxHeight: '64px', maxWidth: '64px', objectFit: 'contain' }}
-                  className="rounded flex-shrink-0"
-                />
-              )}
+            <div className="col-sm-7">
               <div>
                 <h2 className="fw-bold text-primary mb-1">{schoolName}</h2>
-                {receipt.branch_name && receipt.branch_name !== schoolName && (
-                  <p className="fw-semibold text-dark mb-0 fs-13">{receipt.branch_name}</p>
+                {branchName && (
+                  <p className="fw-semibold text-dark mb-0 fs-13">{branchName}</p>
                 )}
-                {schoolAddress && <p className="text-muted mb-0 fs-13">{schoolAddress}</p>}
+                {cleanAddress && <p className="text-muted mb-0 fs-13">{cleanAddress}</p>}
                 <span className="badge bg-success mt-2 fs-12 px-3 py-1">
                   <i className="ti ti-check-circle me-1"></i>FEE PAYMENT RECEIPT
                 </span>

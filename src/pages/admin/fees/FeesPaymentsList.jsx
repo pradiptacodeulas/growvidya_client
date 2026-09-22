@@ -5,6 +5,7 @@ import adminFeesApi from '../../../api/adminFees.api';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { resolveImageUrl } from '../../../utils/url.util';
+import { encodeParam } from '../../../utils/idHelper';
 
 const FeesPaymentsList = () => {
   const [payments, setPayments] = useState([]);
@@ -175,7 +176,7 @@ const FeesPaymentsList = () => {
         sortable: true,
         cell: ({ value, row }) => (
           <Link
-            to={`/admin/fees/payments/receipt/${row.id}`}
+            to={`/admin/fees/payments/receipt/${encodeParam(row.id)}`}
             className="fw-bold text-primary text-decoration-none"
           >
             {value}
@@ -189,7 +190,7 @@ const FeesPaymentsList = () => {
         cell: ({ row }) => (
           <div className="d-flex align-items-center gap-1">
             <span className="font-monospace text-muted fs-12">
-              {row.transaction_id || row.reference_no || `TXN-P-${row.id}`}
+              {row.transaction_id || row.reference_no || '-'}
             </span>
             {(row.reference_no || row.transaction_id) && (
               <button
@@ -242,7 +243,7 @@ const FeesPaymentsList = () => {
         sortable: true,
         cell: ({ value }) => (
           <span className="badge bg-light text-dark border">
-            {value === 'UPI' ? 'UPI / Online' : value || 'Cash'}
+            {value === 'UPI' ? 'UPI / Online' : value || '-'}
           </span>
         ),
       },
@@ -328,7 +329,7 @@ const FeesPaymentsList = () => {
                   {
                     label: 'View Receipt',
                     icon: 'ti ti-printer text-primary',
-                    to: `/admin/fees/payments/receipt/${row.id}`,
+                    to: `/admin/fees/payments/receipt/${encodeParam(row.id)}`,
                   },
                 ]}
               />
@@ -544,7 +545,7 @@ const FeesPaymentsList = () => {
                     <div className="row g-2 mb-2">
                       <div className="col-sm-4">
                         <span className="text-muted fs-11 d-block">Fee Title</span>
-                        <strong className="text-dark fs-13">{selectedPayment.invoice_title || 'School Academic Fee'}</strong>
+                        <strong className="text-dark fs-13">{selectedPayment.invoice_title || selectedPayment.title || '-'}</strong>
                       </div>
                       <div className="col-sm-4">
                         <span className="text-muted fs-11 d-block">Total Invoice Amount</span>
@@ -588,7 +589,7 @@ const FeesPaymentsList = () => {
                       <div className="col-md-6">
                         <span className="text-muted fs-11 d-block">Payment Method</span>
                         <span className="badge bg-light text-dark border px-2 py-1 fs-12 fw-medium">
-                          {selectedPayment.payment_method || 'Online Transfer'}
+                          {selectedPayment.payment_method || '-'}
                         </span>
                       </div>
                       <div className="col-md-6">

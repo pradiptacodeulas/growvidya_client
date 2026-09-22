@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import adminStudentApi from '../../../api/adminStudent.api';
 import { downloadPdfFromElement, printIsolatedTemplate } from '../../../utils/printPdf.util';
 import NoData from '../../../components/common/NoData';
+import { encodeParam } from '../../../utils/idHelper';
 
 const FeesCollectionDashboard = () => {
+  const { user } = useSelector((state) => state.auth);
   const [stats, setStats] = useState({
     totalInvoiced: 0,
     totalCollected: 0,
@@ -603,7 +606,7 @@ const FeesCollectionDashboard = () => {
                       </td>
                       <td>
                         <Link
-                          to={`/admin/fees/payments/receipt/${pay.id}`}
+                          to={`/admin/fees/payments/receipt/${encodeParam(pay.id)}`}
                           className="btn btn-sm btn-outline-secondary"
                         >
                           <i className="ti ti-printer me-1"></i>Receipt
@@ -942,10 +945,21 @@ const FeesCollectionDashboard = () => {
                   <div className="text-center py-4 text-danger">Failed to load receipt details.</div>
                 ) : (
                   <div>
-                    <div className="text-center border-bottom pb-3 mb-3">
-                      <h4 className="fw-bold text-primary mb-1">GROWVIDYA ACADEMY</h4>
-                      <p className="text-muted fs-13 mb-0">Official Student Fee Payment Receipt</p>
-                    </div>
+                    {(() => {
+                      const schoolName = receiptData.school_name || receiptData.schoolName || user?.schoolName || user?.school_name || '';
+                      let branchName = receiptData.branch_name || '';
+                      if (schoolName && branchName) {
+                        const escapedSchoolName = schoolName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                        branchName = branchName.replace(new RegExp(escapedSchoolName, 'gi'), '').replace(/^[\s(\-–/]+/, '').replace(/[\s)\-–/]+$/, '').trim();
+                      }
+                      return (
+                        <div className="text-center border-bottom pb-3 mb-3">
+                          {schoolName && <h4 className="fw-bold text-primary mb-1">{schoolName}</h4>}
+                          {branchName && <p className="fw-semibold text-dark mb-1 fs-13">{branchName}</p>}
+                          <p className="text-muted fs-13 mb-0">Official Student Fee Payment Receipt</p>
+                        </div>
+                      );
+                    })()}
 
                     <div className="d-flex justify-content-between mb-2">
                       <span className="text-muted">Receipt Number:</span>
