@@ -138,6 +138,33 @@ const adminFeesApi = {
     return res.data;
   },
 
+  /**
+   * Download or preview Fee Receipt PDF (Single or Batch, returns raw binary blob) matching ID Card flow
+   * @param {number|string|Object} paramsOrId - paymentId or { paymentIds, classId, sectionId }
+   */
+  downloadReceiptPdf: async (paramsOrId = {}) => {
+    if (typeof paramsOrId === 'number' || typeof paramsOrId === 'string') {
+      const res = await apiClient.get(`/admin/fees/payments/${paramsOrId}/receipt-pdf`, {
+        responseType: 'blob',
+      });
+      return res.data;
+    }
+
+    const isPost = Array.isArray(paramsOrId?.paymentIds) && paramsOrId.paymentIds.length > 5;
+    const config = { responseType: 'blob' };
+
+    if (isPost) {
+      const res = await apiClient.post('/admin/fees/payments/receipt/pdf', paramsOrId, config);
+      return res.data;
+    }
+
+    const res = await apiClient.get('/admin/fees/payments/receipt/pdf', {
+      params: paramsOrId,
+      ...config,
+    });
+    return res.data;
+  },
+
   downloadPaymentReceiptPdf: async (id) => {
     const res = await apiClient.get(`/admin/fees/payments/${id}/receipt-pdf`, {
       responseType: 'blob',
