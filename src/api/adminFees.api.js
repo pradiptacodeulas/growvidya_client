@@ -133,6 +133,18 @@ const adminFeesApi = {
     return res.data;
   },
 
+  getPaymentReceiptHtml: async (id, params = {}) => {
+    const res = await apiClient.get(`/admin/fees/payments/${id}/receipt-html`, { params });
+    return res.data;
+  },
+
+  downloadPaymentReceiptPdf: async (id) => {
+    const res = await apiClient.get(`/admin/fees/payments/${id}/receipt-pdf`, {
+      responseType: 'blob',
+    });
+    return res.data;
+  },
+
   recordPayment: async (data) => {
     const res = await apiClient.post('/admin/fees/payments/collect', data);
     return res.data;

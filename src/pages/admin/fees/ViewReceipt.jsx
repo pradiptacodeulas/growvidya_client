@@ -1,9 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
-import { printIsolatedTemplate } from '../../../utils/printPdf.util';
 import { decodeParam, encodeParam } from '../../../utils/idHelper';
 
 const ViewReceipt = () => {
@@ -11,9 +9,13 @@ const ViewReceipt = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const id = decodeParam(rawId);
-  const { user } = useSelector((state) => state.auth);
+
+  const [receiptHtml, setReceiptHtml] = useState('');
   const [receipt, setReceipt] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [downloading, setDownloading] = useState(false);
+  const [iframeHeight, setIframeHeight] = useState('1100px');
+  const iframeRef = useRef(null);
 
   // If rawId is unencoded (e.g. raw numeric ID "4"), replace the URL with encoded ID
   useEffect(() => {
@@ -33,29 +35,56 @@ const ViewReceipt = () => {
   const fetchReceiptDetails = async () => {
     try {
       setLoading(true);
-      const res = await adminFeesApi.getPaymentById(id);
-      setReceipt(res?.data || null);
+      const res = await adminFeesApi.getPaymentReceiptHtml(id, { format: 'json' });
+      if (res?.data?.html) {
+        setReceiptHtml(res.data.html);
+        setReceipt(res.data.payment || null);
+      } else if (typeof res === 'string') {
+        setReceiptHtml(res);
+      } else {
+        setReceipt(null);
+      }
     } catch (err) {
-      console.error('Failed to load receipt details:', err);
-      toast.error('Failed to load fee receipt details');
+      console.error('Failed to load server receipt:', err);
+      toast.error('Failed to load fee receipt from server');
     } finally {
       setLoading(false);
     }
   };
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '-';
-    try {
-      const d = new Date(dateStr);
-      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    } catch (e) {
-      return dateStr;
+  const handlePrint = () => {
+    if (iframeRef.current && iframeRef.current.contentWindow) {
+      try {
+        iframeRef.current.contentWindow.focus();
+        iframeRef.current.contentWindow.print();
+        return;
+      } catch (e) {
+        console.warn('Iframe print focus failed:', e);
+      }
     }
+    window.print();
   };
 
-  const formatCurrency = (amount) => {
-    const num = parseFloat(amount || 0);
-    return `₹${num.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const handleDownloadPdf = async () => {
+    try {
+      setDownloading(true);
+      const blob = await adminFeesApi.downloadPaymentReceiptPdf(id);
+      const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      const link = document.createElement('a');
+      link.href = url;
+      const cleanReceiptNo = (receipt?.receipt_no || `REC_${id}`).replace(/[^a-zA-Z0-9_-]/g, '_');
+      link.setAttribute('download', `Fee_Receipt_${cleanReceiptNo}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success('Fee receipt PDF downloaded successfully.');
+    } catch (err) {
+      console.error('Failed to download receipt PDF:', err);
+      toast.error('Failed to generate receipt PDF on server.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   if (loading) {
@@ -63,13 +92,14 @@ const ViewReceipt = () => {
       <div className="content">
         <div className="card border-0 shadow-sm p-5 text-center">
           <div className="spinner-border text-primary mx-auto mb-3" role="status"></div>
-          <p className="text-muted mb-0">Loading receipt details...</p>
+          <h5 className="fw-bold mb-1">Generating Official Fee Receipt...</h5>
+          <p className="text-muted mb-0">Rendering server-side receipt template and verification details</p>
         </div>
       </div>
     );
   }
 
-  if (!receipt) {
+  if (!receiptHtml && !receipt) {
     return (
       <div className="content">
         <div className="card border-0 shadow-sm p-5 text-center">
@@ -84,26 +114,6 @@ const ViewReceipt = () => {
         </div>
       </div>
     );
-  }
-
-  const schoolName = receipt.school_name || user?.schoolName || user?.school_name || '';
-  const schoolAddress = receipt.branch_address || receipt.school_address || '';
-
-  // Clean branch name so it doesn't repeat the school name anywhere on the receipt
-  const rawBranch = receipt.branch_name || '';
-  let branchName = rawBranch;
-  if (schoolName && branchName) {
-    const escapedSchoolName = schoolName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    branchName = branchName.replace(new RegExp(escapedSchoolName, 'gi'), '');
-    branchName = branchName.replace(/^[\s(\-–/]+/, '').replace(/[\s)\-–/]+$/, '').trim();
-  }
-
-  // Clean address in case school name was included in address string
-  let cleanAddress = schoolAddress;
-  if (schoolName && cleanAddress) {
-    const escapedSchoolName = schoolName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    cleanAddress = cleanAddress.replace(new RegExp(escapedSchoolName, 'gi'), '');
-    cleanAddress = cleanAddress.replace(/^[\s,(\-–/]+/, '').replace(/[\s,)\-–/]+$/, '').trim();
   }
 
   return (
@@ -128,10 +138,22 @@ const ViewReceipt = () => {
         </div>
         <div className="d-flex gap-2">
           <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={handleDownloadPdf}
+            disabled={downloading}
+          >
+            {downloading ? (
+              <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+            ) : (
+              <i className="ti ti-download me-1"></i>
+            )}
+            Download PDF
+          </button>
+          <button
+            type="button"
             className="btn btn-primary"
-            onClick={() =>
-              printIsolatedTemplate('printable_area', `Receipt_${receipt.receipt_no}`)
-            }
+            onClick={handlePrint}
           >
             <i className="ti ti-printer me-1"></i>Print Receipt
           </button>
@@ -142,184 +164,29 @@ const ViewReceipt = () => {
       </div>
       {/* /Page Header */}
 
-      <div className="card border-0 shadow-sm mx-auto" style={{ maxWidth: '850px' }} id="printable_area">
-        <div className="card-body p-5 border border-3 border-light">
-          {/* School & Receipt Banner */}
-          <div className="row align-items-center mb-4 border-bottom pb-4">
-            <div className="col-sm-7">
-              <div>
-                <h2 className="fw-bold text-primary mb-1">{schoolName}</h2>
-                {branchName && (
-                  <p className="fw-semibold text-dark mb-0 fs-13">{branchName}</p>
-                )}
-                {cleanAddress && <p className="text-muted mb-0 fs-13">{cleanAddress}</p>}
-                <span className="badge bg-success mt-2 fs-12 px-3 py-1">
-                  <i className="ti ti-check-circle me-1"></i>FEE PAYMENT RECEIPT
-                </span>
-              </div>
-            </div>
-            <div className="col-sm-5 text-sm-end mt-3 mt-sm-0">
-              <div className="p-3 bg-light rounded border">
-                <span className="text-muted fs-12 text-uppercase fw-semibold d-block">
-                  RECEIPT NUMBER
-                </span>
-                <h4 className="text-success fw-bold mb-1">{receipt.receipt_no}</h4>
-                {(receipt.txn_no || receipt.transaction_id || receipt.reference_no) && (
-                  <small className="text-muted">
-                    Txn No: {receipt.txn_no || receipt.transaction_id || receipt.reference_no}
-                  </small>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {/* Student & Payment Information */}
-          <div className="row mb-4 g-3">
-            <div className="col-sm-6">
-              <div className="p-3 bg-light rounded border h-100">
-                <h6 className="text-uppercase text-muted fs-12 fw-bold mb-2">Student Details:</h6>
-                <h5 className="fw-bold text-dark mb-1">
-                  {receipt.first_name || ''} {receipt.last_name || ''}
-                </h5>
-                <p className="mb-1 text-muted fs-14">
-                  <strong>Admission No:</strong> {receipt.admission_number || '-'}
-                </p>
-                <p className="mb-1 text-muted fs-14">
-                  <strong>Class &amp; Sec:</strong> {receipt.class_name || '-'}{' '}
-                  {receipt.section_name && `- Section ${receipt.section_name}`}
-                </p>
-                <p className="mb-0 text-muted fs-14">
-                  <strong>Roll No:</strong> {receipt.roll_number || '-'}
-                </p>
-              </div>
-            </div>
-
-            <div className="col-sm-6">
-              <div className="p-3 bg-light rounded border h-100">
-                <h6 className="text-uppercase text-muted fs-12 fw-bold mb-2">
-                  Transaction Details:
-                </h6>
-                <p className="mb-1 text-muted fs-14">
-                  <strong>Payment Date:</strong> {formatDate(receipt.payment_date || receipt.created_at)}
-                </p>
-                <p className="mb-1 text-muted fs-14">
-                  <strong>Payment Method:</strong>{' '}
-                  <span className="badge bg-primary text-white">
-                    {receipt.payment_method || '-'}
-                  </span>
-                </p>
-                <p className="mb-1 text-muted fs-14">
-                  <strong>Reference / Cheque #:</strong>{' '}
-                  {receipt.reference_no || receipt.cheque_no || '-'}
-                </p>
-                <p className="mb-0 text-muted fs-14">
-                  <strong>Bank:</strong> {receipt.bank_name || '-'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* Payment Breakdown Table */}
-          <div className="table-responsive mb-4">
-            <table className="table table-bordered align-middle">
-              <thead className="table-light">
-                <tr>
-                  <th>Invoice / Demand Reference</th>
-                  <th>Billing Period</th>
-                  <th className="text-end" style={{ width: '220px' }}>Amount Paid (₹)</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <span className="fw-bold text-dark">{receipt.invoice_no || '-'}</span>
-                  </td>
-                  <td>{receipt.invoice_title || receipt.title || '-'}</td>
-                  <td className="text-end fw-bold text-success fs-16">
-                    {formatCurrency(receipt.amount_paid)}
-                  </td>
-                </tr>
-              </tbody>
-              <tfoot className="table-light">
-                <tr>
-                  <th colSpan="2" className="text-end fs-16">
-                    TOTAL RECEIVED:
-                  </th>
-                  <th className="text-end fs-18 text-success fw-bold">
-                    {formatCurrency(receipt.amount_paid)}
-                  </th>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-
-          {/* Fee Structure / Component Breakdown Table */}
-          {receipt.items && receipt.items.length > 0 && (
-            <div className="mb-4">
-              <h6 className="fw-bold text-dark mb-2 fs-13">
-                <i className="ti ti-list-check me-1 text-primary"></i>Fee Structure / Component Breakdown
-              </h6>
-              <div className="table-responsive border rounded">
-                <table className="table table-bordered table-striped align-middle mb-0 fs-13">
-                  <thead className="table-light">
-                    <tr>
-                      <th style={{ width: '50px' }}>#</th>
-                      <th>Fee Component Name</th>
-                      <th className="text-end" style={{ width: '220px' }}>Component Amount (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {receipt.items.map((item, idx) => (
-                      <tr key={`item-${item.id || idx}`}>
-                        <td>{idx + 1}</td>
-                        <td className="fw-semibold text-dark">{item.component_name}</td>
-                        <td className="text-end fw-bold text-dark">
-                          {formatCurrency(item.amount)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Remaining Invoice Balance */}
-          {receipt.invoice_due !== undefined && receipt.invoice_due !== null && (
-            <div className="p-3 bg-light rounded border mb-4">
-              <span className="text-muted fs-12 text-uppercase fw-semibold d-block">
-                REMAINING INVOICE BALANCE
-              </span>
-              <h5 className="fw-bold text-danger mb-0">
-                {formatCurrency(receipt.invoice_due)}
-              </h5>
-            </div>
-          )}
-
-          {/* Remarks */}
-          {receipt.notes && (
-            <div className="mb-4">
-              <small className="text-muted d-block fw-semibold">Remarks:</small>
-              <p className="text-dark mb-0 fs-13">{receipt.notes}</p>
-            </div>
-          )}
-
-          {/* Signatures */}
-          <div className="row pt-5 mt-4 text-center">
-            <div className="col-6">
-              <br /><br />
-              <p className="border-top d-inline-block px-4 pt-1 mb-0 text-muted">
-                Authorized Collector Signature
-              </p>
-            </div>
-            <div className="col-6">
-              <br /><br />
-              <p className="border-top d-inline-block px-4 pt-1 mb-0 text-muted">
-                Parent / Student Signature
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Server Generated Receipt Preview Container */}
+      <div className="card border-0 shadow-sm mx-auto p-0 overflow-hidden" style={{ maxWidth: '880px', background: '#f8fafc' }}>
+        <iframe
+          ref={iframeRef}
+          srcDoc={receiptHtml}
+          title={`Fee_Receipt_${receipt?.receipt_no || id}`}
+          style={{
+            width: '100%',
+            height: iframeHeight,
+            border: 'none',
+            display: 'block',
+            background: '#ffffff',
+          }}
+          onLoad={(e) => {
+            try {
+              const doc = e.target.contentWindow.document;
+              const h = doc.documentElement.scrollHeight || doc.body.scrollHeight;
+              if (h > 500) {
+                setIframeHeight(`${h + 40}px`);
+              }
+            } catch (err) {}
+          }}
+        />
       </div>
     </div>
   );
