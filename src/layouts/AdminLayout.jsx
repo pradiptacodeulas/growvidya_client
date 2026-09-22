@@ -11,7 +11,7 @@ const AdminLayout = () => {
   useMessageNotificationSync();
   const location = useLocation();
   const navigate = useNavigate();
-  const { isExpired, loading } = useSubscription();
+  const { isExpired, isTrial, subscription, loading } = useSubscription();
 
   // If trial/subscription has expired, only subscription/billing pages are allowed
   const isAllowedExpiredPath =
@@ -110,7 +110,9 @@ const AdminLayout = () => {
             <div className="content d-flex align-items-center justify-content-center" style={{ minHeight: '60vh' }}>
               <div className="text-center">
                 <div className="spinner-border text-danger mb-2" role="status"></div>
-                <div className="text-muted fs-13">Trial expired. Directing to Subscription & Plans...</div>
+                <div className="text-muted fs-13">
+                  {isTrial ? 'Trial' : `${subscription?.plan_name || 'Subscription'}`} expired. Directing to Subscription & Plans...
+                </div>
               </div>
             </div>
           ) : (

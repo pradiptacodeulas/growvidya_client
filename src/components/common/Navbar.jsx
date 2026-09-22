@@ -165,45 +165,114 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
           <div className="me-auto"></div>
 
           <div className="d-flex align-items-center">
-            {/* Free Trial Countdown / Active License Pill */}
+            {/* Free Trial Countdown (Active Trial) */}
             {isTrial && !isExpired && (
               <div className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none">
                 <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
-                <span className="d-none d-sm-inline">14-Day Free Trial:&nbsp;</span>
-                <strong className="text-danger">{daysLeft}d left</strong>
+                <span className="d-none d-sm-inline">{subscription?.plan_name || '14-Day Free Trial'}:&nbsp;</span>
+                <strong className="text-danger">{daysLeft} days remaining</strong>
                 <button
                   type="button"
-                  onClick={openUpgradeModal}
+                  onClick={() => openUpgradeModal()}
                   className="btn btn-sm btn-primary py-0 px-2 ms-2 fs-11 rounded-pill"
                 >
-                  Upgrade
+                  Upgrade Plan
                 </button>
               </div>
             )}
 
+            {/* Expired Status (Paid Plan or Trial) */}
             {isExpired && (
               <div className="me-2 d-flex align-items-center bg-danger-subtle border border-danger rounded px-3 py-1 text-danger fw-semibold fs-12 shadow-none">
                 <i className="ti ti-alert-triangle me-1 fs-14"></i>
-                <span>Expired</span>
-                <button
-                  type="button"
-                  onClick={openUpgradeModal}
-                  className="btn btn-sm btn-danger py-0 px-2 ms-2 fs-11 rounded-pill"
-                >
-                  Unlock
-                </button>
+                <span>
+                  {subscription?.plan_name
+                    ? `${subscription.plan_name} Expired`
+                    : isTrial
+                    ? 'Trial Expired'
+                    : 'Subscription Expired'}
+                </span>
+                <div className="d-flex align-items-center gap-1 ms-2">
+                  <button
+                    type="button"
+                    onClick={() => openUpgradeModal(subscription?.plan_id)}
+                    className="btn btn-sm btn-danger py-0 px-2 fs-11 rounded-pill"
+                    title="Renew Current Plan"
+                  >
+                    <i className="ti ti-refresh me-1"></i> Renew Plan
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openUpgradeModal()}
+                    className="btn btn-sm btn-outline-danger py-0 px-2 fs-11 rounded-pill bg-white text-danger fw-semibold"
+                    title="Upgrade Plan"
+                  >
+                    Upgrade Plan
+                  </button>
+                </div>
               </div>
             )}
 
-            {!isTrial && !isExpired && subscription?.status === 'active' && (
-              <Link
-                to="/admin/subscription"
-                className="me-2 d-flex align-items-center bg-success-subtle border border-success-subtle rounded px-3 py-1 text-success-emphasis text-decoration-none fw-semibold fs-12 shadow-none"
-                title="Annual License Active"
+            {/* Active Paid License with Countdown and Clear Quick Actions */}
+            {!isTrial && !isExpired && (
+              <div
+                className={`me-2 d-flex align-items-center rounded px-3 py-1 fw-semibold fs-12 shadow-none border ${
+                  daysLeft <= 15
+                    ? 'bg-danger-subtle border-danger text-danger'
+                    : daysLeft <= 30
+                    ? 'bg-warning-subtle border-warning text-dark'
+                    : 'bg-success-subtle border-success-subtle text-success-emphasis'
+                }`}
+                title={`Valid until ${subscription?.end_date || 'end of term'} (${daysLeft} days remaining)`}
               >
-                <i className="ti ti-crown text-warning me-1 fs-14"></i>
-                <span className="d-none d-sm-inline">{subscription?.plan_name || 'Active License'}</span>
-              </Link>
+                <i
+                  className={`ti ${
+                    daysLeft <= 30 ? 'ti-clock-hour-4 text-warning' : 'ti-crown text-warning'
+                  } me-1 fs-14`}
+                ></i>
+                <span className="d-none d-sm-inline">
+                  {subscription?.plan_name || 'Active License'}:&nbsp;
+                </span>
+                <strong
+                  className={
+                    daysLeft <= 15
+                      ? 'text-danger me-2'
+                      : daysLeft <= 30
+                      ? 'text-dark me-2'
+                      : 'text-success me-2'
+                  }
+                >
+                  {daysLeft} days remaining
+                </strong>
+                {daysLeft <= 30 ? (
+                  <div className="d-flex align-items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => openUpgradeModal(subscription?.plan_id)}
+                      className="btn btn-sm btn-warning text-dark fw-bold py-0 px-2 fs-11 rounded-pill"
+                      title="Renew Current Plan"
+                    >
+                      <i className="ti ti-refresh me-1"></i> Renew Plan
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openUpgradeModal()}
+                      className="btn btn-sm btn-primary py-0 px-2 fs-11 rounded-pill"
+                      title="Upgrade Plan"
+                    >
+                      Upgrade Plan
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => openUpgradeModal()}
+                    className="btn btn-sm btn-primary py-0 px-2 ms-2 fs-11 rounded-pill"
+                  >
+                    Upgrade Plan
+                  </button>
+                )}
+              </div>
             )}
 
             {/* Branch Switcher Dropdown */}

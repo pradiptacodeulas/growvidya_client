@@ -335,6 +335,9 @@ html, body, #root {
 }
 
 /* Active Top-Level Item Background Highlight */
+.sidebar .sidebar-menu ul li > a.active,
+.sidebar .sidebar-menu ul li.active > a,
+.sidebar .sidebar-menu ul li.submenu > a.subdrop,
 .sidebar .sidebar-menu > ul > li > ul > li > a.active,
 .sidebar .sidebar-menu > ul > li > ul > li.active > a,
 .sidebar .sidebar-menu > ul > li > ul > li.submenu > a.subdrop {

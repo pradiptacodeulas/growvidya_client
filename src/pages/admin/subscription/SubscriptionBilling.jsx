@@ -40,17 +40,45 @@ const SubscriptionBilling = () => {
         <div>
           <h3 className="page-title mb-1 fw-bold text-dark">Subscription & Billing</h3>
           <p className="text-muted fs-13 mb-0">
-            Monitor your 14-day free trial evaluation status, quotas, and manage annual licensing.
+            {isTrial
+              ? 'Monitor your 14-day free trial evaluation status, quotas, and manage annual licensing.'
+              : 'Monitor your institutional subscription status, renewal countdown, quotas, and manage licensing tiers.'}
           </p>
         </div>
-        <div className="mt-3 mt-md-0">
+        <div className="mt-3 mt-md-0 d-flex flex-wrap gap-2">
+          {isExpired && !isTrial && (
+            <button
+              type="button"
+              className="btn btn-danger d-inline-flex align-items-center shadow-sm"
+              onClick={() => openUpgradeModal(subscription?.plan_id)}
+            >
+              <i className="ti ti-refresh me-2 fs-16"></i>
+              <span>Renew {planName}</span>
+            </button>
+          )}
+          {!isExpired && daysLeft <= 30 && !isTrial && (
+            <button
+              type="button"
+              className="btn btn-warning text-dark fw-bold d-inline-flex align-items-center shadow-sm"
+              onClick={() => openUpgradeModal(subscription?.plan_id)}
+            >
+              <i className="ti ti-refresh me-2 fs-16"></i>
+              <span>Renew {planName}</span>
+            </button>
+          )}
           <button
             type="button"
             className="btn btn-primary d-inline-flex align-items-center shadow-sm"
             onClick={() => openUpgradeModal()}
           >
             <i className="ti ti-crown me-2 fs-16"></i>
-            <span>{isTrial ? 'Upgrade to Paid Plan' : 'Change Plan'}</span>
+            <span>
+              {isExpired
+                ? isTrial
+                  ? 'Upgrade to Paid Plan'
+                  : 'Upgrade Plan'
+                : 'Upgrade Plan'}
+            </span>
           </button>
         </div>
       </div>
@@ -63,11 +91,11 @@ const SubscriptionBilling = () => {
           </div>
           <div className="flex-grow-1">
             <h6 className="alert-heading fw-bold mb-1 text-dark">
-              14-Day Free Trial Active ({daysLeft} Days Remaining)
+              {planName} Active ({daysLeft} Days Remaining)
             </h6>
             <p className="mb-0 fs-13 text-secondary">
-              You have full, unrestricted access to all modules and features during your 14-day evaluation trial.
-              Upgrade to an annual license anytime to ensure uninterrupted access when your trial concludes.
+              You have full access to features during your evaluation period.
+              Upgrade to an annual license anytime to ensure uninterrupted access when your evaluation concludes.
             </p>
           </div>
           <div className="flex-shrink-0 ms-3 d-none d-sm-block">
@@ -82,7 +110,75 @@ const SubscriptionBilling = () => {
         </div>
       )}
 
-      {/* Trial Expired Notice */}
+      {/* Paid Plan Expiring Soon Notice */}
+      {!isTrial && !isExpired && daysLeft <= 30 && (
+        <div
+          className={`alert ${
+            daysLeft <= 15 ? 'alert-danger border-danger' : 'alert-warning border-warning'
+          } d-flex align-items-center p-3 mb-4 rounded-3 shadow-sm`}
+        >
+          <div
+            className={`avatar avatar-md ${
+              daysLeft <= 15 ? 'bg-danger' : 'bg-warning'
+            } text-white rounded-circle flex-shrink-0 me-3 d-flex align-items-center justify-content-center`}
+          >
+            <i className="ti ti-alert-triangle fs-22"></i>
+          </div>
+          <div className="flex-grow-1">
+            <h6 className="alert-heading fw-bold mb-1 text-dark">
+              {planName} Expiring Soon ({daysLeft} Days Remaining)
+            </h6>
+            <p className="mb-0 fs-13 text-secondary">
+              Your subscription will expire on{' '}
+              <strong>{subscription?.end_date || 'soon'}</strong>. Renew your plan early to avoid any interruption to your institutional portal.
+            </p>
+          </div>
+          <div className="flex-shrink-0 ms-3 d-none d-sm-flex gap-2">
+            <button
+              type="button"
+              className="btn btn-warning fw-bold text-dark shadow-sm"
+              onClick={() => openUpgradeModal(subscription?.plan_id)}
+            >
+              <i className="ti ti-refresh me-1"></i> Renew Plan
+            </button>
+            <button
+              type="button"
+              className="btn btn-outline-primary fw-bold shadow-sm"
+              onClick={() => openUpgradeModal()}
+            >
+              <i className="ti ti-crown me-1"></i> Upgrade
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Paid Plan Fully Active Notice */}
+      {!isTrial && !isExpired && daysLeft > 30 && (
+        <div className="alert alert-success border-success-subtle d-flex align-items-center p-3 mb-4 rounded-3 shadow-sm">
+          <div className="avatar avatar-md bg-success text-white rounded-circle flex-shrink-0 me-3 d-flex align-items-center justify-content-center">
+            <i className="ti ti-shield-check fs-22"></i>
+          </div>
+          <div className="flex-grow-1">
+            <h6 className="alert-heading fw-bold mb-1 text-success-emphasis">
+              {planName} Active ({daysLeft} Days Remaining)
+            </h6>
+            <p className="mb-0 fs-13 text-secondary">
+              Your institutional subscription is active until <strong>{subscription?.end_date || 'N/A'}</strong>. All operational modules and cloud backups are active.
+            </p>
+          </div>
+          <div className="flex-shrink-0 ms-3 d-none d-sm-block">
+            <button
+              type="button"
+              className="btn btn-outline-success fw-bold shadow-sm"
+              onClick={() => openUpgradeModal()}
+            >
+              <i className="ti ti-arrow-up-right me-1"></i> Upgrade Plan
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Expired Notice (Trial or Paid) */}
       {isExpired && (
         <div className="alert alert-danger border-danger d-flex align-items-center p-3 mb-4 rounded-3 shadow-sm">
           <div className="avatar avatar-md bg-danger text-white rounded-circle flex-shrink-0 me-3 d-flex align-items-center justify-content-center">
@@ -90,20 +186,32 @@ const SubscriptionBilling = () => {
           </div>
           <div className="flex-grow-1">
             <h6 className="alert-heading fw-bold mb-1 text-danger">
-              14-Day Free Trial Expired — All Menus Locked
+              {isTrial
+                ? '14-Day Free Trial Expired — All Menus Locked'
+                : `${planName} Expired — All Menus Locked`}
             </h6>
             <p className="mb-0 fs-13 text-secondary">
-              Your 14-day free trial has expired and all operational modules (Students, Teachers, Academics, Attendance, Fees, Examination, Reports) are disabled.
-              Select an annual license plan below to restore full institutional access immediately.
+              {isTrial
+                ? 'Your 14-day free trial has expired and all operational modules (Students, Teachers, Academics, Attendance, Fees, Examination, Reports) are disabled. Select an annual license plan below to restore full institutional access immediately.'
+                : `Your subscription to ${planName} expired on ${subscription?.end_date || 'recently'}. All operational modules are locked. Renew your ${planName} or upgrade to a higher tier to restore access.`}
             </p>
           </div>
-          <div className="flex-shrink-0 ms-3 d-none d-sm-block">
+          <div className="flex-shrink-0 ms-3 d-none d-sm-flex gap-2">
+            {!isTrial && (
+              <button
+                type="button"
+                className="btn btn-danger fw-bold shadow-sm"
+                onClick={() => openUpgradeModal(subscription?.plan_id)}
+              >
+                <i className="ti ti-refresh me-1"></i> Renew {planName}
+              </button>
+            )}
             <button
               type="button"
-              className="btn btn-danger fw-bold shadow-sm"
+              className="btn btn-outline-danger fw-bold shadow-sm"
               onClick={() => openUpgradeModal()}
             >
-              <i className="ti ti-crown me-1"></i> Upgrade to Restore Access
+              <i className="ti ti-crown me-1"></i> {isTrial ? 'Upgrade to Restore Access' : 'Upgrade Plan'}
             </button>
           </div>
         </div>
@@ -126,13 +234,21 @@ const SubscriptionBilling = () => {
               <div className="d-flex align-items-center gap-2 mb-2">
                 <span className="badge bg-white text-dark fw-bold px-3 py-1.5 fs-12 rounded-pill">
                   {isExpired
-                    ? 'EXPIRED'
+                    ? `${planName.toUpperCase()} — EXPIRED`
                     : isTrial
-                    ? '14-DAY FREE EVALUATION TRIAL'
-                    : 'ACTIVE ANNUAL LICENSE'}
+                    ? `${planName.toUpperCase()} — EVALUATION TRIAL`
+                    : `${planName.toUpperCase()} — ACTIVE LICENSE`}
                 </span>
-                {isTrial && !isExpired && (
-                  <span className="badge bg-warning text-dark fw-bold px-2 py-1 fs-11 rounded-pill">
+                {!isExpired && (
+                  <span
+                    className={`badge ${
+                      daysLeft <= 15
+                        ? 'bg-danger text-white'
+                        : daysLeft <= 30
+                        ? 'bg-warning text-dark'
+                        : 'bg-success text-white'
+                    } fw-bold px-2 py-1 fs-11 rounded-pill`}
+                  >
                     ⚡ {daysLeft} Days Remaining
                   </span>
                 )}
@@ -141,10 +257,12 @@ const SubscriptionBilling = () => {
               <h2 className="fw-bold text-white mb-2">{planName}</h2>
               <p className="text-white-50 mb-3 fs-14">
                 {isExpired
-                  ? 'Your 14-day trial has concluded. Upgrade now to restore administrative workflows.'
+                  ? isTrial
+                    ? 'Your 14-day trial has concluded. Upgrade now to restore administrative workflows.'
+                    : `Your ${planName} subscription expired on ${subscription?.end_date || 'recently'}. Renew your current plan or upgrade to restore administrative workflows.`
                   : isTrial
                   ? `You are currently experiencing the full platform under the 14-day trial period. Trial ends on ${subscription?.end_date || 'N/A'}.`
-                  : `Your institutional license is active until ${subscription?.end_date || 'N/A'}. Cloud hosting, security patches, and support are included.`}
+                  : `Your institutional license is active until ${subscription?.end_date || 'N/A'} (${daysLeft} days remaining). Cloud hosting, security patches, and support are included.`}
               </p>
 
               {isTrial && !isExpired && (
@@ -171,7 +289,7 @@ const SubscriptionBilling = () => {
                   ₹{Number(subscription?.amount_paid || 0).toLocaleString('en-IN')}
                 </div>
                 <div className="text-white-50 fs-11">
-                  Payment Ref: {subscription?.payment_transaction_id || 'Free Trial Onboarding'}
+                  Payment Ref: {subscription?.payment_transaction_id || (isTrial ? 'Free Trial Onboarding' : 'Subscription Active')}
                 </div>
               </div>
             </div>
@@ -243,7 +361,25 @@ const SubscriptionBilling = () => {
                   }`}
                   style={{ position: 'relative' }}
                 >
-                  {isPopular && (
+                  {isCurrent && (
+                    <div
+                      className="badge bg-warning text-dark position-absolute"
+                      style={{
+                        top: '-12px',
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        padding: '6px 14px',
+                        fontSize: '11px',
+                        borderRadius: '20px',
+                        boxShadow: '0 4px 10px rgba(245, 158, 11, 0.3)',
+                        zIndex: 2,
+                      }}
+                    >
+                      ★ {isExpired ? 'CURRENT PLAN (EXPIRED)' : 'YOUR CURRENT PLAN'}
+                    </div>
+                  )}
+
+                  {!isCurrent && isPopular && (
                     <div
                       className="badge bg-primary text-white position-absolute"
                       style={{
@@ -254,6 +390,7 @@ const SubscriptionBilling = () => {
                         fontSize: '11px',
                         borderRadius: '20px',
                         boxShadow: '0 4px 10px rgba(99, 102, 241, 0.4)',
+                        zIndex: 2,
                       }}
                     >
                       ★ MOST POPULAR CHOICE
@@ -261,7 +398,14 @@ const SubscriptionBilling = () => {
                   )}
 
                   <div className="card-body p-4 d-flex flex-column">
-                    <h5 className="fw-bold text-dark mb-1">{plan.plan_name}</h5>
+                    <div className="d-flex align-items-center justify-content-between mb-1">
+                      <h5 className="fw-bold text-dark mb-0">{plan.plan_name}</h5>
+                      {isCurrent && (
+                        <span className="badge bg-warning-subtle text-warning-emphasis border border-warning fs-11 px-2 py-0.5 rounded-pill">
+                          {isExpired ? 'Expired' : 'Active'}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-muted fs-12 mb-3" style={{ minHeight: '38px' }}>
                       {plan.description}
                     </p>
@@ -304,27 +448,43 @@ const SubscriptionBilling = () => {
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      className={`btn w-100 py-2.5 fw-semibold ${
-                        isCurrent
-                          ? 'btn-outline-success'
-                          : isPopular
-                          ? 'btn-primary shadow-sm'
-                          : 'btn-outline-primary'
-                      }`}
-                      onClick={() => openUpgradeModal()}
-                    >
-                      {isCurrent ? (
-                        <>
-                          <i className="ti ti-check me-1"></i> Current Plan
-                        </>
-                      ) : (
-                        <>
-                          <i className="ti ti-arrow-up-right me-1"></i> Upgrade to {plan.plan_name}
-                        </>
-                      )}
-                    </button>
+                    {isCurrent ? (
+                      <button
+                        type="button"
+                        className={`btn w-100 py-2.5 fw-semibold ${
+                          isExpired
+                            ? 'btn-danger shadow-sm'
+                            : daysLeft <= 30
+                            ? 'btn-warning text-dark shadow-sm'
+                            : 'btn-outline-success'
+                        }`}
+                        onClick={() => openUpgradeModal(plan.id)}
+                      >
+                        {isExpired ? (
+                          <>
+                            <i className="ti ti-refresh me-1"></i> Renew {plan.plan_name}
+                          </>
+                        ) : daysLeft <= 30 ? (
+                          <>
+                            <i className="ti ti-refresh me-1"></i> Renew Plan ({daysLeft}d left)
+                          </>
+                        ) : (
+                          <>
+                            <i className="ti ti-check me-1"></i> Current Plan (Active)
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`btn w-100 py-2.5 fw-semibold ${
+                          isPopular ? 'btn-primary shadow-sm' : 'btn-outline-primary'
+                        }`}
+                        onClick={() => openUpgradeModal(plan.id)}
+                      >
+                        <i className="ti ti-arrow-up-right me-1"></i> Upgrade to {plan.plan_name}
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>

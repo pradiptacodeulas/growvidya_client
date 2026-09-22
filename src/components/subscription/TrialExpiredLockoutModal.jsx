@@ -14,11 +14,52 @@ const TrialExpiredLockoutModal = ({
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
 
-  const [selectedPlanId, setSelectedPlanId] = useState(() => plans[0]?.id || null);
+  const activePlanName = subscription?.plan_name || user?.subscription?.plan_name || '';
+  const planNameLower = activePlanName.toLowerCase();
+
+  const isTrial = subscription !== null
+    ? Boolean(
+        subscription?.isTrial !== undefined
+          ? subscription.isTrial
+          : (subscription?.billing_cycle === 'trial' ||
+             (subscription?.plan_code || '').toLowerCase().includes('trial') ||
+             planNameLower.includes('trial') ||
+             subscription?.status === 'trial') &&
+            subscription?.billing_cycle !== 'annual' &&
+            subscription?.billing_cycle !== 'monthly' &&
+            !planNameLower.includes('starter') &&
+            !planNameLower.includes('growth') &&
+            !planNameLower.includes('enterprise')
+      )
+    : Boolean(
+        (user?.isTrial || user?.is_trial) &&
+        !planNameLower.includes('starter') &&
+        !planNameLower.includes('growth') &&
+        !planNameLower.includes('enterprise')
+      );
+
+  const currentPlanName = activePlanName || (isTrial ? '14-Day Free Trial' : 'Subscription');
+
+  const [selectedPlanId, setSelectedPlanId] = useState(() => {
+    if (subscription?.plan_id && plans.some((p) => Number(p.id) === Number(subscription.plan_id))) {
+      return subscription.plan_id;
+    }
+    return plans[0]?.id || null;
+  });
   const [paymentGateway, setPaymentGateway] = useState('razorpay');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  React.useEffect(() => {
+    if (!selectedPlanId && plans.length > 0) {
+      const match = plans.find((p) => Number(p.id) === Number(subscription?.plan_id));
+      setSelectedPlanId(match ? match.id : plans[0].id);
+    }
+  }, [plans, subscription?.plan_id, selectedPlanId]);
+
   const selectedPlan = plans.find((p) => p.id === Number(selectedPlanId)) || plans[0];
+  const isCurrentSelected = Boolean(
+    selectedPlan && subscription?.plan_id && Number(selectedPlan.id) === Number(subscription.plan_id)
+  );
   const schoolName = user?.schoolName || user?.school_name || 'Your School';
 
   const handleConfirmUpgrade = async () => {
@@ -158,9 +199,17 @@ const TrialExpiredLockoutModal = ({
             <i className="ti ti-lock fs-28"></i>
           </div>
 
-          <h3 className="fw-bold mb-1 text-white">14-Day Free Trial Ended</h3>
+          <h3 className="fw-bold mb-1 text-white">
+            {isTrial ? '14-Day Free Trial Ended' : `${currentPlanName} Expired`}
+          </h3>
           <p className="text-white-50 mb-0 fs-14">
-            The free evaluation period for <strong className="text-white">{schoolName}</strong> has concluded.
+            {isTrial
+              ? 'The free evaluation period for '
+              : 'The subscription period for '}
+            <strong className="text-white">{schoolName}</strong>
+            {isTrial
+              ? ' has concluded.'
+              : ` (${currentPlanName}) has expired.`}
           </p>
 
           <button
@@ -177,14 +226,18 @@ const TrialExpiredLockoutModal = ({
         <div className="bg-amber-50 px-4 py-2 border-bottom border-warning-subtle d-flex align-items-center justify-content-center text-dark fs-13" style={{ backgroundColor: '#fffbeb' }}>
           <i className="ti ti-shield-check text-success fs-18 me-2"></i>
           <span>
-            <strong>Your data is 100% safe:</strong> All students, teachers, classes, and settings are preserved. Reactivate immediately by selecting an annual license below.
+            <strong>Your data is 100% safe:</strong> All students, teachers, classes, and settings are preserved. Reactivate immediately by renewing your plan or selecting an upgrade below.
           </span>
         </div>
 
         {/* Scrollable Content Body */}
         <div className="p-4 overflow-y-auto bg-light flex-grow-1">
           <div className="text-center mb-3">
-            <h5 className="fw-bold text-dark mb-1">Choose an Annual Plan to Unlock Full Access</h5>
+            <h5 className="fw-bold text-dark mb-1">
+              {isTrial
+                ? 'Choose an Annual Plan to Unlock Full Access'
+                : 'Renew Your Plan or Upgrade to Unlock Full Access'}
+            </h5>
             <p className="text-muted fs-13">Each plan includes cloud hosting, regular updates, and automated database backups.</p>
           </div>
 
@@ -192,6 +245,7 @@ const TrialExpiredLockoutModal = ({
           <div className="row g-3 mb-4">
             {plans.map((plan) => {
               const isSelected = Number(selectedPlanId) === Number(plan.id);
+              const isCurrent = Number(subscription?.plan_id) === Number(plan.id);
               const isPopular = plan.plan_code?.includes('growth') || plan.id === 2;
 
               return (
@@ -209,7 +263,21 @@ const TrialExpiredLockoutModal = ({
                       transition: 'all 0.2s ease',
                     }}
                   >
-                    {isPopular && (
+                    {isCurrent ? (
+                      <span
+                        className="badge bg-warning text-dark position-absolute"
+                        style={{
+                          top: '-10px',
+                          left: '16px',
+                          fontSize: '11px',
+                          padding: '4px 10px',
+                          borderRadius: '12px',
+                          zIndex: 2,
+                        }}
+                      >
+                        ★ CURRENT PLAN (RENEW)
+                      </span>
+                    ) : isPopular ? (
                       <span
                         className="badge bg-primary text-white position-absolute"
                         style={{
@@ -218,14 +286,27 @@ const TrialExpiredLockoutModal = ({
                           fontSize: '11px',
                           padding: '4px 10px',
                           borderRadius: '12px',
+                          zIndex: 2,
                         }}
                       >
-                        ★ RECOMMENDED
+                        ★ RECOMMENDED UPGRADE
                       </span>
-                    )}
+                    ) : null}
 
                     <div className="d-flex align-items-center justify-content-between mb-2">
-                      <h6 className="fw-bold text-dark mb-0">{plan.plan_name}</h6>
+                      <div className="d-flex align-items-center gap-1">
+                        <h6 className="fw-bold text-dark mb-0">{plan.plan_name}</h6>
+                        {isCurrent && (
+                          <span className="badge bg-warning-subtle text-warning-emphasis border border-warning fs-10 px-2 py-0.5 rounded-pill">
+                            Renew
+                          </span>
+                        )}
+                        {!isCurrent && !isTrial && (
+                          <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-2 py-0.5 rounded-pill">
+                            Upgrade
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="radio"
                         name="lockout_plan_selection"
@@ -330,13 +411,20 @@ const TrialExpiredLockoutModal = ({
         </div>
 
         {/* Action Footer */}
-        <div className="p-3 bg-white border-top d-flex align-items-center justify-content-between">
+        <div className="p-3 bg-white border-top d-flex flex-wrap align-items-center justify-content-between gap-3">
           <div>
-            <span className="text-muted fs-12">Plan Amount Due: </span>
+            <span className="text-muted fs-12">
+              {isCurrentSelected ? 'Plan Renewal Amount: ' : 'Plan Upgrade Amount: '}
+            </span>
             <strong className="fs-18 text-primary fw-bold">
               ₹{selectedPlan ? Number(selectedPlan.price).toLocaleString('en-IN') : 0}
             </strong>
             <span className="text-muted fs-12"> / annual</span>
+            {isCurrentSelected && (
+              <span className="badge bg-warning-subtle text-warning-emphasis border border-warning ms-2 fs-11">
+                Renewing {selectedPlan?.plan_name}
+              </span>
+            )}
           </div>
 
           <div className="d-flex align-items-center gap-2">
@@ -351,10 +439,15 @@ const TrialExpiredLockoutModal = ({
                   <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                   Processing Payment & Reactivating...
                 </>
+              ) : isCurrentSelected ? (
+                <>
+                  <i className="ti ti-refresh me-2"></i>
+                  Renew {selectedPlan?.plan_name} & Reactivate Portal
+                </>
               ) : (
                 <>
-                  <i className="ti ti-check me-2"></i>
-                  Pay & Reactivate School Portal
+                  <i className="ti ti-arrow-up-right me-2"></i>
+                  Upgrade to {selectedPlan?.plan_name} & Reactivate Portal
                 </>
               )}
             </button>

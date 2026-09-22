@@ -257,26 +257,18 @@ const AddStudentCertificate = () => {
   }, [displayTemplates, selectedTemplateId]);
 
   const selectedYearObj = academicYears.find((y) => String(y.id) === String(selectedYear));
-  const selectedYearName = selectedYearObj?.academic_year || selectedYearObj?.year_name || '2025-2026';
+  const selectedYearName = selectedYearObj?.academic_year || selectedYearObj?.year_name || '';
 
-  const samplePreviewStudent = useMemo(
-    () => ({
-      first_name: 'John',
-      last_name: 'Doe',
-      guardian_name: 'Richard Doe',
-      date_of_birth: '2015-01-01',
-      admission_date: '2026-02-12',
-      class_name: 'I',
-      section_name: 'A',
-      roll_number: '1',
-      admission_number: 'AD101',
-      city: 'Kalyani',
-      state: 'West Bengal',
-      country: 'India',
-      academic_year: selectedYearName || '2025-2026',
-    }),
-    [selectedYearName]
-  );
+  const previewStudent = useMemo(() => {
+    if (selectedIds.length > 0) {
+      const selected = students.find((s) => selectedIds.includes(s.id));
+      if (selected) return selected;
+    }
+    if (students && students.length > 0) {
+      return students[0];
+    }
+    return null;
+  }, [students, selectedIds]);
 
   // Handle Show Report Submit
   const handleShowReport = async (e) => {
@@ -430,40 +422,53 @@ const AddStudentCertificate = () => {
 
   // Helper function to render certificate text with elegant typography and clean highlights
   const renderCertificateBody = (template, student, dateStr) => {
-    const fullName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim() || 'Student';
-    const guardian = student?.guardian_name || student?.father_name || '—';
+    const fullName = student
+      ? `${student?.first_name || ''} ${student?.last_name || ''}`.trim()
+      : '';
+    const guardian = student?.guardian_name || student?.father_name || '';
     const dob = student?.date_of_birth
       ? new Date(student.date_of_birth).toLocaleDateString('en-GB')
-      : '—';
-    const clsName = student?.class_name || student?.class || '—';
-    const secName = student?.section_name || student?.section || '—';
-    const rollNo = student?.roll_number || '—';
-    const admNo = student?.admission_number || (student?.id ? `AD${student.id}` : '—');
+      : '';
+    const clsName =
+      student?.class_name ||
+      student?.class ||
+      classes.find((c) => String(c.id) === String(selectedClass))?.class_name ||
+      '';
+    const secName =
+      student?.section_name ||
+      student?.section ||
+      sections.find((s) => String(s.id) === String(selectedSection))?.section_name ||
+      '';
+    const rollNo =
+      student?.roll_number !== undefined && student?.roll_number !== null
+        ? String(student.roll_number)
+        : '';
+    const admNo = student?.admission_number || '';
     const admDate = student?.admission_date
       ? new Date(student.admission_date).toLocaleDateString('en-GB')
-      : '—';
-    const academicYear = student?.academic_year || selectedYearName || '—';
+      : '';
+    const academicYear = student?.academic_year || selectedYearName || '';
     const formattedDate = dateStr
       ? new Date(dateStr).toLocaleDateString('en-GB')
       : getTodayDateStr();
 
+    const displayFullName = fullName || (student ? '' : '[Student Name]');
+    const displayGuardian = guardian || (student ? '' : '[Guardian Name]');
+    const displayDob = dob || (student ? '' : '[Date of Birth]');
+    const displayClsName = clsName || (student ? '' : '[Class]');
+    const displaySecName = secName || (student ? '' : '[Section]');
+    const displayRollNo = rollNo || (student ? '' : '[Roll No]');
+    const displayAcademicYear = academicYear || (student ? '' : '[Academic Year]');
+    const displayAdmNo = admNo || (student ? '' : '[Admission No]');
+    const displayAdmDate = admDate || (student ? '' : '[Admission Date]');
+    const displayCity = student?.city || (student ? '' : '[City]');
+    const displayState = student?.state || (student ? '' : '[State]');
+    const displayCountry = student?.country || (student ? '' : '[Country]');
+
     let desc = template?.description || '';
 
-    // If empty description, render standard certificate structure with clean highlights
     if (!desc.trim()) {
-      return (
-        <div className="certificate-section">
-          Son / Daughter of <span className="certificate-highlight">{guardian}</span>, bearing Admission No.{' '}
-          <span className="certificate-highlight">{admNo}</span> and Roll No.{' '}
-          <span className="certificate-highlight">{rollNo}</span>.
-          His / Her Date of Birth according to the official school record is{' '}
-          <span className="certificate-highlight">{dob}</span>.
-          He / She was admitted on <span className="certificate-highlight">{admDate}</span> and has completed the academic session{' '}
-          <span className="certificate-highlight">{academicYear}</span> in Class{' '}
-          <span className="certificate-highlight">{clsName}</span> (Section <span className="certificate-highlight">{secName}</span>).
-          All school dues on his/her account have been cleared in full up to date, and he/she bears a good moral character and conduct.
-        </div>
-      );
+      return null;
     }
 
     // Clean HTML tags
@@ -487,44 +492,43 @@ const AddStudentCertificate = () => {
 
     // Replace template placeholders with marker tokens
     text = text
-      .replace(/\{\{\s*(?:student_)?name\s*\}\}/gi, `~~~HL~~~${fullName}~~~END_HL~~~`)
-      .replace(/\{\{\s*(?:guardian|father)_name\s*\}\}/gi, `~~~HL~~~${guardian}~~~END_HL~~~`)
-      .replace(/\{\{\s*(?:date_of_birth|dob)\s*\}\}/gi, `~~~HL~~~${dob}~~~END_HL~~~`)
-      .replace(/\{\{\s*class(?:_name)?\s*\}\}/gi, `~~~HL~~~${clsName}~~~END_HL~~~`)
-      .replace(/\{\{\s*section\s*\}\}/gi, `~~~HL~~~${secName}~~~END_HL~~~`)
-      .replace(/\{\{\s*roll_(?:number|no)\s*\}\}/gi, `~~~HL~~~${rollNo}~~~END_HL~~~`)
-      .replace(/\{\{\s*academic_year\s*\}\}/gi, `~~~HL~~~${academicYear}~~~END_HL~~~`)
-      .replace(/\{\{\s*(?:admission_number|admission_no)\s*\}\}/gi, `~~~HL~~~${admNo}~~~END_HL~~~`)
-      .replace(/\{\{\s*admission_date\s*\}\}/gi, `~~~HL~~~${admDate}~~~END_HL~~~`)
+      .replace(/\{\{\s*(?:student_)?name\s*\}\}/gi, `~~~HL~~~${displayFullName}~~~END_HL~~~`)
+      .replace(/\{\{\s*(?:guardian|father)_name\s*\}\}/gi, `~~~HL~~~${displayGuardian}~~~END_HL~~~`)
+      .replace(/\{\{\s*(?:date_of_birth|dob)\s*\}\}/gi, `~~~HL~~~${displayDob}~~~END_HL~~~`)
+      .replace(/\{\{\s*class(?:_name)?\s*\}\}/gi, `~~~HL~~~${displayClsName}~~~END_HL~~~`)
+      .replace(/\{\{\s*section\s*\}\}/gi, `~~~HL~~~${displaySecName}~~~END_HL~~~`)
+      .replace(/\{\{\s*roll_(?:number|no)\s*\}\}/gi, `~~~HL~~~${displayRollNo}~~~END_HL~~~`)
+      .replace(/\{\{\s*academic_year\s*\}\}/gi, `~~~HL~~~${displayAcademicYear}~~~END_HL~~~`)
+      .replace(/\{\{\s*(?:admission_number|admission_no)\s*\}\}/gi, `~~~HL~~~${displayAdmNo}~~~END_HL~~~`)
+      .replace(/\{\{\s*admission_date\s*\}\}/gi, `~~~HL~~~${displayAdmDate}~~~END_HL~~~`)
       .replace(/\{\{\s*(?:issue_)?date\s*\}\}/gi, `~~~HL~~~${formattedDate}~~~END_HL~~~`)
-      .replace(/\{\{\s*city\s*\}\}/gi, `~~~HL~~~${student?.city || ''}~~~END_HL~~~`)
-      .replace(/\{\{\s*state\s*\}\}/gi, `~~~HL~~~${student?.state || ''}~~~END_HL~~~`)
-      .replace(/\{\{\s*country\s*\}\}/gi, `~~~HL~~~${student?.country || ''}~~~END_HL~~~`);
+      .replace(/\{\{\s*city\s*\}\}/gi, `~~~HL~~~${displayCity}~~~END_HL~~~`)
+      .replace(/\{\{\s*state\s*\}\}/gi, `~~~HL~~~${displayState}~~~END_HL~~~`)
+      .replace(/\{\{\s*country\s*\}\}/gi, `~~~HL~~~${displayCountry}~~~END_HL~~~`);
 
     // Replace underscore lines with tokens
     text = text
-      .replace(/Mr\.\/Ms\.\s*_{2,}/gi, `Mr./Ms. ~~~HL~~~${fullName}~~~END_HL~~~`)
-      .replace(/son\/daughter of Mr\.\/Mrs\.\s*_{2,}/gi, `son/daughter of Mr./Mrs. ~~~HL~~~${guardian}~~~END_HL~~~`)
-      .replace(/Class\/Grade\s*_{2,}/gi, `Class/Grade ~~~HL~~~${clsName}~~~END_HL~~~`)
-      .replace(/Roll No\.\s*_{2,}/gi, `Roll No. ~~~HL~~~${rollNo}~~~END_HL~~~`)
-      .replace(/academic session\s*_{2,}/gi, `academic session ~~~HL~~~${academicYear}~~~END_HL~~~`)
+      .replace(/Mr\.\/Ms\.\s*_{2,}/gi, displayFullName ? `Mr./Ms. ~~~HL~~~${displayFullName}~~~END_HL~~~` : 'Mr./Ms. ________')
+      .replace(/son\/daughter of Mr\.\/Mrs\.\s*_{2,}/gi, displayGuardian ? `son/daughter of Mr./Mrs. ~~~HL~~~${displayGuardian}~~~END_HL~~~` : 'son/daughter of Mr./Mrs. ________')
+      .replace(/Class\/Grade\s*_{2,}/gi, displayClsName ? `Class/Grade ~~~HL~~~${displayClsName}~~~END_HL~~~` : 'Class/Grade ________')
+      .replace(/Roll No\.\s*_{2,}/gi, displayRollNo ? `Roll No. ~~~HL~~~${displayRollNo}~~~END_HL~~~` : 'Roll No. ________')
+      .replace(/academic session\s*_{2,}/gi, displayAcademicYear ? `academic session ~~~HL~~~${displayAcademicYear}~~~END_HL~~~` : 'academic session ________')
       .replace(/Date:\s*_{2,}/gi, `Date: ~~~HL~~~${formattedDate}~~~END_HL~~~`)
-      .replace(/Certificate No\.:\s*_{2,}/gi, `Certificate No.: ~~~HL~~~${student?.id ? `CERT-${student.id}` : '—'}~~~END_HL~~~`)
+      .replace(/Certificate No\.:\s*_{2,}/gi, student?.id ? `Certificate No.: ~~~HL~~~CERT-${student.id}~~~END_HL~~~` : 'Certificate No.: ________')
       .replace(/\[School\/College Name\]/gi, schoolName)
       .replace(/\[Address\]/gi, schoolAddress)
       .replace(/\[Contact Number\]/gi, schoolCode)
-      .replace(/enrolled with us since\s*_{2,}/gi, `enrolled with us since ~~~HL~~~${admDate}~~~END_HL~~~`)
-      .replace(/for\s*_{2,}\s*purpose/gi, `for ~~~HL~~~higher studies~~~END_HL~~~ purpose`);
+      .replace(/enrolled with us since\s*_{2,}/gi, displayAdmDate ? `enrolled with us since ~~~HL~~~${displayAdmDate}~~~END_HL~~~` : 'enrolled with us since ________');
 
-    // Fallback if plain text contains exact values without markers
+    // Highlight exact matches if text doesn't contain markers
     if (!text.includes('~~~HL')) {
-      if (fullName && fullName !== 'Student') {
+      if (fullName) {
         text = text.split(fullName).join(`~~~HL~~~${fullName}~~~END_HL~~~`);
       }
-      if (guardian && guardian !== 'Mr. Parent') {
+      if (guardian) {
         text = text.split(guardian).join(`~~~HL~~~${guardian}~~~END_HL~~~`);
       }
-      if (dob && dob !== '—') {
+      if (dob) {
         text = text.split(dob).join(`~~~HL~~~${dob}~~~END_HL~~~`);
       }
     }
@@ -1531,7 +1535,7 @@ const AddStudentCertificate = () => {
 
                                   <div className="certificate-title-wrap">
                                     <div className="certificate-title">
-                                      {tpl.certificate_heading || tpl.template_name || 'CERTIFICATE'}
+                                      {tpl.certificate_heading || tpl.template_name || ''}
                                     </div>
                                   </div>
 
@@ -1541,12 +1545,14 @@ const AddStudentCertificate = () => {
 
                                   <div className="recipient-name-box">
                                     <span className="recipient-name">
-                                      {samplePreviewStudent.first_name} {samplePreviewStudent.last_name}
+                                      {previewStudent
+                                        ? `${previewStudent.first_name || ''} ${previewStudent.last_name || ''}`.trim() || '[Student Name]'
+                                        : '[Student Name]'}
                                     </span>
                                   </div>
 
                                   <div className="certificate-content">
-                                    {renderCertificateBody(tpl, samplePreviewStudent, certificateDate)}
+                                    {renderCertificateBody(tpl, previewStudent, certificateDate)}
                                   </div>
 
                                   <div className="certificate-footer">
@@ -1558,7 +1564,7 @@ const AddStudentCertificate = () => {
 
                                     <div className="sign-block">
                                       <div className="sign-line"></div>
-                                      <div className="sign-title">{tpl.certified_by || 'Principal'}</div>
+                                      <div className="sign-title">{tpl.certified_by || ''}</div>
                                       <div className="sign-subtitle">Signature</div>
                                     </div>
                                   </div>
@@ -1708,10 +1714,10 @@ const AddStudentCertificate = () => {
                     const isAlreadyIssued = issuedStudentIds.has(String(std.id));
                     const isSelected = selectedIds.includes(std.id);
                     const fullName =
-                      `${std.first_name || ''} ${std.last_name || ''}`.trim() || 'Student';
-                    const admissionNo = std.admission_number || `AD${std.id}`;
-                    const phone = std.primary_contact_number || std.phone || '—';
-                    const email = std.email_address || std.email || '—';
+                      `${std.first_name || ''} ${std.last_name || ''}`.trim() || '-';
+                    const admissionNo = std.admission_number || std.admission_no || '-';
+                    const phone = std.primary_contact_number || std.phone || '-';
+                    const email = std.email_address || std.email || '-';
                     const gender =
                       std.gender === 1 ||
                       std.gender === '1' ||
@@ -1721,10 +1727,13 @@ const AddStudentCertificate = () => {
                           std.gender === '2' ||
                           String(std.gender).toLowerCase() === 'female'
                         ? 'Female'
-                        : std.gender || '—';
-                    const rollNo = std.roll_number || '—';
-                    const clsName = std.class_name || std.class || '—';
-                    const secName = std.section_name || std.section || '—';
+                        : std.gender || '-';
+                    const rollNo =
+                      std.roll_number !== undefined && std.roll_number !== null
+                        ? String(std.roll_number)
+                        : '-';
+                    const clsName = std.class_name || std.class || '-';
+                    const secName = std.section_name || std.section || '-';
 
                     return (
                       <tr
@@ -1841,10 +1850,10 @@ const AddStudentCertificate = () => {
                   {printModal.certificates.map((item, idx) => {
                     const { student, date, template } = item;
                     const borderImg = getBorderForTemplate(template?.border);
-                    const fullName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim() || 'Student';
+                    const fullName = `${student?.first_name || ''} ${student?.last_name || ''}`.trim() || '-';
 
                     return (
-                      <div key={student.id || idx} className="certificate-body mb-4 page-break">
+                      <div key={student?.id || idx} className="certificate-body mb-4 page-break">
                         <div
                           className="certificate_1"
                           style={{
@@ -1857,7 +1866,7 @@ const AddStudentCertificate = () => {
                             <div className="certificate-top-row">
                               <div className="cert-meta-tag">
                                 <span className="cert-meta-label">CERTIFICATE NO:</span>
-                                <span className="serial">{student?.id || 100 + idx}</span>
+                                <span className="serial">{student?.id ? `CERT-${student.id}` : ''}</span>
                               </div>
                               <div className="cert-meta-tag">
                                 <span className="cert-meta-label">DATE OF ISSUE:</span>
@@ -1897,7 +1906,7 @@ const AddStudentCertificate = () => {
                             {/* Certificate Title */}
                             <div className="certificate-title-wrap">
                               <div className="certificate-title">
-                                {template?.certificate_heading || template?.template_name || 'CERTIFICATE'}
+                                {template?.certificate_heading || template?.template_name || ''}
                               </div>
                             </div>
 
@@ -1926,7 +1935,7 @@ const AddStudentCertificate = () => {
 
                               <div className="sign-block">
                                 <div className="sign-line"></div>
-                                <div className="sign-title">{template?.certified_by || 'Principal'}</div>
+                                <div className="sign-title">{template?.certified_by || ''}</div>
                                 <div className="sign-subtitle">Signature</div>
                               </div>
                             </div>

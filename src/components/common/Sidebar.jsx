@@ -9,6 +9,7 @@ import { resolveImageUrl } from '../../utils/url.util';
 import Avatar from './Avatar';
 import usePermission from '../../hooks/usePermission';
 import { useSubscription } from '../../context/SubscriptionContext';
+import { toast } from 'react-toastify';
 
 const WARD_MODULES = ['ward/students', 'ward/parents'];
 const STAFF_MODULES = ['staff/teachers', 'staff/users'];
@@ -82,13 +83,20 @@ const Sidebar = ({
   const { user } = useSelector((state) => state.auth);
   const messageUnreadCount = useSelector((state) => state.messageNotification?.unreadCount || 0);
   const { can, hasAny, isSuperAdmin } = usePermission();
-  const { isTrial, isExpired, daysLeft, openUpgradeModal } = useSubscription();
+  const { subscription, isTrial, isExpired, daysLeft, openUpgradeModal } = useSubscription();
 
   const handleLockedMenuClick = (e) => {
     if (isExpired) {
-      e.preventDefault();
-      e.stopPropagation();
-      openUpgradeModal();
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      toast.warning(
+        isTrial
+          ? 'All operational menus are disabled because your trial has expired. Please upgrade in Subscription & Plans.'
+          : 'All operational menus are disabled because your subscription has expired. Please renew or upgrade in Subscription & Plans.'
+      );
+      openUpgradeModal(subscription?.plan_id);
     }
   };
 
@@ -122,22 +130,36 @@ const Sidebar = ({
 
   // Submenu open states (only one key can be true at any time)
   const [openSubmenu, setOpenSubmenu] = useState(() => {
+    if (isExpired) return {};
     const active = getActiveMenuFromPath(location.pathname);
     return active ? { [active]: true } : {};
   });
 
-  // On route change, only keep the menu matching the current route expanded
+  // On route change or expiry change, collapse submenus when expired or match current route
   useEffect(() => {
+    if (isExpired) {
+      setOpenSubmenu({});
+      return;
+    }
     const active = getActiveMenuFromPath(location.pathname);
     if (active) {
       setOpenSubmenu({ [active]: true });
     } else {
       setOpenSubmenu({});
     }
-  }, [location.pathname]);
+  }, [location.pathname, isExpired]);
 
-  // Accordion toggle: opening one menu closes all others
+  // Accordion toggle: opening one menu closes all others (blocked if expired)
   const toggleSubmenu = (menuKey) => {
+    if (isExpired) {
+      toast.warning(
+        isTrial
+          ? 'All operational menus are disabled because your trial has expired. Please upgrade in Subscription & Plans.'
+          : 'All operational menus are disabled because your subscription has expired. Please renew or upgrade in Subscription & Plans.'
+      );
+      openUpgradeModal(subscription?.plan_id);
+      return;
+    }
     setOpenSubmenu((prev) => {
       const isCurrentlyOpen = Boolean(prev[menuKey]);
       return isCurrentlyOpen ? {} : { [menuKey]: true };
@@ -238,43 +260,141 @@ const Sidebar = ({
           <ul>
             <li>
               <ul>
-                {/* 14-Day Free Trial Notice (When active and not expired: Full Access) */}
+                {/* Trial Notice (When active and not expired: Full Access) */}
                 {isTrial && !isExpired && (
                   <li className="p-2 mb-2">
                     <div className="bg-warning-subtle border border-warning rounded p-2 text-dark">
                       <div className="d-flex align-items-center mb-1">
                         <i className="ti ti-bolt text-warning-emphasis fs-16 me-1"></i>
-                        <span className="fw-bold fs-11 text-uppercase">14-Day Free Trial</span>
+                        <span className="fw-bold fs-11 text-uppercase">
+                          {subscription?.plan_name || '14-Day Free Trial'}
+                        </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
                         Full access enabled ({daysLeft} days remaining).
                       </p>
-                      <NavLink to="/admin/subscription" className="btn btn-warning btn-sm w-100 py-1 fs-11 fw-bold text-dark">
-                        View Plans / Upgrade
-                      </NavLink>
+                      <button
+                        type="button"
+                        onClick={() => openUpgradeModal()}
+                        className="btn btn-warning btn-sm w-100 py-1 fs-11 fw-bold text-dark shadow-none"
+                      >
+                        Upgrade Plan
+                      </button>
                     </div>
                   </li>
                 )}
 
-                {/* Trial Expired Notice (When trial has expired: Menus Locked) */}
+                {/* Active Paid Plan Notice (Showing days remaining notification & Renewal CTA) */}
+                {!isTrial && !isExpired && (
+                  <li className="p-2 mb-2">
+                    <div
+                      className={`border rounded p-2 ${
+                        daysLeft <= 15
+                          ? 'bg-danger-subtle border-danger text-danger'
+                          : daysLeft <= 30
+                          ? 'bg-warning-subtle border-warning text-dark'
+                          : 'bg-success-subtle border-success text-dark'
+                      }`}
+                    >
+                      <div className="d-flex align-items-center mb-1">
+                        <i
+                          className={`ti ${
+                            daysLeft <= 15
+                              ? 'ti-alert-triangle text-danger'
+                              : daysLeft <= 30
+                              ? 'ti-clock-hour-4 text-warning'
+                              : 'ti-crown text-warning'
+                          } fs-16 me-1`}
+                        ></i>
+                        <span className="fw-bold fs-11 text-uppercase">
+                          {subscription?.plan_name || 'Active Plan'}
+                        </span>
+                      </div>
+                      <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
+                        {daysLeft <= 30 ? (
+                          <>
+                            Expires in{' '}
+                            <strong className={daysLeft <= 15 ? 'text-danger' : 'text-dark'}>
+                              {daysLeft} days
+                            </strong>
+                            . Renew early to avoid interruption.
+                          </>
+                        ) : (
+                          <>{daysLeft} days remaining on your subscription.</>
+                        )}
+                      </p>
+                      <div className="d-flex flex-column gap-1">
+                        {daysLeft <= 30 ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openUpgradeModal(subscription?.plan_id)}
+                              className="btn btn-warning text-dark btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center"
+                            >
+                              <i className="ti ti-refresh me-1"></i> Renew Plan
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openUpgradeModal()}
+                              className="btn btn-outline-primary btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center"
+                            >
+                              <i className="ti ti-arrow-up-right me-1"></i> Upgrade Plan
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openUpgradeModal()}
+                            className="btn btn-outline-primary btn-sm w-100 py-1 fs-11 fw-bold shadow-none"
+                          >
+                            Manage / Upgrade Plan
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </li>
+                )}
+
+                {/* Plan Expired Notice (Trial or Paid: Menus Locked) */}
                 {isExpired && (
                   <li className="p-2 mb-2">
                     <div className="bg-danger-subtle border border-danger rounded p-2 text-danger">
                       <div className="d-flex align-items-center mb-1">
                         <i className="ti ti-lock fs-16 me-1 text-danger"></i>
-                        <span className="fw-bold fs-11 text-uppercase">Trial Expired</span>
+                        <span className="fw-bold fs-11 text-uppercase">
+                          {isTrial
+                            ? 'Trial Expired'
+                            : `${subscription?.plan_name || 'Subscription'} Expired`}
+                        </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
-                        All operational menus are locked. Upgrade to restore full access.
+                        {isTrial
+                          ? 'All operational menus are locked. Upgrade to restore full access.'
+                          : `Your ${subscription?.plan_name || 'subscription'} has expired. Renew or upgrade to restore full access.`}
                       </p>
-                      <NavLink to="/admin/subscription" className="btn btn-danger btn-sm w-100 py-1 fs-11 fw-bold">
-                        Upgrade Plan
-                      </NavLink>
+                      <div className="d-flex flex-column gap-1">
+                        {!isTrial && (
+                          <button
+                            type="button"
+                            onClick={() => openUpgradeModal(subscription?.plan_id)}
+                            className="btn btn-danger btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center"
+                          >
+                            <i className="ti ti-refresh me-1"></i> Renew Plan
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openUpgradeModal()}
+                          className={`btn ${isTrial ? 'btn-danger' : 'btn-outline-danger bg-white text-danger'} btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center`}
+                        >
+                          <i className="ti ti-arrow-up-right me-1"></i> Upgrade Plan
+                        </button>
+                      </div>
                     </div>
                   </li>
                 )}
 
-                {/* Operational Modules Wrapper: Disabled only when trial is expired */}
+                {/* Operational Modules Wrapper: Disabled when plan is expired */}
                 <div className="position-relative">
                   {isExpired && (
                     <div
@@ -285,13 +405,24 @@ const Sidebar = ({
                         left: 0,
                         right: 0,
                         bottom: 0,
-                        zIndex: 10,
+                        zIndex: 100,
                         cursor: 'not-allowed',
                       }}
-                      title="All menus are disabled because your trial has expired. Click Subscription & Plans to upgrade."
+                      title="All operational menus are disabled because your subscription has expired. Click Subscription & Plans to renew or upgrade."
                     />
                   )}
-                  <div style={isExpired ? { opacity: 0.45, filter: 'grayscale(70%)', pointerEvents: 'none' } : {}}>
+                  <div
+                    style={
+                      isExpired
+                        ? {
+                            opacity: 0.38,
+                            filter: 'grayscale(100%)',
+                            pointerEvents: 'none',
+                            userSelect: 'none',
+                          }
+                        : {}
+                    }
+                  >
                     {/* Dashboard */}
                     <li>
                       <NavLink to="/admin/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -1285,7 +1416,13 @@ const Sidebar = ({
                 </div>
 
                 {/* Subscription & License - ALWAYS active and accessible */}
-                <li className={isExpired ? 'active my-1 rounded bg-warning-subtle' : ''}>
+                <li
+                  className={
+                    isExpired
+                      ? 'my-2 rounded border border-warning bg-warning-subtle shadow-sm'
+                      : ''
+                  }
+                >
                   <NavLink
                     to="/admin/subscription"
                     className={({ isActive }) =>
@@ -1295,10 +1432,12 @@ const Sidebar = ({
                     }
                   >
                     <i className="ti ti-crown text-warning"></i>
-                    <span>Subscription & Plans</span>
+                    <span className={isExpired ? 'fw-bold text-dark' : ''}>
+                      Subscription &amp; Plans
+                    </span>
                     {isExpired && (
                       <span className="badge bg-danger text-white ms-auto fs-10 px-1.5 py-0.5">
-                        Upgrade
+                        {isTrial ? 'Upgrade' : 'Renew'}
                       </span>
                     )}
                   </NavLink>

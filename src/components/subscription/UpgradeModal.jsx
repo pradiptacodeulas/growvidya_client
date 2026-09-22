@@ -9,20 +9,33 @@ const UpgradeModal = ({
   onClose,
   plans = [],
   currentPlanId,
+  subscription,
+  initialPlanId,
   onUpgrade,
   refreshSubscription,
   isLockout = false,
 }) => {
   const { user } = useSelector((state) => state.auth || {});
-  const [selectedPlanId, setSelectedPlanId] = useState(() => plans[0]?.id || null);
+  const [selectedPlanId, setSelectedPlanId] = useState(() => initialPlanId || currentPlanId || plans[0]?.id || null);
 
   const [paymentGateway, setPaymentGateway] = useState('razorpay');
   const [utrNumber, setUtrNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  React.useEffect(() => {
+    if (initialPlanId) {
+      setSelectedPlanId(initialPlanId);
+    } else if (currentPlanId && !selectedPlanId) {
+      setSelectedPlanId(currentPlanId);
+    }
+  }, [initialPlanId, currentPlanId]);
+
   if (!isOpen) return null;
 
   const selectedPlan = plans.find((p) => p.id === Number(selectedPlanId)) || plans[0];
+  const isCurrentSelected = Boolean(
+    selectedPlan && currentPlanId && Number(selectedPlan.id) === Number(currentPlanId)
+  );
 
   const handleConfirmUpgrade = async () => {
     if (!selectedPlan) {
@@ -56,7 +69,7 @@ const UpgradeModal = ({
           amount: orderData.amount,
           currency: orderData.currency || 'INR',
           name: 'GrowVidya School ERP',
-          description: `License Upgrade: ${selectedPlan.plan_name}`,
+          description: `${isCurrentSelected ? 'License Renewal' : 'License Upgrade'}: ${selectedPlan.plan_name}`,
           order_id: orderData.order_id,
           prefill: {
             name: user?.name || user?.schoolName || user?.school_name || 'School Admin',
@@ -176,10 +189,16 @@ const UpgradeModal = ({
               </div>
               <div>
                 <h5 className="modal-title fw-bold mb-0 text-white">
-                  {isLockout ? 'Reactivate Your School Portal' : 'Upgrade to Annual License'}
+                  {isCurrentSelected
+                    ? `Renew ${selectedPlan?.plan_name || 'Current Plan'}`
+                    : isLockout
+                    ? 'Reactivate Your School Portal'
+                    : 'Upgrade to Annual License'}
                 </h5>
                 <p className="text-white-50 mb-0 fs-13">
-                  Select your school plan for unlimited cloud access, regular updates & premium support.
+                  {isCurrentSelected
+                    ? `Renew your ${selectedPlan?.plan_name} for another 365 days of full cloud access and updates.`
+                    : 'Select your school plan for unlimited cloud access, regular updates & premium support.'}
                 </p>
               </div>
             </div>
@@ -200,6 +219,7 @@ const UpgradeModal = ({
             <div className="row g-3 mb-4">
               {plans.map((plan) => {
                 const isSelected = Number(selectedPlanId) === Number(plan.id);
+                const isCurrent = Number(currentPlanId) === Number(plan.id);
                 const isPopular = plan.plan_code?.includes('growth') || plan.id === 2;
 
                 return (
@@ -217,7 +237,21 @@ const UpgradeModal = ({
                         transition: 'all 0.2s ease',
                       }}
                     >
-                      {isPopular && (
+                      {isCurrent ? (
+                        <span
+                          className="badge bg-warning text-dark position-absolute"
+                          style={{
+                            top: '-10px',
+                            left: '16px',
+                            fontSize: '11px',
+                            padding: '4px 10px',
+                            borderRadius: '12px',
+                            zIndex: 2,
+                          }}
+                        >
+                          ★ CURRENT PLAN (RENEW)
+                        </span>
+                      ) : isPopular ? (
                         <span
                           className="badge bg-primary text-white position-absolute"
                           style={{
@@ -226,14 +260,27 @@ const UpgradeModal = ({
                             fontSize: '11px',
                             padding: '4px 10px',
                             borderRadius: '12px',
+                            zIndex: 2,
                           }}
                         >
                           ★ MOST POPULAR
                         </span>
-                      )}
+                      ) : null}
 
                       <div className="d-flex align-items-center justify-content-between mb-2">
-                        <h6 className="fw-bold text-dark mb-0">{plan.plan_name}</h6>
+                        <div className="d-flex align-items-center gap-1">
+                          <h6 className="fw-bold text-dark mb-0">{plan.plan_name}</h6>
+                          {isCurrent && (
+                            <span className="badge bg-warning-subtle text-warning-emphasis border border-warning fs-10 px-2 py-0.5 rounded-pill">
+                              Renew
+                            </span>
+                          )}
+                          {!isCurrent && currentPlanId && (
+                            <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-2 py-0.5 rounded-pill">
+                              Upgrade
+                            </span>
+                          )}
+                        </div>
                         <input
                           type="radio"
                           name="plan_selection"
@@ -423,14 +470,26 @@ const UpgradeModal = ({
                   Processing...
                 </>
               ) : paymentGateway === 'bank_transfer' ? (
+                isCurrentSelected ? (
+                  <>
+                    <i className="ti ti-send me-2"></i>
+                    Submit Bank Transfer for Renewal (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
+                  </>
+                ) : (
+                  <>
+                    <i className="ti ti-send me-2"></i>
+                    Submit Bank Transfer for Upgrade (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
+                  </>
+                )
+              ) : isCurrentSelected ? (
                 <>
-                  <i className="ti ti-send me-2"></i>
-                  Submit Bank Transfer Request (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
+                  <i className="ti ti-refresh me-2"></i>
+                  Renew {selectedPlan.plan_name} (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
                 </>
               ) : (
                 <>
-                  <i className="ti ti-lock-open me-2"></i>
-                  Pay & Activate License (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
+                  <i className="ti ti-arrow-up-right me-2"></i>
+                  Upgrade to {selectedPlan.plan_name} (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
                 </>
               )}
             </button>

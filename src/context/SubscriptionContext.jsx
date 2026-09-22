@@ -33,14 +33,29 @@ export const SubscriptionProvider = ({ children }) => {
   const [isLockoutModalOpen, setIsLockoutModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
+  const activePlanName = subscription?.plan_name || user?.subscription?.plan_name || '';
+  const planNameLower = activePlanName.toLowerCase();
+
   const isTrial = subscription !== null
     ? Boolean(
-        subscription?.isTrial ||
-        subscription?.status === 'trial' ||
-        subscription?.billing_cycle === 'trial' ||
-        (subscription?.plan_code || '').includes('trial')
+        subscription?.isTrial !== undefined
+          ? subscription.isTrial
+          : (subscription?.billing_cycle === 'trial' ||
+             (subscription?.plan_code || '').toLowerCase().includes('trial') ||
+             planNameLower.includes('trial') ||
+             subscription?.status === 'trial') &&
+            subscription?.billing_cycle !== 'annual' &&
+            subscription?.billing_cycle !== 'monthly' &&
+            !planNameLower.includes('starter') &&
+            !planNameLower.includes('growth') &&
+            !planNameLower.includes('enterprise')
       )
-    : Boolean(user?.isTrial || user?.is_trial);
+    : Boolean(
+        (user?.isTrial || user?.is_trial) &&
+        !planNameLower.includes('starter') &&
+        !planNameLower.includes('growth') &&
+        !planNameLower.includes('enterprise')
+      );
 
   const daysLeft = subscription?.days_left !== undefined
     ? Number(subscription.days_left)
@@ -49,8 +64,10 @@ export const SubscriptionProvider = ({ children }) => {
   const isExpired = Boolean(
     subscription?.isExpired ||
     subscription?.liveStatus === 'expired' ||
-    (subscription?.status === 'expired') ||
-    (isTrial && daysLeft <= 0)
+    subscription?.status === 'expired' ||
+    user?.subscription?.isExpired ||
+    user?.subscription?.status === 'expired' ||
+    daysLeft <= 0
   );
 
   const refreshSubscription = useCallback(async () => {
@@ -70,11 +87,8 @@ export const SubscriptionProvider = ({ children }) => {
       const data = await getSubscriptionStatus();
       if (data?.subscription) {
         setSubscription(data.subscription);
-        if (data.subscription.isExpired || data.subscription.liveStatus === 'expired') {
-          setIsLockoutModalOpen(true);
-        } else {
-          setIsLockoutModalOpen(false);
-        }
+        // Keep sidebar and Subscription menu visible and accessible
+        setIsLockoutModalOpen(false);
       }
       if (Array.isArray(data?.upgrade_plans)) {
         setUpgradePlans(data.upgrade_plans);
@@ -95,7 +109,6 @@ export const SubscriptionProvider = ({ children }) => {
   useEffect(() => {
     const handleSubscriptionExpired = (event) => {
       console.warn('[SubscriptionContext] 402 Subscription Expired event captured:', event.detail);
-      setIsLockoutModalOpen(true);
       setSubscription((prev) => ({
         ...(prev || {}),
         isExpired: true,
@@ -103,6 +116,8 @@ export const SubscriptionProvider = ({ children }) => {
         status: 'expired',
         days_left: 0,
       }));
+      // Keep sidebar visible and Subscription menu accessible
+      setIsLockoutModalOpen(false);
     };
 
     window.addEventListener('subscription_expired', handleSubscriptionExpired);
@@ -111,12 +126,22 @@ export const SubscriptionProvider = ({ children }) => {
     };
   }, []);
 
-  const openUpgradeModal = () => {
+  const [preselectedPlanId, setPreselectedPlanId] = useState(null);
+
+  const openUpgradeModal = (planId = null) => {
+    if (planId) {
+      setPreselectedPlanId(planId);
+    } else if (subscription?.plan_id) {
+      setPreselectedPlanId(subscription.plan_id);
+    } else {
+      setPreselectedPlanId(null);
+    }
     setIsUpgradeModalOpen(true);
   };
 
   const closeUpgradeModal = () => {
     setIsUpgradeModalOpen(false);
+    setPreselectedPlanId(null);
   };
 
   const upgradeToPlan = async (payload) => {
@@ -144,7 +169,7 @@ export const SubscriptionProvider = ({ children }) => {
     >
       {children}
 
-      {/* Global Non-Dismissible Lockout Modal if trial has expired */}
+      {/* Global Non-Dismissible Lockout Modal if trial/subscription has expired */}
       {isLockoutModalOpen && (
         <TrialExpiredLockoutModal
           subscription={subscription}
@@ -154,18 +179,20 @@ export const SubscriptionProvider = ({ children }) => {
         />
       )}
 
-      {/* Self-Service Upgrade Modal when admin clicks "Upgrade Now" */}
+      {/* Self-Service Upgrade / Renewal Modal when admin clicks "Upgrade Now" or "Renew" */}
       {isUpgradeModalOpen && !isLockoutModalOpen && (
         <UpgradeModal
           isOpen={isUpgradeModalOpen}
           onClose={closeUpgradeModal}
           plans={upgradePlans}
           currentPlanId={subscription?.plan_id}
+          subscription={subscription}
+          initialPlanId={preselectedPlanId}
           onUpgrade={upgradeToPlan}
           refreshSubscription={refreshSubscription}
+          isLockout={false}
         />
       )}
     </SubscriptionContext.Provider>
-
   );
 };
