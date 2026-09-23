@@ -508,7 +508,7 @@ const FeesCollectionDashboard = () => {
                               </span>
                             )}
                             <Link
-                              to={`/admin/fees/invoices/view/${inv.id}`}
+                              to={`/admin/fees/invoices/view/${encodeParam(inv.id)}`}
                               className="btn btn-sm btn-outline-secondary ms-1"
                               title="View Invoice"
                             >

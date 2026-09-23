@@ -1,17 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import { downloadPdfFromElement, printIsolatedTemplate, shareOrDownloadPdf } from '../../../utils/printPdf.util';
-import { decodeParam } from '../../../utils/idHelper';
+import { decodeParam, encodeParam } from '../../../utils/idHelper';
+import { resolveImageUrl } from '../../../utils/url.util';
 import NoData from '../../../components/common/NoData';
 
 const ViewInvoice = () => {
+  const { user } = useSelector((state) => state.auth);
   const { id: rawId } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const id = decodeParam(rawId);
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
+
+  // If rawId is unencoded (e.g. raw numeric ID "2"), replace the URL with encoded ID
+  useEffect(() => {
+    if (rawId && /^\d+$/.test(String(rawId).trim())) {
+      const encoded = encodeParam(rawId);
+      const newPath = location.pathname.replace(new RegExp(`/${rawId}$`), `/${encoded}`);
+      navigate(newPath, { replace: true });
+    }
+  }, [rawId, navigate, location.pathname]);
 
   useEffect(() => {
     fetchInvoiceDetails();
@@ -96,6 +110,13 @@ const ViewInvoice = () => {
     0
   );
 
+  const schoolName = invoice?.school_name || user?.school_name || user?.schoolName || '';
+  const schoolAddress = invoice?.school_address || user?.school_address || user?.address || '';
+  const schoolPhone = invoice?.school_phone || user?.school_phone || user?.phone_number || '';
+  const schoolEmail = invoice?.school_email || user?.school_email || user?.email || '';
+  const schoolCode = invoice?.school_code || user?.school_code || '';
+  const schoolLogoSrc = resolveImageUrl(invoice?.school_logo || user?.schoolLogo || user?.school_logo);
+
   return (
     <div className="content">
       {/* Page Header */}
@@ -135,8 +156,29 @@ const ViewInvoice = () => {
           {/* School & Invoice Header */}
           <div className="row align-items-center mb-4 border-bottom pb-4">
             <div className="col-sm-6">
-              <h2 className="fw-bold text-primary mb-1">CIBL School</h2>
-              <p className="text-muted mb-0 fs-13">09/245, Kalyani, Nadia</p>
+              <div className="d-flex align-items-center gap-3">
+                {schoolLogoSrc && (
+                  <img
+                    src={schoolLogoSrc}
+                    alt={schoolName}
+                    style={{ maxHeight: '65px', maxWidth: '100px', objectFit: 'contain' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                  />
+                )}
+                <div>
+                  <h2 className="fw-bold text-primary mb-1">{schoolName}</h2>
+                  {schoolAddress && <p className="text-muted mb-0 fs-13">{schoolAddress}</p>}
+                  {(schoolPhone || schoolEmail || schoolCode) && (
+                    <p className="text-muted mb-0 fs-12 mt-1">
+                      {schoolCode && <span className="me-2"><strong>Code:</strong> {schoolCode}</span>}
+                      {schoolPhone && <span className="me-2"><strong>Phone:</strong> {schoolPhone}</span>}
+                      {schoolEmail && <span><strong>Email:</strong> {schoolEmail}</span>}
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="col-sm-6 text-sm-end mt-3 mt-sm-0">
               <h3 className="text-dark fw-bold mb-1">INVOICE</h3>

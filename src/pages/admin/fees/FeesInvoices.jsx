@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { getPaginationRange } from '../../../utils/pagination.util';
+import { encodeParam } from '../../../utils/idHelper';
 import NoData from '../../../components/common/NoData';
 
 const FeesInvoices = () => {
@@ -715,7 +716,7 @@ const FeesInvoices = () => {
                           <tr key={inv.id} className={idx % 2 === 0 ? 'odd' : 'even'}>
                             <td className="fw-bold text-nowrap">
                               <Link
-                                to={`/admin/fees/invoices/view/${inv.id}`}
+                                to={`/admin/fees/invoices/view/${encodeParam(inv.id)}`}
                                 className="text-primary text-decoration-none"
                               >
                                 {inv.invoice_no}
@@ -758,7 +759,7 @@ const FeesInvoices = () => {
                             </td>
                             <td className="text-center text-nowrap">
                               <Link
-                                to={`/admin/fees/invoices/view/${inv.id}`}
+                                to={`/admin/fees/invoices/view/${encodeParam(inv.id)}`}
                                 className="btn btn-sm btn-outline-secondary d-inline-flex align-items-center"
                                 title="View Invoice"
                               >
