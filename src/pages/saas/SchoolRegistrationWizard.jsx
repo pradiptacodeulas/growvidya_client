@@ -368,7 +368,7 @@ const SchoolRegistrationWizard = () => {
             registrationSuccess: true,
           },
         });
-      } else if (paymentGateway === 'razorpay') {
+      } else {
         // Paid Plan via Razorpay Checkout
         const isLoaded = await loadRazorpayScript();
         if (!isLoaded) {
@@ -449,27 +449,6 @@ const SchoolRegistrationWizard = () => {
           setSubmitting(false);
         });
         rzp.open();
-      } else {
-        // Direct Bank Transfer / Offline Request
-        const payload = {
-          ...basePayload,
-          isTrial: false,
-          amountPaid: selectedPlan.price,
-          paymentGateway: 'bank_transfer',
-          paymentTransactionId: `OFFLINE_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
-        };
-
-        const res = await saasApi.registerSchool(payload);
-        toast.success(
-          res?.message ||
-            '🎉 School registered! Your offline corporate invoice request has been received.'
-        );
-        navigate('/account/login/adminlogin', {
-          state: {
-            registeredEmail: adminForm.email,
-            registrationSuccess: true,
-          },
-        });
       }
     } catch (err) {
       console.error('Registration error:', err);
@@ -1295,21 +1274,17 @@ const SchoolRegistrationWizard = () => {
                             Payment Gateway
                           </h6>
                           <div className="row g-3">
-                            <div className="col-12 col-md-6">
+                            <div className="col-12">
                               <label
-                                className={`d-flex align-items-center p-3 border rounded-3 cursor-pointer w-100 mb-0 bg-white ${
-                                  paymentGateway === 'razorpay'
-                                    ? 'border-primary shadow-xs'
-                                    : 'border-200'
-                                }`}
+                                className="d-flex align-items-center p-3 border border-primary rounded-3 w-100 mb-0 bg-white shadow-xs"
                                 style={{ cursor: 'pointer' }}
                               >
                                 <input
                                   type="radio"
                                   name="reg_payment_gateway"
                                   value="razorpay"
-                                  checked={paymentGateway === 'razorpay'}
-                                  onChange={(e) => setPaymentGateway(e.target.value)}
+                                  checked={true}
+                                  readOnly
                                   className="form-check-input me-3"
                                 />
                                 <div>
@@ -1318,34 +1293,6 @@ const SchoolRegistrationWizard = () => {
                                   </div>
                                   <div className="text-muted fs-11">
                                     Pay via UPI, Cards, or NetBanking for immediate activation
-                                  </div>
-                                </div>
-                              </label>
-                            </div>
-
-                            <div className="col-12 col-md-6">
-                              <label
-                                className={`d-flex align-items-center p-3 border rounded-3 cursor-pointer w-100 mb-0 bg-white ${
-                                  paymentGateway === 'bank_transfer'
-                                    ? 'border-primary shadow-xs'
-                                    : 'border-200'
-                                }`}
-                                style={{ cursor: 'pointer' }}
-                              >
-                                <input
-                                  type="radio"
-                                  name="reg_payment_gateway"
-                                  value="bank_transfer"
-                                  checked={paymentGateway === 'bank_transfer'}
-                                  onChange={(e) => setPaymentGateway(e.target.value)}
-                                  className="form-check-input me-3"
-                                />
-                                <div>
-                                  <div className="fw-semibold text-dark fs-13">
-                                    Direct Bank Transfer / Offline
-                                  </div>
-                                  <div className="text-muted fs-11">
-                                    Submit offline corporate transfer request
                                   </div>
                                 </div>
                               </label>
@@ -1442,17 +1389,10 @@ const SchoolRegistrationWizard = () => {
                   </>
                 ) : (() => {
                     const sel = plans.find((p) => p.id === Number(selectedPlanId));
-                    if (sel && parseFloat(sel.price) > 0 && paymentGateway === 'razorpay') {
-                      return (
-                        <>
-                          <i className="ti ti-credit-card me-1"></i> Pay with Razorpay & Complete Setup
-                        </>
-                      );
-                    }
                     if (sel && parseFloat(sel.price) > 0) {
                       return (
                         <>
-                          <i className="ti ti-check me-1"></i> Submit Registration & Invoice
+                          <i className="ti ti-credit-card me-1"></i> Pay with Razorpay & Complete Setup
                         </>
                       );
                     }
