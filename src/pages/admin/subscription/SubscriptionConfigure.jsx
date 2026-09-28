@@ -12,6 +12,8 @@ import {
 } from '../../../api/subscription.api';
 import { resolveImageUrl } from '../../../utils/url.util';
 
+const NO_IMAGE_PLACEHOLDER = '/assets_admin/no_iamge.webp';
+
 const SubscriptionConfigure = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -111,9 +113,9 @@ const SubscriptionConfigure = () => {
   // 1. Storage Selection state (storage_master - single select only)
   const [selectedStorageId, setSelectedStorageId] = useState(null);
 
-  // 2. Attendance Machine Selection state (attendance_machine_master - single select only)
-  const [selectedMachineId, setSelectedMachineId] = useState(null);
-  const [machineQty, setMachineQty] = useState(1);
+  // 2. Attendance Machines Selection state (attendance_machine_master - multiple select permitted)
+  // Dictionary mapping machine id to selected quantity: { [machineId]: quantity }
+  const [selectedMachines, setSelectedMachines] = useState({});
 
   // 3. RFID Card Selection state (rfid_card_master - single select only)
   const [selectedCardId, setSelectedCardId] = useState(null);
@@ -157,24 +159,46 @@ const SubscriptionConfigure = () => {
     setSelectedStorageId((prev) => (prev === storageId ? null : storageId));
   };
 
-  // Handlers for Attendance Machines Selection (single select only, toggle off on re-click)
-  const handleSelectMachine = (machineId) => {
-    if (selectedMachineId === machineId) {
-      setSelectedMachineId(null);
-      setMachineQty(1);
-    } else {
-      setSelectedMachineId(machineId);
-      setMachineQty(1);
-    }
+  // Handlers for Attendance Machines Selection (multiple select permitted)
+  const handleAddMachine = (machineId) => {
+    setSelectedMachines((prev) => ({
+      ...prev,
+      [machineId]: (prev[machineId] || 0) + 1,
+    }));
   };
 
-  const handleMachineQtyChange = (delta) => {
-    setMachineQty((prev) => Math.max(1, prev + delta));
+  const handleIncreaseMachineQty = (machineId) => {
+    setSelectedMachines((prev) => ({
+      ...prev,
+      [machineId]: (prev[machineId] || 0) + 1,
+    }));
   };
 
-  const handleMachineQtyDirectInput = (val) => {
-    const parsed = parseInt(val, 10);
-    setMachineQty(isNaN(parsed) || parsed < 1 ? 1 : parsed);
+  const handleDecreaseMachineQty = (machineId) => {
+    setSelectedMachines((prev) => {
+      const current = prev[machineId] || 0;
+      if (current <= 1) {
+        const next = { ...prev };
+        delete next[machineId];
+        return next;
+      }
+      return {
+        ...prev,
+        [machineId]: current - 1,
+      };
+    });
+  };
+
+  const handleRemoveMachine = (machineId) => {
+    setSelectedMachines((prev) => {
+      const next = { ...prev };
+      delete next[machineId];
+      return next;
+    });
+  };
+
+  const handleClearAllMachines = () => {
+    setSelectedMachines({});
   };
 
   // Handlers for RFID Cards Selection (single select only, toggle off on re-click)
@@ -221,29 +245,29 @@ const SubscriptionConfigure = () => {
 
   const storageTotal = storagePriceUnit;
 
-  // Machines pricing (single select only)
-  const selectedMachine = useMemo(() => {
-    if (!selectedMachineId) return null;
-    return catalog.attendance_machines.find((m) => m.id === Number(selectedMachineId)) || null;
-  }, [selectedMachineId, catalog.attendance_machines]);
-
+  // Machines pricing (multiple select permitted)
   const selectedMachinesList = useMemo(() => {
-    if (!selectedMachine) return [];
-    const unitPrice = parseFloat(selectedMachine.unit_price || 0);
-    return [
-      {
-        ...selectedMachine,
-        quantity: machineQty,
-        unitPrice,
-        totalPrice: unitPrice * machineQty,
-      },
-    ];
-  }, [selectedMachine, machineQty]);
+    if (!catalog.attendance_machines || catalog.attendance_machines.length === 0) return [];
+    const list = [];
+    for (const [idStr, qty] of Object.entries(selectedMachines)) {
+      const machineId = Number(idStr);
+      const machine = catalog.attendance_machines.find((m) => Number(m.id) === machineId);
+      if (machine && qty > 0) {
+        const unitPrice = parseFloat(machine.unit_price || 0);
+        list.push({
+          ...machine,
+          quantity: qty,
+          unitPrice,
+          totalPrice: unitPrice * qty,
+        });
+      }
+    }
+    return list;
+  }, [selectedMachines, catalog.attendance_machines]);
 
   const machinesTotal = useMemo(() => {
-    if (!selectedMachine) return 0;
-    return parseFloat(selectedMachine.unit_price || 0) * machineQty;
-  }, [selectedMachine, machineQty]);
+    return selectedMachinesList.reduce((sum, m) => sum + m.totalPrice, 0);
+  }, [selectedMachinesList]);
 
   // RFID Cards pricing (single select only)
   const selectedCard = useMemo(() => {
@@ -834,7 +858,7 @@ const SubscriptionConfigure = () => {
               <div className="d-flex align-items-center gap-3">
                 <div
                   className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
-                    selectedMachine ? 'bg-primary text-white' : 'bg-light text-primary'
+                    selectedMachinesList.length > 0 ? 'bg-primary text-white' : 'bg-light text-primary'
                   }`}
                   style={{ width: '40px', height: '40px' }}
                 >
@@ -845,27 +869,27 @@ const SubscriptionConfigure = () => {
                     <h5 className="fw-bold text-dark mb-0 fs-16">
                       Attendance Machines & Terminals
                     </h5>
-                    {selectedMachine && (
+                    {selectedMachinesList.length > 0 && (
                       <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 fs-11 rounded-pill">
                         <i className="ti ti-check me-1"></i>
-                        {selectedMachine.machine_name} {machineQty > 1 ? `x${machineQty}` : ''} (+₹{machinesTotal.toLocaleString('en-IN')})
+                        {selectedMachinesList.length} {selectedMachinesList.length === 1 ? 'Machine' : 'Machines'} Selected (+₹{machinesTotal.toLocaleString('en-IN')})
                       </span>
                     )}
                   </div>
                   <p className="text-muted fs-12 mb-0 mt-0.5">
-                    Choose one attendance machine terminal for your institution (optional).
+                    Select attendance machine terminals for your institution (multiple selections allowed).
                   </p>
                 </div>
               </div>
 
               <div className="d-flex align-items-center gap-2 ms-auto mt-2 mt-sm-0" onClick={(e) => e.stopPropagation()}>
-                {selectedMachineId && (
+                {selectedMachinesList.length > 0 && (
                   <button
                     type="button"
                     className="btn btn-sm btn-outline-danger py-1 px-2.5 fs-11 rounded-pill"
-                    onClick={() => handleSelectMachine(selectedMachineId)}
+                    onClick={handleClearAllMachines}
                   >
-                    <i className="ti ti-x me-1"></i> Deselect Machine
+                    <i className="ti ti-x me-1"></i> Clear Selection
                   </button>
                 )}
                 <span className="badge bg-light text-secondary border px-2.5 py-1 fs-12">
@@ -894,8 +918,10 @@ const SubscriptionConfigure = () => {
                 <div className="row g-3">
                   {catalog.attendance_machines && catalog.attendance_machines.length > 0 ? (
                     catalog.attendance_machines.map((machine) => {
-                      const isSelected = Number(selectedMachineId) === Number(machine.id);
+                      const currentQty = selectedMachines[machine.id] || 0;
+                      const isAdded = currentQty > 0;
                       const unitPrice = parseFloat(machine.unit_price || 0);
+                      const amcPrice = parseFloat(machine.amc_price || 0);
 
                       let typeMeta = {
                         label: 'Biometric',
@@ -935,175 +961,181 @@ const SubscriptionConfigure = () => {
                       }
 
                       return (
-                        <div className="col-12 col-sm-6 col-xl-4" key={machine.id}>
+                        <div className="col-12 col-md-6 col-xl-4" key={machine.id}>
                           <div
-                            onClick={() => handleSelectMachine(machine.id)}
-                            className={`p-3 rounded-3 border transition-all cursor-pointer h-100 d-flex flex-column justify-content-between position-relative ${
-                              isSelected
-                                ? 'border-2 border-primary bg-primary-subtle bg-opacity-10 shadow-sm'
-                                : 'border-200 bg-white hover-shadow'
+                            className={`card h-100 rounded-3 border transition-all ${
+                              isAdded
+                                ? 'border-primary border-2 shadow-sm'
+                                : 'border-200 hover-shadow'
                             }`}
                             style={{
-                              cursor: 'pointer',
+                              overflow: 'hidden',
                               transition: 'all 0.2s ease',
-                              minHeight: '220px',
+                              backgroundColor: isAdded ? '#fbfcfe' : '#ffffff',
                             }}
                           >
-                            {/* Selected Badge */}
-                            {isSelected && (
-                              <span
-                                className="badge bg-primary text-white position-absolute shadow-sm"
-                                style={{ top: '-8px', right: '10px', fontSize: '10px', borderRadius: '10px' }}
-                              >
-                                <i className="ti ti-check me-0.5"></i> Selected
-                              </span>
-                            )}
-
-                            <div>
-                              {/* Top Row: Device Icon / Image & Type Badge + Radio indicator */}
-                              <div className="d-flex align-items-center justify-content-between mb-2">
-                                {machine.machine_image ? (
-                                  <div
-                                    className="border rounded-2 p-1 bg-white d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
-                                    style={{ width: '42px', height: '42px' }}
-                                  >
-                                    <img
-                                      src={resolveImageUrl(machine.machine_image)}
-                                      alt={machine.machine_name}
-                                      className="img-fluid rounded-1"
-                                      style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
-                                      onError={(e) => {
-                                        e.currentTarget.style.display = 'none';
-                                        if (e.currentTarget.nextElementSibling) {
-                                          e.currentTarget.nextElementSibling.style.display = 'flex';
-                                        }
-                                      }}
-                                    />
-                                    <div
-                                      className={`avatar avatar-md rounded-circle align-items-center justify-content-center ${
-                                        isSelected ? 'bg-primary text-white' : typeMeta.avatarBg
-                                      }`}
-                                      style={{ width: '38px', height: '38px', display: 'none' }}
-                                    >
-                                      <i className={`ti ${typeMeta.icon} fs-18`}></i>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div
-                                    className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center ${
-                                      isSelected ? 'bg-primary text-white' : typeMeta.avatarBg
-                                    }`}
-                                    style={{ width: '38px', height: '38px', transition: 'all 0.2s ease' }}
-                                  >
-                                    <i className={`ti ${typeMeta.icon} fs-18`}></i>
-                                  </div>
-                                )}
-
-                                <div className="d-flex align-items-center gap-2">
-                                  <span className={`badge border fs-10 px-2 py-0.5 rounded-pill ${typeMeta.badgeClass}`}>
-                                    {typeMeta.label}
-                                  </span>
-                                  {/* Radio indicator */}
-                                  <div
-                                    className={`rounded-circle d-flex align-items-center justify-content-center border ${
-                                      isSelected
-                                        ? 'bg-primary border-primary text-white'
-                                        : 'border-secondary-subtle bg-light text-transparent'
-                                    }`}
-                                    style={{ width: '18px', height: '18px', fontSize: '10px' }}
-                                  >
-                                    {isSelected && <i className="ti ti-check"></i>}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Machine Name */}
-                              <h6
-                                className="fw-bold text-dark mb-1 fs-13 line-clamp-2"
-                                style={{
-                                  display: '-webkit-box',
-                                  WebkitLineClamp: 2,
-                                  WebkitBoxOrient: 'vertical',
-                                  overflow: 'hidden',
-                                  minHeight: '34px',
-                                  lineHeight: '1.3',
+                            {/* 1. Machine Image First */}
+                            <div
+                              className="w-100 bg-light border-bottom d-flex align-items-center justify-content-center overflow-hidden position-relative p-2"
+                              style={{ height: '170px' }}
+                            >
+                              <img
+                                src={resolveImageUrl(machine.machine_image, NO_IMAGE_PLACEHOLDER)}
+                                alt={machine.machine_name}
+                                className="img-fluid"
+                                style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                                onError={(e) => {
+                                  e.currentTarget.onerror = null;
+                                  e.currentTarget.src = NO_IMAGE_PLACEHOLDER;
                                 }}
-                                title={machine.machine_name}
+                              />
+
+                              {/* Machine Type Badge */}
+                              <span
+                                className={`badge border fs-10 px-2 py-0.5 rounded-pill position-absolute ${typeMeta.badgeClass}`}
+                                style={{ top: '10px', left: '10px' }}
                               >
-                                {machine.machine_name}
-                              </h6>
+                                {typeMeta.label}
+                              </span>
 
-                              {/* Brand & Model SKU */}
-                              <div className="d-flex align-items-center gap-1.5 mb-2">
-                                <span className="badge bg-light text-secondary border fs-10 px-1.5 py-0.5 rounded">
-                                  {machine.brand}
+                              {/* Selected Status Badge */}
+                              {isAdded && (
+                                <span
+                                  className="badge bg-primary text-white position-absolute shadow-sm"
+                                  style={{ top: '10px', right: '10px', fontSize: '11px', borderRadius: '12px' }}
+                                >
+                                  <i className="ti ti-check me-0.5"></i> Selected ({currentQty})
                                 </span>
-                                <span className="text-muted fs-11 text-truncate" title={machine.model_number}>
-                                  {machine.model_number}
-                                </span>
-                              </div>
-
-                              {/* Specs Details */}
-                              <div className="bg-light rounded-2 p-2 mb-2 fs-11 text-secondary">
-                                <div className="d-flex align-items-center justify-content-between mb-1">
-                                  <span className="text-muted">Capacity:</span>
-                                  <strong className="text-dark">
-                                    {machine.user_capacity ? `${Number(machine.user_capacity).toLocaleString()} users` : 'Standard'}
-                                  </strong>
-                                </div>
-                                <div className="d-flex align-items-center justify-content-between">
-                                  <span className="text-muted">Network:</span>
-                                  <span className="text-dark text-truncate ms-1" style={{ maxWidth: '105px' }} title={machine.connectivity}>
-                                    {machine.connectivity || 'Wi-Fi / LAN'}
-                                  </span>
-                                </div>
-                              </div>
+                              )}
                             </div>
 
-                            {/* Pricing & Stepper */}
-                            <div className="border-top pt-2 mt-auto">
-                              <div className="d-flex align-items-baseline justify-content-between">
-                                <span className="text-muted fs-11">Hardware:</span>
-                                <div className="text-end">
-                                  <span className="fs-15 fw-bold text-dark">
-                                    ₹{unitPrice.toLocaleString('en-IN')}
+                            {/* Card Body */}
+                            <div className="card-body p-3 d-flex flex-column justify-content-between">
+                              <div>
+                                {/* 2. Machine Name below Image */}
+                                <h6
+                                  className="fw-bold text-dark mb-1 fs-14 line-clamp-2"
+                                  style={{
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    minHeight: '38px',
+                                    lineHeight: '1.35',
+                                  }}
+                                  title={machine.machine_name}
+                                >
+                                  {machine.machine_name}
+                                </h6>
+
+                                {/* Brand & Model SKU */}
+                                <div className="d-flex align-items-center gap-1.5 mb-2">
+                                  <span className="badge bg-light text-secondary border fs-10 px-1.5 py-0.5 rounded">
+                                    {machine.brand}
                                   </span>
-                                  <span className="text-muted fs-10 d-block">per unit</span>
+                                  <span className="text-muted fs-11 text-truncate" title={machine.model_number}>
+                                    {machine.model_number}
+                                  </span>
+                                </div>
+
+                                {/* 3. Machine Details below Machine Name */}
+                                <div className="bg-light rounded-2 p-2.5 mb-3 fs-11 text-secondary">
+                                  <div className="d-flex align-items-center justify-content-between mb-1">
+                                    <span className="text-muted">User Capacity:</span>
+                                    <strong className="text-dark">
+                                      {machine.user_capacity ? `${Number(machine.user_capacity).toLocaleString()} users` : 'Standard'}
+                                    </strong>
+                                  </div>
+                                  <div className="d-flex align-items-center justify-content-between mb-1">
+                                    <span className="text-muted">Connectivity:</span>
+                                    <span className="text-dark text-truncate ms-1" style={{ maxWidth: '130px' }} title={machine.connectivity}>
+                                      {machine.connectivity || 'Wi-Fi / LAN'}
+                                    </span>
+                                  </div>
+                                  {machine.push_protocol && (
+                                    <div className="d-flex align-items-center justify-content-between mb-1">
+                                      <span className="text-muted">Protocol:</span>
+                                      <span className="text-dark text-truncate ms-1" style={{ maxWidth: '130px' }} title={machine.push_protocol}>
+                                        {machine.push_protocol}
+                                      </span>
+                                    </div>
+                                  )}
+                                  <div className="d-flex align-items-baseline justify-content-between border-top pt-1.5 mt-1.5">
+                                    <span className="text-muted">Hardware Price:</span>
+                                    <span className="fs-14 fw-bold text-primary">
+                                      ₹{unitPrice.toLocaleString('en-IN')} <span className="fs-10 text-muted fw-normal">/ unit</span>
+                                    </span>
+                                  </div>
+                                  {amcPrice > 0 && (
+                                    <div className="d-flex align-items-center justify-content-between text-muted fs-10 mt-0.5">
+                                      <span>AMC / Support:</span>
+                                      <span>+₹{amcPrice.toLocaleString('en-IN')}/yr</span>
+                                    </div>
+                                  )}
                                 </div>
                               </div>
 
-                              {/* Stepper when selected */}
-                              {isSelected && (
-                                <div
-                                  className="d-flex align-items-center justify-content-between mt-2 pt-2 border-top"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
-                                  <span className="text-muted fs-11 fw-semibold">Quantity:</span>
-                                  <div className="input-group input-group-sm" style={{ width: '96px' }}>
+                              {/* 4. Action Row: Add button on Left side, Increase button on Right side */}
+                              <div className="d-flex align-items-center justify-content-between mt-auto pt-2 border-top gap-2">
+                                {/* Left side: Add Button */}
+                                <div className="d-flex align-items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${isAdded ? 'btn-success' : 'btn-primary'} px-3 py-1.5 fw-semibold d-inline-flex align-items-center`}
+                                    onClick={() => handleAddMachine(machine.id)}
+                                  >
+                                    {isAdded ? (
+                                      <>
+                                        <i className="ti ti-check me-1"></i> Added
+                                      </>
+                                    ) : (
+                                      <>
+                                        <i className="ti ti-plus me-1"></i> Add
+                                      </>
+                                    )}
+                                  </button>
+                                  {isAdded && (
                                     <button
                                       type="button"
-                                      className="btn btn-outline-secondary px-2 py-0 fw-bold"
-                                      onClick={() => handleMachineQtyChange(-1)}
+                                      className="btn btn-sm btn-outline-danger px-2 py-1.5"
+                                      title="Remove machine from selection"
+                                      onClick={() => handleRemoveMachine(machine.id)}
                                     >
-                                      -
+                                      <i className="ti ti-trash fs-12"></i>
                                     </button>
-                                    <input
-                                      type="number"
-                                      className="form-control text-center px-1 py-0 fw-bold fs-12"
-                                      min="1"
-                                      value={machineQty}
-                                      onChange={(e) => handleMachineQtyDirectInput(e.target.value)}
-                                    />
-                                    <button
-                                      type="button"
-                                      className="btn btn-outline-secondary px-2 py-0 fw-bold"
-                                      onClick={() => handleMachineQtyChange(1)}
-                                    >
-                                      +
-                                    </button>
-                                  </div>
+                                  )}
                                 </div>
-                              )}
+
+                                {/* Right side: Increase Button */}
+                                <div className="d-flex align-items-center gap-1.5">
+                                  {isAdded && (
+                                    <>
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-secondary px-2 py-1.5 fw-bold"
+                                        title="Decrease quantity"
+                                        onClick={() => handleDecreaseMachineQty(machine.id)}
+                                      >
+                                        -
+                                      </button>
+                                      <span
+                                        className="badge bg-light text-dark border px-2 py-1.5 fs-12 fw-bold"
+                                        title={`Selected quantity: ${currentQty}`}
+                                      >
+                                        {currentQty}
+                                      </span>
+                                    </>
+                                  )}
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${isAdded ? 'btn-primary' : 'btn-outline-primary'} px-3 py-1.5 fw-semibold d-inline-flex align-items-center`}
+                                    onClick={() => handleIncreaseMachineQty(machine.id)}
+                                    title="Increase quantity"
+                                  >
+                                    <i className="ti ti-plus me-1"></i> Increase
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -1765,26 +1797,29 @@ const SubscriptionConfigure = () => {
                 </div>
               )}
 
-              {/* 3. Selected Attendance Machine (attendance_machine_master - single option) */}
+              {/* 3. Selected Attendance Machines (attendance_machine_master - multiple options) */}
               {selectedMachinesList.length > 0 && (
                 <div className="border-top pt-2 mt-2">
-                  <div className="text-muted fs-11 fw-bold text-uppercase mb-1">
-                    Attendance Machine ({selectedMachinesList[0].quantity} {selectedMachinesList[0].quantity > 1 ? 'units' : 'unit'}):
+                  <div className="text-muted fs-11 fw-bold text-uppercase mb-1 d-flex align-items-center justify-content-between">
+                    <span>
+                      Attendance Machines ({selectedMachinesList.reduce((sum, m) => sum + m.quantity, 0)}{' '}
+                      {selectedMachinesList.reduce((sum, m) => sum + m.quantity, 0) > 1 ? 'units' : 'unit'}):
+                    </span>
+                    <span className="text-dark fw-bold">+₹{machinesTotal.toLocaleString('en-IN')}</span>
                   </div>
                   {selectedMachinesList.map((m) => (
-                    <div className="d-flex align-items-center justify-content-between mb-1 fs-12" key={m.id}>
+                    <div className="d-flex align-items-center justify-content-between mb-1.5 fs-12" key={m.id}>
                       <span className="text-secondary text-truncate me-2 d-inline-flex align-items-center" style={{ maxWidth: '180px' }} title={m.machine_name}>
-                        {m.machine_image ? (
-                          <img
-                            src={resolveImageUrl(m.machine_image)}
-                            alt=""
-                            className="rounded-1 border me-1.5 flex-shrink-0 bg-white"
-                            style={{ width: '18px', height: '18px', objectFit: 'contain' }}
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                          />
-                        ) : (
-                          <i className="ti ti-device-watch text-primary me-1"></i>
-                        )}
+                        <img
+                          src={resolveImageUrl(m.machine_image, NO_IMAGE_PLACEHOLDER)}
+                          alt=""
+                          className="rounded-1 border me-1.5 flex-shrink-0 bg-white"
+                          style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = NO_IMAGE_PLACEHOLDER;
+                          }}
+                        />
                         <span className="text-truncate">{m.machine_name}</span>
                         <strong className="text-dark ms-1">x{m.quantity}</strong>
                       </span>
@@ -1793,6 +1828,12 @@ const SubscriptionConfigure = () => {
                       </span>
                     </div>
                   ))}
+                  {selectedMachinesList.length > 1 && (
+                    <div className="d-flex align-items-center justify-content-between pt-1 border-top border-dashed fs-11 text-muted">
+                      <span>Machines Subtotal:</span>
+                      <strong className="text-dark">+₹{machinesTotal.toLocaleString('en-IN')}</strong>
+                    </div>
+                  )}
                 </div>
               )}
 
