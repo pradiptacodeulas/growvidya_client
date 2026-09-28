@@ -10,6 +10,7 @@ import {
   upgradeSubscription,
   getConfigurationCatalog,
 } from '../../../api/subscription.api';
+import { resolveImageUrl } from '../../../utils/url.util';
 
 const SubscriptionConfigure = () => {
   const navigate = useNavigate();
@@ -959,16 +960,44 @@ const SubscriptionConfigure = () => {
                             )}
 
                             <div>
-                              {/* Top Row: Device Icon & Type Badge + Radio indicator */}
+                              {/* Top Row: Device Icon / Image & Type Badge + Radio indicator */}
                               <div className="d-flex align-items-center justify-content-between mb-2">
-                                <div
-                                  className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center ${
-                                    isSelected ? 'bg-primary text-white' : typeMeta.avatarBg
-                                  }`}
-                                  style={{ width: '38px', height: '38px', transition: 'all 0.2s ease' }}
-                                >
-                                  <i className={`ti ${typeMeta.icon} fs-18`}></i>
-                                </div>
+                                {machine.machine_image ? (
+                                  <div
+                                    className="border rounded-2 p-1 bg-white d-flex align-items-center justify-content-center overflow-hidden flex-shrink-0"
+                                    style={{ width: '42px', height: '42px' }}
+                                  >
+                                    <img
+                                      src={resolveImageUrl(machine.machine_image)}
+                                      alt={machine.machine_name}
+                                      className="img-fluid rounded-1"
+                                      style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                        if (e.currentTarget.nextElementSibling) {
+                                          e.currentTarget.nextElementSibling.style.display = 'flex';
+                                        }
+                                      }}
+                                    />
+                                    <div
+                                      className={`avatar avatar-md rounded-circle align-items-center justify-content-center ${
+                                        isSelected ? 'bg-primary text-white' : typeMeta.avatarBg
+                                      }`}
+                                      style={{ width: '38px', height: '38px', display: 'none' }}
+                                    >
+                                      <i className={`ti ${typeMeta.icon} fs-18`}></i>
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div
+                                    className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center ${
+                                      isSelected ? 'bg-primary text-white' : typeMeta.avatarBg
+                                    }`}
+                                    style={{ width: '38px', height: '38px', transition: 'all 0.2s ease' }}
+                                  >
+                                    <i className={`ti ${typeMeta.icon} fs-18`}></i>
+                                  </div>
+                                )}
 
                                 <div className="d-flex align-items-center gap-2">
                                   <span className={`badge border fs-10 px-2 py-0.5 rounded-pill ${typeMeta.badgeClass}`}>
@@ -1744,9 +1773,20 @@ const SubscriptionConfigure = () => {
                   </div>
                   {selectedMachinesList.map((m) => (
                     <div className="d-flex align-items-center justify-content-between mb-1 fs-12" key={m.id}>
-                      <span className="text-secondary text-truncate me-2" style={{ maxWidth: '180px' }} title={m.machine_name}>
-                        <i className="ti ti-device-watch text-primary me-1"></i>
-                        {m.machine_name} <strong className="text-dark">x{m.quantity}</strong>
+                      <span className="text-secondary text-truncate me-2 d-inline-flex align-items-center" style={{ maxWidth: '180px' }} title={m.machine_name}>
+                        {m.machine_image ? (
+                          <img
+                            src={resolveImageUrl(m.machine_image)}
+                            alt=""
+                            className="rounded-1 border me-1.5 flex-shrink-0 bg-white"
+                            style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        ) : (
+                          <i className="ti ti-device-watch text-primary me-1"></i>
+                        )}
+                        <span className="text-truncate">{m.machine_name}</span>
+                        <strong className="text-dark ms-1">x{m.quantity}</strong>
                       </span>
                       <span className="fw-semibold text-dark flex-shrink-0">
                         +₹{m.totalPrice.toLocaleString('en-IN')}
