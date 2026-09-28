@@ -50,11 +50,12 @@ const SubscriptionConfigure = () => {
     }
   }, [selectedPlan, upgradePlans, billingCycle]);
 
-  // Catalog data from storage_master, attendance_machine_master, and rfid_card_master
+  // Catalog data from storage_master, attendance_machine_master, rfid_card_master, and bank_account_master
   const [catalog, setCatalog] = useState({
     storage_plans: [],
     attendance_machines: [],
     rfid_cards: [],
+    bank_accounts: [],
   });
   const [catalogLoading, setCatalogLoading] = useState(true);
 
@@ -68,6 +69,7 @@ const SubscriptionConfigure = () => {
             storage_plans: data.storage_plans || [],
             attendance_machines: data.attendance_machines || [],
             rfid_cards: data.rfid_cards || [],
+            bank_accounts: data.bank_accounts || [],
           });
         }
       } catch (err) {
@@ -79,6 +81,32 @@ const SubscriptionConfigure = () => {
     fetchCatalog();
   }, []);
 
+  // Bank Account Selection state (bank_account_master - managed by Super Admin)
+  const [selectedBankAccountId, setSelectedBankAccountId] = useState(null);
+
+  useEffect(() => {
+    if (catalog.bank_accounts && catalog.bank_accounts.length > 0) {
+      if (
+        !selectedBankAccountId ||
+        !catalog.bank_accounts.some((acc) => Number(acc.id) === Number(selectedBankAccountId))
+      ) {
+        const defaultAcc =
+          catalog.bank_accounts.find((acc) => Number(acc.is_default) === 1) || catalog.bank_accounts[0];
+        setSelectedBankAccountId(defaultAcc.id);
+      }
+    } else {
+      setSelectedBankAccountId(null);
+    }
+  }, [catalog.bank_accounts, selectedBankAccountId]);
+
+  const activeBankAccount = useMemo(() => {
+    if (!catalog.bank_accounts || catalog.bank_accounts.length === 0) return null;
+    return (
+      catalog.bank_accounts.find((acc) => Number(acc.id) === Number(selectedBankAccountId)) ||
+      catalog.bank_accounts[0]
+    );
+  }, [catalog.bank_accounts, selectedBankAccountId]);
+
   // 1. Storage Selection state (storage_master - single select only)
   const [selectedStorageId, setSelectedStorageId] = useState(null);
 
@@ -86,11 +114,26 @@ const SubscriptionConfigure = () => {
   const [selectedMachineId, setSelectedMachineId] = useState(null);
   const [machineQty, setMachineQty] = useState(1);
 
-  // 3. RFID Card Selection state (rfid_card_master): map of { cardId: quantity }
-  const [selectedCards, setSelectedCards] = useState({});
+  // 3. RFID Card Selection state (rfid_card_master - single select only)
+  const [selectedCardId, setSelectedCardId] = useState(null);
+  const [cardQty, setCardQty] = useState(50);
 
   // 4. Feature Addons state (subscription_items): array of item IDs
   const [selectedAddonIds, setSelectedAddonIds] = useState([]);
+
+  // Collapsible sections state: Cloud Storage, Attendance Machines, RFID Cards
+  const [collapsedSections, setCollapsedSections] = useState({
+    storage: true,
+    machines: true,
+    cards: true,
+  });
+
+  const toggleSection = (sectionKey) => {
+    setCollapsedSections((prev) => ({
+      ...prev,
+      [sectionKey]: !prev[sectionKey],
+    }));
+  };
 
   // Payment state
   const [paymentGateway, setPaymentGateway] = useState('razorpay');
@@ -133,33 +176,24 @@ const SubscriptionConfigure = () => {
     setMachineQty(isNaN(parsed) || parsed < 1 ? 1 : parsed);
   };
 
-  // Handlers for RFID Cards Selection
-  const handleToggleCard = (card) => {
-    setSelectedCards((prev) => {
-      const next = { ...prev };
-      if (next[card.id] !== undefined) {
-        delete next[card.id];
-      } else {
-        next[card.id] = card.min_order_qty || 50;
-      }
-      return next;
-    });
+  // Handlers for RFID Cards Selection (single select only, toggle off on re-click)
+  const handleSelectCard = (card) => {
+    if (Number(selectedCardId) === Number(card.id)) {
+      setSelectedCardId(null);
+      setCardQty(card.min_order_qty || 50);
+    } else {
+      setSelectedCardId(card.id);
+      setCardQty(card.min_order_qty || 50);
+    }
   };
 
-  const handleCardQtyChange = (cardId, delta) => {
-    setSelectedCards((prev) => {
-      const current = prev[cardId] || 50;
-      const updated = Math.max(1, current + delta);
-      return { ...prev, [cardId]: updated };
-    });
+  const handleCardQtyChange = (delta, minOrder = 1) => {
+    setCardQty((prev) => Math.max(minOrder, prev + delta));
   };
 
-  const handleCardQtyDirectInput = (cardId, val) => {
+  const handleCardQtyDirectInput = (val, minOrder = 1) => {
     const parsed = parseInt(val, 10);
-    setSelectedCards((prev) => ({
-      ...prev,
-      [cardId]: isNaN(parsed) || parsed < 1 ? 1 : parsed,
-    }));
+    setCardQty(isNaN(parsed) || parsed < minOrder ? minOrder : parsed);
   };
 
   // Handlers for Module Add-ons
@@ -210,26 +244,29 @@ const SubscriptionConfigure = () => {
     return parseFloat(selectedMachine.unit_price || 0) * machineQty;
   }, [selectedMachine, machineQty]);
 
-  // RFID Cards pricing
+  // RFID Cards pricing (single select only)
+  const selectedCard = useMemo(() => {
+    if (!selectedCardId) return null;
+    return catalog.rfid_cards.find((c) => c.id === Number(selectedCardId)) || null;
+  }, [selectedCardId, catalog.rfid_cards]);
+
   const selectedCardsList = useMemo(() => {
-    return Object.entries(selectedCards)
-      .map(([id, qty]) => {
-        const card = catalog.rfid_cards.find((c) => c.id === Number(id));
-        if (!card) return null;
-        const unitPrice = parseFloat(card.unit_price || 0);
-        return {
-          ...card,
-          quantity: qty,
-          unitPrice,
-          totalPrice: unitPrice * qty,
-        };
-      })
-      .filter(Boolean);
-  }, [selectedCards, catalog.rfid_cards]);
+    if (!selectedCard) return [];
+    const unitPrice = parseFloat(selectedCard.unit_price || 0);
+    return [
+      {
+        ...selectedCard,
+        quantity: cardQty,
+        unitPrice,
+        totalPrice: unitPrice * cardQty,
+      },
+    ];
+  }, [selectedCard, cardQty]);
 
   const cardsTotal = useMemo(() => {
-    return selectedCardsList.reduce((sum, item) => sum + item.totalPrice, 0);
-  }, [selectedCardsList]);
+    if (!selectedCard) return 0;
+    return parseFloat(selectedCard.unit_price || 0) * cardQty;
+  }, [selectedCard, cardQty]);
 
   // Module Addons pricing
   const addonsTotal = useMemo(() => {
@@ -265,9 +302,9 @@ const SubscriptionConfigure = () => {
           id: Number(m.id),
           quantity: Number(m.quantity),
         })),
-        selected_cards: Object.entries(selectedCards).map(([id, qty]) => ({
-          id: Number(id),
-          quantity: Number(qty),
+        selected_cards: selectedCardsList.map((c) => ({
+          id: Number(c.id),
+          quantity: Number(c.quantity),
         })),
         amount_paid: grandTotal,
       };
@@ -358,6 +395,12 @@ const SubscriptionConfigure = () => {
         rzp.open();
       } else {
         // Direct bank transfer / offline payment request
+        if (!catalog.bank_accounts || catalog.bank_accounts.length === 0) {
+          toast.error('No bank accounts have been configured by the Super Admin yet. Please use Instant Online Checkout or contact support.');
+          setIsProcessing(false);
+          return;
+        }
+
         if (!utrNumber || String(utrNumber).trim().length < 4) {
           toast.error('Please enter the Bank Transfer reference or UTR number from your payment receipt.');
           setIsProcessing(false);
@@ -624,173 +667,223 @@ const SubscriptionConfigure = () => {
                       </div>
                     </div>
                   ))
-                ) : null}
-                <div className="col-12 col-sm-6">
-                  <div className="d-flex align-items-center p-2 rounded-2 bg-light border-0">
-                    <i className="ti ti-check text-success fs-16 me-2 flex-shrink-0"></i>
-                    <span className="fs-13 text-secondary">
-                      <strong className="text-dark">Academic Setup & Routine</strong>
-                    </span>
-                  </div>
-                </div>
-                <div className="col-12 col-sm-6">
-                  <div className="d-flex align-items-center p-2 rounded-2 bg-light border-0">
-                    <i className="ti ti-check text-success fs-16 me-2 flex-shrink-0"></i>
-                    <span className="fs-13 text-secondary">
-                      <strong className="text-dark">Fee Collection & Invoicing</strong>
-                    </span>
-                  </div>
-                </div>
-                <div className="col-12 col-sm-6">
-                  <div className="d-flex align-items-center p-2 rounded-2 bg-light border-0">
-                    <i className="ti ti-check text-success fs-16 me-2 flex-shrink-0"></i>
-                    <span className="fs-13 text-secondary">
-                      <strong className="text-dark">Attendance Management</strong>
-                    </span>
-                  </div>
-                </div>
-                <div className="col-12 col-sm-6">
-                  <div className="d-flex align-items-center p-2 rounded-2 bg-light border-0">
-                    <i className="ti ti-check text-success fs-16 me-2 flex-shrink-0"></i>
-                    <span className="fs-13 text-secondary">
-                      <strong className="text-dark">Certificates & ID Cards</strong>
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Cloud Storage Plans (from storage_master) - Small Cards, Single Select */}
-          <div className="card border-0 shadow-sm rounded-3 mb-4">
-            <div className="card-header bg-white border-bottom p-4">
-              <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
-                <div>
-                  <h5 className="fw-bold text-dark mb-1 d-flex align-items-center">
-                    <i className="ti ti-cloud-upload me-2 text-primary fs-20"></i>
-                    Cloud Storage Expansion
-                  </h5>
-                  <p className="text-muted fs-13 mb-0">
-                    Choose one storage option to expand your school cloud capacity.
-                  </p>
-                </div>
-                <span className="badge bg-light text-primary border px-2.5 py-1 fs-12 fw-semibold">
-                  {billingCycle === 'monthly' ? 'Monthly Pricing' : 'Annual Pricing'}
-                </span>
-              </div>
-            </div>
-
-            <div className="card-body p-4 bg-white">
-              {catalogLoading ? (
-                <div className="text-center py-3 text-muted">
-                  <div className="spinner-border spinner-border-sm text-primary me-2"></div>
-                  Loading storage options...
-                </div>
-              ) : (
-                <div className="row g-3">
-                  {/* Options from storage_master */}
-                  {catalog.storage_plans && catalog.storage_plans.length > 0 ? (
-                    catalog.storage_plans.map((storage) => {
-                    const isSelected = selectedStorageId === storage.id;
-                    const price =
-                      billingCycle === 'monthly'
-                        ? parseFloat(storage.monthly_price)
-                        : parseFloat(storage.annual_price);
-
-                    return (
-                      <div className="col-12 col-sm-6 col-md-4 col-xl-2" key={storage.id}>
-                        <div
-                          onClick={() => handleSelectStorage(storage.id)}
-                          className={`p-3 rounded-3 border text-center transition-all cursor-pointer h-100 d-flex flex-column justify-content-between position-relative ${
-                            isSelected
-                              ? 'border-2 border-primary bg-primary-subtle bg-opacity-10 shadow-sm'
-                              : 'border-200 bg-white hover-shadow'
-                          }`}
-                          style={{
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            minHeight: '145px',
-                          }}
-                        >
-                          {isSelected && (
-                            <span
-                              className="badge bg-primary text-white position-absolute"
-                              style={{ top: '-8px', right: '8px', fontSize: '10px', borderRadius: '10px' }}
-                            >
-                              <i className="ti ti-check"></i> Selected
-                            </span>
-                          )}
-                          <div>
-                            <div
-                              className={`avatar avatar-md rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center ${
-                                isSelected ? 'bg-primary text-white' : 'bg-light text-info'
-                              }`}
-                              style={{ width: '40px', height: '40px' }}
-                            >
-                              <i className="ti ti-cloud fs-20"></i>
-                            </div>
-                            <div className="fw-bold text-dark fs-14 mb-1">
-                              {storage.storage_capacity >= 1024
-                                ? `${storage.storage_capacity / 1024} TB`
-                                : `${storage.storage_capacity} GB`}
-                            </div>
-                            <div className="text-muted fs-11 mb-2 text-truncate" title={storage.plan_name}>
-                              {storage.plan_name}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="fs-13 fw-bold text-dark">
-                              +₹{price.toLocaleString('en-IN')}
-                            </div>
-                            <div className="text-muted fs-10">
-                              / {billingCycle === 'monthly' ? 'month' : 'year'}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })
                 ) : (
-                  <div className="col-12 py-3 text-center text-muted fs-13">
-                    No additional cloud storage expansion options found.
+                  <div className="col-12">
+                    <span className="text-muted fs-13 py-1 d-block">
+                      Core package features for this tier are standard and active.
+                    </span>
                   </div>
                 )}
               </div>
-            )}
             </div>
           </div>
 
-          {/* Card 3: Attendance Machines (from attendance_machine_master) - Small Cards, Single Select */}
-          <div className="card border-0 shadow-sm rounded-3 mb-4">
-            <div className="card-header bg-white border-bottom p-4">
-              <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          {/* Card 2: Cloud Storage Plans (from storage_master) - Small Cards, Single Select, Collapsible */}
+          <div className="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+            <div
+              className={`card-header bg-white p-3 p-md-4 transition-all d-flex align-items-center justify-content-between flex-wrap gap-2 ${
+                collapsedSections.storage ? 'border-bottom-0' : 'border-bottom'
+              }`}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => toggleSection('storage')}
+            >
+              <div className="d-flex align-items-center gap-3">
+                <div
+                  className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
+                    selectedStoragePlan ? 'bg-primary text-white' : 'bg-light text-primary'
+                  }`}
+                  style={{ width: '40px', height: '40px' }}
+                >
+                  <i className="ti ti-cloud-upload fs-20"></i>
+                </div>
                 <div>
-                  <h5 className="fw-bold text-dark mb-1 d-flex align-items-center">
-                    <i className="ti ti-device-watch me-2 text-primary fs-20"></i>
-                    Attendance Machines & Terminals
-                  </h5>
-                  <p className="text-muted fs-13 mb-0">
-                    Choose one attendance machine terminal for your institution (optional).
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <h5 className="fw-bold text-dark mb-0 fs-16">
+                      Cloud Storage Expansion
+                    </h5>
+                    {selectedStoragePlan && (
+                      <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 fs-11 rounded-pill">
+                        <i className="ti ti-check me-1"></i>
+                        {selectedStoragePlan.plan_name} (+₹{storageTotal.toLocaleString('en-IN')})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-muted fs-12 mb-0 mt-0.5">
+                    Choose one storage option to expand your school cloud capacity.
                   </p>
                 </div>
-                <div className="d-flex align-items-center gap-2">
-                  {selectedMachineId && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-danger py-1 px-2.5 fs-11 rounded-pill"
-                      onClick={() => handleSelectMachine(selectedMachineId)}
-                    >
-                      <i className="ti ti-x me-1"></i> Deselect Machine
-                    </button>
-                  )}
-                  <span className="badge bg-light text-secondary border px-2.5 py-1 fs-12">
-                    {catalog.attendance_machines.length} options available
-                  </span>
-                </div>
+              </div>
+
+              <div className="d-flex align-items-center gap-2 ms-auto mt-2 mt-sm-0" onClick={(e) => e.stopPropagation()}>
+                {selectedStoragePlan && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger py-1 px-2.5 fs-11 rounded-pill"
+                    onClick={() => handleSelectStorage(selectedStorageId)}
+                  >
+                    <i className="ti ti-x me-1"></i> Clear Storage
+                  </button>
+                )}
+                <span className="badge bg-light text-primary border px-2.5 py-1 fs-12 fw-semibold">
+                  {billingCycle === 'monthly' ? 'Monthly Pricing' : 'Annual Pricing'}
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light border rounded-circle d-flex align-items-center justify-content-center p-0"
+                  style={{ width: '32px', height: '32px' }}
+                  onClick={() => toggleSection('storage')}
+                  title={collapsedSections.storage ? 'Expand section' : 'Collapse section'}
+                >
+                  <i className={`ti ${collapsedSections.storage ? 'ti-chevron-down' : 'ti-chevron-up'} fs-16 text-secondary`}></i>
+                </button>
               </div>
             </div>
 
-            <div className="card-body p-4 bg-white">
+            {!collapsedSections.storage && (
+              <div className="card-body p-4 bg-white">
+                {catalogLoading ? (
+                  <div className="text-center py-3 text-muted">
+                    <div className="spinner-border spinner-border-sm text-primary me-2"></div>
+                    Loading storage options...
+                  </div>
+                ) : (
+                  <div className="row g-3">
+                    {/* Options from storage_master */}
+                    {catalog.storage_plans && catalog.storage_plans.length > 0 ? (
+                      catalog.storage_plans.map((storage) => {
+                      const isSelected = selectedStorageId === storage.id;
+                      const price =
+                        billingCycle === 'monthly'
+                          ? parseFloat(storage.monthly_price)
+                          : parseFloat(storage.annual_price);
+
+                      return (
+                        <div className="col-12 col-sm-6 col-md-4 col-xl-2" key={storage.id}>
+                          <div
+                            onClick={() => handleSelectStorage(storage.id)}
+                            className={`p-3 rounded-3 border text-center transition-all cursor-pointer h-100 d-flex flex-column justify-content-between position-relative ${
+                              isSelected
+                                ? 'border-2 border-primary bg-primary-subtle bg-opacity-10 shadow-sm'
+                                : 'border-200 bg-white hover-shadow'
+                            }`}
+                            style={{
+                              cursor: 'pointer',
+                              transition: 'all 0.2s ease',
+                              minHeight: '145px',
+                            }}
+                          >
+                            {isSelected && (
+                              <span
+                                className="badge bg-primary text-white position-absolute"
+                                style={{ top: '-8px', right: '8px', fontSize: '10px', borderRadius: '10px' }}
+                              >
+                                <i className="ti ti-check"></i> Selected
+                              </span>
+                            )}
+                            <div>
+                              <div
+                                className={`avatar avatar-md rounded-circle mx-auto mb-2 d-flex align-items-center justify-content-center ${
+                                  isSelected ? 'bg-primary text-white' : 'bg-light text-info'
+                                }`}
+                                style={{ width: '40px', height: '40px' }}
+                              >
+                                <i className="ti ti-cloud fs-20"></i>
+                              </div>
+                              <div className="fw-bold text-dark fs-14 mb-1">
+                                {storage.storage_capacity >= 1024
+                                  ? `${storage.storage_capacity / 1024} TB`
+                                  : `${storage.storage_capacity} GB`}
+                              </div>
+                              <div className="text-muted fs-11 mb-2 text-truncate" title={storage.plan_name}>
+                                {storage.plan_name}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="fs-13 fw-bold text-dark">
+                                +₹{price.toLocaleString('en-IN')}
+                              </div>
+                              <div className="text-muted fs-10">
+                                / {billingCycle === 'monthly' ? 'month' : 'year'}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="col-12 py-3 text-center text-muted fs-13">
+                      No additional cloud storage expansion options found.
+                    </div>
+                  )}
+                </div>
+              )}
+              </div>
+            )}
+          </div>
+
+          {/* Card 3: Attendance Machines (from attendance_machine_master) - Small Cards, Single Select, Collapsible */}
+          <div className="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+            <div
+              className={`card-header bg-white p-3 p-md-4 transition-all d-flex align-items-center justify-content-between flex-wrap gap-2 ${
+                collapsedSections.machines ? 'border-bottom-0' : 'border-bottom'
+              }`}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => toggleSection('machines')}
+            >
+              <div className="d-flex align-items-center gap-3">
+                <div
+                  className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
+                    selectedMachine ? 'bg-primary text-white' : 'bg-light text-primary'
+                  }`}
+                  style={{ width: '40px', height: '40px' }}
+                >
+                  <i className="ti ti-device-watch fs-20"></i>
+                </div>
+                <div>
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <h5 className="fw-bold text-dark mb-0 fs-16">
+                      Attendance Machines & Terminals
+                    </h5>
+                    {selectedMachine && (
+                      <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 fs-11 rounded-pill">
+                        <i className="ti ti-check me-1"></i>
+                        {selectedMachine.machine_name} {machineQty > 1 ? `x${machineQty}` : ''} (+₹{machinesTotal.toLocaleString('en-IN')})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-muted fs-12 mb-0 mt-0.5">
+                    Choose one attendance machine terminal for your institution (optional).
+                  </p>
+                </div>
+              </div>
+
+              <div className="d-flex align-items-center gap-2 ms-auto mt-2 mt-sm-0" onClick={(e) => e.stopPropagation()}>
+                {selectedMachineId && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger py-1 px-2.5 fs-11 rounded-pill"
+                    onClick={() => handleSelectMachine(selectedMachineId)}
+                  >
+                    <i className="ti ti-x me-1"></i> Deselect Machine
+                  </button>
+                )}
+                <span className="badge bg-light text-secondary border px-2.5 py-1 fs-12">
+                  {catalog.attendance_machines.length} options available
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light border rounded-circle d-flex align-items-center justify-content-center p-0"
+                  style={{ width: '32px', height: '32px' }}
+                  onClick={() => toggleSection('machines')}
+                  title={collapsedSections.machines ? 'Expand section' : 'Collapse section'}
+                >
+                  <i className={`ti ${collapsedSections.machines ? 'ti-chevron-down' : 'ti-chevron-up'} fs-16 text-secondary`}></i>
+                </button>
+              </div>
+            </div>
+
+            {!collapsedSections.machines && (
+              <div className="card-body p-4 bg-white">
               {catalogLoading ? (
                 <div className="text-center py-3 text-muted">
                   <div className="spinner-border spinner-border-sm text-primary me-2"></div>
@@ -994,154 +1087,301 @@ const SubscriptionConfigure = () => {
                   )}
                 </div>
               )}
-            </div>
+              </div>
+            )}
           </div>
 
-          {/* Card 4: RFID Cards & Smart Tags (from rfid_card_master) */}
-          <div className="card border-0 shadow-sm rounded-3 mb-4">
-            <div className="card-header bg-white border-bottom p-4">
-              <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+          {/* Card 4: RFID Cards & Smart Tags (from rfid_card_master) - Small Cards, Single Select, Collapsible */}
+          <div className="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+            <div
+              className={`card-header bg-white p-3 p-md-4 transition-all d-flex align-items-center justify-content-between flex-wrap gap-2 ${
+                collapsedSections.cards ? 'border-bottom-0' : 'border-bottom'
+              }`}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => toggleSection('cards')}
+            >
+              <div className="d-flex align-items-center gap-3">
+                <div
+                  className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
+                    selectedCard ? 'bg-primary text-white' : 'bg-light text-primary'
+                  }`}
+                  style={{ width: '40px', height: '40px' }}
+                >
+                  <i className="ti ti-id fs-20"></i>
+                </div>
                 <div>
-                  <h5 className="fw-bold text-dark mb-1 d-flex align-items-center">
-                    <i className="ti ti-id me-2 text-primary fs-20"></i>
-                    Smart RFID Cards & Badges (rfid_card_master)
-                  </h5>
-                  <p className="text-muted fs-13 mb-0">
-                    Order pre-printed or blank contactless RFID cards, smart keyfobs, stickers, and wristbands for students & staff.
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <h5 className="fw-bold text-dark mb-0 fs-16">
+                      Smart RFID Cards & Badges
+                    </h5>
+                    {selectedCard && (
+                      <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 fs-11 rounded-pill">
+                        <i className="ti ti-check me-1"></i>
+                        {selectedCard.card_name} ({cardQty} pcs, +₹{cardsTotal.toLocaleString('en-IN')})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-muted fs-12 mb-0 mt-0.5">
+                    Choose one RFID card or smart badge option for your institution (optional).
                   </p>
                 </div>
+              </div>
+
+              <div className="d-flex align-items-center gap-2 ms-auto mt-2 mt-sm-0" onClick={(e) => e.stopPropagation()}>
+                {selectedCardId && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger py-1 px-2.5 fs-11 rounded-pill"
+                    onClick={() => handleSelectCard(selectedCard)}
+                  >
+                    <i className="ti ti-x me-1"></i> Deselect Card
+                  </button>
+                )}
                 <span className="badge bg-light text-secondary border px-2.5 py-1 fs-12">
-                  {catalog.rfid_cards.length} card types
+                  {catalog.rfid_cards.length} options available
                 </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light border rounded-circle d-flex align-items-center justify-content-center p-0"
+                  style={{ width: '32px', height: '32px' }}
+                  onClick={() => toggleSection('cards')}
+                  title={collapsedSections.cards ? 'Expand section' : 'Collapse section'}
+                >
+                  <i className={`ti ${collapsedSections.cards ? 'ti-chevron-down' : 'ti-chevron-up'} fs-16 text-secondary`}></i>
+                </button>
               </div>
             </div>
 
-            <div className="card-body p-4 bg-white">
-              {catalogLoading ? (
-                <div className="text-center py-3 text-muted">
-                  <div className="spinner-border spinner-border-sm text-primary me-2"></div>
-                  Loading RFID card options...
-                </div>
-              ) : (
-                <div className="row g-3">
-                  {catalog.rfid_cards.map((card) => {
-                    const isSelected = selectedCards[card.id] !== undefined;
-                    const qty = selectedCards[card.id] || card.min_order_qty || 50;
-                    const unitPrice = parseFloat(card.unit_price || 0);
+            {!collapsedSections.cards && (
+              <div className="card-body p-4 bg-white">
+                {catalogLoading ? (
+                  <div className="text-center py-3 text-muted">
+                    <div className="spinner-border spinner-border-sm text-primary me-2"></div>
+                    Loading RFID card options...
+                  </div>
+                ) : (
+                  <div className="row g-3">
+                    {catalog.rfid_cards && catalog.rfid_cards.length > 0 ? (
+                      catalog.rfid_cards.map((card) => {
+                        const isSelected = Number(selectedCardId) === Number(card.id);
+                        const unitPrice = parseFloat(card.unit_price || 0);
 
-                    return (
-                      <div className="col-12" key={card.id}>
-                        <div
-                          onClick={() => handleToggleCard(card)}
-                          className={`p-3 rounded-3 border transition-all cursor-pointer ${
-                            isSelected
-                              ? 'border-primary bg-primary-subtle bg-opacity-10 shadow-sm'
-                              : 'border-200 bg-white hover-shadow'
-                          }`}
-                          style={{ cursor: 'pointer', borderWidth: isSelected ? '2px' : '1px' }}
-                        >
-                          <div className="d-flex align-items-start justify-content-between flex-wrap gap-2">
-                            <div className="d-flex align-items-start gap-3">
-                              <input
-                                type="checkbox"
-                                className="form-check-input mt-1"
-                                checked={isSelected}
-                                onChange={() => handleToggleCard(card)}
-                                onClick={(e) => e.stopPropagation()}
-                                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
-                              />
-                              <div>
-                                <div className="d-flex align-items-center flex-wrap gap-2 mb-1">
-                                  <h6 className="fw-bold text-dark mb-0">{card.card_name}</h6>
-                                  <span className="badge bg-info-subtle text-info border border-info-subtle fs-10 px-2 py-0.5 rounded-pill text-uppercase">
-                                    {card.card_code}
-                                  </span>
-                                  <span className="badge bg-secondary-subtle text-secondary border fs-10 px-2 py-0.5 rounded-pill text-capitalize">
-                                    {card.card_type?.replace('_', ' ')}
-                                  </span>
-                                </div>
+                        let typeMeta = {
+                          label: 'Standard Card',
+                          icon: 'ti-id',
+                          badgeClass: 'bg-primary-subtle text-primary border-primary-subtle',
+                          avatarBg: 'bg-primary-subtle text-primary',
+                        };
 
-                                <div className="d-flex align-items-center flex-wrap gap-3 text-muted fs-12 mb-1">
-                                  <span>
-                                    <strong className="text-secondary">Frequency:</strong> {card.frequency}
-                                  </span>
-                                  <span>
-                                    <strong className="text-secondary">Read Range:</strong> {card.read_range}
-                                  </span>
-                                  <span>
-                                    <strong className="text-secondary">Min Order:</strong> {card.min_order_qty} pcs
-                                  </span>
-                                </div>
-                                <p className="text-muted fs-12 mb-0" style={{ maxWidth: '640px' }}>
-                                  {card.description}
-                                </p>
-                              </div>
-                            </div>
+                        if (card.card_type === 'keyfob') {
+                          typeMeta = {
+                            label: 'Smart Keyfob',
+                            icon: 'ti-tag',
+                            badgeClass: 'bg-warning-subtle text-warning border-warning-subtle',
+                            avatarBg: 'bg-warning-subtle text-warning',
+                          };
+                        } else if (card.card_type === 'wristband') {
+                          typeMeta = {
+                            label: 'Wristband',
+                            icon: 'ti-device-watch',
+                            badgeClass: 'bg-info-subtle text-info border-info-subtle',
+                            avatarBg: 'bg-info-subtle text-info',
+                          };
+                        } else if (card.card_type === 'nfc_sticker') {
+                          typeMeta = {
+                            label: 'NFC Sticker',
+                            icon: 'ti-scan',
+                            badgeClass: 'bg-secondary-subtle text-dark border',
+                            avatarBg: 'bg-light text-primary',
+                          };
+                        } else if (card.card_type === 'thin_pvc_card') {
+                          typeMeta = {
+                            label: 'Thin PVC Card',
+                            icon: 'ti-id',
+                            badgeClass: 'bg-success-subtle text-success border-success-subtle',
+                            avatarBg: 'bg-success-subtle text-success',
+                          };
+                        } else if (card.card_type === 'clamshell_card') {
+                          typeMeta = {
+                            label: 'Clamshell Card',
+                            icon: 'ti-id-badge',
+                            badgeClass: 'bg-secondary-subtle text-secondary border',
+                            avatarBg: 'bg-secondary-subtle text-secondary',
+                          };
+                        }
 
-                            <div className="text-end ms-auto">
-                              <div className="fs-16 fw-bold text-dark">
-                                ₹{unitPrice.toFixed(2)}
-                              </div>
-                              <div className="text-muted fs-11">per card</div>
+                        const minQty = card.min_order_qty || 50;
+                        const presets = [minQty, minQty * 2, minQty * 5, 500];
 
-                              {/* Quantity Stepper & Quick presets */}
+                        return (
+                          <div className="col-12 col-sm-6 col-xl-4" key={card.id}>
+                            <div
+                              onClick={() => handleSelectCard(card)}
+                              className={`p-3 rounded-3 border transition-all cursor-pointer h-100 d-flex flex-column justify-content-between position-relative ${
+                                isSelected
+                                  ? 'border-2 border-primary bg-primary-subtle bg-opacity-10 shadow-sm'
+                                  : 'border-200 bg-white hover-shadow'
+                              }`}
+                              style={{
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                minHeight: '220px',
+                              }}
+                            >
+                              {/* Selected Badge */}
                               {isSelected && (
-                                <div className="mt-2" onClick={(e) => e.stopPropagation()}>
-                                  <div className="d-flex align-items-center justify-content-end mb-1">
-                                    <span className="text-muted fs-11 me-2 fw-semibold">Quantity:</span>
-                                    <div className="input-group input-group-sm" style={{ width: '120px' }}>
-                                      <button
-                                        type="button"
-                                        className="btn btn-outline-secondary px-2 fw-bold"
-                                        onClick={() => handleCardQtyChange(card.id, -10)}
-                                      >
-                                        -
-                                      </button>
-                                      <input
-                                        type="number"
-                                        className="form-control text-center px-1 fw-bold fs-12"
-                                        min="1"
-                                        value={qty}
-                                        onChange={(e) => handleCardQtyDirectInput(card.id, e.target.value)}
-                                      />
-                                      <button
-                                        type="button"
-                                        className="btn btn-outline-secondary px-2 fw-bold"
-                                        onClick={() => handleCardQtyChange(card.id, 10)}
-                                      >
-                                        +
-                                      </button>
+                                <span
+                                  className="badge bg-primary text-white position-absolute shadow-sm"
+                                  style={{ top: '-8px', right: '10px', fontSize: '10px', borderRadius: '10px' }}
+                                >
+                                  <i className="ti ti-check me-0.5"></i> Selected
+                                </span>
+                              )}
+
+                              <div>
+                                {/* Top Row: Icon, Type Badge & Radio indicator */}
+                                <div className="d-flex align-items-center justify-content-between mb-2">
+                                  <div
+                                    className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center ${
+                                      isSelected ? 'bg-primary text-white' : typeMeta.avatarBg
+                                    }`}
+                                    style={{ width: '38px', height: '38px', transition: 'all 0.2s ease' }}
+                                  >
+                                    <i className={`ti ${typeMeta.icon} fs-18`}></i>
+                                  </div>
+
+                                  <div className="d-flex align-items-center gap-2">
+                                    <span className={`badge border fs-10 px-2 py-0.5 rounded-pill ${typeMeta.badgeClass}`}>
+                                      {typeMeta.label}
+                                    </span>
+                                    {/* Radio indicator */}
+                                    <div
+                                      className={`rounded-circle d-flex align-items-center justify-content-center border ${
+                                        isSelected
+                                          ? 'bg-primary border-primary text-white'
+                                          : 'border-secondary-subtle bg-light text-transparent'
+                                      }`}
+                                      style={{ width: '18px', height: '18px', fontSize: '10px' }}
+                                    >
+                                      {isSelected && <i className="ti ti-check"></i>}
                                     </div>
                                   </div>
+                                </div>
 
-                                  {/* Quick Presets */}
-                                  <div className="d-flex align-items-center justify-content-end gap-1">
-                                    {[50, 100, 250, 500].map((preset) => (
-                                      <button
-                                        key={preset}
-                                        type="button"
-                                        className={`btn btn-xs py-0 px-1.5 fs-10 ${
-                                          qty === preset ? 'btn-primary' : 'btn-outline-secondary'
-                                        }`}
-                                        onClick={() =>
-                                          setSelectedCards((prev) => ({ ...prev, [card.id]: preset }))
-                                        }
-                                      >
-                                        {preset}
-                                      </button>
-                                    ))}
+                                {/* Card Name */}
+                                <h6
+                                  className="fw-bold text-dark mb-1 fs-13 line-clamp-2"
+                                  style={{
+                                    display: '-webkit-box',
+                                    WebkitLineClamp: 2,
+                                    WebkitBoxOrient: 'vertical',
+                                    overflow: 'hidden',
+                                    minHeight: '34px',
+                                    lineHeight: '1.3',
+                                  }}
+                                  title={card.card_name}
+                                >
+                                  {card.card_name}
+                                </h6>
+
+                                {/* SKU Code & Min Order */}
+                                <div className="d-flex align-items-center gap-1.5 mb-2">
+                                  <span className="badge bg-light text-secondary border fs-10 px-1.5 py-0.5 rounded">
+                                    {card.card_code}
+                                  </span>
+                                  <span className="text-muted fs-11">
+                                    Min: {minQty} pcs
+                                  </span>
+                                </div>
+
+                                {/* Compact Specs Box */}
+                                <div className="bg-light rounded-2 p-2 mb-2 fs-11 text-secondary">
+                                  <div className="d-flex align-items-center justify-content-between mb-1">
+                                    <span className="text-muted">Frequency:</span>
+                                    <strong className="text-dark">{card.frequency || '125 KHz'}</strong>
+                                  </div>
+                                  <div className="d-flex align-items-center justify-content-between">
+                                    <span className="text-muted">Range:</span>
+                                    <span className="text-dark text-truncate ms-1" style={{ maxWidth: '105px' }} title={card.read_range}>
+                                      {card.read_range || '2-8 cm'}
+                                    </span>
                                   </div>
                                 </div>
-                              )}
+                              </div>
+
+                              {/* Pricing & Stepper / Presets */}
+                              <div className="border-top pt-2 mt-auto">
+                                <div className="d-flex align-items-baseline justify-content-between">
+                                  <span className="text-muted fs-11">Unit Price:</span>
+                                  <div className="text-end">
+                                    <span className="fs-15 fw-bold text-dark">
+                                      ₹{unitPrice.toFixed(2)}
+                                    </span>
+                                    <span className="text-muted fs-10 d-block">per card</span>
+                                  </div>
+                                </div>
+
+                                {/* Stepper & Presets when this card is selected */}
+                                {isSelected && (
+                                  <div className="mt-2 pt-2 border-top" onClick={(e) => e.stopPropagation()}>
+                                    <div className="d-flex align-items-center justify-content-between mb-1.5">
+                                      <span className="text-muted fs-11 fw-semibold">Quantity:</span>
+                                      <div className="input-group input-group-sm" style={{ width: '105px' }}>
+                                        <button
+                                          type="button"
+                                          className="btn btn-outline-secondary px-2 py-0 fw-bold"
+                                          onClick={() => handleCardQtyChange(-10, minQty)}
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          className="form-control text-center px-1 py-0 fw-bold fs-12"
+                                          min={minQty}
+                                          value={cardQty}
+                                          onChange={(e) => handleCardQtyDirectInput(e.target.value, minQty)}
+                                        />
+                                        <button
+                                          type="button"
+                                          className="btn btn-outline-secondary px-2 py-0 fw-bold"
+                                          onClick={() => handleCardQtyChange(10, minQty)}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Quick Presets */}
+                                    <div className="d-flex align-items-center justify-content-end gap-1">
+                                      {presets.map((preset) => (
+                                        <button
+                                          key={preset}
+                                          type="button"
+                                          className={`btn btn-xs py-0 px-1.5 fs-10 ${
+                                            cardQty === preset ? 'btn-primary' : 'btn-outline-secondary'
+                                          }`}
+                                          onClick={() => setCardQty(preset)}
+                                        >
+                                          {preset}
+                                        </button>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
-                        </div>
+                        );
+                      })
+                    ) : (
+                      <div className="col-12 py-3 text-center text-muted fs-13">
+                        No RFID card options found.
                       </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Card 5: Optional Package Add-ons (subscription_items) */}
@@ -1240,20 +1480,20 @@ const SubscriptionConfigure = () => {
                 <div className="col-12 col-sm-6">
                   <label className="text-muted fs-12 mb-1 d-block">School / Institution</label>
                   <div className="fw-bold text-dark">
-                    {user?.schoolName || user?.school_name || 'Institution Portal'}
+                    {user?.schoolName || user?.school_name || '—'}
                   </div>
                 </div>
                 <div className="col-12 col-sm-6">
                   <label className="text-muted fs-12 mb-1 d-block">Authorized Admin</label>
-                  <div className="fw-bold text-dark">{user?.name || 'Administrator'}</div>
+                  <div className="fw-bold text-dark">{user?.name || '—'}</div>
                 </div>
                 <div className="col-12 col-sm-6">
                   <label className="text-muted fs-12 mb-1 d-block">Registered Email</label>
-                  <div className="fw-bold text-dark">{user?.email || 'admin@growvidya.com'}</div>
+                  <div className="fw-bold text-dark">{user?.email || '—'}</div>
                 </div>
                 <div className="col-12 col-sm-6">
                   <label className="text-muted fs-12 mb-1 d-block">Contact Phone</label>
-                  <div className="fw-bold text-dark">{user?.phone || user?.mobile || '+91 98765 43210'}</div>
+                  <div className="fw-bold text-dark">{user?.phone || user?.mobile || '—'}</div>
                 </div>
               </div>
             </div>
@@ -1332,47 +1572,122 @@ const SubscriptionConfigure = () => {
               {/* Bank Transfer Details Form */}
               {paymentGateway === 'bank_transfer' && (
                 <div className="p-3 bg-light rounded-3 border">
-                  <div className="fw-semibold text-dark fs-13 mb-2 d-flex align-items-center">
-                    <i className="ti ti-building-bank me-2 text-primary"></i>
-                    Official Bank Account Details for NEFT / RTGS / IMPS:
-                  </div>
-                  <div className="row g-2 fs-12 text-secondary mb-3">
-                    <div className="col-12 col-sm-6">
-                      <div>
-                        <strong className="text-dark">Beneficiary:</strong> GrowVidya EdTech Solutions Pvt Ltd
-                      </div>
-                      <div>
-                        <strong className="text-dark">Account Number:</strong> 50200098765432
-                      </div>
-                    </div>
-                    <div className="col-12 col-sm-6">
-                      <div>
-                        <strong className="text-dark">Bank & Branch:</strong> HDFC Bank, Main Branch
-                      </div>
-                      <div>
-                        <strong className="text-dark">IFSC Code:</strong> HDFC0001234
-                      </div>
-                      <div>
-                        <strong className="text-dark">UPI VPA:</strong> billing@growvidya
-                      </div>
-                    </div>
-                  </div>
+                  {catalog.bank_accounts && catalog.bank_accounts.length > 0 && activeBankAccount ? (
+                    <>
+                      {/* Optional Multiple Account Switcher */}
+                      {catalog.bank_accounts.length > 1 && (
+                        <div className="mb-3">
+                          <label className="form-label fs-12 fw-semibold text-dark mb-1">
+                            Select Official Bank Account:
+                          </label>
+                          <div className="d-flex flex-wrap gap-2">
+                            {catalog.bank_accounts.map((acc) => {
+                              const isAccSelected = Number(acc.id) === Number(activeBankAccount.id);
+                              return (
+                                <button
+                                  key={acc.id}
+                                  type="button"
+                                  className={`btn btn-sm text-start py-1.5 px-3 rounded-2 border ${
+                                    isAccSelected
+                                      ? 'btn-primary text-white border-primary shadow-sm'
+                                      : 'btn-outline-secondary bg-white text-dark'
+                                  }`}
+                                  onClick={() => setSelectedBankAccountId(acc.id)}
+                                >
+                                  <span className="fw-bold d-block fs-12">
+                                    {acc.account_title || acc.bank_name}
+                                  </span>
+                                  <span className="fs-10 opacity-75">
+                                    {acc.bank_name} ••••{String(acc.account_number).slice(-4)}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
 
-                  <div>
-                    <label className="form-label fs-12 fw-semibold text-dark mb-1">
-                      Bank Transfer Reference / UTR Number <span className="text-danger">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      className="form-control form-control-sm"
-                      placeholder="e.g. UTR202609259876 or IMPS Reference ID"
-                      value={utrNumber}
-                      onChange={(e) => setUtrNumber(e.target.value)}
-                    />
-                    <span className="text-muted fs-11 mt-1 d-block">
-                      Enter the transaction reference from your payment receipt for ₹{grandTotal.toLocaleString('en-IN')}. Platform administrators will verify and activate your license within 24 hours.
-                    </span>
-                  </div>
+                      <div className="fw-semibold text-dark fs-13 mb-2 d-flex align-items-center justify-content-between">
+                        <span className="d-flex align-items-center">
+                          <i className="ti ti-building-bank me-2 text-primary fs-16"></i>
+                          Official Bank Details: {activeBankAccount.account_title || activeBankAccount.bank_name}
+                        </span>
+                        {Number(activeBankAccount.is_default) === 1 && (
+                          <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-2 py-0.5 rounded-pill">
+                            Primary Account
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="row g-2 fs-12 text-secondary mb-3">
+                        <div className="col-12 col-sm-6">
+                          <div>
+                            <strong className="text-dark">Beneficiary:</strong> {activeBankAccount.beneficiary_name}
+                          </div>
+                          <div>
+                            <strong className="text-dark">Account Number:</strong>{' '}
+                            <span className="font-monospace fw-bold text-dark">{activeBankAccount.account_number}</span>
+                          </div>
+                          <div>
+                            <strong className="text-dark">Account Type:</strong> {activeBankAccount.account_type || 'Current'}
+                          </div>
+                        </div>
+                        <div className="col-12 col-sm-6">
+                          <div>
+                            <strong className="text-dark">Bank & Branch:</strong> {activeBankAccount.bank_name}
+                            {activeBankAccount.branch_name ? `, ${activeBankAccount.branch_name}` : ''}
+                          </div>
+                          <div>
+                            <strong className="text-dark">IFSC Code:</strong>{' '}
+                            <span className="font-monospace fw-bold text-dark">{activeBankAccount.ifsc_code}</span>
+                          </div>
+                          {activeBankAccount.upi_id && (
+                            <div>
+                              <strong className="text-dark">UPI VPA:</strong>{' '}
+                              <span className="font-monospace text-primary">{activeBankAccount.upi_id}</span>
+                            </div>
+                          )}
+                          {activeBankAccount.swift_code && (
+                            <div>
+                              <strong className="text-dark">SWIFT / BIC:</strong>{' '}
+                              <span className="font-monospace text-dark">{activeBankAccount.swift_code}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {activeBankAccount.instructions && (
+                        <div className="alert alert-info py-2 px-3 fs-11 mb-3 rounded-2 border-0 bg-info-subtle text-dark">
+                          <i className="ti ti-info-circle me-1 text-info"></i>
+                          {activeBankAccount.instructions}
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="form-label fs-12 fw-semibold text-dark mb-1">
+                          Bank Transfer Reference / UTR Number <span className="text-danger">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          className="form-control form-control-sm"
+                          placeholder="e.g. UTR202609259876 or IMPS Reference ID"
+                          value={utrNumber}
+                          onChange={(e) => setUtrNumber(e.target.value)}
+                        />
+                        <span className="text-muted fs-11 mt-1 d-block">
+                          Enter the transaction reference from your payment receipt for ₹{grandTotal.toLocaleString('en-IN')}. Platform administrators will verify and activate your license within 24 hours.
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="p-3 bg-white rounded-2 border border-warning-subtle text-center">
+                      <i className="ti ti-alert-triangle fs-24 text-warning mb-2 d-block"></i>
+                      <h6 className="fw-bold text-dark mb-1 fs-13">No Bank Transfer Details Configured</h6>
+                      <p className="text-muted fs-12 mb-0">
+                        The Super Admin has not configured any active bank accounts for offline transfer. Please choose <strong>Instant Online Checkout</strong> to proceed, or contact platform administration.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1441,11 +1756,11 @@ const SubscriptionConfigure = () => {
                 </div>
               )}
 
-              {/* 4. Selected RFID Cards (rfid_card_master) */}
+              {/* 4. Selected RFID Cards (rfid_card_master - single option) */}
               {selectedCardsList.length > 0 && (
                 <div className="border-top pt-2 mt-2">
                   <div className="text-muted fs-11 fw-bold text-uppercase mb-1">
-                    RFID Cards & Badges ({selectedCardsList.reduce((s, c) => s + c.quantity, 0)} pcs):
+                    RFID Cards & Badges ({selectedCardsList[0].quantity} pcs):
                   </div>
                   {selectedCardsList.map((c) => (
                     <div className="d-flex align-items-center justify-content-between mb-1 fs-12" key={c.id}>
@@ -1518,7 +1833,11 @@ const SubscriptionConfigure = () => {
                   type="button"
                   className="btn btn-primary w-100 py-2.5 py-md-3 fw-bold fs-14 d-inline-flex align-items-center justify-content-center shadow-sm"
                   onClick={handleProceedPayment}
-                  disabled={isProcessing}
+                  disabled={
+                    isProcessing ||
+                    (paymentGateway === 'bank_transfer' &&
+                      (!catalog.bank_accounts || catalog.bank_accounts.length === 0))
+                  }
                 >
                   {isProcessing ? (
                     <>
@@ -1529,6 +1848,11 @@ const SubscriptionConfigure = () => {
                     <>
                       <i className="ti ti-lock me-2 fs-16"></i>
                       <span>Pay ₹{grandTotal.toLocaleString('en-IN')} Now</span>
+                    </>
+                  ) : !catalog.bank_accounts || catalog.bank_accounts.length === 0 ? (
+                    <>
+                      <i className="ti ti-ban me-2 fs-16"></i>
+                      <span>Bank Transfer Unavailable</span>
                     </>
                   ) : (
                     <>
