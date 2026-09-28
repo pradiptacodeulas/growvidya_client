@@ -117,9 +117,9 @@ const SubscriptionConfigure = () => {
   // Dictionary mapping machine id to selected quantity: { [machineId]: quantity }
   const [selectedMachines, setSelectedMachines] = useState({});
 
-  // 3. RFID Card Selection state (rfid_card_master - single select only)
-  const [selectedCardId, setSelectedCardId] = useState(null);
-  const [cardQty, setCardQty] = useState(50);
+  // 3. RFID Cards Selection state (rfid_card_master - multiple select permitted)
+  // Dictionary mapping card id to selected quantity: { [cardId]: quantity }
+  const [selectedCards, setSelectedCards] = useState({});
 
   // 4. Feature Addons state (subscription_items): array of item IDs
   const [selectedAddonIds, setSelectedAddonIds] = useState([]);
@@ -161,17 +161,32 @@ const SubscriptionConfigure = () => {
 
   // Handlers for Attendance Machines Selection (multiple select permitted)
   const handleAddMachine = (machineId) => {
-    setSelectedMachines((prev) => ({
-      ...prev,
-      [machineId]: (prev[machineId] || 0) + 1,
-    }));
+    setSelectedMachines((prev) => {
+      // If already added, do not increase quantity
+      if (prev[machineId]) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [machineId]: 1,
+      };
+    });
   };
 
   const handleIncreaseMachineQty = (machineId) => {
-    setSelectedMachines((prev) => ({
-      ...prev,
-      [machineId]: (prev[machineId] || 0) + 1,
-    }));
+    setSelectedMachines((prev) => {
+      const current = prev[machineId] || 0;
+      if (current === 0) {
+        return {
+          ...prev,
+          [machineId]: 1,
+        };
+      }
+      return {
+        ...prev,
+        [machineId]: current + 1,
+      };
+    });
   };
 
   const handleDecreaseMachineQty = (machineId) => {
@@ -201,24 +216,64 @@ const SubscriptionConfigure = () => {
     setSelectedMachines({});
   };
 
-  // Handlers for RFID Cards Selection (single select only, toggle off on re-click)
-  const handleSelectCard = (card) => {
-    if (Number(selectedCardId) === Number(card.id)) {
-      setSelectedCardId(null);
-      setCardQty(card.min_order_qty || 50);
-    } else {
-      setSelectedCardId(card.id);
-      setCardQty(card.min_order_qty || 50);
-    }
+  // Handlers for RFID Cards Selection (multiple select permitted)
+  const handleAddCard = (card) => {
+    const cardId = card.id;
+    setSelectedCards((prev) => {
+      // If already added, do not increase quantity
+      if (prev[cardId]) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [cardId]: 1,
+      };
+    });
   };
 
-  const handleCardQtyChange = (delta, minOrder = 1) => {
-    setCardQty((prev) => Math.max(minOrder, prev + delta));
+  const handleIncreaseCardQty = (card) => {
+    const cardId = card.id;
+    setSelectedCards((prev) => {
+      const current = prev[cardId] || 0;
+      if (current === 0) {
+        return {
+          ...prev,
+          [cardId]: 1,
+        };
+      }
+      return {
+        ...prev,
+        [cardId]: current + 1,
+      };
+    });
   };
 
-  const handleCardQtyDirectInput = (val, minOrder = 1) => {
-    const parsed = parseInt(val, 10);
-    setCardQty(isNaN(parsed) || parsed < minOrder ? minOrder : parsed);
+  const handleDecreaseCardQty = (card) => {
+    const cardId = card.id;
+    setSelectedCards((prev) => {
+      const current = prev[cardId] || 0;
+      if (current <= 1) {
+        const next = { ...prev };
+        delete next[cardId];
+        return next;
+      }
+      return {
+        ...prev,
+        [cardId]: current - 1,
+      };
+    });
+  };
+
+  const handleRemoveCard = (cardId) => {
+    setSelectedCards((prev) => {
+      const next = { ...prev };
+      delete next[cardId];
+      return next;
+    });
+  };
+
+  const handleClearAllCards = () => {
+    setSelectedCards({});
   };
 
   // Handlers for Module Add-ons
@@ -269,29 +324,29 @@ const SubscriptionConfigure = () => {
     return selectedMachinesList.reduce((sum, m) => sum + m.totalPrice, 0);
   }, [selectedMachinesList]);
 
-  // RFID Cards pricing (single select only)
-  const selectedCard = useMemo(() => {
-    if (!selectedCardId) return null;
-    return catalog.rfid_cards.find((c) => c.id === Number(selectedCardId)) || null;
-  }, [selectedCardId, catalog.rfid_cards]);
-
+  // RFID Cards pricing (multiple select permitted)
   const selectedCardsList = useMemo(() => {
-    if (!selectedCard) return [];
-    const unitPrice = parseFloat(selectedCard.unit_price || 0);
-    return [
-      {
-        ...selectedCard,
-        quantity: cardQty,
-        unitPrice,
-        totalPrice: unitPrice * cardQty,
-      },
-    ];
-  }, [selectedCard, cardQty]);
+    if (!catalog.rfid_cards || catalog.rfid_cards.length === 0) return [];
+    const list = [];
+    for (const [idStr, qty] of Object.entries(selectedCards)) {
+      const cardId = Number(idStr);
+      const card = catalog.rfid_cards.find((c) => Number(c.id) === cardId);
+      if (card && qty > 0) {
+        const unitPrice = parseFloat(card.unit_price || 0);
+        list.push({
+          ...card,
+          quantity: qty,
+          unitPrice,
+          totalPrice: unitPrice * qty,
+        });
+      }
+    }
+    return list;
+  }, [selectedCards, catalog.rfid_cards]);
 
   const cardsTotal = useMemo(() => {
-    if (!selectedCard) return 0;
-    return parseFloat(selectedCard.unit_price || 0) * cardQty;
-  }, [selectedCard, cardQty]);
+    return selectedCardsList.reduce((sum, c) => sum + c.totalPrice, 0);
+  }, [selectedCardsList]);
 
   // Module Addons pricing
   const addonsTotal = useMemo(() => {
@@ -1075,14 +1130,15 @@ const SubscriptionConfigure = () => {
                                 </div>
                               </div>
 
-                              {/* 4. Action Row: Add button on Left side, Increase button on Right side */}
+                              {/* 4. Action Row: Add button on Left side, + button on Right side */}
                               <div className="d-flex align-items-center justify-content-between mt-auto pt-2 border-top gap-2">
                                 {/* Left side: Add Button */}
                                 <div className="d-flex align-items-center gap-1.5">
                                   <button
                                     type="button"
                                     className={`btn btn-sm ${isAdded ? 'btn-success' : 'btn-primary'} px-3 py-1.5 fw-semibold d-inline-flex align-items-center`}
-                                    onClick={() => handleAddMachine(machine.id)}
+                                    onClick={() => !isAdded && handleAddMachine(machine.id)}
+                                    style={isAdded ? { cursor: 'default' } : undefined}
                                   >
                                     {isAdded ? (
                                       <>
@@ -1106,33 +1162,34 @@ const SubscriptionConfigure = () => {
                                   )}
                                 </div>
 
-                                {/* Right side: Increase Button */}
+                                {/* Right side: Stepper / Increase (+) Button */}
                                 <div className="d-flex align-items-center gap-1.5">
-                                  {isAdded && (
-                                    <>
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-secondary px-2 py-1.5 fw-bold"
-                                        title="Decrease quantity"
-                                        onClick={() => handleDecreaseMachineQty(machine.id)}
-                                      >
-                                        -
-                                      </button>
-                                      <span
-                                        className="badge bg-light text-dark border px-2 py-1.5 fs-12 fw-bold"
-                                        title={`Selected quantity: ${currentQty}`}
-                                      >
-                                        {currentQty}
-                                      </span>
-                                    </>
-                                  )}
                                   <button
                                     type="button"
-                                    className={`btn btn-sm ${isAdded ? 'btn-primary' : 'btn-outline-primary'} px-3 py-1.5 fw-semibold d-inline-flex align-items-center`}
-                                    onClick={() => handleIncreaseMachineQty(machine.id)}
-                                    title="Increase quantity"
+                                    className="btn btn-sm btn-outline-secondary px-2 py-1.5 fw-bold"
+                                    style={{ minWidth: '30px' }}
+                                    title="Decrease quantity"
+                                    onClick={() => isAdded && handleDecreaseMachineQty(machine.id)}
+                                    disabled={!isAdded}
                                   >
-                                    <i className="ti ti-plus me-1"></i> Increase
+                                    -
+                                  </button>
+                                  <span
+                                    className={`badge ${isAdded ? 'bg-light text-dark' : 'bg-light text-muted'} border px-2 py-1.5 fs-12 fw-bold`}
+                                    style={{ minWidth: '32px', textAlign: 'center' }}
+                                    title={`Selected quantity: ${currentQty}`}
+                                  >
+                                    {currentQty}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    className={`btn btn-sm ${isAdded ? 'btn-primary' : 'btn-outline-secondary'} px-2 py-1.5 fw-bold`}
+                                    style={{ minWidth: '30px' }}
+                                    onClick={() => isAdded && handleIncreaseMachineQty(machine.id)}
+                                    disabled={!isAdded}
+                                    title={isAdded ? 'Increase quantity' : "Click 'Add' to add product first"}
+                                  >
+                                    +
                                   </button>
                                 </div>
                               </div>
@@ -1152,7 +1209,7 @@ const SubscriptionConfigure = () => {
             )}
           </div>
 
-          {/* Card 4: RFID Cards & Smart Tags (from rfid_card_master) - Small Cards, Single Select, Collapsible */}
+          {/* Card 4: RFID Cards & Smart Tags (from rfid_card_master) - Multi-Select Cards, Collapsible */}
           <div className="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
             <div
               className={`card-header bg-white p-3 p-md-4 transition-all d-flex align-items-center justify-content-between flex-wrap gap-2 ${
@@ -1164,7 +1221,7 @@ const SubscriptionConfigure = () => {
               <div className="d-flex align-items-center gap-3">
                 <div
                   className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
-                    selectedCard ? 'bg-primary text-white' : 'bg-light text-primary'
+                    selectedCardsList.length > 0 ? 'bg-primary text-white' : 'bg-light text-primary'
                   }`}
                   style={{ width: '40px', height: '40px' }}
                 >
@@ -1175,27 +1232,29 @@ const SubscriptionConfigure = () => {
                     <h5 className="fw-bold text-dark mb-0 fs-16">
                       Smart RFID Cards & Badges
                     </h5>
-                    {selectedCard && (
+                    {selectedCardsList.length > 0 && (
                       <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-0.5 fs-11 rounded-pill">
                         <i className="ti ti-check me-1"></i>
-                        {selectedCard.card_name} ({cardQty} pcs, +₹{cardsTotal.toLocaleString('en-IN')})
+                        {selectedCardsList.length} {selectedCardsList.length > 1 ? 'types' : 'type'} selected (
+                        {selectedCardsList.reduce((sum, c) => sum + c.quantity, 0)} pcs, +₹
+                        {cardsTotal.toLocaleString('en-IN')})
                       </span>
                     )}
                   </div>
                   <p className="text-muted fs-12 mb-0 mt-0.5">
-                    Choose one RFID card or smart badge option for your institution (optional).
+                    Select RFID cards and smart badges for your institution (multiple selections allowed).
                   </p>
                 </div>
               </div>
 
               <div className="d-flex align-items-center gap-2 ms-auto mt-2 mt-sm-0" onClick={(e) => e.stopPropagation()}>
-                {selectedCardId && (
+                {selectedCardsList.length > 0 && (
                   <button
                     type="button"
                     className="btn btn-sm btn-outline-danger py-1 px-2.5 fs-11 rounded-pill"
-                    onClick={() => handleSelectCard(selectedCard)}
+                    onClick={handleClearAllCards}
                   >
-                    <i className="ti ti-x me-1"></i> Deselect Card
+                    <i className="ti ti-x me-1"></i> Clear Cards ({selectedCardsList.length})
                   </button>
                 )}
                 <span className="badge bg-light text-secondary border px-2.5 py-1 fs-12">
@@ -1224,7 +1283,8 @@ const SubscriptionConfigure = () => {
                   <div className="row g-3">
                     {catalog.rfid_cards && catalog.rfid_cards.length > 0 ? (
                       catalog.rfid_cards.map((card) => {
-                        const isSelected = Number(selectedCardId) === Number(card.id);
+                        const currentQty = selectedCards[card.id] || 0;
+                        const isAdded = currentQty > 0;
                         const unitPrice = parseFloat(card.unit_price || 0);
 
                         let typeMeta = {
@@ -1248,7 +1308,7 @@ const SubscriptionConfigure = () => {
                             badgeClass: 'bg-info-subtle text-info border-info-subtle',
                             avatarBg: 'bg-info-subtle text-info',
                           };
-                        } else if (card.card_type === 'nfc_sticker') {
+                        } else if (card.card_type === 'nfc_sticker' || card.card_type === 'sticker') {
                           typeMeta = {
                             label: 'NFC Sticker',
                             icon: 'ti-scan',
@@ -1271,164 +1331,192 @@ const SubscriptionConfigure = () => {
                           };
                         }
 
-                        const minQty = card.min_order_qty || 50;
-                        const presets = [minQty, minQty * 2, minQty * 5, 500];
+                        const minQty = card.min_order_qty || 1;
 
                         return (
-                          <div className="col-12 col-sm-6 col-xl-4" key={card.id}>
+                          <div className="col-12 col-md-6 col-xl-4" key={card.id}>
                             <div
-                              onClick={() => handleSelectCard(card)}
-                              className={`p-3 rounded-3 border transition-all cursor-pointer h-100 d-flex flex-column justify-content-between position-relative ${
-                                isSelected
-                                  ? 'border-2 border-primary bg-primary-subtle bg-opacity-10 shadow-sm'
-                                  : 'border-200 bg-white hover-shadow'
+                              className={`card h-100 rounded-3 border transition-all ${
+                                isAdded
+                                  ? 'border-primary border-2 shadow-sm'
+                                  : 'border-200 hover-shadow'
                               }`}
                               style={{
-                                cursor: 'pointer',
+                                overflow: 'hidden',
                                 transition: 'all 0.2s ease',
-                                minHeight: '220px',
+                                backgroundColor: isAdded ? '#fbfcfe' : '#ffffff',
                               }}
                             >
-                              {/* Selected Badge */}
-                              {isSelected && (
-                                <span
-                                  className="badge bg-primary text-white position-absolute shadow-sm"
-                                  style={{ top: '-8px', right: '10px', fontSize: '10px', borderRadius: '10px' }}
-                                >
-                                  <i className="ti ti-check me-0.5"></i> Selected
-                                </span>
-                              )}
-
-                              <div>
-                                {/* Top Row: Icon, Type Badge & Radio indicator */}
-                                <div className="d-flex align-items-center justify-content-between mb-2">
-                                  <div
-                                    className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center ${
-                                      isSelected ? 'bg-primary text-white' : typeMeta.avatarBg
-                                    }`}
-                                    style={{ width: '38px', height: '38px', transition: 'all 0.2s ease' }}
-                                  >
-                                    <i className={`ti ${typeMeta.icon} fs-18`}></i>
-                                  </div>
-
-                                  <div className="d-flex align-items-center gap-2">
-                                    <span className={`badge border fs-10 px-2 py-0.5 rounded-pill ${typeMeta.badgeClass}`}>
-                                      {typeMeta.label}
-                                    </span>
-                                    {/* Radio indicator */}
-                                    <div
-                                      className={`rounded-circle d-flex align-items-center justify-content-center border ${
-                                        isSelected
-                                          ? 'bg-primary border-primary text-white'
-                                          : 'border-secondary-subtle bg-light text-transparent'
-                                      }`}
-                                      style={{ width: '18px', height: '18px', fontSize: '10px' }}
-                                    >
-                                      {isSelected && <i className="ti ti-check"></i>}
-                                    </div>
-                                  </div>
-                                </div>
-
-                                {/* Card Name */}
-                                <h6
-                                  className="fw-bold text-dark mb-1 fs-13 line-clamp-2"
-                                  style={{
-                                    display: '-webkit-box',
-                                    WebkitLineClamp: 2,
-                                    WebkitBoxOrient: 'vertical',
-                                    overflow: 'hidden',
-                                    minHeight: '34px',
-                                    lineHeight: '1.3',
+                              {/* 1. Show the RFID card image first */}
+                              <div
+                                className="w-100 bg-light border-bottom d-flex align-items-center justify-content-center overflow-hidden position-relative p-2"
+                                style={{ height: '170px' }}
+                              >
+                                <img
+                                  src={resolveImageUrl(card.card_image || card.rfid_image, NO_IMAGE_PLACEHOLDER)}
+                                  alt={card.card_name}
+                                  className="img-fluid"
+                                  style={{ maxHeight: '100%', maxWidth: '100%', objectFit: 'contain' }}
+                                  onError={(e) => {
+                                    e.currentTarget.onerror = null;
+                                    e.currentTarget.src = NO_IMAGE_PLACEHOLDER;
                                   }}
-                                  title={card.card_name}
+                                />
+
+                                {/* Card Type Badge */}
+                                <span
+                                  className={`badge border fs-10 px-2 py-0.5 rounded-pill position-absolute ${typeMeta.badgeClass}`}
+                                  style={{ top: '10px', left: '10px' }}
                                 >
-                                  {card.card_name}
-                                </h6>
+                                  {typeMeta.label}
+                                </span>
 
-                                {/* SKU Code & Min Order */}
-                                <div className="d-flex align-items-center gap-1.5 mb-2">
-                                  <span className="badge bg-light text-secondary border fs-10 px-1.5 py-0.5 rounded">
-                                    {card.card_code}
+                                {/* Selected Status Badge */}
+                                {isAdded && (
+                                  <span
+                                    className="badge bg-primary text-white position-absolute shadow-sm"
+                                    style={{ top: '10px', right: '10px', fontSize: '11px', borderRadius: '12px' }}
+                                  >
+                                    <i className="ti ti-check me-0.5"></i> Selected ({currentQty} pcs)
                                   </span>
-                                  <span className="text-muted fs-11">
-                                    Min: {minQty} pcs
-                                  </span>
-                                </div>
-
-                                {/* Compact Specs Box */}
-                                <div className="bg-light rounded-2 p-2 mb-2 fs-11 text-secondary">
-                                  <div className="d-flex align-items-center justify-content-between mb-1">
-                                    <span className="text-muted">Frequency:</span>
-                                    <strong className="text-dark">{card.frequency || '125 KHz'}</strong>
-                                  </div>
-                                  <div className="d-flex align-items-center justify-content-between">
-                                    <span className="text-muted">Range:</span>
-                                    <span className="text-dark text-truncate ms-1" style={{ maxWidth: '105px' }} title={card.read_range}>
-                                      {card.read_range || '2-8 cm'}
-                                    </span>
-                                  </div>
-                                </div>
+                                )}
                               </div>
 
-                              {/* Pricing & Stepper / Presets */}
-                              <div className="border-top pt-2 mt-auto">
-                                <div className="d-flex align-items-baseline justify-content-between">
-                                  <span className="text-muted fs-11">Unit Price:</span>
-                                  <div className="text-end">
-                                    <span className="fs-15 fw-bold text-dark">
-                                      ₹{unitPrice.toFixed(2)}
+                              {/* Card Body */}
+                              <div className="card-body p-3 d-flex flex-column justify-content-between">
+                                <div>
+                                  {/* 2. Display the card name below the image */}
+                                  <h6
+                                    className="fw-bold text-dark mb-1 fs-14 line-clamp-2"
+                                    style={{
+                                      display: '-webkit-box',
+                                      WebkitLineClamp: 2,
+                                      WebkitBoxOrient: 'vertical',
+                                      overflow: 'hidden',
+                                      minHeight: '38px',
+                                      lineHeight: '1.35',
+                                    }}
+                                    title={card.card_name}
+                                  >
+                                    {card.card_name}
+                                  </h6>
+
+                                  {/* 3. Show the card details below the card name */}
+                                  <div className="d-flex align-items-center gap-1.5 mb-2 flex-wrap">
+                                    <span className="badge bg-light text-secondary border fs-10 px-1.5 py-0.5 rounded">
+                                      SKU: {card.card_code}
                                     </span>
-                                    <span className="text-muted fs-10 d-block">per card</span>
+                                    <span className="badge bg-light text-muted border fs-10 px-1.5 py-0.5 rounded">
+                                      Min Order: {minQty} pcs
+                                    </span>
+                                  </div>
+
+                                  {/* Specifications Box */}
+                                  <div className="bg-light rounded-2 p-2 mb-3 fs-11 text-secondary">
+                                    <div className="d-flex align-items-center justify-content-between mb-1">
+                                      <span className="text-muted">
+                                        <i className="ti ti-wifi fs-12 me-1"></i>Frequency:
+                                      </span>
+                                      <span className="text-dark fw-semibold text-truncate ms-1" style={{ maxWidth: '140px' }}>
+                                        {card.frequency || '13.56 MHz'}
+                                      </span>
+                                    </div>
+                                    <div className="d-flex align-items-center justify-content-between mb-1">
+                                      <span className="text-muted">
+                                        <i className="ti ti-scan fs-12 me-1"></i>Read Range:
+                                      </span>
+                                      <span className="text-dark fw-semibold text-truncate ms-1" style={{ maxWidth: '140px' }}>
+                                        {card.read_range || 'Up to 5 cm'}
+                                      </span>
+                                    </div>
+                                    {card.description && (
+                                      <div className="border-top pt-1 mt-1 text-muted fs-11 line-clamp-2" style={{ maxHeight: '32px', overflow: 'hidden' }} title={card.description}>
+                                        {card.description}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Price Tag */}
+                                  <div className="d-flex align-items-baseline justify-content-between mb-2">
+                                    <div>
+                                      <span className="fs-18 fw-bold text-dark">
+                                        ₹{unitPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      </span>
+                                      <span className="text-muted fs-11 ms-1">/ card</span>
+                                    </div>
+                                    {isAdded && (
+                                      <div className="text-end">
+                                        <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-11 fw-bold">
+                                          Total: ₹{(unitPrice * currentQty).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                        </span>
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
 
-                                {/* Stepper & Presets when this card is selected */}
-                                {isSelected && (
-                                  <div className="mt-2 pt-2 border-top" onClick={(e) => e.stopPropagation()}>
-                                    <div className="d-flex align-items-center justify-content-between mb-1.5">
-                                      <span className="text-muted fs-11 fw-semibold">Quantity:</span>
-                                      <div className="input-group input-group-sm" style={{ width: '105px' }}>
-                                        <button
-                                          type="button"
-                                          className="btn btn-outline-secondary px-2 py-0 fw-bold"
-                                          onClick={() => handleCardQtyChange(-10, minQty)}
-                                        >
-                                          -
-                                        </button>
-                                        <input
-                                          type="number"
-                                          className="form-control text-center px-1 py-0 fw-bold fs-12"
-                                          min={minQty}
-                                          value={cardQty}
-                                          onChange={(e) => handleCardQtyDirectInput(e.target.value, minQty)}
-                                        />
-                                        <button
-                                          type="button"
-                                          className="btn btn-outline-secondary px-2 py-0 fw-bold"
-                                          onClick={() => handleCardQtyChange(10, minQty)}
-                                        >
-                                          +
-                                        </button>
-                                      </div>
-                                    </div>
-
-                                    {/* Quick Presets */}
-                                    <div className="d-flex align-items-center justify-content-end gap-1">
-                                      {presets.map((preset) => (
-                                        <button
-                                          key={preset}
-                                          type="button"
-                                          className={`btn btn-xs py-0 px-1.5 fs-10 ${
-                                            cardQty === preset ? 'btn-primary' : 'btn-outline-secondary'
-                                          }`}
-                                          onClick={() => setCardQty(preset)}
-                                        >
-                                          {preset}
-                                        </button>
-                                      ))}
-                                    </div>
+                                {/* 4. Action Row: Add button on Left side, + button on Right side */}
+                                <div className="d-flex align-items-center justify-content-between mt-auto pt-2 border-top gap-2">
+                                  {/* Left side: Add Button */}
+                                  <div className="d-flex align-items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      className={`btn btn-sm ${isAdded ? 'btn-success' : 'btn-primary'} px-3 py-1.5 fw-semibold d-inline-flex align-items-center`}
+                                      onClick={() => !isAdded && handleAddCard(card)}
+                                      style={isAdded ? { cursor: 'default' } : undefined}
+                                    >
+                                      {isAdded ? (
+                                        <>
+                                          <i className="ti ti-check me-1"></i> Added
+                                        </>
+                                      ) : (
+                                        <>
+                                          <i className="ti ti-plus me-1"></i> Add
+                                        </>
+                                      )}
+                                    </button>
+                                    {isAdded && (
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-danger px-2 py-1.5"
+                                        title="Remove card from selection"
+                                        onClick={() => handleRemoveCard(card.id)}
+                                      >
+                                        <i className="ti ti-trash fs-12"></i>
+                                      </button>
+                                    )}
                                   </div>
-                                )}
+
+                                  {/* Right side: Stepper / Increase (+) Button */}
+                                  <div className="d-flex align-items-center gap-1.5">
+                                    <button
+                                      type="button"
+                                      className="btn btn-sm btn-outline-secondary px-2 py-1.5 fw-bold"
+                                      style={{ minWidth: '30px' }}
+                                      title="Decrease quantity"
+                                      onClick={() => isAdded && handleDecreaseCardQty(card)}
+                                      disabled={!isAdded}
+                                    >
+                                      -
+                                    </button>
+                                    <span
+                                      className={`badge ${isAdded ? 'bg-light text-dark' : 'bg-light text-muted'} border px-2 py-1.5 fs-12 fw-bold`}
+                                      style={{ minWidth: '32px', textAlign: 'center' }}
+                                      title={`Selected quantity: ${currentQty}`}
+                                    >
+                                      {currentQty}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      className={`btn btn-sm ${isAdded ? 'btn-primary' : 'btn-outline-secondary'} px-2 py-1.5 fw-bold`}
+                                      style={{ minWidth: '30px' }}
+                                      onClick={() => isAdded && handleIncreaseCardQty(card)}
+                                      disabled={!isAdded}
+                                      title={isAdded ? 'Increase quantity' : "Click 'Add' to add product first"}
+                                    >
+                                      +
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -1837,23 +1925,42 @@ const SubscriptionConfigure = () => {
                 </div>
               )}
 
-              {/* 4. Selected RFID Cards (rfid_card_master - single option) */}
+              {/* 4. Selected RFID Cards (rfid_card_master - multiple options) */}
               {selectedCardsList.length > 0 && (
                 <div className="border-top pt-2 mt-2">
-                  <div className="text-muted fs-11 fw-bold text-uppercase mb-1">
-                    RFID Cards & Badges ({selectedCardsList[0].quantity} pcs):
+                  <div className="text-muted fs-11 fw-bold text-uppercase mb-1 d-flex align-items-center justify-content-between">
+                    <span>
+                      RFID Cards & Badges ({selectedCardsList.reduce((sum, c) => sum + c.quantity, 0)} pcs):
+                    </span>
+                    <span className="text-dark fw-bold">+₹{cardsTotal.toLocaleString('en-IN')}</span>
                   </div>
                   {selectedCardsList.map((c) => (
-                    <div className="d-flex align-items-center justify-content-between mb-1 fs-12" key={c.id}>
-                      <span className="text-secondary text-truncate me-2" style={{ maxWidth: '180px' }} title={c.card_name}>
-                        <i className="ti ti-id text-success me-1"></i>
-                        {c.card_name} <strong className="text-dark">x{c.quantity}</strong>
+                    <div className="d-flex align-items-center justify-content-between mb-1.5 fs-12" key={c.id}>
+                      <span className="text-secondary text-truncate me-2 d-inline-flex align-items-center" style={{ maxWidth: '180px' }} title={c.card_name}>
+                        <img
+                          src={resolveImageUrl(c.card_image || c.rfid_image, NO_IMAGE_PLACEHOLDER)}
+                          alt=""
+                          className="rounded-1 border me-1.5 flex-shrink-0 bg-white"
+                          style={{ width: '18px', height: '18px', objectFit: 'contain' }}
+                          onError={(e) => {
+                            e.currentTarget.onerror = null;
+                            e.currentTarget.src = NO_IMAGE_PLACEHOLDER;
+                          }}
+                        />
+                        <span className="text-truncate">{c.card_name}</span>
+                        <strong className="text-dark ms-1">x{c.quantity}</strong>
                       </span>
                       <span className="fw-semibold text-dark flex-shrink-0">
                         +₹{c.totalPrice.toLocaleString('en-IN')}
                       </span>
                     </div>
                   ))}
+                  {selectedCardsList.length > 1 && (
+                    <div className="d-flex align-items-center justify-content-between pt-1 border-top border-dashed fs-11 text-muted">
+                      <span>Cards Subtotal:</span>
+                      <strong className="text-dark">+₹{cardsTotal.toLocaleString('en-IN')}</strong>
+                    </div>
+                  )}
                 </div>
               )}
 
