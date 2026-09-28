@@ -10,6 +10,18 @@ import NoData from '../../components/common/NoData';
 
 const getOptionLetter = (index) => String.fromCharCode(65 + index); // 0 -> A, 1 -> B, 2 -> C, 3 -> D
 
+const isAssignmentExpired = (dueDateStr) => {
+  if (!dueDateStr) return false;
+  const str = String(dueDateStr).trim();
+  let deadline;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+    deadline = new Date(`${str}T23:59:59.999`);
+  } else {
+    deadline = new Date(str.replace(' ', 'T'));
+  }
+  return !isNaN(deadline.getTime()) && Date.now() > deadline.getTime();
+};
+
 const StudentAttemptAssignment = () => {
   const { id: rawId } = useParams();
   const assignmentId = decodeParam(rawId);
@@ -20,6 +32,7 @@ const StudentAttemptAssignment = () => {
   const [answers, setAnswers] = useState({});
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isExpired, setIsExpired] = useState(false);
 
   useEffect(() => {
     loadAssignmentDetails();
@@ -33,6 +46,14 @@ const StudentAttemptAssignment = () => {
 
       if (data.assignment) {
         setAssignment(data.assignment);
+        const expired = Boolean(data.isExpired) || isAssignmentExpired(data.assignment.due_date);
+        setIsExpired(expired);
+
+        if (expired && !data.alreadyAttempted) {
+          toast.error('The deadline for this assignment has expired. Submissions are closed.');
+          navigate('/student/assignments');
+          return;
+        }
       }
       if (Array.isArray(data.questions)) {
         setQuestions(data.questions);
@@ -46,7 +67,12 @@ const StudentAttemptAssignment = () => {
       }
     } catch (err) {
       console.error('Failed to load assignment details:', err);
-      toast.error('Failed to load assignment questions.');
+      const is403Expired = err.response?.status === 403 || err.response?.data?.data?.isExpired;
+      if (is403Expired) {
+        toast.error(err.response?.data?.message || 'Assignment deadline has passed. Submissions are closed.');
+      } else {
+        toast.error('Failed to load assignment questions.');
+      }
       navigate('/student/assignments');
     } finally {
       setLoading(false);
@@ -54,6 +80,10 @@ const StudentAttemptAssignment = () => {
   };
 
   const handleSelectOption = (questionId, optionId) => {
+    if (isExpired || isAssignmentExpired(assignment?.due_date)) {
+      toast.warning('This assignment has expired. Answering questions is no longer allowed.');
+      return;
+    }
     setAnswers((prev) => ({
       ...prev,
       [questionId]: optionId,
@@ -62,6 +92,12 @@ const StudentAttemptAssignment = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isExpired || isAssignmentExpired(assignment?.due_date)) {
+      toast.error('The deadline for this assignment has expired. Submissions are no longer accepted.');
+      navigate('/student/assignments');
+      return;
+    }
 
     // Verify all questions answered
     const unanswered = questions.filter((q) => !answers[q.id]);
@@ -176,6 +212,19 @@ const StudentAttemptAssignment = () => {
             </div>
           </div>
 
+          {/* Expiration Warning Banner */}
+          {isExpired && (
+            <div className="alert alert-danger d-flex align-items-center mb-4 p-3 rounded-3 shadow-sm border-0 bg-danger bg-opacity-10 text-danger">
+              <i className="fa-solid fa-hourglass-end fs-24 me-3 flex-shrink-0"></i>
+              <div>
+                <h6 className="fw-bold mb-1 text-danger">Assignment Deadline Expired</h6>
+                <p className="mb-0 fs-13 text-secondary">
+                  The submission window for this assignment closed on <strong>{formatDate(assignment.due_date)}</strong>. Answering questions and submitting answers are no longer permitted.
+                </p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} id="attemptForm">
             <input type="hidden" name="assignment_id" value={assignment.id} />
 
@@ -200,10 +249,12 @@ const StudentAttemptAssignment = () => {
                         return (
                           <div key={opt.id} className="col-md-6">
                             <label
-                              className={`w-100 option-select-card p-3 bg-white border rounded-3 d-flex align-items-center gap-3 cursor-pointer ${
+                              className={`w-100 option-select-card p-3 bg-white border rounded-3 d-flex align-items-center gap-3 ${
+                                isExpired ? 'opacity-75 cursor-not-allowed' : 'cursor-pointer'
+                              } ${
                                 isSelected ? 'border-primary shadow-sm bg-primary-subtle' : ''
                               }`}
-                              style={{ cursor: 'pointer' }}
+                              style={{ cursor: isExpired ? 'not-allowed' : 'pointer' }}
                             >
                               <input
                                 type="radio"
@@ -212,7 +263,8 @@ const StudentAttemptAssignment = () => {
                                 value={opt.id}
                                 checked={isSelected}
                                 onChange={() => handleSelectOption(q.id, opt.id)}
-                                required
+                                disabled={isExpired}
+                                required={!isExpired}
                               />
                               <span className="badge bg-secondary text-white px-2.5 py-1">
                                 Option {getOptionLetter(oIdx)}
@@ -231,16 +283,22 @@ const StudentAttemptAssignment = () => {
             <div className="card shadow-sm border-0 mb-5">
               <div className="card-body p-3 text-end bg-white">
                 <Link to="/student/assignments" className="btn btn-secondary px-4 me-2">
-                  Cancel
+                  {isExpired ? 'Back to Assignments' : 'Cancel'}
                 </Link>
                 <button
                   type="submit"
-                  className="btn btn-success px-5 py-2 fw-bold fs-16 rounded-pill shadow-sm"
-                  disabled={submitting || questions.length === 0}
+                  className={`btn px-5 py-2 fw-bold fs-16 rounded-pill shadow-sm ${
+                    isExpired ? 'btn-secondary disabled' : 'btn-success'
+                  }`}
+                  disabled={submitting || questions.length === 0 || isExpired}
                 >
                   {submitting ? (
                     <>
                       <span className="spinner-border spinner-border-sm me-2"></span> Submitting...
+                    </>
+                  ) : isExpired ? (
+                    <>
+                      <i className="fa-solid fa-ban me-1"></i> Submission Closed
                     </>
                   ) : (
                     <>

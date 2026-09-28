@@ -30,6 +30,18 @@ const StudentAssignments = () => {
     loadAssignments();
   }, []);
 
+  const isAssignmentExpired = (dueDateStr) => {
+    if (!dueDateStr) return false;
+    const str = String(dueDateStr).trim();
+    let deadline;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      deadline = new Date(`${str}T23:59:59.999`);
+    } else {
+      deadline = new Date(str.replace(' ', 'T'));
+    }
+    return !isNaN(deadline.getTime()) && Date.now() > deadline.getTime();
+  };
+
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
     try {
@@ -190,7 +202,8 @@ const StudentAssignments = () => {
                           item.is_submitted === 1;
                         const isExpired =
                           item.status === 'Expired' ||
-                          (item.due_date && new Date(item.due_date) < new Date() && !isAttempted);
+                          Boolean(item.is_expired) ||
+                          (item.due_date && isAssignmentExpired(item.due_date) && !isAttempted);
                         const scorePercentage =
                           item.score_percentage != null
                             ? `${Number(item.score_percentage).toFixed(2)}%`
