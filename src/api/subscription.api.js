@@ -14,10 +14,19 @@ export const upgradeSubscription = async (upgradeData) => {
   return response.data?.data || response.data;
 };
 
-export const createSubscriptionOrder = async (planId) => {
-  const response = await apiClient.post('/admin/subscription/create-order', {
-    plan_id: planId,
-  });
+export const getConfigurationCatalog = async () => {
+  const response = await apiClient.get('/admin/subscription/config-catalog');
+  return response.data?.data || response.data;
+};
+
+export const createSubscriptionOrder = async (orderData, legacyAddonIds = []) => {
+  const payload = typeof orderData === 'object' && orderData !== null && !Array.isArray(orderData)
+    ? orderData
+    : {
+        plan_id: orderData,
+        addon_ids: legacyAddonIds,
+      };
+  const response = await apiClient.post('/admin/subscription/create-order', payload);
   return response.data?.data || response.data;
 };
 

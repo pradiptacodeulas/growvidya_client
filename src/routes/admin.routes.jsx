@@ -5,6 +5,7 @@ import AdminLayout from '../layouts/AdminLayout';
 
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
 const SubscriptionBilling = lazy(() => import('../pages/admin/subscription/SubscriptionBilling'));
+const SubscriptionConfigure = lazy(() => import('../pages/admin/subscription/SubscriptionConfigure'));
 const AcademicYearsList = lazy(() => import('../pages/admin/academics/AcademicYearsList'));
 const EditAcademicYear = lazy(() => import('../pages/admin/academics/EditAcademicYear'));
 const ClassesList = lazy(() => import('../pages/admin/academics/ClassesList'));
@@ -135,7 +136,9 @@ export const adminRoutes = (
     <Route path="/admin" element={<AdminLayout />}>
       <Route path="dashboard" element={<AdminDashboard />} />
       <Route path="subscription" element={<SubscriptionBilling />} />
+      <Route path="subscription/configure" element={<SubscriptionConfigure />} />
       <Route path="billing" element={<SubscriptionBilling />} />
+      <Route path="billing/configure" element={<SubscriptionConfigure />} />
       <Route path="academics" element={<Navigate to="/admin/academics/years" replace />} />
 
       {/* Academic Years */}

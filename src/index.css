@@ -6,7 +6,7 @@ html, body, #root {
   max-width: 100% !important;
   min-height: 100vh !important;
   background-color: #FBFBFD !important;
-  overflow-x: hidden;
+  overflow-x: clip;
 }
 
 /* Main Wrapper Full Width Edge-to-Edge */
@@ -859,4 +859,34 @@ table.table {
 .py-1\.5 {
   padding-top: 0.375rem !important;
   padding-bottom: 0.375rem !important;
+}
+
+/* =========================================================
+   STICKY SUBSCRIPTION SUMMARY (Desktop >= 992px)
+   ========================================================= */
+@media (min-width: 992px) {
+  .sticky-subscription-summary {
+    position: -webkit-sticky !important;
+    position: sticky !important;
+    top: 76px !important;
+    z-index: 20 !important;
+    max-height: calc(100vh - 96px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
+}
+
+.sticky-subscription-summary .card-body::-webkit-scrollbar {
+  width: 5px;
+}
+.sticky-subscription-summary .card-body::-webkit-scrollbar-track {
+  background: #f8fafc;
+}
+.sticky-subscription-summary .card-body::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.sticky-subscription-summary .card-body::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
 }
