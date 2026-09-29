@@ -35,3 +35,8 @@ export const verifySubscriptionPayment = async (paymentData) => {
   return response.data?.data || response.data;
 };
 
+export const validateSubscriptionCoupon = async (code, amount) => {
+  const response = await apiClient.post('/admin/subscription/validate-coupon', { code, amount });
+  return response.data?.data || response.data;
+};
+

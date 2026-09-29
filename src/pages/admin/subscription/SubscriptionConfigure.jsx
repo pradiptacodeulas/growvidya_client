@@ -9,6 +9,7 @@ import {
   verifySubscriptionPayment,
   upgradeSubscription,
   getConfigurationCatalog,
+  validateSubscriptionCoupon,
 } from '../../../api/subscription.api';
 import { resolveImageUrl } from '../../../utils/url.util';
 
@@ -142,6 +143,12 @@ const SubscriptionConfigure = () => {
   const [paymentGateway, setPaymentGateway] = useState('razorpay');
   const [utrNumber, setUtrNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Coupon state
+  const [couponCodeInput, setCouponCodeInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+  const [couponError, setCouponError] = useState(null);
 
   // Available add-ons and included items for the selected subscription plan
   const availableAddons = useMemo(() => {
@@ -355,12 +362,67 @@ const SubscriptionConfigure = () => {
       .reduce((sum, addon) => sum + parseFloat(addon.price || 0), 0);
   }, [availableAddons, selectedAddonIds]);
 
+  // Subtotal Calculation before discounts
+  const subtotal = basePrice + storageTotal + machinesTotal + cardsTotal + addonsTotal;
+
+  // Coupon discount computation based on database coupon rules
+  const discountAmount = useMemo(() => {
+    if (!appliedCoupon) return 0;
+    if (appliedCoupon.discountType === 'percentage') {
+      const computed = (subtotal * parseFloat(appliedCoupon.discountValue || 0)) / 100;
+      const maxDiscount = appliedCoupon.maxDiscountAmount ? parseFloat(appliedCoupon.maxDiscountAmount) : null;
+      return maxDiscount ? Math.min(computed, maxDiscount) : computed;
+    }
+    return Math.min(subtotal, parseFloat(appliedCoupon.discountValue || 0));
+  }, [appliedCoupon, subtotal]);
+
   // Grand Total Calculation
-  const grandTotal = basePrice + storageTotal + machinesTotal + cardsTotal + addonsTotal;
+  const grandTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
 
   const isCurrentPlan = Boolean(
     selectedPlan && subscription?.plan_id && Number(selectedPlan.id) === Number(subscription.plan_id)
   );
+
+  // Coupon Handlers
+  const handleApplyCoupon = async (e) => {
+    if (e) e.preventDefault();
+    const cleanCode = couponCodeInput.trim().toUpperCase();
+    if (!cleanCode) {
+      setCouponError('Please enter a coupon code.');
+      return;
+    }
+
+    setIsValidatingCoupon(true);
+    setCouponError(null);
+
+    try {
+      const data = await validateSubscriptionCoupon(cleanCode, subtotal);
+      setAppliedCoupon({
+        id: data.id,
+        code: data.code,
+        description: data.description,
+        discountType: data.discountType,
+        discountValue: parseFloat(data.discountValue),
+        discountAmount: parseFloat(data.discountAmount),
+        maxDiscountAmount: data.max_discount_amount || data.maxDiscountAmount || null,
+      });
+      toast.success(`Coupon "${data.code}" applied! You saved ₹${parseFloat(data.discountAmount).toLocaleString('en-IN')}`);
+      setCouponCodeInput('');
+    } catch (err) {
+      const msg = err?.response?.data?.message || err?.message || 'Invalid coupon code.';
+      setCouponError(msg);
+      toast.error(msg);
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+    setCouponCodeInput('');
+    toast.info('Coupon removed.');
+  };
 
   // Handle Checkout / Payment Execution
   const handleProceedPayment = async () => {
@@ -386,6 +448,7 @@ const SubscriptionConfigure = () => {
           id: Number(c.id),
           quantity: Number(c.quantity),
         })),
+        coupon_code: appliedCoupon ? appliedCoupon.code : null,
         amount_paid: grandTotal,
       };
 
@@ -492,6 +555,7 @@ const SubscriptionConfigure = () => {
           amount_paid: grandTotal,
           payment_gateway: 'bank_transfer',
           payment_transaction_id: String(utrNumber).trim(),
+          coupon_code: appliedCoupon ? appliedCoupon.code : null,
         });
 
         toast.info(
@@ -1987,12 +2051,92 @@ const SubscriptionConfigure = () => {
                 </div>
               )}
 
+              {/* 6. Promo / Coupon Code Section */}
+              <div className="border-top pt-3 mt-3">
+                <div className="d-flex align-items-center justify-content-between mb-1.5">
+                  <label className="form-label text-dark fw-bold fs-12 mb-0 d-flex align-items-center">
+                    <i className="ti ti-ticket me-1.5 text-primary fs-14"></i> Have a Promo / Coupon Code?
+                  </label>
+                </div>
+
+                {!appliedCoupon ? (
+                  <div>
+                    <form onSubmit={handleApplyCoupon} className="input-group input-group-sm">
+                      <input
+                        type="text"
+                        className={`form-control text-uppercase fw-semibold ${couponError ? 'is-invalid' : ''}`}
+                        placeholder="e.g. WELCOME50"
+                        value={couponCodeInput}
+                        onChange={(e) => {
+                          setCouponCodeInput(e.target.value.toUpperCase());
+                          if (couponError) setCouponError(null);
+                        }}
+                        disabled={isValidatingCoupon}
+                      />
+                      <button
+                        type="submit"
+                        className="btn btn-primary fw-semibold px-3 d-inline-flex align-items-center"
+                        disabled={isValidatingCoupon || !couponCodeInput.trim()}
+                      >
+                        {isValidatingCoupon ? (
+                          <>
+                            <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                            Applying...
+                          </>
+                        ) : (
+                          'Apply'
+                        )}
+                      </button>
+                    </form>
+                    {couponError && (
+                      <div className="text-danger fs-11 mt-1 d-flex align-items-center">
+                        <i className="ti ti-alert-circle me-1 flex-shrink-0"></i>
+                        <span>{couponError}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-success-subtle border border-success-subtle rounded-2 p-2 d-flex align-items-center justify-content-between">
+                    <div className="d-flex align-items-center gap-1.5 overflow-hidden">
+                      <i className="ti ti-circle-check text-success fs-16 flex-shrink-0"></i>
+                      <div className="text-truncate">
+                        <strong className="text-success fs-12 d-block text-truncate">
+                          {appliedCoupon.code} Applied
+                        </strong>
+                        <span className="text-muted fs-11">
+                          {appliedCoupon.discountType === 'percentage'
+                            ? `${appliedCoupon.discountValue}% OFF`
+                            : `Flat ₹${parseFloat(appliedCoupon.discountValue).toLocaleString('en-IN')} OFF`}
+                          {' '}(Saved ₹{discountAmount.toLocaleString('en-IN')})
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-link text-danger text-decoration-none p-0 ms-2 fw-semibold fs-11"
+                      onClick={handleRemoveCoupon}
+                      title="Remove coupon"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Subtotal & Taxes */}
               <div className="border-top pt-3 mt-3">
                 <div className="d-flex align-items-center justify-content-between mb-1 fs-13 text-secondary">
                   <span>Subtotal</span>
-                  <span className="fw-semibold text-dark">₹{grandTotal.toLocaleString('en-IN')}</span>
+                  <span className="fw-semibold text-dark">₹{subtotal.toLocaleString('en-IN')}</span>
                 </div>
+                {appliedCoupon && discountAmount > 0 && (
+                  <div className="d-flex align-items-center justify-content-between mb-1 fs-13 text-success">
+                    <span className="d-flex align-items-center">
+                      <i className="ti ti-tag me-1"></i> Coupon Discount ({appliedCoupon.code})
+                    </span>
+                    <span className="fw-bold">-₹{discountAmount.toLocaleString('en-IN')}</span>
+                  </div>
+                )}
                 <div className="d-flex align-items-center justify-content-between fs-13 text-secondary">
                   <span>GST / Tax</span>
                   <span className="text-success fw-semibold">Inclusive</span>
@@ -2051,31 +2195,7 @@ const SubscriptionConfigure = () => {
                 </button>
               </div>
 
-              {/* Back to Plans */}
-              <div className="mt-2 text-center">
-                <Link
-                  to="/admin/subscription"
-                  className="text-muted fs-12 text-decoration-none hover-underline d-inline-flex align-items-center py-1"
-                >
-                  <i className="ti ti-arrow-left me-1"></i> Choose a different plan
-                </Link>
-              </div>
 
-              {/* Security Badges */}
-              <div className="border-top pt-2.5 mt-2.5 fs-11 text-muted text-center">
-                <div className="d-flex align-items-center justify-content-center gap-3 mb-1">
-                  <span>
-                    <i className="ti ti-shield-lock text-success me-1"></i> 256-bit SSL
-                  </span>
-                  <span>
-                    <i className="ti ti-bolt text-warning me-1"></i> Instant Setup
-                  </span>
-                  <span>
-                    <i className="ti ti-receipt text-info me-1"></i> Tax Invoice
-                  </span>
-                </div>
-                <div>Authorized payment partner: Razorpay India</div>
-              </div>
             </div>
           </div>
         </div>
