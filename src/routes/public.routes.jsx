@@ -1,8 +1,9 @@
 import React, { lazy } from 'react';
-import { Route, Navigate } from 'react-router-dom';
+import { Route, Navigate, useLocation } from 'react-router-dom';
 
 const PortalSelection = lazy(() => import('../pages/PortalSelection'));
 const PricingPlans = lazy(() => import('../pages/saas/PricingPlans'));
+const SubscriptionConfigurePublic = lazy(() => import('../pages/saas/SubscriptionConfigurePublic'));
 const SchoolRegistrationWizard = lazy(() => import('../pages/saas/SchoolRegistrationWizard'));
 const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'));
 const TeacherLogin = lazy(() => import('../pages/teacher/TeacherLogin'));
@@ -16,9 +17,14 @@ export const publicRoutes = (
     <Route path="/portal-selection" element={<Navigate to="/account/login" replace />} />
     <Route path="/" element={<Navigate to="/account/login" replace />} />
 
-    {/* SaaS Pricing & School Registration Onboarding */}
+    {/* Standalone Single Pricing Page */}
     <Route path="/pricing" element={<PricingPlans />} />
+    <Route path="/plans" element={<PricingPlans />} />
     <Route path="/register/plans" element={<PricingPlans />} />
+
+    {/* Separate Dedicated Configuration Page */}
+    <Route path="/configure" element={<SubscriptionConfigurePublic />} />
+    <Route path="/pricing/configure" element={<SubscriptionConfigurePublic />} />
     <Route path="/register" element={<SchoolRegistrationWizard />} />
     <Route path="/register/wizard" element={<SchoolRegistrationWizard />} />
     <Route path="/register/school-setup" element={<SchoolRegistrationWizard />} />

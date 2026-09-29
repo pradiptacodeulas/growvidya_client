@@ -10,6 +10,14 @@ export const saasApi = {
   },
 
   /**
+   * Fetch configuration catalog (notification_master, etc.)
+   */
+  getConfigCatalog: async () => {
+    const res = await apiClient.get('/saas/config-catalog');
+    return res.data;
+  },
+
+  /**
    * Create Razorpay order for paid plan registration
    */
   createOrder: async (planId) => {
@@ -49,6 +57,14 @@ export const saasApi = {
    */
   getGenders: async () => {
     const res = await apiClient.get('/saas/genders');
+    return res.data;
+  },
+
+  /**
+   * Validate coupon code for registration / plan purchase
+   */
+  validateCoupon: async (code, amount) => {
+    const res = await apiClient.post('/saas/validate-coupon', { code, amount });
     return res.data;
   },
 };

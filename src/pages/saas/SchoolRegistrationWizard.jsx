@@ -248,6 +248,60 @@ const SchoolRegistrationWizard = () => {
     }
   };
 
+  // Redirect to /configure with selected plan and school context
+  const handleSelectPackage = (plan) => {
+    if (!plan) return;
+    setSelectedPlanId(plan.id);
+    sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
+    sessionStorage.setItem('selected_billing_cycle', plan.billing_cycle || billingCycle);
+    sessionStorage.setItem(
+      'pending_registration_data',
+      JSON.stringify({
+        school: schoolForm,
+        campus: campusForm,
+        academicYear: academicForm,
+        admin: adminForm,
+      })
+    );
+    navigate('/configure', {
+      state: {
+        plan,
+        billingCycle: plan.billing_cycle || billingCycle,
+        school: schoolForm,
+        campus: campusForm,
+        academicYear: academicForm,
+        admin: adminForm,
+      },
+    });
+  };
+
+  // Redirect to /configure for Free Trial
+  const handleStartTrial = (plan) => {
+    if (!plan) return;
+    setSelectedPlanId(plan.id);
+    sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
+    sessionStorage.setItem('selected_billing_cycle', 'trial');
+    sessionStorage.setItem(
+      'pending_registration_data',
+      JSON.stringify({
+        school: schoolForm,
+        campus: campusForm,
+        academicYear: academicForm,
+        admin: adminForm,
+      })
+    );
+    navigate('/configure', {
+      state: {
+        plan,
+        billingCycle: 'trial',
+        school: schoolForm,
+        campus: campusForm,
+        academicYear: academicForm,
+        admin: adminForm,
+      },
+    });
+  };
+
   // Load available subscription plans for Step 5
   useEffect(() => {
     const fetchPlans = async () => {
@@ -1309,63 +1363,160 @@ const SchoolRegistrationWizard = () => {
                 </div>
               ) : (
                 <div className="row g-4">
-                  {/* Two Subscription Options: Monthly vs Annual Billing Toggle */}
-                  <div className="col-12 text-center mb-2">
-                    <div className="bg-light p-1.5 rounded-pill d-inline-flex border shadow-xs">
-                      <button
-                        type="button"
-                        className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
-                          billingCycle === 'monthly'
-                            ? 'btn-primary text-white shadow-sm'
-                            : 'btn-light text-dark'
-                        }`}
-                        onClick={() => handleCycleChange('monthly')}
-                      >
-                        <i className="ti ti-calendar me-1"></i> Monthly Subscription
-                      </button>
-                      <button
-                        type="button"
-                        className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
-                          billingCycle === 'annual'
-                            ? 'btn-primary text-white shadow-sm'
-                            : 'btn-light text-dark'
-                        }`}
-                        onClick={() => handleCycleChange('annual')}
-                      >
-                        <i className="ti ti-calendar-event me-1"></i> Annual Subscription
-                        <span className="badge bg-success text-white ms-2 fs-11">Save ~20%</span>
-                      </button>
-                    </div>
-                    <div className="text-muted fs-13 mt-2">
-                      Showing <strong>{billingCycle === 'monthly' ? 'Monthly' : 'Annual'}</strong> packages with live resource quotas.
-                    </div>
-                  </div>
+                  {/* 1. SEPARATE FREE TRIAL CARD (Not combined with subscription packages) */}
+                  {(() => {
+                    const trialPlan = plans.find(
+                      (p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0
+                    );
+                    if (!trialPlan) return null;
+                    const trialSms = getSmsAllocation(trialPlan);
+                    const trialPush = getPushAllocation(trialPlan);
 
-                  {/* Plan Cards Grid */}
-                  <div className="col-12">
+                    return (
+                      <div className="col-12 mb-3">
+                        <div
+                          className="card border-0 shadow-sm overflow-hidden transition-all hover-shadow"
+                          style={{
+                            background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 40%, #ffffff 100%)',
+                            border: '1.5px solid #a7f3d0',
+                            borderRadius: '16px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => setSelectedPlanId(trialPlan.id)}
+                        >
+                          <div className="card-body p-4 p-md-5">
+                            <div className="row align-items-center g-4">
+                              <div className="col-lg-7">
+                                <div className="d-inline-flex align-items-center gap-2 bg-success text-white rounded-pill px-3 py-1 fs-11 fw-bold mb-3 shadow-xs">
+                                  <i className="ti ti-sparkles"></i> 14-DAY FULL ACCESS EVALUATION • NO CREDIT CARD REQUIRED
+                                </div>
+                                <h4 className="fw-bold text-dark mb-2 fs-22">
+                                  {trialPlan.plan_name} — Experience GrowVidya Risk-Free
+                                </h4>
+                                <p className="text-muted fs-14 mb-3" style={{ maxWidth: '600px' }}>
+                                  Explore our full school management suite including mobile attendance, timetable routine, automated invoicing, exam management, and push alerts for 14 days without upfront commitment.
+                                </p>
+
+                                <div className="d-flex flex-wrap gap-2">
+                                  <div className="badge bg-white text-dark border px-3 py-2 fs-12 fw-semibold d-inline-flex align-items-center shadow-xs rounded-pill">
+                                    <i className="ti ti-bell-ringing text-success me-1.5 fs-15"></i>
+                                    <span>Push: <strong>{trialPush ? trialPush.label : '1,000 Push'}</strong></span>
+                                  </div>
+                                  <div className="badge bg-white text-dark border px-3 py-2 fs-12 fw-semibold d-inline-flex align-items-center shadow-xs rounded-pill">
+                                    <i className="ti ti-message-dots text-primary me-1.5 fs-15"></i>
+                                    <span>SMS: <strong>{trialSms ? trialSms.label : '500 SMS'}</strong></span>
+                                  </div>
+                                  <div className="badge bg-white text-dark border px-3 py-2 fs-12 fw-semibold d-inline-flex align-items-center shadow-xs rounded-pill">
+                                    <i className="ti ti-users text-primary me-1.5 fs-15"></i>
+                                    <span>Full Staff & Student Portal</span>
+                                  </div>
+                                  <div className="badge bg-white text-dark border px-3 py-2 fs-12 fw-semibold d-inline-flex align-items-center shadow-xs rounded-pill">
+                                    <i className="ti ti-shield-check text-success me-1.5 fs-15"></i>
+                                    <span>Zero Upfront Cost</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="col-lg-5 text-lg-end">
+                                <div className="bg-white p-4 rounded-3 border shadow-xs d-inline-block text-start w-100" style={{ maxWidth: '340px' }}>
+                                  <div className="d-flex justify-content-between align-items-baseline mb-1">
+                                    <span className="text-muted fs-13 fw-semibold">Evaluation License</span>
+                                    <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 fs-11 fw-bold">
+                                      100% FREE
+                                    </span>
+                                  </div>
+                                  <div className="d-flex align-items-baseline gap-1 mb-2">
+                                    <span className="fs-32 fw-bold text-success">₹0</span>
+                                    <span className="text-muted fs-13"> / 14 Days</span>
+                                  </div>
+                                  <p className="text-muted fs-12 mb-3">
+                                    Instant activation. Explore your institution portal and configure notifications immediately.
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedPlanId(trialPlan.id);
+                                    }}
+                                    className={`btn w-100 py-2.5 fw-semibold d-flex align-items-center justify-content-center shadow-sm ${
+                                      Number(selectedPlanId) === Number(trialPlan.id) ? 'btn-success text-white' : 'btn-outline-success'
+                                    }`}
+                                  >
+                                    <span>{Number(selectedPlanId) === Number(trialPlan.id) ? '✓ Free Trial Selected' : 'Select 14-Day Free Trial'}</span>
+                                    <i className="ti ti-check ms-2 fs-16"></i>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* 2. ALL-INCLUSIVE SUBSCRIPTION PACKAGES */}
+                  <div className="col-12 mt-2">
+                    <div className="text-center mb-4">
+                      <h4 className="fw-bold text-dark fs-22 mb-1">All-Inclusive Subscription Packages</h4>
+                      <p className="text-muted fs-14 mb-3">
+                        Select between Monthly and Annual billing options tailored for your institution scale.
+                      </p>
+
+                      {/* Billing Cycle Toggle */}
+                      <div className="bg-light p-1.5 rounded-pill d-inline-flex border shadow-xs">
+                        <button
+                          type="button"
+                          className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
+                            billingCycle === 'monthly'
+                              ? 'btn-primary text-white shadow-sm'
+                              : 'btn-light text-dark'
+                          }`}
+                          onClick={() => handleCycleChange('monthly')}
+                        >
+                          <i className="ti ti-calendar me-1"></i> Monthly Subscription
+                        </button>
+                        <button
+                          type="button"
+                          className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
+                            billingCycle === 'annual'
+                              ? 'btn-primary text-white shadow-sm'
+                              : 'btn-light text-dark'
+                          }`}
+                          onClick={() => handleCycleChange('annual')}
+                        >
+                          <i className="ti ti-calendar-event me-1"></i> Annual Subscription
+                          <span className="badge bg-success text-white ms-2 fs-11">Save ~20%</span>
+                        </button>
+                      </div>
+                      <div className="text-muted fs-13 mt-2">
+                        Showing <strong>{billingCycle === 'monthly' ? 'Monthly' : 'Annual'}</strong> packages with live database allocations.
+                      </div>
+                    </div>
+
+                    {/* Paid Plans 3-Column Grid */}
                     <div className="row g-4 justify-content-center align-items-stretch">
                       {plans
                         .filter((p) => p.billing_cycle === billingCycle)
                         .map((p) => {
                           const isSelected = Number(selectedPlanId) === Number(p.id);
-                          const isGrowth = (p.plan_code || '').toLowerCase().includes('growth');
-                          const isEnterprise = (p.plan_code || '').toLowerCase().includes('enterprise');
+                          const isGrowth = (p.plan_code || '').toLowerCase().includes('growth') || p.id === 2 || p.id === 8;
+                          const isEnterprise = (p.plan_code || '').toLowerCase().includes('enterprise') || p.id === 3 || p.id === 9;
                           const smsInfo = getSmsAllocation(p);
                           const pushInfo = getPushAllocation(p);
 
                           return (
                             <div key={p.id} className="col-12 col-md-6 col-xl-4 d-flex">
                               <div
-                                className={`card w-100 rounded-3 border-2 transition-all position-relative d-flex flex-column p-3.5 ${
+                                className={`card w-100 rounded-3 border-2 transition-all position-relative d-flex flex-column p-4 ${
                                   isSelected
                                     ? 'border-primary bg-primary-subtle shadow'
                                     : isGrowth
-                                    ? 'border-primary bg-white shadow-xs'
+                                    ? 'border-primary bg-white shadow-sm'
                                     : isEnterprise
                                     ? 'border-dark-subtle bg-white hover-shadow'
-                                    : 'border-200 bg-white hover-shadow'
+                                    : 'border-light-subtle bg-white hover-shadow'
                                 }`}
-                                style={{ cursor: 'pointer' }}
+                                style={{ cursor: 'pointer', borderRadius: '14px' }}
                                 onClick={() => setSelectedPlanId(p.id)}
                               >
                                 {isGrowth && (
@@ -1378,7 +1529,7 @@ const SchoolRegistrationWizard = () => {
                                 {isEnterprise && (
                                   <div className="position-absolute top-0 start-50 translate-middle">
                                     <span className="badge rounded-pill bg-dark px-3 py-1 fs-11 fw-bold shadow-sm">
-                                      ENTERPRISE GRADE
+                                      👑 ENTERPRISE GRADE
                                     </span>
                                   </div>
                                 )}
@@ -1390,19 +1541,15 @@ const SchoolRegistrationWizard = () => {
                                       {p.billing_cycle === 'annual' ? 'Annual License' : 'Monthly License'}
                                     </span>
                                   </div>
-                                  <input
-                                    type="radio"
-                                    name="selected_plan"
-                                    checked={isSelected}
-                                    onChange={() => setSelectedPlanId(p.id)}
-                                    className="form-check-input fs-18 mt-1"
-                                  />
+                                  <span className="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2.5 py-1 fs-11">
+                                    {billingCycle === 'annual' ? 'Annual' : 'Monthly'}
+                                  </span>
                                 </div>
 
                                 {/* Pricing */}
                                 <div className="my-2 pb-2 border-bottom">
                                   <div className="d-flex align-items-baseline gap-1">
-                                    <span className="fs-28 fw-bold text-dark">
+                                    <span className="fs-28 fw-bold text-primary">
                                       ₹{Number(p.price).toLocaleString('en-IN')}
                                     </span>
                                     <span className="text-muted fs-13 fw-semibold">
@@ -1505,208 +1652,30 @@ const SchoolRegistrationWizard = () => {
                                   </ul>
                                 </div>
 
-                                {/* Select Plan Button */}
+                                {/* Select & Configure Button */}
                                 <div className="mt-3 pt-2 border-top">
                                   <button
                                     type="button"
-                                    className={`btn btn-sm w-100 py-2 fw-semibold shadow-xs ${
-                                      isSelected ? 'btn-primary' : 'btn-outline-primary'
+                                    className={`btn w-100 py-2.5 fw-semibold shadow-xs d-flex align-items-center justify-content-center ${
+                                      isSelected
+                                        ? 'btn-primary'
+                                        : isGrowth
+                                        ? 'btn-outline-primary'
+                                        : 'btn-outline-secondary'
                                     }`}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setSelectedPlanId(p.id);
                                     }}
                                   >
-                                    {isSelected ? '✓ Plan Selected' : 'Select This Plan'}
+                                    <span>{isSelected ? '✓ Plan Selected' : `Select ${p.plan_name}`}</span>
+                                    <i className="ti ti-check ms-2 fs-15"></i>
                                   </button>
                                 </div>
                               </div>
                             </div>
                           );
                         })}
-                    </div>
-                  </div>
-
-                  {/* Dedicated 14-Day Free Evaluation Trial Option */}
-                  {(() => {
-                    const trialPlan = plans.find(
-                      (p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0
-                    );
-                    if (!trialPlan) return null;
-                    const isTrialSelected = Number(selectedPlanId) === Number(trialPlan.id);
-                    const trialSms = getSmsAllocation(trialPlan);
-                    const trialPush = getPushAllocation(trialPlan);
-
-                    return (
-                      <div className="col-12 mt-2">
-                        <div
-                          className={`p-3.5 rounded-3 border-2 transition-all ${
-                            isTrialSelected
-                              ? 'border-success bg-success-subtle shadow-sm'
-                              : 'border-light-subtle bg-white hover-shadow'
-                          }`}
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => setSelectedPlanId(trialPlan.id)}
-                        >
-                          <div className="d-flex flex-wrap align-items-center justify-content-between gap-3">
-                            <div className="d-flex align-items-center gap-3">
-                              <input
-                                type="radio"
-                                name="selected_plan"
-                                checked={isTrialSelected}
-                                onChange={() => setSelectedPlanId(trialPlan.id)}
-                                className="form-check-input fs-18 m-0"
-                              />
-                              <div>
-                                <div className="d-flex align-items-center gap-2">
-                                  <h6 className="fw-bold text-dark mb-0 fs-16">
-                                    {trialPlan.plan_name} (Free Evaluation)
-                                  </h6>
-                                  <span className="badge bg-success text-white px-2 py-0.5 fs-11">
-                                    14-DAY FULL ACCESS
-                                  </span>
-                                </div>
-                                <p className="text-muted fs-13 mb-0 mt-1">
-                                  Evaluate GrowVidya with your staff and students for 14 days without upfront commitment.
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="d-flex flex-wrap align-items-center gap-3">
-                              <div className="d-flex align-items-center gap-2 bg-white px-3 py-1.5 rounded border fs-12">
-                                <i className="ti ti-bell-ringing text-success fs-15"></i>
-                                <span>
-                                  Push: <strong>{trialPush ? trialPush.label : '1,000 Notifications'}</strong>
-                                </span>
-                              </div>
-                              <div className="d-flex align-items-center gap-2 bg-white px-3 py-1.5 rounded border fs-12">
-                                <i className="ti ti-message-dots text-primary fs-15"></i>
-                                <span>
-                                  SMS: <strong>{trialSms ? trialSms.label : '500 SMS'}</strong>
-                                </span>
-                              </div>
-                              <div className="text-end">
-                                <span className="fs-22 fw-bold text-success">FREE</span>
-                                <span className="text-muted fs-11 d-block">/ 14 Days</span>
-                              </div>
-                              <button
-                                type="button"
-                                className={`btn btn-sm px-3 py-2 fw-semibold ${
-                                  isTrialSelected ? 'btn-success' : 'btn-outline-success'
-                                }`}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedPlanId(trialPlan.id);
-                                }}
-                              >
-                                {isTrialSelected ? '✓ Trial Selected' : 'Choose Free Trial'}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Payment Gateway Option (only if a paid plan is selected) */}
-                  {(() => {
-                    const sel = plans.find((p) => p.id === Number(selectedPlanId));
-                    if (!sel || parseFloat(sel.price) <= 0) return null;
-
-                    return (
-                      <div className="col-12">
-                        <div className="bg-light p-3.5 rounded-3 border">
-                          <h6 className="fw-bold text-dark mb-3 d-flex align-items-center fs-14">
-                            <i className="ti ti-credit-card me-2 text-primary"></i>
-                            Payment Gateway
-                          </h6>
-                          <div className="row g-3">
-                            <div className="col-12">
-                              <label
-                                className="d-flex align-items-center p-3 border border-primary rounded-3 w-100 mb-0 bg-white shadow-xs"
-                                style={{ cursor: 'pointer' }}
-                              >
-                                <input
-                                  type="radio"
-                                  name="reg_payment_gateway"
-                                  value="razorpay"
-                                  checked={true}
-                                  readOnly
-                                  className="form-check-input me-3"
-                                />
-                                <div>
-                                  <div className="fw-semibold text-dark fs-13">
-                                    Online Instant Checkout (Razorpay)
-                                  </div>
-                                  <div className="text-muted fs-11">
-                                    Pay via UPI, Cards, or NetBanking for immediate activation
-                                  </div>
-                                </div>
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {/* Summary Callout Banner */}
-                  <div className="col-12">
-                    <div className="p-3 bg-white border rounded-3 shadow-xs">
-                      <div className="row align-items-center g-3">
-                        <div className="col-12 col-md-8">
-                          <div className="text-muted fs-12 mb-1">Registration Summary:</div>
-                          <div className="fw-bold text-dark fs-15">
-                            {schoolForm.school_name || 'Your School'} &nbsp;•&nbsp;{' '}
-                            <span className="text-primary">
-                              {plans.find((p) => p.id === Number(selectedPlanId))?.plan_name ||
-                                '14-Day Free Trial'}
-                            </span>{' '}
-                            <span className="badge bg-light text-dark border ms-1 fs-11">
-                              {(() => {
-                                const sel = plans.find((p) => p.id === Number(selectedPlanId));
-                                if (!sel) return '';
-                                if (sel.billing_cycle === 'trial' || parseFloat(sel.price) === 0)
-                                  return '14-Day Evaluation';
-                                return sel.billing_cycle === 'annual'
-                                  ? 'Annual Subscription'
-                                  : 'Monthly Subscription';
-                              })()}
-                            </span>
-                          </div>
-                          {(() => {
-                            const sel = plans.find((p) => p.id === Number(selectedPlanId));
-                            const selSms = sel ? getSmsAllocation(sel) : null;
-                            const selPush = sel ? getPushAllocation(sel) : null;
-                            return (
-                              <div className="text-muted fs-12 mt-1 d-flex flex-wrap align-items-center gap-3">
-                                <span>Super Admin: <strong>{adminForm.email || '-'}</strong></span>
-                                {selPush && (
-                                  <span>
-                                    Push: <strong>{selPush.label}</strong>
-                                  </span>
-                                )}
-                                {selSms && (
-                                  <span>
-                                    SMS: <strong>{selSms.label}</strong>
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                        <div className="col-12 col-md-4 text-md-end">
-                          <div className="text-muted fs-12">Total Due Today:</div>
-                          <div className="fs-22 fw-bold text-success">
-                            {(() => {
-                              const sel = plans.find((p) => p.id === Number(selectedPlanId));
-                              return sel && parseFloat(sel.price) > 0
-                                ? `₹${Number(sel.price).toLocaleString('en-IN')}`
-                                : '₹0 (Free Trial)';
-                            })()}
-                          </div>
-                        </div>
-                      </div>
                     </div>
                   </div>
                 </div>
