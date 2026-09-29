@@ -229,12 +229,46 @@ const SchoolRegistrationWizard = () => {
     };
   };
 
+  // 14-Day Free Trial Plan (common to both monthly & annual)
+  const trialPlan =
+    plans.find((p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0) || {
+      id: 'trial_default',
+      plan_name: '14-Day Free Trial',
+      plan_code: 'TRIAL_14',
+      description: 'Complete platform evaluation for your administrative staff and teachers.',
+      price: 0,
+      billing_cycle: 'trial',
+      duration_days: 14,
+      max_students: 1000,
+      max_teachers: 100,
+      max_branches: 1,
+      items: [
+        { id: 't_sms', item_name: 'Transactional SMS', item_code: 'SMS_ALERT', item_type: 'included', quota_limit: 500, price: 0 },
+        { id: 't_push', item_name: 'Push Notifications', item_code: 'PUSH_NOTIF', item_type: 'included', quota_limit: 1000, price: 0 },
+      ],
+    };
+
+  const trialSms = getSmsAllocation(trialPlan);
+  const trialPush = getPushAllocation(trialPlan);
+
+  // Filter paid plans for selected billing cycle
+  const currentPaidPlans = plans.filter((p) => {
+    const isTrial = p.billing_cycle === 'trial' || parseFloat(p.price) === 0;
+    return !isTrial && p.billing_cycle === billingCycle;
+  });
+
   // Toggle Billing Cycle between Monthly and Annual
   const handleCycleChange = (newCycle) => {
     setBillingCycle(newCycle);
-    const cyclePlans = plans.filter((p) => p.billing_cycle === newCycle);
+    if (String(selectedPlanId) === String(trialPlan.id) || selectedPlanId === 'trial_default') {
+      return; // Keep trial selected as it is common to both options
+    }
+    const currentSelected = plans.find((p) => String(p.id) === String(selectedPlanId));
+    if (currentSelected && (currentSelected.billing_cycle === 'trial' || parseFloat(currentSelected.price) === 0)) {
+      return;
+    }
+    const cyclePlans = plans.filter((p) => p.billing_cycle === newCycle && parseFloat(p.price) > 0);
     if (cyclePlans.length > 0) {
-      const currentSelected = plans.find((p) => p.id === Number(selectedPlanId));
       if (currentSelected) {
         const match = cyclePlans.find(
           (p) => p.plan_name?.toLowerCase().trim() === currentSelected.plan_name?.toLowerCase().trim()
@@ -469,16 +503,19 @@ const SchoolRegistrationWizard = () => {
       return;
     }
 
-    const selectedPlan = plans.find((p) => p.id === Number(selectedPlanId)) || plans[0];
+    const selectedPlan =
+      plans.find((p) => String(p.id) === String(selectedPlanId)) ||
+      (String(selectedPlanId) === String(trialPlan.id) ? trialPlan : plans[0]);
     if (!selectedPlan) {
       toast.error('Please select a subscription plan to complete registration.');
       return;
     }
 
     const isTrialSelected =
+      String(selectedPlan.id) === String(trialPlan.id) ||
       selectedPlan.billing_cycle === 'trial' ||
       parseFloat(selectedPlan.price) === 0 ||
-      (selectedPlan.plan_code || '').includes('trial');
+      (selectedPlan.plan_code || '').toLowerCase().includes('trial');
 
     const basePayload = {
       planId: selectedPlan.id,
@@ -1362,321 +1399,345 @@ const SchoolRegistrationWizard = () => {
                   <div className="text-muted">Loading available subscription packages...</div>
                 </div>
               ) : (
-                <div className="row g-4">
-                  {/* 1. SEPARATE FREE TRIAL CARD (Not combined with subscription packages) */}
-                  {(() => {
-                    const trialPlan = plans.find(
-                      (p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0
-                    );
-                    if (!trialPlan) return null;
-                    const trialSms = getSmsAllocation(trialPlan);
-                    const trialPush = getPushAllocation(trialPlan);
+                <div>
+                  {/* Billing Cycle Toggle */}
+                  <div className="text-center mb-4">
+                    <div className="bg-light p-1.5 rounded-pill d-inline-flex border shadow-xs">
+                      <button
+                        type="button"
+                        className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
+                          billingCycle === 'monthly'
+                            ? 'btn-primary text-white shadow-sm'
+                            : 'btn-light text-dark'
+                        }`}
+                        onClick={() => handleCycleChange('monthly')}
+                      >
+                        <i className="ti ti-calendar me-1"></i> Monthly Subscription
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
+                          billingCycle === 'annual'
+                            ? 'btn-primary text-white shadow-sm'
+                            : 'btn-light text-dark'
+                        }`}
+                        onClick={() => handleCycleChange('annual')}
+                      >
+                        <i className="ti ti-calendar-event me-1"></i> Annual Subscription
+                        <span className="badge bg-success text-white ms-2 fs-11">Save ~20%</span>
+                      </button>
+                    </div>
+                    <div className="text-muted fs-13 mt-2">
+                      Showing <strong>{billingCycle === 'monthly' ? 'Monthly' : 'Annual'}</strong> packages. The <strong>14-Day Free Trial</strong> is available under both options.
+                    </div>
+                  </div>
 
-                    return (
-                      <div className="col-12 mb-3">
-                        <div
-                          className="card border-0 shadow-sm overflow-hidden transition-all hover-shadow"
-                          style={{
-                            background: 'linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 40%, #ffffff 100%)',
-                            border: '1.5px solid #a7f3d0',
-                            borderRadius: '16px',
-                            cursor: 'pointer',
-                          }}
-                          onClick={() => setSelectedPlanId(trialPlan.id)}
-                        >
-                          <div className="card-body p-4 p-md-5">
-                            <div className="row align-items-center g-4">
-                              <div className="col-lg-7">
-                                <div className="d-inline-flex align-items-center gap-2 bg-success text-white rounded-pill px-3 py-1 fs-11 fw-bold mb-3 shadow-xs">
-                                  <i className="ti ti-sparkles"></i> 14-DAY FULL ACCESS EVALUATION • NO CREDIT CARD REQUIRED
-                                </div>
-                                <h4 className="fw-bold text-dark mb-2 fs-22">
-                                  {trialPlan.plan_name} — Experience GrowVidya Risk-Free
-                                </h4>
-                                <p className="text-muted fs-14 mb-3" style={{ maxWidth: '600px' }}>
-                                  Explore our full school management suite including mobile attendance, timetable routine, automated invoicing, exam management, and push alerts for 14 days without upfront commitment.
+                  {/* 4 Pricing Cards in a Unified Row */}
+                  <div className="row g-4 justify-content-center align-items-stretch pt-3">
+                    {/* CARD 1: 14-DAY FREE TRIAL (Always shown under both Monthly and Annual) */}
+                    {trialPlan && (() => {
+                      const isTrialSelected =
+                        String(selectedPlanId) === String(trialPlan.id) ||
+                        selectedPlanId === 'trial_default';
+
+                      return (
+                        <div className="col-12 col-md-6 col-xl-3 d-flex">
+                          <div
+                            className={`card w-100 border-2 rounded-4 transition-all position-relative d-flex flex-column ${
+                              isTrialSelected
+                                ? 'border-success shadow bg-success-subtle bg-opacity-10'
+                                : 'border-success-subtle bg-white shadow-xs'
+                            }`}
+                            style={{ cursor: 'pointer', borderRadius: '16px' }}
+                            onClick={() => setSelectedPlanId(trialPlan.id)}
+                          >
+                            {/* Top Badge */}
+                            <div className="position-absolute top-0 start-50 translate-middle">
+                              <span className="badge rounded-pill bg-success text-white px-3 py-1.5 fs-11 fw-bold shadow-sm text-uppercase">
+                                ✨ 14-Day Free Trial
+                              </span>
+                            </div>
+
+                            <div className="card-body p-4 d-flex flex-column">
+                              <div className="mb-2">
+                                <h5 className="fw-bold text-dark mb-1 fs-18">{trialPlan.plan_name}</h5>
+                                <p className="text-muted fs-13 mb-0" style={{ minHeight: '44px' }}>
+                                  {trialPlan.description}
                                 </p>
+                              </div>
 
-                                <div className="d-flex flex-wrap gap-2">
-                                  <div className="badge bg-white text-dark border px-3 py-2 fs-12 fw-semibold d-inline-flex align-items-center shadow-xs rounded-pill">
-                                    <i className="ti ti-bell-ringing text-success me-1.5 fs-15"></i>
-                                    <span>Push: <strong>{trialPush ? trialPush.label : '1,000 Push'}</strong></span>
-                                  </div>
-                                  <div className="badge bg-white text-dark border px-3 py-2 fs-12 fw-semibold d-inline-flex align-items-center shadow-xs rounded-pill">
-                                    <i className="ti ti-message-dots text-primary me-1.5 fs-15"></i>
-                                    <span>SMS: <strong>{trialSms ? trialSms.label : '500 SMS'}</strong></span>
-                                  </div>
-                                  <div className="badge bg-white text-dark border px-3 py-2 fs-12 fw-semibold d-inline-flex align-items-center shadow-xs rounded-pill">
-                                    <i className="ti ti-users text-primary me-1.5 fs-15"></i>
-                                    <span>Full Staff & Student Portal</span>
-                                  </div>
-                                  <div className="badge bg-white text-dark border px-3 py-2 fs-12 fw-semibold d-inline-flex align-items-center shadow-xs rounded-pill">
-                                    <i className="ti ti-shield-check text-success me-1.5 fs-15"></i>
-                                    <span>Zero Upfront Cost</span>
-                                  </div>
+                              {/* Price Display */}
+                              <div className="my-3 pb-3 border-bottom">
+                                <div className="d-flex align-items-baseline gap-1">
+                                  <span className="display-6 fw-bold text-success">₹0</span>
+                                  <span className="text-muted fs-13 fw-semibold">/ 14 days access</span>
+                                </div>
+                                <div className="mt-1">
+                                  <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 fs-11 fw-semibold">
+                                    <i className="ti ti-check me-1"></i> No Credit Card Required
+                                  </span>
                                 </div>
                               </div>
 
-                              <div className="col-lg-5 text-lg-end">
-                                <div className="bg-white p-4 rounded-3 border shadow-xs d-inline-block text-start w-100" style={{ maxWidth: '340px' }}>
-                                  <div className="d-flex justify-content-between align-items-baseline mb-1">
-                                    <span className="text-muted fs-13 fw-semibold">Evaluation License</span>
-                                    <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 fs-11 fw-bold">
-                                      100% FREE
+                              {/* Features & Quotas */}
+                              <div className="mb-4 flex-grow-1">
+                                <div className="fw-semibold text-dark fs-12 mb-3 text-uppercase">Features & Quotas:</div>
+                                <ul className="list-unstyled fs-13 mb-0 d-flex flex-column gap-2">
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-users text-primary me-2 fs-16"></i>
+                                    <span>
+                                      <strong>{trialPlan.max_students > 0 ? `Up to ${trialPlan.max_students.toLocaleString()}` : 'Full'}</strong> Students
                                     </span>
-                                  </div>
-                                  <div className="d-flex align-items-baseline gap-1 mb-2">
-                                    <span className="fs-32 fw-bold text-success">₹0</span>
-                                    <span className="text-muted fs-13"> / 14 Days</span>
-                                  </div>
-                                  <p className="text-muted fs-12 mb-3">
-                                    Instant activation. Explore your institution portal and configure notifications immediately.
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedPlanId(trialPlan.id);
-                                    }}
-                                    className={`btn w-100 py-2.5 fw-semibold d-flex align-items-center justify-content-center shadow-sm ${
-                                      Number(selectedPlanId) === Number(trialPlan.id) ? 'btn-success text-white' : 'btn-outline-success'
-                                    }`}
-                                  >
-                                    <span>{Number(selectedPlanId) === Number(trialPlan.id) ? '✓ Free Trial Selected' : 'Select 14-Day Free Trial'}</span>
-                                    <i className="ti ti-check ms-2 fs-16"></i>
-                                  </button>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-user-check text-primary me-2 fs-16"></i>
+                                    <span>
+                                      <strong>{trialPlan.max_teachers > 0 ? `Up to ${trialPlan.max_teachers.toLocaleString()}` : 'Full'}</strong> Staff & Teachers
+                                    </span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
+                                    <span>
+                                      <strong>{trialSms ? trialSms.label : '500 SMS Included'}</strong>
+                                    </span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-bell-ringing text-success me-2 fs-16"></i>
+                                    <span>
+                                      <strong>{trialPush ? trialPush.label : '1,000 Push Notifications'}</strong>
+                                    </span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-check text-success me-2 fs-16"></i>
+                                    <span>Attendance & Routine Engine</span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-check text-success me-2 fs-16"></i>
+                                    <span>Parent & Student Portal</span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-check text-success me-2 fs-16"></i>
+                                    <span>Fee Structures & Invoicing</span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-sparkles text-success me-2 fs-16"></i>
+                                    <span>14-Day Full Platform Access</span>
+                                  </li>
+                                </ul>
+                              </div>
+
+                              {/* Card Action Button */}
+                              <div className="d-flex flex-column mt-auto pt-2">
+                                <button
+                                  type="button"
+                                  className={`btn w-100 py-2.5 fw-semibold d-flex align-items-center justify-content-center shadow-xs ${
+                                    isTrialSelected ? 'btn-success text-white' : 'btn-outline-success'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPlanId(trialPlan.id);
+                                  }}
+                                >
+                                  <span>{isTrialSelected ? '✓ Free Trial Selected' : 'Select 14-Day Free Trial'}</span>
+                                  <i className="ti ti-check ms-2 fs-15"></i>
+                                </button>
+                                <div className="text-center text-muted fs-11 mt-1">
+                                  Instant Access • No Card Needed
                                 </div>
                               </div>
                             </div>
                           </div>
                         </div>
-                      </div>
-                    );
-                  })()}
+                      );
+                    })()}
 
-                  {/* 2. ALL-INCLUSIVE SUBSCRIPTION PACKAGES */}
-                  <div className="col-12 mt-2">
-                    <div className="text-center mb-4">
-                      <h4 className="fw-bold text-dark fs-22 mb-1">All-Inclusive Subscription Packages</h4>
-                      <p className="text-muted fs-14 mb-3">
-                        Select between Monthly and Annual billing options tailored for your institution scale.
-                      </p>
+                    {/* CARDS 2, 3, 4: PAID PLANS (Starter, Growth, Enterprise for current billing cycle) */}
+                    {currentPaidPlans.map((p) => {
+                      const isSelected = String(selectedPlanId) === String(p.id);
+                      const isGrowth = (p.plan_code || '').toLowerCase().includes('growth') || p.id === 2 || p.id === 8;
+                      const isEnterprise = (p.plan_code || '').toLowerCase().includes('enterprise') || p.id === 3 || p.id === 9;
+                      const smsInfo = getSmsAllocation(p);
+                      const pushInfo = getPushAllocation(p);
 
-                      {/* Billing Cycle Toggle */}
-                      <div className="bg-light p-1.5 rounded-pill d-inline-flex border shadow-xs">
-                        <button
-                          type="button"
-                          className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
-                            billingCycle === 'monthly'
-                              ? 'btn-primary text-white shadow-sm'
-                              : 'btn-light text-dark'
-                          }`}
-                          onClick={() => handleCycleChange('monthly')}
-                        >
-                          <i className="ti ti-calendar me-1"></i> Monthly Subscription
-                        </button>
-                        <button
-                          type="button"
-                          className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
-                            billingCycle === 'annual'
-                              ? 'btn-primary text-white shadow-sm'
-                              : 'btn-light text-dark'
-                          }`}
-                          onClick={() => handleCycleChange('annual')}
-                        >
-                          <i className="ti ti-calendar-event me-1"></i> Annual Subscription
-                          <span className="badge bg-success text-white ms-2 fs-11">Save ~20%</span>
-                        </button>
-                      </div>
-                      <div className="text-muted fs-13 mt-2">
-                        Showing <strong>{billingCycle === 'monthly' ? 'Monthly' : 'Annual'}</strong> packages with live database allocations.
-                      </div>
-                    </div>
+                      return (
+                        <div key={p.id} className="col-12 col-md-6 col-xl-3 d-flex">
+                          <div
+                            className={`card w-100 border-2 rounded-4 transition-all position-relative d-flex flex-column ${
+                              isSelected
+                                ? 'border-primary shadow bg-primary-subtle bg-opacity-10'
+                                : isGrowth
+                                ? 'border-primary bg-white shadow-xs'
+                                : isEnterprise
+                                ? 'border-dark-subtle bg-white shadow-xs'
+                                : 'border-light-subtle bg-white shadow-xs'
+                            }`}
+                            style={{ cursor: 'pointer', borderRadius: '16px' }}
+                            onClick={() => setSelectedPlanId(p.id)}
+                          >
+                            {/* Top Badges */}
+                            {isGrowth && (
+                              <div className="position-absolute top-0 start-50 translate-middle">
+                                <span className="badge rounded-pill bg-primary text-white px-3 py-1.5 fs-11 fw-bold shadow-sm text-uppercase">
+                                  ★ Most Popular
+                                </span>
+                              </div>
+                            )}
+                            {isEnterprise && (
+                              <div className="position-absolute top-0 start-50 translate-middle">
+                                <span className="badge rounded-pill bg-dark text-white px-3 py-1.5 fs-11 fw-bold shadow-sm text-uppercase">
+                                  👑 Enterprise Grade
+                                </span>
+                              </div>
+                            )}
+                            {!isGrowth && !isEnterprise && (
+                              <div className="position-absolute top-0 start-50 translate-middle">
+                                <span className="badge rounded-pill bg-light text-secondary border px-3 py-1.5 fs-11 fw-semibold text-uppercase">
+                                  Starter Tier
+                                </span>
+                              </div>
+                            )}
 
-                    {/* Paid Plans 3-Column Grid */}
-                    <div className="row g-4 justify-content-center align-items-stretch">
-                      {plans
-                        .filter((p) => p.billing_cycle === billingCycle)
-                        .map((p) => {
-                          const isSelected = Number(selectedPlanId) === Number(p.id);
-                          const isGrowth = (p.plan_code || '').toLowerCase().includes('growth') || p.id === 2 || p.id === 8;
-                          const isEnterprise = (p.plan_code || '').toLowerCase().includes('enterprise') || p.id === 3 || p.id === 9;
-                          const smsInfo = getSmsAllocation(p);
-                          const pushInfo = getPushAllocation(p);
-
-                          return (
-                            <div key={p.id} className="col-12 col-md-6 col-xl-4 d-flex">
-                              <div
-                                className={`card w-100 rounded-3 border-2 transition-all position-relative d-flex flex-column p-4 ${
-                                  isSelected
-                                    ? 'border-primary bg-primary-subtle shadow'
-                                    : isGrowth
-                                    ? 'border-primary bg-white shadow-sm'
-                                    : isEnterprise
-                                    ? 'border-dark-subtle bg-white hover-shadow'
-                                    : 'border-light-subtle bg-white hover-shadow'
-                                }`}
-                                style={{ cursor: 'pointer', borderRadius: '14px' }}
-                                onClick={() => setSelectedPlanId(p.id)}
-                              >
-                                {isGrowth && (
-                                  <div className="position-absolute top-0 start-50 translate-middle">
-                                    <span className="badge rounded-pill bg-primary px-3 py-1 fs-11 fw-bold shadow-sm">
-                                      ★ MOST POPULAR
-                                    </span>
-                                  </div>
-                                )}
-                                {isEnterprise && (
-                                  <div className="position-absolute top-0 start-50 translate-middle">
-                                    <span className="badge rounded-pill bg-dark px-3 py-1 fs-11 fw-bold shadow-sm">
-                                      👑 ENTERPRISE GRADE
-                                    </span>
-                                  </div>
-                                )}
-
-                                <div className="d-flex justify-content-between align-items-start mb-2 mt-1">
-                                  <div>
-                                    <h5 className="fw-bold text-dark mb-1 fs-18">{p.plan_name}</h5>
-                                    <span className="badge bg-light text-secondary border px-2 py-1 fs-11">
-                                      {p.billing_cycle === 'annual' ? 'Annual License' : 'Monthly License'}
-                                    </span>
-                                  </div>
-                                  <span className="badge bg-primary-subtle text-primary border border-primary-subtle rounded-pill px-2.5 py-1 fs-11">
-                                    {billingCycle === 'annual' ? 'Annual' : 'Monthly'}
-                                  </span>
-                                </div>
-
-                                {/* Pricing */}
-                                <div className="my-2 pb-2 border-bottom">
-                                  <div className="d-flex align-items-baseline gap-1">
-                                    <span className="fs-28 fw-bold text-primary">
-                                      ₹{Number(p.price).toLocaleString('en-IN')}
-                                    </span>
-                                    <span className="text-muted fs-13 fw-semibold">
-                                      / {p.billing_cycle === 'annual' ? 'year' : 'month'}
-                                    </span>
-                                  </div>
-                                </div>
-
-                                {/* Description */}
-                                <p className="text-muted fs-13 mb-3" style={{ minHeight: '38px' }}>
+                            <div className="card-body p-4 d-flex flex-column">
+                              <div className="mb-2">
+                                <h5 className="fw-bold text-dark mb-1 fs-18">{p.plan_name}</h5>
+                                <p className="text-muted fs-13 mb-0" style={{ minHeight: '44px' }}>
                                   {p.description}
                                 </p>
+                              </div>
 
-                                {/* Resource Allocation Box (SMS & Push Notifications) */}
-                                <div className="p-3 rounded-3 border bg-light mb-3">
-                                  <div className="fw-semibold text-dark fs-12 mb-2 text-uppercase d-flex align-items-center">
-                                    <i className="ti ti-chart-arrows me-1 text-primary"></i> Resource Allocations
-                                  </div>
-
-                                  {/* SMS Allocation */}
-                                  <div className="d-flex align-items-center gap-2 py-1 fs-13">
-                                    <i className="ti ti-message-dots text-primary fs-17"></i>
-                                    <div>
-                                      <span className="text-muted">SMS Allocation:</span>{' '}
-                                      <strong className="text-dark">
-                                        {smsInfo ? smsInfo.label : 'Not Included'}
-                                      </strong>
-                                    </div>
-                                  </div>
-
-                                  {/* Push Notification Allocation */}
-                                  <div className="d-flex align-items-center gap-2 py-1 fs-13">
-                                    <i className="ti ti-bell-ringing text-success fs-17"></i>
-                                    <div>
-                                      <span className="text-muted">Push Notification:</span>{' '}
-                                      <strong className="text-dark">
-                                        {pushInfo ? pushInfo.label : 'Not Included'}
-                                      </strong>
-                                    </div>
-                                  </div>
+                              {/* Price Display */}
+                              <div className="my-3 pb-3 border-bottom">
+                                <div className="d-flex align-items-baseline gap-1">
+                                  <span className={`display-6 fw-bold ${isGrowth ? 'text-primary' : 'text-dark'}`}>
+                                    ₹{Number(p.price).toLocaleString('en-IN')}
+                                  </span>
+                                  <span className="text-muted fs-13 fw-semibold">
+                                    / {p.billing_cycle === 'annual' ? 'year' : 'month'}
+                                  </span>
                                 </div>
-
-                                {/* Included Features & Capacity */}
-                                <div className="border-top pt-2.5 fs-13 text-secondary flex-grow-1">
-                                  <div className="fw-semibold text-dark fs-12 mb-2 text-uppercase">
-                                    Included Features & Capacity:
-                                  </div>
-                                  <ul className="list-unstyled mb-0">
-                                    <li className="d-flex align-items-center py-1">
-                                      <i className="ti ti-users text-primary me-2 fs-16"></i>
-                                      <span>
-                                        <strong>{p.max_students > 0 ? `${p.max_students.toLocaleString()}` : 'Unlimited'}</strong> Students
-                                      </span>
-                                    </li>
-                                    <li className="d-flex align-items-center py-1">
-                                      <i className="ti ti-user-check text-primary me-2 fs-16"></i>
-                                      <span>
-                                        <strong>{p.max_teachers > 0 ? `${p.max_teachers.toLocaleString()}` : 'Unlimited'}</strong> Staff & Teachers
-                                      </span>
-                                    </li>
-                                    <li className="d-flex align-items-center py-1">
-                                      <i className="ti ti-check text-success me-2 fs-16"></i>
-                                      <span>Attendance & Class Routine</span>
-                                    </li>
-                                    <li className="d-flex align-items-center py-1">
-                                      <i className="ti ti-check text-success me-2 fs-16"></i>
-                                      <span>Student & Parent Mobile Portal</span>
-                                    </li>
-                                    <li className="d-flex align-items-center py-1">
-                                      <i className="ti ti-check text-success me-2 fs-16"></i>
-                                      <span>Fee Structures & Invoicing</span>
-                                    </li>
-                                    {/* Other plan items from database */}
-                                    {(p.items || [])
-                                      .filter(
-                                        (it) =>
-                                          it.item_code !== 'PUSH_NOTIF' &&
-                                          !it.item_code?.toUpperCase().includes('SMS') &&
-                                          it.item_code !== 'EMAIL_ALERTS'
-                                      )
-                                      .map((it) => (
-                                        <li key={it.id} className="d-flex align-items-center py-1">
-                                          <i
-                                            className={`ti ${
-                                              it.item_type === 'included' || parseFloat(it.price) === 0
-                                                ? 'ti-check text-success'
-                                                : 'ti-plus text-primary'
-                                            } me-2 fs-16`}
-                                          ></i>
-                                          <span>
-                                            {it.item_name}{' '}
-                                            {it.item_type === 'addon' && parseFloat(it.price) > 0 && (
-                                              <span className="text-muted">
-                                                (Add-on: ₹{Number(it.price).toLocaleString('en-IN')})
-                                              </span>
-                                            )}
-                                          </span>
-                                        </li>
-                                      ))}
-                                  </ul>
-                                </div>
-
-                                {/* Select & Configure Button */}
-                                <div className="mt-3 pt-2 border-top">
-                                  <button
-                                    type="button"
-                                    className={`btn w-100 py-2.5 fw-semibold shadow-xs d-flex align-items-center justify-content-center ${
-                                      isSelected
-                                        ? 'btn-primary'
-                                        : isGrowth
-                                        ? 'btn-outline-primary'
-                                        : 'btn-outline-secondary'
+                                <div className="mt-1">
+                                  <span
+                                    className={`badge border rounded-pill px-2.5 py-1 fs-11 fw-semibold ${
+                                      isGrowth
+                                        ? 'bg-primary-subtle text-primary border-primary-subtle'
+                                        : 'bg-light text-secondary border-light-subtle'
                                     }`}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSelectedPlanId(p.id);
-                                    }}
                                   >
-                                    <span>{isSelected ? '✓ Plan Selected' : `Select ${p.plan_name}`}</span>
-                                    <i className="ti ti-check ms-2 fs-15"></i>
-                                  </button>
+                                    <i className="ti ti-shield-check me-1"></i>
+                                    {p.billing_cycle === 'annual' ? 'Annual School License' : 'Monthly School License'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Features & Quotas */}
+                              <div className="mb-4 flex-grow-1">
+                                <div className="fw-semibold text-dark fs-12 mb-3 text-uppercase">Features & Quotas:</div>
+                                <ul className="list-unstyled fs-13 mb-0 d-flex flex-column gap-2">
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-users text-primary me-2 fs-16"></i>
+                                    <span>
+                                      <strong>{p.max_students > 0 ? `Up to ${p.max_students.toLocaleString()}` : 'Unlimited'}</strong> Students
+                                    </span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-user-check text-primary me-2 fs-16"></i>
+                                    <span>
+                                      <strong>{p.max_teachers > 0 ? `Up to ${p.max_teachers.toLocaleString()}` : 'Unlimited'}</strong> Staff & Teachers
+                                    </span>
+                                  </li>
+                                  {smsInfo && (
+                                    <li className="d-flex align-items-center">
+                                      <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
+                                      <span>
+                                        <strong>{smsInfo.label}</strong>
+                                      </span>
+                                    </li>
+                                  )}
+                                  {pushInfo && (
+                                    <li className="d-flex align-items-center">
+                                      <i className="ti ti-bell-ringing text-success me-2 fs-16"></i>
+                                      <span>
+                                        <strong>{pushInfo.label}</strong>
+                                      </span>
+                                    </li>
+                                  )}
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-check text-success me-2 fs-16"></i>
+                                    <span>Attendance & Class Routine</span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-check text-success me-2 fs-16"></i>
+                                    <span>Student & Parent Mobile Portal</span>
+                                  </li>
+                                  <li className="d-flex align-items-center">
+                                    <i className="ti ti-check text-success me-2 fs-16"></i>
+                                    <span>Fee Structures & Invoicing</span>
+                                  </li>
+                                  {(p.items || [])
+                                    .filter(
+                                      (it) =>
+                                        it.item_code !== 'PUSH_NOTIF' &&
+                                        !it.item_code?.toUpperCase().includes('SMS') &&
+                                        it.item_code !== 'EMAIL_ALERTS'
+                                    )
+                                    .map((it) => (
+                                      <li key={it.id} className="d-flex align-items-center">
+                                        <i
+                                          className={`ti ${
+                                            it.item_type === 'included' || parseFloat(it.price) === 0
+                                              ? 'ti-check text-success'
+                                              : 'ti-plus text-primary'
+                                          } me-2 fs-16`}
+                                        ></i>
+                                        <span>
+                                          {it.item_name}{' '}
+                                          {it.item_type === 'addon' && parseFloat(it.price) > 0 && (
+                                            <span className="text-muted">
+                                              (Add-on: ₹{Number(it.price).toLocaleString('en-IN')})
+                                            </span>
+                                          )}
+                                        </span>
+                                      </li>
+                                    ))}
+                                </ul>
+                              </div>
+
+                              {/* Card Action Button */}
+                              <div className="d-flex flex-column mt-auto pt-2">
+                                <button
+                                  type="button"
+                                  className={`btn w-100 py-2.5 fw-semibold shadow-xs d-flex align-items-center justify-content-center ${
+                                    isSelected
+                                      ? isGrowth
+                                        ? 'btn-primary'
+                                        : isEnterprise
+                                        ? 'btn-dark'
+                                        : 'btn-primary'
+                                      : isGrowth
+                                      ? 'btn-outline-primary'
+                                      : isEnterprise
+                                      ? 'btn-outline-dark'
+                                      : 'btn-outline-primary'
+                                  }`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedPlanId(p.id);
+                                  }}
+                                >
+                                  <span>{isSelected ? `✓ ${p.plan_name} Selected` : `Select ${p.plan_name}`}</span>
+                                  <i className="ti ti-check ms-2 fs-15"></i>
+                                </button>
+                                <div className="text-center text-muted fs-11 mt-1">
+                                  {p.billing_cycle === 'annual'
+                                    ? 'Billed Annually • Configurable'
+                                    : 'Billed Monthly • Flexible'}
                                 </div>
                               </div>
                             </div>
-                          );
-                        })}
-                    </div>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -1732,7 +1793,9 @@ const SchoolRegistrationWizard = () => {
                     Setting Up School Portal...
                   </>
                 ) : (() => {
-                    const sel = plans.find((p) => p.id === Number(selectedPlanId));
+                    const sel =
+                      plans.find((p) => String(p.id) === String(selectedPlanId)) ||
+                      (String(selectedPlanId) === String(trialPlan.id) ? trialPlan : null);
                     if (sel && parseFloat(sel.price) > 0) {
                       return (
                         <>
