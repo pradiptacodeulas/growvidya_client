@@ -2,7 +2,12 @@ import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { loadRazorpayScript } from '../../utils/loadRazorpay';
-import { createSubscriptionOrder, verifySubscriptionPayment } from '../../api/subscription.api';
+import {
+  createSubscriptionOrder,
+  verifySubscriptionPayment,
+  getConfigurationCatalog,
+} from '../../api/subscription.api';
+import { resolveImageUrl } from '../../utils/url.util';
 
 const UpgradeModal = ({
   isOpen,
@@ -21,6 +26,8 @@ const UpgradeModal = ({
   const [paymentGateway, setPaymentGateway] = useState('razorpay');
   const [utrNumber, setUtrNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [bankLoading, setBankLoading] = useState(false);
 
   React.useEffect(() => {
     if (initialPlanId) {
@@ -29,6 +36,31 @@ const UpgradeModal = ({
       setSelectedPlanId(currentPlanId);
     }
   }, [initialPlanId, currentPlanId]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      const fetchBankAccounts = async () => {
+        try {
+          setBankLoading(true);
+          const data = await getConfigurationCatalog();
+          const raw = Array.isArray(data?.bank_accounts) ? data.bank_accounts : [];
+          const eligible = raw.filter(
+            (acc) =>
+              (Number(acc.is_default) === 1 || acc.is_default === true) &&
+              (acc.status === undefined || Number(acc.status) === 1 || acc.status === true)
+          );
+          setBankAccounts(eligible);
+        } catch (err) {
+          console.warn('Failed to load bank accounts for upgrade modal:', err);
+        } finally {
+          setBankLoading(false);
+        }
+      };
+      fetchBankAccounts();
+    }
+  }, [isOpen]);
+
+  const activeBankAccount = bankAccounts[0] || null;
 
   if (!isOpen) return null;
 
@@ -126,6 +158,12 @@ const UpgradeModal = ({
         rzp.open();
       } else {
         // Direct bank transfer / offline request
+        if (!activeBankAccount) {
+          toast.error('No default active bank account has been configured by the Super Admin yet. Please use Instant Online Checkout or contact support.');
+          setIsProcessing(false);
+          return;
+        }
+
         if (!utrNumber || String(utrNumber).trim().length < 4) {
           toast.error('Please enter the Bank Transfer reference or UTR number from your payment receipt.');
           setIsProcessing(false);
@@ -384,37 +422,100 @@ const UpgradeModal = ({
 
                 {paymentGateway === 'bank_transfer' && (
                   <div className="mt-3 p-3 bg-light rounded-3 border">
-                    <div className="fw-semibold text-dark fs-13 mb-2 d-flex align-items-center">
-                      <i className="ti ti-building-bank me-2 text-primary"></i>
-                      Official Bank Account Details for NEFT / RTGS / IMPS / UPI:
-                    </div>
-                    <div className="row g-2 fs-12 text-secondary mb-3">
-                      <div className="col-12 col-sm-6">
-                        <div><strong className="text-dark">Beneficiary Name:</strong> GrowVidya EdTech Solutions</div>
-                        <div><strong className="text-dark">Account Number:</strong> 50200098765432</div>
+                    {bankLoading ? (
+                      <div className="text-center py-3 text-muted fs-12">
+                        <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                        Loading official bank account details...
                       </div>
-                      <div className="col-12 col-sm-6">
-                        <div><strong className="text-dark">Bank & Branch:</strong> HDFC Bank, Main Branch</div>
-                        <div><strong className="text-dark">IFSC Code:</strong> HDFC0001234</div>
-                        <div><strong className="text-dark">UPI VPA:</strong> billing@growvidya</div>
-                      </div>
-                    </div>
+                    ) : activeBankAccount ? (
+                      <>
+                        <div className="fw-semibold text-dark fs-13 mb-2 d-flex align-items-center justify-content-between">
+                          <span className="d-flex align-items-center">
+                            <i className="ti ti-building-bank me-2 text-primary fs-15"></i>
+                            Official Bank Details: {activeBankAccount.account_title || activeBankAccount.bank_name}
+                          </span>
+                          {Number(activeBankAccount.is_default) === 1 && (
+                            <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-2 py-0.5 rounded-pill">
+                              Primary Account
+                            </span>
+                          )}
+                        </div>
 
-                    <div>
-                      <label className="form-label fs-12 fw-semibold text-dark mb-1">
-                        Bank Transfer Reference / UTR Number <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        placeholder="e.g. UTR202609139876 or IMPS Reference ID"
-                        value={utrNumber}
-                        onChange={(e) => setUtrNumber(e.target.value)}
-                      />
-                      <span className="text-muted fs-11 mt-1 d-block">
-                        Enter the transaction reference from your payment receipt for ₹{Number(selectedPlan?.price).toLocaleString('en-IN')}. Platform administrators will verify and activate your license within 24 hours.
-                      </span>
-                    </div>
+                        {activeBankAccount.qr_code_image && (
+                          <div className="mb-3 p-2 bg-white rounded-2 border d-flex align-items-center gap-3">
+                            <img
+                              src={resolveImageUrl(activeBankAccount.qr_code_image)}
+                              alt="Payment QR Code"
+                              className="rounded-2 border"
+                              style={{ width: '80px', height: '80px', objectFit: 'contain' }}
+                              onError={(e) => {
+                                e.currentTarget.style.display = 'none';
+                              }}
+                            />
+                            <div>
+                              <div className="fw-semibold text-dark fs-12">Scan to Pay via UPI</div>
+                              <div className="text-muted fs-11">
+                                Scan using any UPI app to transfer subscription fees directly.
+                              </div>
+                              {activeBankAccount.upi_id && (
+                                <div className="font-monospace text-primary fs-11 mt-0.5">
+                                  {activeBankAccount.upi_id}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="row g-2 fs-12 text-secondary mb-3">
+                          <div className="col-12 col-sm-6">
+                            <div><strong className="text-dark">Beneficiary Name:</strong> {activeBankAccount.beneficiary_name}</div>
+                            <div><strong className="text-dark">Account Number:</strong> <span className="font-monospace fw-bold text-dark">{activeBankAccount.account_number}</span></div>
+                            <div><strong className="text-dark">Account Type:</strong> {activeBankAccount.account_type || 'Current'}</div>
+                          </div>
+                          <div className="col-12 col-sm-6">
+                            <div><strong className="text-dark">Bank & Branch:</strong> {activeBankAccount.bank_name}{activeBankAccount.branch_name ? `, ${activeBankAccount.branch_name}` : ''}</div>
+                            <div><strong className="text-dark">IFSC Code:</strong> <span className="font-monospace fw-bold text-dark">{activeBankAccount.ifsc_code}</span></div>
+                            {activeBankAccount.upi_id && (
+                              <div><strong className="text-dark">UPI VPA:</strong> <span className="font-monospace text-primary">{activeBankAccount.upi_id}</span></div>
+                            )}
+                            {activeBankAccount.swift_code && (
+                              <div><strong className="text-dark">SWIFT / BIC:</strong> <span className="font-monospace text-dark">{activeBankAccount.swift_code}</span></div>
+                            )}
+                          </div>
+                        </div>
+
+                        {activeBankAccount.instructions && (
+                          <div className="alert alert-info py-1.5 px-2.5 fs-11 mb-3 rounded-2 border-0 bg-info-subtle text-dark">
+                            <i className="ti ti-info-circle me-1 text-info"></i>
+                            {activeBankAccount.instructions}
+                          </div>
+                        )}
+
+                        <div>
+                          <label className="form-label fs-12 fw-semibold text-dark mb-1">
+                            Bank Transfer Reference / UTR Number <span className="text-danger">*</span>
+                          </label>
+                          <input
+                            type="text"
+                            className="form-control form-control-sm"
+                            placeholder="e.g. UTR202609139876 or IMPS Reference ID"
+                            value={utrNumber}
+                            onChange={(e) => setUtrNumber(e.target.value)}
+                          />
+                          <span className="text-muted fs-11 mt-1 d-block">
+                            Enter the transaction reference from your payment receipt for ₹{Number(selectedPlan?.price).toLocaleString('en-IN')}. Platform administrators will verify and activate your license within 24 hours.
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-3 bg-white rounded-2 border border-warning-subtle text-center">
+                        <i className="ti ti-alert-triangle fs-20 text-warning mb-1 d-block"></i>
+                        <h6 className="fw-bold text-dark mb-1 fs-12">No Bank Transfer Details Configured</h6>
+                        <p className="text-muted fs-11 mb-0">
+                          The Super Admin has not configured any active bank accounts for offline transfer. Please choose <strong>Instant Online Checkout</strong> to proceed, or contact platform administration.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
