@@ -102,7 +102,11 @@ const SubscriptionConfigurePublic = () => {
         storage_plans: fetchedCatalog.storage_plans || [],
         attendance_machines: fetchedCatalog.attendance_machines || [],
         rfid_cards: fetchedCatalog.rfid_cards || [],
-        bank_accounts: fetchedCatalog.bank_accounts || [],
+        bank_accounts: (fetchedCatalog.bank_accounts || []).filter(
+          (acc) =>
+            (Number(acc.is_default) === 1 || acc.is_default === true) &&
+            (acc.status === undefined || Number(acc.status) === 1 || acc.status === true)
+        ),
         notification_records: fetchedCatalog.notification_records || [],
       });
 

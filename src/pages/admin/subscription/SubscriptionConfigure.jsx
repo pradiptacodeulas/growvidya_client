@@ -70,11 +70,19 @@ const SubscriptionConfigure = () => {
         setCatalogLoading(true);
         const data = await getConfigurationCatalog();
         if (data) {
+          // Show only accounts where is_default = 1 and status = 1
+          const rawAccounts = Array.isArray(data.bank_accounts) ? data.bank_accounts : [];
+          const eligibleAccounts = rawAccounts.filter((acc) => {
+            const isDefault = Number(acc.is_default) === 1 || acc.is_default === true;
+            const isActive = acc.status === undefined || Number(acc.status) === 1 || acc.status === true;
+            return isDefault && isActive;
+          });
+
           setCatalog({
             storage_plans: data.storage_plans || [],
             attendance_machines: data.attendance_machines || [],
             rfid_cards: data.rfid_cards || [],
-            bank_accounts: data.bank_accounts || [],
+            bank_accounts: eligibleAccounts,
             notification_records: data.notification_records || [],
           });
         }
@@ -88,30 +96,38 @@ const SubscriptionConfigure = () => {
   }, []);
 
   // Bank Account Selection state (bank_account_master - managed by Super Admin)
+  // Only accounts where is_default = 1 and status = 1 are eligible
+  const eligibleBankAccounts = useMemo(() => {
+    if (!catalog.bank_accounts || !Array.isArray(catalog.bank_accounts)) return [];
+    return catalog.bank_accounts.filter((acc) => {
+      const isDefault = Number(acc.is_default) === 1 || acc.is_default === true;
+      const isActive = acc.status === undefined || Number(acc.status) === 1 || acc.status === true;
+      return isDefault && isActive;
+    });
+  }, [catalog.bank_accounts]);
+
   const [selectedBankAccountId, setSelectedBankAccountId] = useState(null);
 
   useEffect(() => {
-    if (catalog.bank_accounts && catalog.bank_accounts.length > 0) {
+    if (eligibleBankAccounts.length > 0) {
       if (
         !selectedBankAccountId ||
-        !catalog.bank_accounts.some((acc) => Number(acc.id) === Number(selectedBankAccountId))
+        !eligibleBankAccounts.some((acc) => Number(acc.id) === Number(selectedBankAccountId))
       ) {
-        const defaultAcc =
-          catalog.bank_accounts.find((acc) => Number(acc.is_default) === 1) || catalog.bank_accounts[0];
-        setSelectedBankAccountId(defaultAcc.id);
+        setSelectedBankAccountId(eligibleBankAccounts[0].id);
       }
     } else {
       setSelectedBankAccountId(null);
     }
-  }, [catalog.bank_accounts, selectedBankAccountId]);
+  }, [eligibleBankAccounts, selectedBankAccountId]);
 
   const activeBankAccount = useMemo(() => {
-    if (!catalog.bank_accounts || catalog.bank_accounts.length === 0) return null;
+    if (eligibleBankAccounts.length === 0) return null;
     return (
-      catalog.bank_accounts.find((acc) => Number(acc.id) === Number(selectedBankAccountId)) ||
-      catalog.bank_accounts[0]
+      eligibleBankAccounts.find((acc) => Number(acc.id) === Number(selectedBankAccountId)) ||
+      eligibleBankAccounts[0]
     );
-  }, [catalog.bank_accounts, selectedBankAccountId]);
+  }, [eligibleBankAccounts, selectedBankAccountId]);
 
   // 1. Storage Selection state (storage_master - single select only)
   const [selectedStorageId, setSelectedStorageId] = useState(null);
@@ -631,8 +647,8 @@ const SubscriptionConfigure = () => {
         rzp.open();
       } else {
         // Direct bank transfer / offline payment request
-        if (!catalog.bank_accounts || catalog.bank_accounts.length === 0) {
-          toast.error('No bank accounts have been configured by the Super Admin yet. Please use Instant Online Checkout or contact support.');
+        if (!eligibleBankAccounts || eligibleBankAccounts.length === 0 || !activeBankAccount) {
+          toast.error('No default active bank account has been configured by the Super Admin yet. Please use Instant Online Checkout or contact support.');
           setIsProcessing(false);
           return;
         }
@@ -2108,16 +2124,16 @@ const SubscriptionConfigure = () => {
               {/* Bank Transfer Details Form */}
               {paymentGateway === 'bank_transfer' && (
                 <div className="p-3 bg-light rounded-3 border">
-                  {catalog.bank_accounts && catalog.bank_accounts.length > 0 && activeBankAccount ? (
+                  {eligibleBankAccounts && eligibleBankAccounts.length > 0 && activeBankAccount ? (
                     <>
-                      {/* Optional Multiple Account Switcher */}
-                      {catalog.bank_accounts.length > 1 && (
+                      {/* Optional Multiple Account Switcher (only shown if more than 1 default active account exists) */}
+                      {eligibleBankAccounts.length > 1 && (
                         <div className="mb-3">
                           <label className="form-label fs-12 fw-semibold text-dark mb-1">
                             Select Official Bank Account:
                           </label>
                           <div className="d-flex flex-wrap gap-2">
-                            {catalog.bank_accounts.map((acc) => {
+                            {eligibleBankAccounts.map((acc) => {
                               const isAccSelected = Number(acc.id) === Number(activeBankAccount.id);
                               return (
                                 <button
@@ -2154,6 +2170,32 @@ const SubscriptionConfigure = () => {
                           </span>
                         )}
                       </div>
+
+                      {/* Payment QR Code image if available */}
+                      {activeBankAccount.qr_code_image && (
+                        <div className="mb-3 p-2 bg-white rounded-2 border d-flex align-items-center gap-3">
+                          <img
+                            src={resolveImageUrl(activeBankAccount.qr_code_image, NO_IMAGE_PLACEHOLDER)}
+                            alt="Payment QR Code"
+                            className="rounded-2 border"
+                            style={{ width: '84px', height: '84px', objectFit: 'contain' }}
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                            }}
+                          />
+                          <div>
+                            <div className="fw-semibold text-dark fs-12 mb-0.5">Scan to Pay via UPI / Banking App</div>
+                            <div className="text-muted fs-11">
+                              Scan this official QR code using any UPI app (GPay, PhonePe, Paytm, BHIM) to transfer fees directly.
+                            </div>
+                            {activeBankAccount.upi_id && (
+                              <div className="font-monospace text-primary fs-11 mt-1">
+                                UPI ID: {activeBankAccount.upi_id}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
 
                       <div className="row g-2 fs-12 text-secondary mb-3">
                         <div className="col-12 col-sm-6">
