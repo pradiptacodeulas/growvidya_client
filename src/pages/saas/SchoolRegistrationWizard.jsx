@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import saasApi from '../../api/saas.api';
@@ -12,6 +12,19 @@ const SchoolRegistrationWizard = () => {
 
   // Selected plan and trial state (supports optional pre-selection from Pricing page)
   const planFromState = location.state?.plan;
+
+  // Restore saved registration state if user is returning from /configure or reloaded
+  const savedPendingData = useMemo(() => {
+    try {
+      return (
+        location.state?.pendingData ||
+        JSON.parse(sessionStorage.getItem('pending_registration_data')) ||
+        null
+      );
+    } catch {
+      return null;
+    }
+  }, [location.state]);
 
   // URL parameters support (e.g. /register?step=5 or /register?billing=monthly)
   const searchParams = new URLSearchParams(location.search);
@@ -39,31 +52,32 @@ const SchoolRegistrationWizard = () => {
   );
   const [submitting, setSubmitting] = useState(false);
 
-
   // Step 1: School Profile & Identity
-  const [schoolForm, setSchoolForm] = useState({
-    school_name: '',
-    school_code: '',
-    school_type: '',
-    affiliation_board: '',
-    medium_of_instruction: '',
-    established_year: currentYear,
-    school_logo: '',
-  });
-  const [logoPreview, setLogoPreview] = useState(null);
+  const [schoolForm, setSchoolForm] = useState(() => ({
+    school_name: location.state?.school?.school_name || savedPendingData?.school?.school_name || '',
+    school_code: location.state?.school?.school_code || savedPendingData?.school?.school_code || '',
+    school_type: location.state?.school?.school_type || savedPendingData?.school?.school_type || '',
+    affiliation_board: location.state?.school?.affiliation_board || savedPendingData?.school?.affiliation_board || '',
+    medium_of_instruction: location.state?.school?.medium_of_instruction || savedPendingData?.school?.medium_of_instruction || '',
+    established_year: location.state?.school?.established_year || savedPendingData?.school?.established_year || currentYear,
+    school_logo: location.state?.school?.school_logo || savedPendingData?.school?.school_logo || '',
+  }));
+  const [logoPreview, setLogoPreview] = useState(
+    location.state?.school?.school_logo || savedPendingData?.school?.school_logo || null
+  );
 
   // Step 2: Campus & Contact Details (Capturing all school_master location & contact fields)
-  const [campusForm, setCampusForm] = useState({
-    phone_number: '',
-    email: '',
-    website: '',
-    address: '',
-    country: '101', // India by default
-    state: '',
-    city: '',
-    postal_code: '',
-    footer: '',
-  });
+  const [campusForm, setCampusForm] = useState(() => ({
+    phone_number: location.state?.campus?.phone_number || savedPendingData?.campus?.phone_number || '',
+    email: location.state?.campus?.email || savedPendingData?.campus?.email || '',
+    website: location.state?.campus?.website || savedPendingData?.campus?.website || '',
+    address: location.state?.campus?.address || savedPendingData?.campus?.address || '',
+    country: location.state?.campus?.country || savedPendingData?.campus?.country || '101', // India by default
+    state: location.state?.campus?.state || savedPendingData?.campus?.state || '',
+    city: location.state?.campus?.city || savedPendingData?.campus?.city || '',
+    postal_code: location.state?.campus?.postal_code || savedPendingData?.campus?.postal_code || '',
+    footer: location.state?.campus?.footer || savedPendingData?.campus?.footer || '',
+  }));
 
   // Dynamic Location Lists
   const [countries, setCountries] = useState([]);
@@ -142,28 +156,38 @@ const SchoolRegistrationWizard = () => {
   }, [schoolForm.school_name, currentYear]);
 
   // Step 3: Academic Year
-  const [academicForm, setAcademicForm] = useState({
-    academic_year: `${currentYear} - ${currentYear + 1}`,
-    start_date: `${currentYear}-04-01`,
-    end_date: `${currentYear + 1}-03-31`,
-  });
+  const [academicForm, setAcademicForm] = useState(() => ({
+    academic_year: location.state?.academicYear?.academic_year || savedPendingData?.academicYear?.academic_year || `${currentYear} - ${currentYear + 1}`,
+    start_date: location.state?.academicYear?.start_date || savedPendingData?.academicYear?.start_date || `${currentYear}-04-01`,
+    end_date: location.state?.academicYear?.end_date || savedPendingData?.academicYear?.end_date || `${currentYear + 1}-03-31`,
+  }));
 
   // Dynamic Genders List
   const [genders, setGenders] = useState([]);
 
   // Step 4: Super Admin Credentials
-  const [adminForm, setAdminForm] = useState({
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    gender: '',
-    picture: '',
-    password: '',
-    confirm_password: '',
-    agree_terms: false,
-  });
-  const [adminAvatarPreview, setAdminAvatarPreview] = useState(null);
+  const [adminForm, setAdminForm] = useState(() => ({
+    first_name: location.state?.admin?.first_name || savedPendingData?.admin?.first_name || '',
+    last_name: location.state?.admin?.last_name || savedPendingData?.admin?.last_name || '',
+    email: location.state?.admin?.email || savedPendingData?.admin?.email || '',
+    phone: location.state?.admin?.phone || savedPendingData?.admin?.phone || '',
+    gender: location.state?.admin?.gender || savedPendingData?.admin?.gender || '',
+    picture: location.state?.admin?.picture || savedPendingData?.admin?.picture || '',
+    password: location.state?.admin?.password || savedPendingData?.admin?.password || '',
+    confirm_password:
+      location.state?.admin?.confirm_password ||
+      savedPendingData?.admin?.confirm_password ||
+      location.state?.admin?.password ||
+      savedPendingData?.admin?.password ||
+      '',
+    agree_terms:
+      location.state?.admin?.agree_terms !== undefined
+        ? location.state.admin.agree_terms
+        : savedPendingData?.admin?.agree_terms || false,
+  }));
+  const [adminAvatarPreview, setAdminAvatarPreview] = useState(
+    location.state?.admin?.picture || savedPendingData?.admin?.picture || null
+  );
   const [showPassword, setShowPassword] = useState(false);
 
   // Load genders dynamically on mount
@@ -282,9 +306,93 @@ const SchoolRegistrationWizard = () => {
     }
   };
 
+  // Validate all required registration fields before redirecting to /configure
+  const validateRegistrationFields = () => {
+    if (!schoolForm.school_name || !schoolForm.school_name.trim()) {
+      toast.warning('Please enter the School Legal Name in Step 1.');
+      setCurrentStep(1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!campusForm.phone_number || !campusForm.phone_number.trim()) {
+      toast.warning('Please enter the Official Helpline Phone Number in Step 2.');
+      setCurrentStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!campusForm.email || !campusForm.email.trim() || !/\S+@\S+\.\S+/.test(campusForm.email)) {
+      toast.warning('Please enter a valid Official School Email in Step 2.');
+      setCurrentStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!campusForm.address || !campusForm.address.trim()) {
+      toast.warning('Please enter Campus Address in Step 2.');
+      setCurrentStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!campusForm.city || !campusForm.city.trim() || !campusForm.state || !campusForm.state.trim()) {
+      toast.warning('Please enter City and State in Step 2.');
+      setCurrentStep(2);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!academicForm.academic_year || !academicForm.academic_year.trim()) {
+      toast.warning('Please enter the Academic Year in Step 3.');
+      setCurrentStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!academicForm.start_date || !academicForm.end_date) {
+      toast.warning('Please specify both Start Date and End Date in Step 3.');
+      setCurrentStep(3);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!adminForm.first_name || !adminForm.first_name.trim()) {
+      toast.warning('Please enter Super Admin First Name in Step 4.');
+      setCurrentStep(4);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!adminForm.email || !adminForm.email.trim() || !/\S+@\S+\.\S+/.test(adminForm.email)) {
+      toast.warning('Please enter a valid Super Admin Email in Step 4.');
+      setCurrentStep(4);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!adminForm.gender) {
+      toast.warning('Please select a Gender in Step 4.');
+      setCurrentStep(4);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!adminForm.password || adminForm.password.length < 6) {
+      toast.warning('Password must be at least 6 characters in Step 4.');
+      setCurrentStep(4);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (adminForm.password !== adminForm.confirm_password) {
+      toast.warning('Passwords do not match in Step 4.');
+      setCurrentStep(4);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    if (!adminForm.agree_terms) {
+      toast.warning('Please agree to the Terms of Service & Privacy Policy in Step 4.');
+      setCurrentStep(4);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return false;
+    }
+    return true;
+  };
+
   // Redirect to /configure with selected plan and school context
   const handleSelectPackage = (plan) => {
     if (!plan) return;
+    if (!validateRegistrationFields()) return;
     setSelectedPlanId(plan.id);
     sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
     sessionStorage.setItem('selected_billing_cycle', plan.billing_cycle || billingCycle);
@@ -312,6 +420,7 @@ const SchoolRegistrationWizard = () => {
   // Redirect to /configure for Free Trial
   const handleStartTrial = (plan) => {
     if (!plan) return;
+    if (!validateRegistrationFields()) return;
     setSelectedPlanId(plan.id);
     sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
     sessionStorage.setItem('selected_billing_cycle', 'trial');
@@ -1535,11 +1644,11 @@ const SchoolRegistrationWizard = () => {
                                   }`}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedPlanId(trialPlan.id);
+                                    handleStartTrial(trialPlan);
                                   }}
                                 >
-                                  <span>{isTrialSelected ? '✓ Free Trial Selected' : 'Select 14-Day Free Trial'}</span>
-                                  <i className="ti ti-check ms-2 fs-15"></i>
+                                  <span>{isTrialSelected ? '✓ Free Trial Selected • Configure' : 'Select 14-Day Free Trial'}</span>
+                                  <i className="ti ti-arrow-right ms-2 fs-15"></i>
                                 </button>
                                 <div className="text-center text-muted fs-11 mt-1">
                                   Instant Access • No Card Needed
@@ -1721,11 +1830,11 @@ const SchoolRegistrationWizard = () => {
                                   }`}
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    setSelectedPlanId(p.id);
+                                    handleSelectPackage(p);
                                   }}
                                 >
-                                  <span>{isSelected ? `✓ ${p.plan_name} Selected` : `Select ${p.plan_name}`}</span>
-                                  <i className="ti ti-check ms-2 fs-15"></i>
+                                  <span>{isSelected ? `✓ ${p.plan_name} Selected • Configure` : `Select ${p.plan_name}`}</span>
+                                  <i className="ti ti-arrow-right ms-2 fs-15"></i>
                                 </button>
                                 <div className="text-center text-muted fs-11 mt-1">
                                   {p.billing_cycle === 'annual'
@@ -1783,32 +1892,29 @@ const SchoolRegistrationWizard = () => {
             ) : (
               <button
                 type="button"
-                className="btn btn-success px-5 py-2 fw-semibold shadow-sm"
-                disabled={submitting || loadingPlans}
-                onClick={handleSubmitRegistration}
+                className="btn btn-primary px-5 py-2 fw-semibold shadow-sm d-inline-flex align-items-center"
+                disabled={loadingPlans}
+                onClick={() => {
+                  const sel =
+                    plans.find((p) => String(p.id) === String(selectedPlanId)) ||
+                    (String(selectedPlanId) === String(trialPlan.id) ? trialPlan : plans[0] || trialPlan);
+                  if (!sel) {
+                    toast.warning('Please select a subscription plan to continue.');
+                    return;
+                  }
+                  if (
+                    String(sel.id) === String(trialPlan.id) ||
+                    sel.billing_cycle === 'trial' ||
+                    parseFloat(sel.price) === 0
+                  ) {
+                    handleStartTrial(sel);
+                  } else {
+                    handleSelectPackage(sel);
+                  }
+                }}
               >
-                {submitting ? (
-                  <>
-                    <span className="spinner-border spinner-border-sm me-2"></span>
-                    Setting Up School Portal...
-                  </>
-                ) : (() => {
-                    const sel =
-                      plans.find((p) => String(p.id) === String(selectedPlanId)) ||
-                      (String(selectedPlanId) === String(trialPlan.id) ? trialPlan : null);
-                    if (sel && parseFloat(sel.price) > 0) {
-                      return (
-                        <>
-                          <i className="ti ti-credit-card me-1"></i> Pay with Razorpay & Complete Setup
-                        </>
-                      );
-                    }
-                    return (
-                      <>
-                        <i className="ti ti-gift me-1"></i> Complete Setup & Start 14-Day Free Trial
-                      </>
-                    );
-                  })()}
+                <span>Proceed to Subscription Configuration</span>
+                <i className="ti ti-arrow-right ms-2 fs-16"></i>
               </button>
             )}
           </div>

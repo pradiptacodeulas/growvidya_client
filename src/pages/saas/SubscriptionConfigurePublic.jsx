@@ -4,6 +4,7 @@ import { toast } from 'react-toastify';
 import saasApi from '../../api/saas.api';
 import logoDark from '../../assets/logo_dark.png';
 import { resolveImageUrl } from '../../utils/url.util';
+import { loadRazorpayScript } from '../../utils/loadRazorpay';
 
 const NO_IMAGE_PLACEHOLDER = '/assets_admin/no_iamge.webp';
 
@@ -21,6 +22,7 @@ const SubscriptionConfigurePublic = () => {
   });
   const [loading, setLoading] = useState(true);
   const [catalogLoading, setCatalogLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
 
   // Read plan and billing cycle from location state or sessionStorage or query param
   const searchParams = new URLSearchParams(location.search);
@@ -32,6 +34,21 @@ const SubscriptionConfigurePublic = () => {
   );
 
   const [selectedPlan, setSelectedPlan] = useState(location.state?.plan || null);
+
+  // Read any pending school registration data (from /register wizard)
+  const storedRegData = useMemo(() => {
+    try {
+      return JSON.parse(sessionStorage.getItem('pending_registration_data'));
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const pendingSchool = location.state?.school || storedRegData?.school || null;
+  const pendingCampus = location.state?.campus || storedRegData?.campus || null;
+  const pendingAcademicYear = location.state?.academicYear || storedRegData?.academicYear || null;
+  const pendingAdmin = location.state?.admin || storedRegData?.admin || null;
+  const hasRegistrationData = Boolean(pendingSchool?.school_name && pendingAdmin?.email);
 
   // Configuration selections
   const [selectedStorageId, setSelectedStorageId] = useState(null);
@@ -179,38 +196,35 @@ const SubscriptionConfigurePublic = () => {
     setSelectedMachines({});
   };
 
-  // Handlers for Smart RFID Cards (multi-select + stepper)
+  // Handlers for Smart RFID Cards (multi-select + stepper: 1, 2, 3...)
   const handleAddCard = (card) => {
     if (!card) return;
-    const minQty = card.min_order_qty ? parseInt(card.min_order_qty, 10) : 1;
     setSelectedCards((prev) => ({
       ...prev,
-      [card.id]: (prev[card.id] || 0) + minQty,
+      [card.id]: (prev[card.id] || 0) + 1,
     }));
   };
 
   const handleIncreaseCardQty = (card) => {
     if (!card) return;
-    const step = card.min_order_qty ? parseInt(card.min_order_qty, 10) : 1;
     setSelectedCards((prev) => ({
       ...prev,
-      [card.id]: (prev[card.id] || 0) + step,
+      [card.id]: (prev[card.id] || 0) + 1,
     }));
   };
 
   const handleDecreaseCardQty = (card) => {
     if (!card) return;
-    const step = card.min_order_qty ? parseInt(card.min_order_qty, 10) : 1;
     setSelectedCards((prev) => {
       const current = prev[card.id] || 0;
-      if (current <= step) {
+      if (current <= 1) {
         const next = { ...prev };
         delete next[card.id];
         return next;
       }
       return {
         ...prev,
-        [card.id]: current - step,
+        [card.id]: current - 1,
       };
     });
   };
@@ -440,7 +454,7 @@ const SubscriptionConfigurePublic = () => {
     toast.info('Coupon removed.');
   };
 
-  // Proceed to School Registration
+  // Proceed to School Registration (when registration data was not entered first)
   const handleProceedToRegistration = () => {
     const configurationPayload = {
       plan: selectedPlan,
@@ -468,25 +482,201 @@ const SubscriptionConfigurePublic = () => {
       sessionStorage.setItem('selected_subscription_plan', JSON.stringify(selectedPlan));
     }
 
-    // Preserve any school data passed in from registration wizard
-    const pendingSchool = location.state?.school || null;
-    const pendingCampus = location.state?.campus || null;
-    const pendingAcademicYear = location.state?.academicYear || null;
-    const pendingAdmin = location.state?.admin || null;
-
     navigate('/register', {
       state: {
         configuration: configurationPayload,
         plan: selectedPlan,
         isTrial: Boolean(isSelectedTrial),
         billingCycle: isSelectedTrial ? 'trial' : billingCycle,
-        step: pendingSchool ? 5 : 1,
+        step: pendingSchool ? 4 : 1,
         school: pendingSchool,
         campus: pendingCampus,
         academicYear: pendingAcademicYear,
         admin: pendingAdmin,
       },
     });
+  };
+
+  // Complete registration and portal activation when registration details are attached
+  const handleCompleteRegistrationWithConfig = async () => {
+    if (!selectedPlan) {
+      toast.warning('Please select a subscription plan.');
+      return;
+    }
+
+    const configurationPayload = {
+      plan: selectedPlan,
+      isTrial: Boolean(isSelectedTrial),
+      billingCycle: isSelectedTrial ? 'trial' : billingCycle,
+      storagePlan: selectedStoragePlan,
+      attendanceMachines: selectedMachinesList,
+      rfidCards: selectedCardsList,
+      notifications: selectedNotificationsList,
+      coupon: appliedCoupon,
+      pricing: {
+        basePrice,
+        storageTotal,
+        machinesTotal,
+        cardsTotal,
+        notificationsTotal,
+        subtotal,
+        discountAmount,
+        grandTotal,
+      },
+    };
+
+    const basePayload = {
+      planId: selectedPlan.id,
+      school: {
+        ...pendingSchool,
+        phone_number: pendingCampus?.phone_number || pendingSchool?.phone_number || '',
+        email: pendingCampus?.email || pendingSchool?.email || pendingAdmin?.email || '',
+        website: pendingCampus?.website || '',
+        address: pendingCampus?.address || '',
+        city: pendingCampus?.city || '',
+        state: pendingCampus?.state || '',
+        country: pendingCampus?.country || '101',
+        postal_code: pendingCampus?.postal_code || '',
+        footer: pendingCampus?.footer || '',
+      },
+      academicYear: pendingAcademicYear || {},
+      admin: {
+        first_name: pendingAdmin.first_name,
+        last_name: pendingAdmin.last_name,
+        email: pendingAdmin.email,
+        phone: pendingAdmin.phone,
+        gender: pendingAdmin.gender,
+        picture: pendingAdmin.picture || null,
+        country_id: pendingCampus?.country || '101',
+        state_id: pendingCampus?.state || null,
+        city: pendingCampus?.city || null,
+        role: 0,
+        password: pendingAdmin.password,
+      },
+      couponCode: appliedCoupon?.code || null,
+      configuration: configurationPayload,
+    };
+
+    try {
+      setSubmitting(true);
+
+      if (isSelectedTrial) {
+        // Free 14-Day Evaluation Trial
+        const payload = {
+          ...basePayload,
+          isTrial: true,
+          amountPaid: 0,
+          paymentGateway: 'free_trial',
+          paymentTransactionId: `TRIAL_14DAYS_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
+        };
+
+        const res = await saasApi.registerSchool(payload);
+        sessionStorage.removeItem('pending_registration_data');
+        sessionStorage.removeItem('configured_subscription');
+        toast.success(
+          res?.message ||
+            '🎉 School & Admin registered successfully! Your 14-Day Free Trial is now active.'
+        );
+        navigate('/account/login/adminlogin', {
+          state: {
+            registeredEmail: pendingAdmin.email,
+            registrationSuccess: true,
+          },
+        });
+      } else {
+        // Paid Plan via Razorpay Checkout
+        const isLoaded = await loadRazorpayScript();
+        if (!isLoaded) {
+          toast.error('Could not connect to Razorpay SDK. Please check your internet connection.');
+          setSubmitting(false);
+          return;
+        }
+
+        const orderRes = await saasApi.createOrder(selectedPlan.id);
+        const orderData = orderRes?.data || orderRes;
+
+        if (!orderData?.order_id) {
+          throw new Error(orderRes?.message || 'Failed to initialize payment order with gateway.');
+        }
+
+        const options = {
+          key: orderData.key_id,
+          amount: orderData.amount,
+          currency: orderData.currency || 'INR',
+          name: 'GrowVidya School ERP',
+          description: `Setup & Annual License: ${selectedPlan.plan_name}`,
+          order_id: orderData.order_id,
+          prefill: {
+            name: `${pendingAdmin.first_name} ${pendingAdmin.last_name || ''}`.trim(),
+            email: pendingAdmin.email,
+            contact: pendingAdmin.phone || pendingCampus?.phone_number || '',
+          },
+          notes: {
+            school_name: pendingSchool.school_name,
+            plan_id: selectedPlan.id,
+          },
+          theme: { color: '#6366f1' },
+          handler: async function (response) {
+            try {
+              setSubmitting(true);
+              const payload = {
+                ...basePayload,
+                isTrial: false,
+                amountPaid: grandTotal,
+                paymentGateway: 'razorpay',
+                paymentTransactionId: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+              };
+
+              const res = await saasApi.registerSchool(payload);
+              sessionStorage.removeItem('pending_registration_data');
+              sessionStorage.removeItem('configured_subscription');
+              toast.success(
+                res?.message ||
+                  '🎉 Payment verified & School registered! Your school portal is fully unlocked.'
+              );
+              navigate('/account/login/adminlogin', {
+                state: {
+                  registeredEmail: pendingAdmin.email,
+                  registrationSuccess: true,
+                },
+              });
+            } catch (err) {
+              console.error('Registration after payment failed:', err);
+              toast.error(
+                err?.response?.data?.message || err.message || 'Registration failed after payment.'
+              );
+            } finally {
+              setSubmitting(false);
+            }
+          },
+          modal: {
+            ondismiss: function () {
+              setSubmitting(false);
+              toast.info('Payment checkout window was closed.');
+            },
+          },
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.on('payment.failed', function (resp) {
+          toast.error(`Payment declined: ${resp.error?.description || 'Transaction failed.'}`);
+          setSubmitting(false);
+        });
+        rzp.open();
+      }
+    } catch (err) {
+      console.error('Registration error:', err);
+      toast.error(
+        err.response?.data?.message ||
+          err.message ||
+          'Registration failed. Please review details and try again.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const includedItems = useMemo(() => {
@@ -584,58 +774,163 @@ const SubscriptionConfigurePublic = () => {
                 </div>
               </div>
 
-              {/* 3-Step Progress Indicator */}
-              <div className="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
-                <div className="card-body p-3 bg-white">
-                  <div className="row align-items-center text-center g-2">
-                    <div className="col-12 col-md-4">
-                      <Link
-                        to="/pricing"
-                        className="d-flex align-items-center justify-content-center text-decoration-none text-success btn btn-link p-0 w-100"
-                      >
-                        <div
-                          className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0"
-                          style={{ width: '28px', height: '28px', fontSize: '13px' }}
-                        >
-                          <i className="ti ti-check"></i>
-                        </div>
-                        <div className="text-start">
-                          <div className="fw-bold fs-12">STEP 1</div>
-                          <div className="fs-13 text-dark fw-semibold">Choose Plan</div>
-                        </div>
-                      </Link>
+              {/* Attached Registration Banner (if user navigated from /register) */}
+              {hasRegistrationData && (
+                <div className="alert bg-white border border-primary-subtle shadow-xs rounded-3 p-3 mb-4 d-flex flex-wrap align-items-center justify-content-between gap-3">
+                  <div className="d-flex align-items-center gap-3">
+                    <div
+                      className="rounded-circle bg-primary-subtle text-primary p-2 d-flex align-items-center justify-content-center flex-shrink-0"
+                      style={{ width: '42px', height: '42px' }}
+                    >
+                      <i className="ti ti-school fs-20"></i>
                     </div>
-
-                    <div className="col-12 col-md-4">
-                      <div className="d-flex align-items-center justify-content-center text-primary">
-                        <div
-                          className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0"
-                          style={{ width: '28px', height: '28px', fontSize: '13px' }}
-                        >
-                          2
-                        </div>
-                        <div className="text-start">
-                          <div className="fw-bold fs-12 text-primary">STEP 2 (CURRENT)</div>
-                          <div className="fs-13 text-dark fw-bold">Configure & Add-ons</div>
-                        </div>
+                    <div>
+                      <div className="fw-bold text-dark fs-14 d-flex align-items-center gap-2">
+                        <span>{pendingSchool.school_name}</span>
+                        <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill fs-11">
+                          <i className="ti ti-check me-1"></i> Registration Details Verified
+                        </span>
                       </div>
-                    </div>
-
-                    <div className="col-12 col-md-4">
-                      <div className="d-flex align-items-center justify-content-center text-muted opacity-75">
-                        <div
-                          className="rounded-circle bg-light border text-muted d-flex align-items-center justify-content-center me-2 flex-shrink-0"
-                          style={{ width: '28px', height: '28px', fontSize: '13px' }}
-                        >
-                          3
-                        </div>
-                        <div className="text-start">
-                          <div className="fw-bold fs-12 text-muted">STEP 3</div>
-                          <div className="fs-13 text-secondary">School Registration & Activation</div>
-                        </div>
+                      <div className="text-muted fs-12 mt-0.5">
+                        Super Admin: <strong>{pendingAdmin.first_name} {pendingAdmin.last_name || ''}</strong> ({pendingAdmin.email}) • Helpline: {pendingCampus?.phone_number || '-'}
                       </div>
                     </div>
                   </div>
+                  <div>
+                    <Link
+                      to="/register"
+                      state={{
+                        step: 4,
+                        school: pendingSchool,
+                        campus: pendingCampus,
+                        academicYear: pendingAcademicYear,
+                        admin: pendingAdmin,
+                        plan: selectedPlan,
+                        billingCycle,
+                      }}
+                      className="btn btn-outline-secondary btn-sm fw-semibold d-inline-flex align-items-center"
+                    >
+                      <i className="ti ti-edit me-1.5"></i> Edit School Info
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* 3-Step Progress Indicator */}
+              <div className="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+                <div className="card-body p-3 bg-white">
+                  {hasRegistrationData ? (
+                    <div className="row align-items-center text-center g-2">
+                      <div className="col-12 col-md-4">
+                        <Link
+                          to="/register"
+                          state={{
+                            step: 4,
+                            school: pendingSchool,
+                            campus: pendingCampus,
+                            academicYear: pendingAcademicYear,
+                            admin: pendingAdmin,
+                            plan: selectedPlan,
+                            billingCycle,
+                          }}
+                          className="d-flex align-items-center justify-content-center text-decoration-none text-success btn btn-link p-0 w-100"
+                        >
+                          <div
+                            className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0"
+                            style={{ width: '28px', height: '28px', fontSize: '13px' }}
+                          >
+                            <i className="ti ti-check"></i>
+                          </div>
+                          <div className="text-start">
+                            <div className="fw-bold fs-12 text-success">STEP 1 (COMPLETED)</div>
+                            <div className="fs-13 text-dark fw-semibold">School & Admin Details</div>
+                          </div>
+                        </Link>
+                      </div>
+
+                      <div className="col-12 col-md-4">
+                        <div className="d-flex align-items-center justify-content-center text-primary">
+                          <div
+                            className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0"
+                            style={{ width: '28px', height: '28px', fontSize: '13px' }}
+                          >
+                            2
+                          </div>
+                          <div className="text-start">
+                            <div className="fw-bold fs-12 text-primary">STEP 2 (CURRENT)</div>
+                            <div className="fs-13 text-dark fw-bold">Configure Subscription</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="col-12 col-md-4">
+                        <div className="d-flex align-items-center justify-content-center text-muted opacity-75">
+                          <div
+                            className="rounded-circle bg-light border text-muted d-flex align-items-center justify-content-center me-2 flex-shrink-0"
+                            style={{ width: '28px', height: '28px', fontSize: '13px' }}
+                          >
+                            3
+                          </div>
+                          <div className="text-start">
+                            <div className="fw-bold fs-12 text-muted">STEP 3</div>
+                            <div className="fs-13 text-secondary">
+                              {isSelectedTrial ? 'Free Trial Activation' : 'Payment & Activation'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="row align-items-center text-center g-2">
+                      <div className="col-12 col-md-4">
+                        <Link
+                          to="/pricing"
+                          className="d-flex align-items-center justify-content-center text-decoration-none text-success btn btn-link p-0 w-100"
+                        >
+                          <div
+                            className="rounded-circle bg-success text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0"
+                            style={{ width: '28px', height: '28px', fontSize: '13px' }}
+                          >
+                            <i className="ti ti-check"></i>
+                          </div>
+                          <div className="text-start">
+                            <div className="fw-bold fs-12">STEP 1</div>
+                            <div className="fs-13 text-dark fw-semibold">Choose Plan</div>
+                          </div>
+                        </Link>
+                      </div>
+
+                      <div className="col-12 col-md-4">
+                        <div className="d-flex align-items-center justify-content-center text-primary">
+                          <div
+                            className="rounded-circle bg-primary text-white d-flex align-items-center justify-content-center me-2 flex-shrink-0"
+                            style={{ width: '28px', height: '28px', fontSize: '13px' }}
+                          >
+                            2
+                          </div>
+                          <div className="text-start">
+                            <div className="fw-bold fs-12 text-primary">STEP 2 (CURRENT)</div>
+                            <div className="fs-13 text-dark fw-bold">Configure & Add-ons</div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="col-12 col-md-4">
+                        <div className="d-flex align-items-center justify-content-center text-muted opacity-75">
+                          <div
+                            className="rounded-circle bg-light border text-muted d-flex align-items-center justify-content-center me-2 flex-shrink-0"
+                            style={{ width: '28px', height: '28px', fontSize: '13px' }}
+                          >
+                            3
+                          </div>
+                          <div className="text-start">
+                            <div className="fw-bold fs-12 text-muted">STEP 3</div>
+                            <div className="fs-13 text-secondary">School Registration & Activation</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1366,7 +1661,7 @@ const SubscriptionConfigurePublic = () => {
                                               SKU: {card.card_code}
                                             </span>
                                             <span className="badge bg-light text-muted border fs-10 px-1.5 py-0.5 rounded">
-                                              Min Order: {minQty} pcs
+                                              Custom Encrypted
                                             </span>
                                           </div>
 
@@ -1456,11 +1751,10 @@ const SubscriptionConfigurePublic = () => {
                                             </span>
                                             <button
                                               type="button"
-                                              className={`btn btn-sm ${isAdded ? 'btn-primary' : 'btn-outline-secondary'} px-2 py-1.5 fw-bold`}
+                                              className={`btn btn-sm ${isAdded ? 'btn-primary' : 'btn-outline-primary'} px-2 py-1.5 fw-bold`}
                                               style={{ minWidth: '30px' }}
-                                              onClick={() => isAdded && handleIncreaseCardQty(card)}
-                                              disabled={!isAdded}
-                                              title={isAdded ? 'Increase quantity' : "Click 'Add' to add product first"}
+                                              onClick={() => (isAdded ? handleIncreaseCardQty(card) : handleAddCard(card))}
+                                              title={isAdded ? 'Increase quantity' : "Click to select card"}
                                             >
                                               +
                                             </button>
@@ -1974,19 +2268,43 @@ const SubscriptionConfigurePublic = () => {
                           : 'Institutional subscriptions include free setup support and rapid onboarding.'}
                       </div>
 
-                      {/* Primary CTA Button: Proceed to School Registration (ZERO login redirect) */}
+                      {/* Primary CTA Button: Setup School Portal or Proceed to Registration */}
                       <div>
                         <button
                           type="button"
                           className="btn btn-primary w-100 py-2.5 py-md-3 fw-bold fs-14 d-inline-flex align-items-center justify-content-center shadow-sm"
-                          onClick={handleProceedToRegistration}
+                          disabled={submitting}
+                          onClick={hasRegistrationData ? handleCompleteRegistrationWithConfig : handleProceedToRegistration}
                         >
-                          <i className="ti ti-school me-2 fs-18"></i>
-                          <span>
-                            {isSelectedTrial
-                              ? 'Start 14-Day Free Trial - Register School'
-                              : 'Proceed to School Registration'}
-                          </span>
+                          {submitting ? (
+                            <>
+                              <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                              <span>Setting Up School Portal...</span>
+                            </>
+                          ) : hasRegistrationData ? (
+                            <>
+                              {isSelectedTrial ? (
+                                <>
+                                  <i className="ti ti-gift me-2 fs-18"></i>
+                                  <span>Activate 14-Day Free Trial & Setup Portal</span>
+                                </>
+                              ) : (
+                                <>
+                                  <i className="ti ti-credit-card me-2 fs-18"></i>
+                                  <span>Pay ₹{grandTotal.toLocaleString('en-IN')} & Complete Setup</span>
+                                </>
+                              )}
+                            </>
+                          ) : (
+                            <>
+                              <i className="ti ti-school me-2 fs-18"></i>
+                              <span>
+                                {isSelectedTrial
+                                  ? 'Start 14-Day Free Trial - Register School'
+                                  : 'Proceed to School Registration'}
+                              </span>
+                            </>
+                          )}
                         </button>
                       </div>
 

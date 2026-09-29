@@ -25,6 +25,7 @@ export const publicRoutes = (
     {/* Separate Dedicated Configuration Page */}
     <Route path="/configure" element={<SubscriptionConfigurePublic />} />
     <Route path="/pricing/configure" element={<SubscriptionConfigurePublic />} />
+    <Route path="/register/configure" element={<SubscriptionConfigurePublic />} />
     <Route path="/register" element={<SchoolRegistrationWizard />} />
     <Route path="/register/wizard" element={<SchoolRegistrationWizard />} />
     <Route path="/register/school-setup" element={<SchoolRegistrationWizard />} />
