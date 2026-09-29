@@ -54,12 +54,13 @@ const SubscriptionConfigure = () => {
     }
   }, [selectedPlan, upgradePlans, billingCycle]);
 
-  // Catalog data from storage_master, attendance_machine_master, rfid_card_master, and bank_account_master
+  // Catalog data from storage_master, attendance_machine_master, rfid_card_master, bank_account_master, and notification_master
   const [catalog, setCatalog] = useState({
     storage_plans: [],
     attendance_machines: [],
     rfid_cards: [],
     bank_accounts: [],
+    notification_records: [],
   });
   const [catalogLoading, setCatalogLoading] = useState(true);
 
@@ -74,6 +75,7 @@ const SubscriptionConfigure = () => {
             attendance_machines: data.attendance_machines || [],
             rfid_cards: data.rfid_cards || [],
             bank_accounts: data.bank_accounts || [],
+            notification_records: data.notification_records || [],
           });
         }
       } catch (err) {
@@ -125,11 +127,15 @@ const SubscriptionConfigure = () => {
   // 4. Feature Addons state (subscription_items): array of item IDs
   const [selectedAddonIds, setSelectedAddonIds] = useState([]);
 
-  // Collapsible sections state: Cloud Storage, Attendance Machines, RFID Cards
+  // 5. SMS & Push Notifications state (notification_master): { [recordId]: { selected: boolean, quantity: number } }
+  const [selectedNotifications, setSelectedNotifications] = useState({});
+
+  // Collapsible sections state: Cloud Storage, Attendance Machines, RFID Cards, Notifications
   const [collapsedSections, setCollapsedSections] = useState({
     storage: true,
     machines: true,
     cards: true,
+    notifications: false,
   });
 
   const toggleSection = (sectionKey) => {
@@ -290,6 +296,62 @@ const SubscriptionConfigure = () => {
     );
   };
 
+  // Handlers for SMS & Push Notifications from notification_master
+  const handleToggleNotification = (recordId, defaultQty = 0) => {
+    setSelectedNotifications((prev) => {
+      const existing = prev[recordId];
+      if (existing && existing.selected) {
+        return {
+          ...prev,
+          [recordId]: { ...existing, selected: false },
+        };
+      }
+      return {
+        ...prev,
+        [recordId]: {
+          selected: true,
+          quantity: existing?.quantity !== undefined ? existing.quantity : defaultQty,
+        },
+      };
+    });
+  };
+
+  const handleIncreaseNotificationQty = (recordId, step = 1) => {
+    setSelectedNotifications((prev) => {
+      const existing = prev[recordId] || { selected: true, quantity: 0 };
+      const current = parseInt(existing.quantity, 10) || 0;
+      return {
+        ...prev,
+        [recordId]: { selected: true, quantity: current + step },
+      };
+    });
+  };
+
+  const handleDecreaseNotificationQty = (recordId, step = 1) => {
+    setSelectedNotifications((prev) => {
+      const existing = prev[recordId];
+      if (!existing) return prev;
+      const current = parseInt(existing.quantity, 10) || 0;
+      const nextQty = Math.max(0, current - step);
+      return {
+        ...prev,
+        [recordId]: { ...existing, quantity: nextQty },
+      };
+    });
+  };
+
+  const handleSetNotificationQty = (recordId, val) => {
+    const parsed = parseInt(val, 10);
+    const newQty = isNaN(parsed) || parsed < 0 ? 0 : parsed;
+    setSelectedNotifications((prev) => ({
+      ...prev,
+      [recordId]: {
+        selected: prev[recordId]?.selected ?? true,
+        quantity: newQty,
+      },
+    }));
+  };
+
   // Pricing Calculations
   const basePrice = parseFloat(selectedPlan?.price || 0);
 
@@ -362,8 +424,32 @@ const SubscriptionConfigure = () => {
       .reduce((sum, addon) => sum + parseFloat(addon.price || 0), 0);
   }, [availableAddons, selectedAddonIds]);
 
+  // SMS & Push Notifications pricing (strictly from notification_master records)
+  const selectedNotificationsList = useMemo(() => {
+    if (!catalog.notification_records || catalog.notification_records.length === 0) return [];
+    const list = [];
+    for (const record of catalog.notification_records) {
+      const cfg = selectedNotifications[record.id];
+      if (cfg && cfg.selected && cfg.quantity > 0) {
+        const unitPrice = parseFloat(record.cost || 0);
+        const qty = parseInt(cfg.quantity, 10);
+        list.push({
+          ...record,
+          quantity: qty,
+          unitPrice,
+          totalPrice: Math.round(unitPrice * qty * 100) / 100,
+        });
+      }
+    }
+    return list;
+  }, [selectedNotifications, catalog.notification_records]);
+
+  const notificationsTotal = useMemo(() => {
+    return selectedNotificationsList.reduce((sum, item) => sum + item.totalPrice, 0);
+  }, [selectedNotificationsList]);
+
   // Subtotal Calculation before discounts
-  const subtotal = basePrice + storageTotal + machinesTotal + cardsTotal + addonsTotal;
+  const subtotal = basePrice + storageTotal + machinesTotal + cardsTotal + addonsTotal + notificationsTotal;
 
   // Coupon discount computation based on database coupon rules
   const discountAmount = useMemo(() => {
@@ -447,6 +533,13 @@ const SubscriptionConfigure = () => {
         selected_cards: selectedCardsList.map((c) => ({
           id: Number(c.id),
           quantity: Number(c.quantity),
+        })),
+        selected_notifications: selectedNotificationsList.map((n) => ({
+          id: Number(n.id),
+          type: n.type,
+          quantity: Number(n.quantity),
+          unit_price: Number(n.unitPrice),
+          total_price: Number(n.totalPrice),
         })),
         coupon_code: appliedCoupon ? appliedCoupon.code : null,
         amount_paid: grandTotal,
@@ -1597,6 +1690,225 @@ const SubscriptionConfigure = () => {
             )}
           </div>
 
+          {/* Card: SMS & Push Notifications (from notification_master table - NO FALLBACK DATA) */}
+          <div className="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+            <div
+              className={`card-header bg-white p-3 p-md-4 transition-all d-flex align-items-center justify-content-between flex-wrap gap-2 ${
+                collapsedSections.notifications ? 'border-bottom-0' : 'border-bottom'
+              }`}
+              style={{ cursor: 'pointer', userSelect: 'none' }}
+              onClick={() => toggleSection('notifications')}
+            >
+              <div className="d-flex align-items-center gap-3">
+                <div
+                  className={`avatar avatar-md rounded-circle d-flex align-items-center justify-content-center flex-shrink-0 ${
+                    selectedNotificationsList.length > 0 ? 'bg-primary text-white' : 'bg-light text-primary'
+                  }`}
+                  style={{ width: '40px', height: '40px' }}
+                >
+                  <i className="ti ti-bell-ringing fs-20"></i>
+                </div>
+                <div>
+                  <div className="d-flex align-items-center gap-2 flex-wrap">
+                    <h5 className="fw-bold text-dark mb-0 fs-16">
+                      SMS &amp; Push Notifications
+                    </h5>
+                    {selectedNotificationsList.length > 0 && (
+                      <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-0.5 fs-11 rounded-pill">
+                        <i className="ti ti-check me-1"></i>
+                        {selectedNotificationsList.length} {selectedNotificationsList.length > 1 ? 'types' : 'type'} configured (+₹{notificationsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-muted fs-12 mb-0 mt-0.5">
+                    Select and configure allocated SMS and Push Notification volumes for your school.
+                  </p>
+                </div>
+              </div>
+
+              <div className="d-flex align-items-center gap-2 ms-auto mt-2 mt-sm-0" onClick={(e) => e.stopPropagation()}>
+                {selectedNotificationsList.length > 0 && (
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-danger py-1 px-2.5 fs-11 rounded-pill"
+                    onClick={() => setSelectedNotifications({})}
+                  >
+                    <i className="ti ti-x me-1"></i> Clear Notifications
+                  </button>
+                )}
+                <span className="badge bg-light text-primary border px-2.5 py-1 fs-12 fw-semibold">
+                  Pay Per Sent Rate
+                </span>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light border rounded-circle d-flex align-items-center justify-content-center p-0"
+                  style={{ width: '32px', height: '32px' }}
+                  onClick={() => toggleSection('notifications')}
+                  title={collapsedSections.notifications ? 'Expand section' : 'Collapse section'}
+                >
+                  <i className={`ti ${collapsedSections.notifications ? 'ti-chevron-down' : 'ti-chevron-up'} fs-16 text-secondary`}></i>
+                </button>
+              </div>
+            </div>
+
+            {!collapsedSections.notifications && (
+              <div className="card-body p-4 bg-white">
+                {catalogLoading ? (
+                  <div className="text-center py-4 text-muted">
+                    <div className="spinner-border spinner-border-sm text-primary me-2"></div>
+                    Loading notification master records...
+                  </div>
+                ) : catalog.notification_records && catalog.notification_records.length > 0 ? (
+                  <div className="row g-3">
+                    {catalog.notification_records.map((record) => {
+                      const isSms = String(record.type).toLowerCase() === 'sms';
+                      const unitRate = parseFloat(record.cost || 0);
+                      const cfg = selectedNotifications[record.id] || { selected: false, quantity: 0 };
+                      const isSelected = Boolean(cfg.selected);
+                      const currentQty = parseInt(cfg.quantity, 10) || 0;
+                      const recordTotalPrice = Math.round(unitRate * currentQty * 100) / 100;
+
+                      return (
+                        <div className="col-12 col-lg-6" key={record.id}>
+                          <div
+                            className={`border rounded-3 p-3.5 h-100 transition-all ${
+                              isSelected ? 'border-primary bg-primary-subtle bg-opacity-10 shadow-sm' : 'border-light-subtle bg-white'
+                            }`}
+                            style={{ borderWidth: isSelected ? '2px' : '1px' }}
+                          >
+                            {/* Top Bar: Icon, Type Badge, ID, and Rate */}
+                            <div className="d-flex align-items-start justify-content-between mb-2.5">
+                              <div className="d-flex align-items-center gap-2">
+                                <div
+                                  className={`avatar avatar-sm rounded-circle d-flex align-items-center justify-content-center ${
+                                    isSms ? 'bg-success-subtle text-success' : 'bg-info-subtle text-info'
+                                  }`}
+                                  style={{ width: '36px', height: '36px' }}
+                                >
+                                  <i className={`ti ${isSms ? 'ti-message-dots' : 'ti-bell'} fs-18`}></i>
+                                </div>
+                                <div>
+                                  <h6 className="fw-bold text-dark mb-0 fs-14 text-capitalize">
+                                    {isSms ? 'SMS Notification' : 'Push Notification'}
+                                  </h6>
+                                </div>
+                              </div>
+
+                              <div className="text-end">
+                                <div className="fw-bold text-dark fs-15">
+                                  ₹{unitRate.toFixed(2)}
+                                  <span className="text-muted fs-11 fw-normal"> / unit</span>
+                                </div>
+                                <span className="badge bg-light text-secondary border fs-10 text-uppercase">
+                                  status: {record.status || 'sent'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Stored Record Details */}
+                            <div className="p-2.5 bg-light rounded-2 mb-3 border border-light-subtle fs-11 text-muted">
+                              <div className="d-flex align-items-center justify-content-between mb-1">
+                                <span><strong>Sample Recipient:</strong> {record.recipient || 'N/A'}</span>
+                                <span className="text-muted">{record.created_at ? new Date(record.created_at).toLocaleDateString() : ''}</span>
+                              </div>
+                              <div className="text-truncate" title={record.message}>
+                                <strong>Sample Text:</strong> &quot;{record.message}&quot;
+                              </div>
+                            </div>
+
+                            {/* Configuration Controls: Selection Toggle & Quantity Stepper */}
+                            <div className="border-top pt-2.5">
+                              <div className="d-flex align-items-center justify-content-between mb-2">
+                                <div className="form-check form-switch m-0 d-flex align-items-center gap-2">
+                                  <input
+                                    className="form-check-input cursor-pointer"
+                                    type="checkbox"
+                                    role="switch"
+                                    id={`notif_toggle_${record.id}`}
+                                    checked={isSelected}
+                                    onChange={() => handleToggleNotification(record.id, 0)}
+                                  />
+                                  <label
+                                    className="form-check-label fw-semibold text-dark fs-12 cursor-pointer"
+                                    htmlFor={`notif_toggle_${record.id}`}
+                                  >
+                                    {isSelected ? 'Allocated in Plan' : 'Add to Subscription'}
+                                  </label>
+                                </div>
+
+                                {isSelected && (
+                                  <div className="fs-12 fw-bold text-primary">
+                                    Total: +₹{recordTotalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </div>
+                                )}
+                              </div>
+
+                              {isSelected && (
+                                <div className="mt-2.5 bg-white p-2.5 rounded-2 border">
+                                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                    <label className="text-muted fs-11 fw-medium mb-0">
+                                      Allocated Quantity ({isSms ? 'SMS Credits' : 'Push Dispatches'}):
+                                    </label>
+
+                                    {/* Stepper with - and + (increments 1, 2, 3, 4...) */}
+                                    <div className="d-flex align-items-center gap-1">
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-secondary px-2 py-1 fw-bold"
+                                        style={{ minWidth: '32px', height: '30px' }}
+                                        title="Decrease quantity by 1"
+                                        onClick={() => handleDecreaseNotificationQty(record.id, 1)}
+                                      >
+                                        -
+                                      </button>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="1"
+                                        className="form-control form-control-sm text-center fw-bold"
+                                        style={{ width: '85px', height: '30px' }}
+                                        value={currentQty}
+                                        onChange={(e) => handleSetNotificationQty(record.id, e.target.value)}
+                                      />
+                                      <button
+                                        type="button"
+                                        className="btn btn-sm btn-outline-primary px-2 py-1 fw-bold"
+                                        style={{ minWidth: '32px', height: '30px' }}
+                                        title="Increase quantity by 1"
+                                        onClick={() => handleIncreaseNotificationQty(record.id, 1)}
+                                      >
+                                        +
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Calculation summary line */}
+                                  <div className="mt-2 pt-1.5 border-top border-dashed d-flex align-items-center justify-content-between fs-11 text-muted">
+                                    <span>
+                                      {currentQty.toLocaleString('en-IN')} units × ₹{unitRate.toFixed(2)}
+                                    </span>
+                                    <span className="fw-semibold text-dark">
+                                      = ₹{recordTotalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="col-12 py-3 text-center text-muted fs-13">
+                    <i className="ti ti-info-circle me-1"></i>
+                    No notification records found in <code>notification_master</code>.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Card 5: Optional Package Add-ons (subscription_items) */}
           {availableAddons.length > 0 && (
             <div className="card border-0 shadow-sm rounded-3 mb-4">
@@ -2023,6 +2335,36 @@ const SubscriptionConfigure = () => {
                     <div className="d-flex align-items-center justify-content-between pt-1 border-top border-dashed fs-11 text-muted">
                       <span>Cards Subtotal:</span>
                       <strong className="text-dark">+₹{cardsTotal.toLocaleString('en-IN')}</strong>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* SMS & Push Notifications (notification_master) */}
+              {selectedNotificationsList.length > 0 && (
+                <div className="border-top pt-2 mt-2">
+                  <div className="text-muted fs-11 fw-bold text-uppercase mb-1 d-flex align-items-center justify-content-between">
+                    <span>
+                      <i className="ti ti-bell-ringing text-primary me-1"></i>
+                      Notifications ({selectedNotificationsList.reduce((sum, n) => sum + n.quantity, 0).toLocaleString('en-IN')} units):
+                    </span>
+                    <span className="text-dark fw-bold">+₹{notificationsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  {selectedNotificationsList.map((item) => (
+                    <div className="d-flex align-items-center justify-content-between mb-1.5 fs-12" key={item.id}>
+                      <span className="text-secondary text-truncate me-2" style={{ maxWidth: '180px' }} title={`${item.type.toUpperCase()} Notifications`}>
+                        <i className={`ti ${item.type === 'sms' ? 'ti-message-dots text-success' : 'ti-bell text-info'} me-1`}></i>
+                        <span className="text-uppercase fw-semibold">{item.type}</span> ({item.quantity.toLocaleString('en-IN')} @ ₹{item.unitPrice.toFixed(2)})
+                      </span>
+                      <span className="fw-semibold text-dark flex-shrink-0">
+                        +₹{item.totalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ))}
+                  {selectedNotificationsList.length > 1 && (
+                    <div className="d-flex align-items-center justify-content-between pt-1 border-top border-dashed fs-11 text-muted">
+                      <span>Notifications Subtotal:</span>
+                      <strong className="text-dark">+₹{notificationsTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong>
                     </div>
                   )}
                 </div>
