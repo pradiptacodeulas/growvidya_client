@@ -1691,7 +1691,7 @@ const SubscriptionConfigure = () => {
           </div>
 
           {/* Card: SMS & Push Notifications (from notification_master table - NO FALLBACK DATA) */}
-          <div className="card border-0 shadow-sm rounded-3 mb-4 overflow-hidden">
+          <div className="card border border-200 shadow-sm rounded-3 mb-4 overflow-hidden">
             <div
               className={`card-header bg-white p-3 p-md-4 transition-all d-flex align-items-center justify-content-between flex-wrap gap-2 ${
                 collapsedSections.notifications ? 'border-bottom-0' : 'border-bottom'
@@ -1759,7 +1759,7 @@ const SubscriptionConfigure = () => {
                     Loading notification master records...
                   </div>
                 ) : catalog.notification_records && catalog.notification_records.length > 0 ? (
-                  <div className="row g-3">
+                  <div className="row g-4">
                     {catalog.notification_records.map((record) => {
                       const isSms = String(record.type).toLowerCase() === 'sms';
                       const unitRate = parseFloat(record.cost || 0);
@@ -1771,128 +1771,139 @@ const SubscriptionConfigure = () => {
                       return (
                         <div className="col-12 col-lg-6" key={record.id}>
                           <div
-                            className={`border rounded-3 p-3.5 h-100 transition-all ${
-                              isSelected ? 'border-primary bg-primary-subtle bg-opacity-10 shadow-sm' : 'border-light-subtle bg-white'
+                            className={`card border rounded-3 h-100 transition-all ${
+                              isSelected
+                                ? 'border-primary border-2 shadow-sm'
+                                : 'border-200 hover-shadow'
                             }`}
-                            style={{ borderWidth: isSelected ? '2px' : '1px' }}
+                            style={{
+                              backgroundColor: isSelected ? '#fbfcfe' : '#ffffff',
+                              transition: 'all 0.2s ease',
+                            }}
                           >
-                            {/* Top Bar: Icon, Type Badge, ID, and Rate */}
-                            <div className="d-flex align-items-start justify-content-between mb-2.5">
-                              <div className="d-flex align-items-center gap-2">
-                                <div
-                                  className={`avatar avatar-sm rounded-circle d-flex align-items-center justify-content-center ${
-                                    isSms ? 'bg-success-subtle text-success' : 'bg-info-subtle text-info'
-                                  }`}
-                                  style={{ width: '36px', height: '36px' }}
-                                >
-                                  <i className={`ti ${isSms ? 'ti-message-dots' : 'ti-bell'} fs-18`}></i>
-                                </div>
-                                <div>
-                                  <h6 className="fw-bold text-dark mb-0 fs-14 text-capitalize">
-                                    {isSms ? 'SMS Notification' : 'Push Notification'}
-                                  </h6>
-                                </div>
-                              </div>
-
-                              <div className="text-end">
-                                <div className="fw-bold text-dark fs-15">
-                                  ₹{unitRate.toFixed(2)}
-                                  <span className="text-muted fs-11 fw-normal"> / unit</span>
-                                </div>
-                                <span className="badge bg-light text-secondary border fs-10 text-uppercase">
-                                  status: {record.status || 'sent'}
-                                </span>
-                              </div>
-                            </div>
-
-                            {/* Stored Record Details */}
-                            <div className="p-2.5 bg-light rounded-2 mb-3 border border-light-subtle fs-11 text-muted">
-                              <div className="d-flex align-items-center justify-content-between mb-1">
-                                <span><strong>Sample Recipient:</strong> {record.recipient || 'N/A'}</span>
-                                <span className="text-muted">{record.created_at ? new Date(record.created_at).toLocaleDateString() : ''}</span>
-                              </div>
-                              <div className="text-truncate" title={record.message}>
-                                <strong>Sample Text:</strong> &quot;{record.message}&quot;
-                              </div>
-                            </div>
-
-                            {/* Configuration Controls: Selection Toggle & Quantity Stepper */}
-                            <div className="border-top pt-2.5">
-                              <div className="d-flex align-items-center justify-content-between mb-2">
-                                <div className="form-check form-switch m-0 d-flex align-items-center gap-2">
-                                  <input
-                                    className="form-check-input cursor-pointer"
-                                    type="checkbox"
-                                    role="switch"
-                                    id={`notif_toggle_${record.id}`}
-                                    checked={isSelected}
-                                    onChange={() => handleToggleNotification(record.id, 0)}
-                                  />
-                                  <label
-                                    className="form-check-label fw-semibold text-dark fs-12 cursor-pointer"
-                                    htmlFor={`notif_toggle_${record.id}`}
-                                  >
-                                    {isSelected ? 'Allocated in Plan' : 'Add to Subscription'}
-                                  </label>
-                                </div>
-
-                                {isSelected && (
-                                  <div className="fs-12 fw-bold text-primary">
-                                    Total: +₹{recordTotalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                  </div>
-                                )}
-                              </div>
-
-                              {isSelected && (
-                                <div className="mt-2.5 bg-white p-2.5 rounded-2 border">
-                                  <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
-                                    <label className="text-muted fs-11 fw-medium mb-0">
-                                      Allocated Quantity ({isSms ? 'SMS Credits' : 'Push Dispatches'}):
-                                    </label>
-
-                                    {/* Stepper with - and + (increments 1, 2, 3, 4...) */}
-                                    <div className="d-flex align-items-center gap-1">
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-secondary px-2 py-1 fw-bold"
-                                        style={{ minWidth: '32px', height: '30px' }}
-                                        title="Decrease quantity by 1"
-                                        onClick={() => handleDecreaseNotificationQty(record.id, 1)}
-                                      >
-                                        -
-                                      </button>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="1"
-                                        className="form-control form-control-sm text-center fw-bold"
-                                        style={{ width: '85px', height: '30px' }}
-                                        value={currentQty}
-                                        onChange={(e) => handleSetNotificationQty(record.id, e.target.value)}
-                                      />
-                                      <button
-                                        type="button"
-                                        className="btn btn-sm btn-outline-primary px-2 py-1 fw-bold"
-                                        style={{ minWidth: '32px', height: '30px' }}
-                                        title="Increase quantity by 1"
-                                        onClick={() => handleIncreaseNotificationQty(record.id, 1)}
-                                      >
-                                        +
-                                      </button>
+                            <div className="card-body p-3 p-md-4 d-flex flex-column justify-content-between">
+                              <div>
+                                {/* Top Bar: Icon, Type Badge, ID, and Rate */}
+                                <div className="d-flex align-items-center justify-content-between mb-3 pb-3 border-bottom">
+                                  <div className="d-flex align-items-center gap-2.5">
+                                    <div
+                                      className={`avatar avatar-md rounded-3 d-flex align-items-center justify-content-center flex-shrink-0 ${
+                                        isSms ? 'bg-success-subtle text-success' : 'bg-info-subtle text-info'
+                                      }`}
+                                      style={{ width: '42px', height: '42px' }}
+                                    >
+                                      <i className={`ti ${isSms ? 'ti-message-dots' : 'ti-bell'} fs-22`}></i>
+                                    </div>
+                                    <div>
+                                      <h6 className="fw-bold text-dark mb-0 fs-15 text-capitalize">
+                                        {isSms ? 'SMS Notification' : 'Push Notification'}
+                                      </h6>
+                                      <span className="badge bg-light text-secondary border fs-10 px-2 py-0.5 rounded-pill mt-1 text-uppercase">
+                                        status: {record.status || 'sent'}
+                                      </span>
                                     </div>
                                   </div>
 
-                                  {/* Calculation summary line */}
-                                  <div className="mt-2 pt-1.5 border-top border-dashed d-flex align-items-center justify-content-between fs-11 text-muted">
-                                    <span>
-                                      {currentQty.toLocaleString('en-IN')} units × ₹{unitRate.toFixed(2)}
-                                    </span>
-                                    <span className="fw-semibold text-dark">
-                                      = ₹{recordTotalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                                    </span>
+                                  <div className="text-end">
+                                    <div className="fw-bold text-dark fs-18">
+                                      ₹{unitRate.toFixed(2)}
+                                    </div>
+                                    <div className="text-muted fs-11 fw-normal">
+                                      / unit
+                                    </div>
                                   </div>
                                 </div>
-                              )}
+
+                                {/* Stored Record Details */}
+                                <div className="p-3 bg-light rounded-2 mb-3 border border-light-subtle fs-11 text-muted">
+                                  <div className="d-flex align-items-center justify-content-between mb-1">
+                                    <span><strong>Sample Recipient:</strong> {record.recipient || 'N/A'}</span>
+                                    <span className="text-muted">{record.created_at ? new Date(record.created_at).toLocaleDateString() : ''}</span>
+                                  </div>
+                                  <div className="text-truncate" title={record.message}>
+                                    <strong>Sample Text:</strong> &quot;{record.message}&quot;
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Configuration Controls: Selection Toggle & Quantity Stepper */}
+                              <div className="border-top pt-3 mt-auto">
+                                <div className="d-flex align-items-center justify-content-between mb-2">
+                                  <div className="form-check form-switch m-0 d-flex align-items-center gap-2">
+                                    <input
+                                      className="form-check-input cursor-pointer"
+                                      type="checkbox"
+                                      role="switch"
+                                      id={`notif_toggle_${record.id}`}
+                                      checked={isSelected}
+                                      onChange={() => handleToggleNotification(record.id, 0)}
+                                    />
+                                    <label
+                                      className="form-check-label fw-semibold text-dark fs-12 cursor-pointer"
+                                      htmlFor={`notif_toggle_${record.id}`}
+                                    >
+                                      {isSelected ? 'Allocated in Plan' : 'Add to Subscription'}
+                                    </label>
+                                  </div>
+
+                                  {isSelected && (
+                                    <div className="fs-12 fw-bold text-primary">
+                                      Total: +₹{recordTotalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </div>
+                                  )}
+                                </div>
+
+                                {isSelected && (
+                                  <div className="mt-3 bg-white p-3 rounded-2 border">
+                                    <div className="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                                      <label className="text-muted fs-11 fw-medium mb-0">
+                                        Allocated Quantity ({isSms ? 'SMS Credits' : 'Push Dispatches'}):
+                                      </label>
+
+                                      {/* Stepper with - and + (increments 1, 2, 3, 4...) */}
+                                      <div className="d-flex align-items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-outline-secondary px-2 py-1 fw-bold"
+                                          style={{ minWidth: '32px', height: '30px' }}
+                                          title="Decrease quantity by 1"
+                                          onClick={() => handleDecreaseNotificationQty(record.id, 1)}
+                                        >
+                                          -
+                                        </button>
+                                        <input
+                                          type="number"
+                                          min="0"
+                                          step="1"
+                                          className="form-control form-control-sm text-center fw-bold fs-12 px-1"
+                                          style={{ width: '85px', height: '30px' }}
+                                          value={currentQty}
+                                          onChange={(e) => handleSetNotificationQty(record.id, e.target.value)}
+                                        />
+                                        <button
+                                          type="button"
+                                          className="btn btn-sm btn-outline-primary px-2 py-1 fw-bold"
+                                          style={{ minWidth: '32px', height: '30px' }}
+                                          title="Increase quantity by 1"
+                                          onClick={() => handleIncreaseNotificationQty(record.id, 1)}
+                                        >
+                                          +
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Calculation summary line */}
+                                    <div className="mt-2 pt-2 border-top border-dashed d-flex align-items-center justify-content-between fs-11 text-muted">
+                                      <span>
+                                        {currentQty.toLocaleString('en-IN')} units × ₹{unitRate.toFixed(2)}
+                                      </span>
+                                      <span className="fw-semibold text-dark">
+                                        = ₹{recordTotalPrice.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>

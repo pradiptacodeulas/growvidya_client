@@ -1,5 +1,5 @@
 /* Reset default Vite & Template Centering Constraints */
-html, body, #root {
+html, body {
   margin: 0 !important;
   padding: 0 !important;
   width: 100% !important;
@@ -7,6 +7,16 @@ html, body, #root {
   min-height: 100vh !important;
   background-color: #FBFBFD !important;
   overflow-x: clip;
+}
+
+#root {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-height: 100vh !important;
+  background-color: #FBFBFD !important;
+  overflow: visible !important;
 }
 
 /* Main Wrapper Full Width Edge-to-Edge */
@@ -875,18 +885,33 @@ table.table {
     flex-direction: column !important;
     overflow: hidden !important;
   }
+
+  .sticky-subscription-summary-public {
+    position: -webkit-sticky !important;
+    position: sticky !important;
+    top: 96px !important;
+    z-index: 20 !important;
+    max-height: calc(100vh - 116px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    overflow: hidden !important;
+  }
 }
 
-.sticky-subscription-summary .card-body::-webkit-scrollbar {
+.sticky-subscription-summary .card-body::-webkit-scrollbar,
+.sticky-subscription-summary-public .card-body::-webkit-scrollbar {
   width: 5px;
 }
-.sticky-subscription-summary .card-body::-webkit-scrollbar-track {
+.sticky-subscription-summary .card-body::-webkit-scrollbar-track,
+.sticky-subscription-summary-public .card-body::-webkit-scrollbar-track {
   background: #f8fafc;
 }
-.sticky-subscription-summary .card-body::-webkit-scrollbar-thumb {
+.sticky-subscription-summary .card-body::-webkit-scrollbar-thumb,
+.sticky-subscription-summary-public .card-body::-webkit-scrollbar-thumb {
   background: #cbd5e1;
   border-radius: 4px;
 }
-.sticky-subscription-summary .card-body::-webkit-scrollbar-thumb:hover {
+.sticky-subscription-summary .card-body::-webkit-scrollbar-thumb:hover,
+.sticky-subscription-summary-public .card-body::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }

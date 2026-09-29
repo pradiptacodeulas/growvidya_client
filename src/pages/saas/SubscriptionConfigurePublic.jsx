@@ -2032,8 +2032,8 @@ const SubscriptionConfigurePublic = () => {
 
                 {/* Right Column: Sticky Comprehensive Order Summary */}
                 <div className="col-12 col-lg-4">
-                  <div className="card border-0 shadow-sm rounded-3 sticky-top" style={{ top: '90px' }}>
-                    <div className="card-header bg-white border-bottom p-3 p-md-4">
+                  <div className="card border-0 shadow-sm rounded-3 sticky-subscription-summary-public">
+                    <div className="card-header bg-white border-bottom p-3 p-md-4 flex-shrink-0">
                       <div className="d-flex align-items-center justify-content-between">
                         <h5 className="fw-bold text-dark mb-0 fs-16 d-flex align-items-center">
                           <i className="ti ti-file-invoice me-2 text-primary fs-18"></i>
@@ -2045,7 +2045,7 @@ const SubscriptionConfigurePublic = () => {
                       </div>
                     </div>
 
-                    <div className="card-body p-3 p-md-4">
+                    <div className="card-body p-3 p-md-4 bg-white overflow-auto flex-grow-1">
                       {/* Base Plan Item */}
                       <div className="d-flex align-items-start justify-content-between mb-3 pb-3 border-bottom">
                         <div>
