@@ -3,12 +3,11 @@ import { Link, useLocation, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   fetchNoticesApi,
-  createNoticeApi,
-  updateNoticeApi,
   deleteNoticeApi,
 } from '../../../api/adminAnnouncement.api';
 import { fetchTeacherNoticesApi } from '../../../api/teacherAnnouncement.api';
 import NoData from '../../../components/common/NoData';
+import { encodeParam } from '../../../utils/idHelper';
 
 const RECIPIENT_OPTIONS = [
   { id: 1, label: 'Student', icon: 'ti-school' },
@@ -78,20 +77,6 @@ const NoticeList = () => {
   const rangeDropdownRef = useRef(null);
   const filterDropdownRef = useRef(null);
   const exportDropdownRef = useRef(null);
-
-  // Modal State for Add / Edit
-  const [noticeModal, setNoticeModal] = useState({
-    show: false,
-    isEdit: false,
-    id: null,
-    title: '',
-    notice_date: getTodayDateStr(),
-    publish_on: getTodayDateStr(),
-    message: '',
-    message_to: [],
-    attachment: null,
-    attachmentName: '',
-  });
 
   // View Modal State
   const [viewModal, setViewModal] = useState({
@@ -163,64 +148,9 @@ const NoticeList = () => {
     loadData();
   }, [loadData]);
 
-  // Handle route params (/add or /edit/:id)
-  useEffect(() => {
-    if (location.pathname.endsWith('/add')) {
-      handleOpenAdd();
-    } else if (params.id && notices.length > 0) {
-      const target = notices.find((n) => String(n.id) === String(params.id));
-      if (target) {
-        handleOpenEdit(target);
-      }
-    }
-  }, [location.pathname, params.id, notices]);
 
-  // Open Add Modal
-  const handleOpenAdd = () => {
-    setNoticeModal({
-      show: true,
-      isEdit: false,
-      id: null,
-      title: '',
-      notice_date: getTodayDateStr(),
-      publish_on: getTodayDateStr(),
-      message: '',
-      message_to: [],
-      attachment: null,
-      attachmentName: '',
-    });
-  };
 
-  // Open Edit Modal
-  const handleOpenEdit = (notice) => {
-    let parsedRecipients = [1, 2, 3, 4, 5];
-    if (Array.isArray(notice.message_to) && notice.message_to.length > 0) {
-      parsedRecipients = notice.message_to.map((item) => {
-        if (typeof item === 'number') return item;
-        const found = RECIPIENT_OPTIONS.find(
-          (opt) => opt.label.toLowerCase() === String(item).toLowerCase()
-        );
-        return found ? found.id : Number(item) || item;
-      });
-    }
 
-    setNoticeModal({
-      show: true,
-      isEdit: true,
-      id: notice.id,
-      title: notice.title || '',
-      notice_date: notice.notice_date
-        ? notice.notice_date.split('T')[0]
-        : getTodayDateStr(),
-      publish_on: notice.publish_on
-        ? notice.publish_on.split('T')[0]
-        : getTodayDateStr(),
-      message: notice.message || '',
-      message_to: parsedRecipients,
-      attachment: null,
-      attachmentName: '',
-    });
-  };
 
   // Open View Modal
   const handleOpenView = (notice) => {
@@ -230,98 +160,7 @@ const NoticeList = () => {
     });
   };
 
-  // Toggle single recipient
-  const handleToggleRecipient = (val) => {
-    setNoticeModal((prev) => {
-      const exists = prev.message_to.some(
-        (r) => String(r) === String(val) || RECIPIENT_NAMES[r] === RECIPIENT_NAMES[val]
-      );
-      return {
-        ...prev,
-        message_to: exists
-          ? prev.message_to.filter(
-              (r) => String(r) !== String(val) && RECIPIENT_NAMES[r] !== RECIPIENT_NAMES[val]
-            )
-          : [...prev.message_to, val],
-      };
-    });
-  };
 
-  // Select all / clear all recipients
-  const handleSelectAllRecipients = () => {
-    if (noticeModal.message_to.length === RECIPIENT_OPTIONS.length) {
-      setNoticeModal((prev) => ({ ...prev, message_to: [] }));
-    } else {
-      setNoticeModal((prev) => ({
-        ...prev,
-        message_to: RECIPIENT_OPTIONS.map((o) => o.id),
-      }));
-    }
-  };
-
-  // File change handler
-  const handleAttachmentChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      if (file.size > 4 * 1024 * 1024) {
-        toast.error('Attachment size exceeds 4MB.');
-        return;
-      }
-      setNoticeModal((prev) => ({
-        ...prev,
-        attachment: file,
-        attachmentName: file.name,
-      }));
-    }
-  };
-
-  // Remove attachment
-  const handleRemoveAttachment = () => {
-    setNoticeModal((prev) => ({
-      ...prev,
-      attachment: null,
-      attachmentName: '',
-    }));
-  };
-
-  // Save (Create / Update) Notice
-  const handleSaveNotice = async (e) => {
-    e.preventDefault();
-    if (!noticeModal.title.trim()) {
-      toast.error('Please enter a notice title.');
-      return;
-    }
-    if (noticeModal.message_to.length === 0) {
-      toast.error('Please select at least one recipient.');
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      const payload = {
-        title: noticeModal.title,
-        notice_date: noticeModal.notice_date,
-        publish_on: noticeModal.publish_on,
-        message: noticeModal.message,
-        message_to: noticeModal.message_to,
-      };
-
-      if (noticeModal.isEdit) {
-        await updateNoticeApi(noticeModal.id, payload);
-        toast.success('Notice updated successfully.');
-      } else {
-        await createNoticeApi(payload);
-        toast.success('Notice added successfully.');
-      }
-      setNoticeModal((prev) => ({ ...prev, show: false }));
-      loadData();
-    } catch (err) {
-      console.error('Error saving notice:', err);
-      toast.error(err?.response?.data?.message || 'Failed to save notice.');
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   // Single Delete Confirmation
   const confirmDelete = (notice) => {
@@ -712,13 +551,12 @@ const NoticeList = () => {
           </div>
           {!isTeacher && (
             <div className="mb-2">
-              <a
-                href="javascript:void(0);"
-                onClick={handleOpenAdd}
+              <Link
+                to={`${basePath}/announcement/notice/add`}
                 className="btn btn-primary d-flex align-items-center"
               >
-                <i className="ti ti-square-rounded-plus me-2"></i>Add Message
-              </a>
+                <i className="ti ti-square-rounded-plus me-2"></i>Add Notice
+              </Link>
             </div>
           )}
         </div>
@@ -1026,10 +864,38 @@ const NoticeList = () => {
                       {notice.title}
                     </a>
                   </h6>
-                  <p className="mb-0 text-muted small">
-                    <i className="fa-regular fa-calendar me-1"></i>Added on :{' '}
-                    {formatDate(notice.created_at || notice.notice_date)}
-                  </p>
+                  <div className="d-flex flex-wrap align-items-center gap-2 mt-1">
+                    <span className="text-muted small">
+                      <i className="fa-regular fa-calendar me-1"></i>Added on :{' '}
+                      {formatDate(notice.created_at || notice.notice_date)}
+                    </span>
+                    {notice.target_type === 'class_section' ? (
+                      <>
+                        <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-11">
+                          <i className="ti ti-school me-1"></i>
+                          {notice.target_class_names && notice.target_class_names.length > 0
+                            ? notice.target_class_names.join(', ')
+                            : 'All Classes'}
+                          {notice.target_section_names && notice.target_section_names.length > 0
+                            ? ` (${notice.target_section_names.join(', ')})`
+                            : ''}
+                        </span>
+                        {Array.isArray(notice.target_roles) && notice.target_roles.length > 0 && (
+                          <span className="badge bg-light text-dark border fs-11 text-capitalize">
+                            {notice.target_roles.join(', ')}
+                          </span>
+                        )}
+                      </>
+                    ) : notice.target_type === 'specific_users' ? (
+                      <span className="badge bg-info-subtle text-info border border-info-subtle fs-11">
+                        <i className="ti ti-user-check me-1"></i>Specific Users
+                      </span>
+                    ) : (
+                      <span className="badge bg-secondary-subtle text-secondary border fs-11">
+                        <i className="ti ti-world me-1"></i>School-Wide
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="d-flex align-items-center board-action mb-3">
@@ -1043,14 +909,13 @@ const NoticeList = () => {
                 </a>
                 {!isTeacher && (
                   <>
-                    <a
-                      href="javascript:void(0);"
-                      onClick={() => handleOpenEdit(notice)}
+                    <Link
+                      to={`${basePath}/announcement/notice/edit/${encodeParam(notice.id)}`}
                       className="text-primary border rounded p-1 badge me-1 primary-btn-hover"
                       title="Edit"
                     >
                       <i className="ti ti-edit-circle fs-16"></i>
-                    </a>
+                    </Link>
                     <a
                       href="javascript:void(0);"
                       onClick={() => confirmDelete(notice)}
@@ -1077,289 +942,6 @@ const NoticeList = () => {
           >
             <i className="ti ti-loader-3 me-2"></i>Load More
           </button>
-        </div>
-      )}
-
-      {/* Add / Edit Message Modal (Polished, Beautiful & Structured) */}
-      {noticeModal.show && (
-        <div
-          className="modal fade show"
-          id="add_message"
-          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)' }}
-          tabIndex="-1"
-        >
-          <div className="modal-dialog modal-dialog-centered modal-lg">
-            <div className="modal-content shadow-lg border-0">
-              {/* Modal Header */}
-              <div className="modal-header border-bottom px-4 py-3 bg-white">
-                <div className="d-flex align-items-center">
-                  <span className="avatar avatar-sm bg-light text-dark me-2 rounded-circle d-flex align-items-center justify-content-center" style={{ color: '#000000' }}>
-                    <i className="ti ti-speakerphone fs-16 text-dark" style={{ color: '#000000' }}></i>
-                  </span>
-                  <h4 className="modal-title fs-18 fw-bold mb-0 text-dark" style={{ color: '#000000' }}>
-                    {noticeModal.isEdit ? 'Edit Message' : 'New Message'}
-                  </h4>
-                </div>
-                <button
-                  type="button"
-                  className="btn-close custom-btn-close"
-                  onClick={() =>
-                    setNoticeModal((prev) => ({ ...prev, show: false }))
-                  }
-                  aria-label="Close"
-                >
-                  <i className="ti ti-x"></i>
-                </button>
-              </div>
-
-              {/* Modal Form */}
-              <form id="noticeForm" onSubmit={handleSaveNotice}>
-                <div className="modal-body p-4">
-                  <div className="row g-3">
-                    {/* Notice Title */}
-                    <div className="col-md-12">
-                      <label className="form-label fw-semibold mb-1 text-dark" style={{ color: '#000000' }}>
-                        Title <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        className="form-control text-dark"
-                        style={{ color: '#000000' }}
-                        name="title"
-                        id="title"
-                        required
-                        placeholder="e.g. Fees Reminder / Annual Sports Day Notification"
-                        value={noticeModal.title}
-                        onChange={(e) =>
-                          setNoticeModal((prev) => ({
-                            ...prev,
-                            title: e.target.value,
-                          }))
-                        }
-                      />
-                    </div>
-
-                    {/* Notice Date & Publish On in 2 Columns */}
-                    <div className="col-md-6">
-                      <label className="form-label fw-semibold mb-1 text-dark" style={{ color: '#000000' }}>
-                        Notice Date <span className="text-danger">*</span>
-                      </label>
-                      <div className="input-icon-start position-relative">
-                        <span className="icon-addon">
-                          <i className="ti ti-calendar text-dark" style={{ color: '#000000' }}></i>
-                        </span>
-                        <input
-                          type="date"
-                          className="form-control text-dark"
-                          style={{ color: '#000000' }}
-                          name="notice_date"
-                          id="date"
-                          required
-                          value={noticeModal.notice_date}
-                          onChange={(e) =>
-                            setNoticeModal((prev) => ({
-                              ...prev,
-                              notice_date: e.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <label className="form-label fw-semibold mb-1 text-dark" style={{ color: '#000000' }}>
-                        Publish On <span className="text-danger">*</span>
-                      </label>
-                      <div className="input-icon-start position-relative">
-                        <span className="icon-addon">
-                          <i className="ti ti-calendar-event text-dark" style={{ color: '#000000' }}></i>
-                        </span>
-                        <input
-                          type="date"
-                          className="form-control text-dark"
-                          style={{ color: '#000000' }}
-                          name="publish_on"
-                          id="publish"
-                          required
-                          value={noticeModal.publish_on}
-                          onChange={(e) =>
-                            setNoticeModal((prev) => ({
-                              ...prev,
-                              publish_on: e.target.value,
-                            }))
-                          }
-                        />
-                      </div>
-                    </div>
-
-                    {/* Message To Recipient Selection */}
-                    <div className="col-md-12">
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <label className="form-label fw-semibold mb-0 text-dark" style={{ color: '#000000' }}>
-                          Message To <span className="text-danger">*</span>
-                        </label>
-                        <button
-                          type="button"
-                          className="btn btn-link btn-sm p-0 text-decoration-none fw-semibold text-dark"
-                          style={{ color: '#000000' }}
-                          onClick={handleSelectAllRecipients}
-                        >
-                          {noticeModal.message_to.length === RECIPIENT_OPTIONS.length
-                            ? 'Deselect All'
-                            : 'Select All'}
-                        </button>
-                      </div>
-
-                      <div className="row g-2">
-                        {RECIPIENT_OPTIONS.map((opt) => {
-                          const isChecked = noticeModal.message_to.some(
-                            (r) =>
-                              String(r) === String(opt.id) ||
-                              String(r) === opt.label ||
-                              RECIPIENT_NAMES[r] === opt.label
-                          );
-                          return (
-                            <div key={opt.id} className="col-sm-6 col-md-4 col-lg">
-                              <label
-                                className="d-flex align-items-center p-2 rounded border cursor-pointer w-100 bg-white"
-                                style={{
-                                  cursor: 'pointer',
-                                  borderColor: isChecked ? '#000000' : '#e5e7eb',
-                                  color: '#000000',
-                                  transition: 'all 0.2s',
-                                }}
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="form-check-input me-2 mt-0"
-                                  name="message_to[]"
-                                  value={opt.id}
-                                  checked={isChecked}
-                                  onChange={() => handleToggleRecipient(opt.id)}
-                                  style={{ accentColor: '#000000' }}
-                                />
-                                <i className={`ti ${opt.icon} me-1 fs-15 text-dark`} style={{ color: '#000000' }}></i>
-                                <span className="fs-13 fw-semibold text-dark" style={{ color: '#000000' }}>
-                                  {opt.label}
-                                </span>
-                              </label>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* Message Details */}
-                    <div className="col-md-12">
-                      <label className="form-label fw-semibold mb-1 text-dark" style={{ color: '#000000' }}>
-                        Message
-                      </label>
-                      <textarea
-                        className="form-control text-dark"
-                        style={{ color: '#000000' }}
-                        rows="4"
-                        name="message"
-                        id="message"
-                        placeholder="Write announcement details or comments here..."
-                        value={noticeModal.message}
-                        onChange={(e) =>
-                          setNoticeModal((prev) => ({
-                            ...prev,
-                            message: e.target.value,
-                          }))
-                        }
-                      ></textarea>
-                    </div>
-
-                    {/* Attachment Upload Card */}
-                    <div className="col-md-12">
-                      <div className="bg-light p-3 rounded border">
-                        <div className="d-flex align-items-center justify-content-between mb-2">
-                          <div>
-                            <label className="form-label fw-semibold mb-0 text-dark" style={{ color: '#000000' }}>
-                              Attachment
-                            </label>
-                            <p className="mb-0 text-muted small">
-                              Upload size of 4MB, Accepted Format PDF
-                            </p>
-                          </div>
-                          <div
-                            className="btn btn-sm btn-primary drag-upload-btn position-relative"
-                            style={{ overflow: 'hidden' }}
-                          >
-                            <i className="ti ti-file-upload me-1"></i>Upload PDF
-                            <input
-                              type="file"
-                              className="form-control image_sign"
-                              accept=".pdf"
-                              name="attachment"
-                              onChange={handleAttachmentChange}
-                              style={{
-                                position: 'absolute',
-                                left: 0,
-                                top: 0,
-                                opacity: 0,
-                                width: '100%',
-                                height: '100%',
-                                cursor: 'pointer',
-                              }}
-                            />
-                          </div>
-                        </div>
-
-                        {noticeModal.attachmentName ? (
-                          <div className="d-inline-flex align-items-center bg-white px-3 py-1 rounded border mt-2">
-                            <i className="ti ti-file-type-pdf text-danger fs-18 me-2"></i>
-                            <span className="text-dark small fw-medium me-2">
-                              {noticeModal.attachmentName}
-                            </span>
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-link text-danger p-0 ms-1"
-                              onClick={handleRemoveAttachment}
-                              title="Remove file"
-                            >
-                              <i className="ti ti-x"></i>
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Modal Footer */}
-                <div className="modal-footer px-4 py-3 bg-white border-top">
-                  <button
-                    type="button"
-                    className="btn btn-light px-3 me-2"
-                    onClick={() =>
-                      setNoticeModal((prev) => ({ ...prev, show: false }))
-                    }
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary px-4 d-inline-flex align-items-center"
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2"></span>
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <i className="ti ti-check me-1"></i>
-                        {noticeModal.isEdit ? 'Save Changes' : 'Add New Message'}
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
         </div>
       )}
 
@@ -1434,26 +1016,69 @@ const NoticeList = () => {
 
                 <div className="mb-3">
                   <label className="form-label d-block text-muted small fw-semibold mb-2">
-                    Message To
+                    Audience Target
                   </label>
-                  <div className="d-flex flex-wrap gap-2">
-                    {Array.isArray(viewModal.notice.message_to) &&
-                    viewModal.notice.message_to.length > 0 ? (
-                      viewModal.notice.message_to.map((rec) => (
-                        <span
-                          key={rec}
-                          className="badge bg-soft-primary text-primary py-2 px-3 rounded-pill fw-medium fs-12"
-                        >
-                          <i className="ti ti-user-check me-1"></i>
-                          {RECIPIENT_NAMES[rec] || rec}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="badge bg-soft-primary text-primary py-2 px-3 rounded-pill">
-                        All
+                  {viewModal.notice.target_type === 'class_section' ? (
+                    <div className="p-3 bg-light rounded border">
+                      <div className="mb-2">
+                        <span className="badge bg-primary me-2">Class &amp; Section Target</span>
+                      </div>
+                      <div className="d-flex flex-column gap-1 fs-13">
+                        <div>
+                          <strong>Target Classes: </strong>
+                          <span className="text-dark">
+                            {viewModal.notice.target_class_names && viewModal.notice.target_class_names.length > 0
+                              ? viewModal.notice.target_class_names.join(', ')
+                              : 'All Classes'}
+                          </span>
+                        </div>
+                        <div>
+                          <strong>Target Sections: </strong>
+                          <span className="text-dark">
+                            {viewModal.notice.target_section_names && viewModal.notice.target_section_names.length > 0
+                              ? viewModal.notice.target_section_names.join(', ')
+                              : 'All Sections'}
+                          </span>
+                        </div>
+                        <div>
+                          <strong>Target Groups: </strong>
+                          <span className="text-dark text-capitalize">
+                            {Array.isArray(viewModal.notice.target_roles) && viewModal.notice.target_roles.length > 0
+                              ? viewModal.notice.target_roles.join(', ')
+                              : 'Students, Parents, Teachers'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : viewModal.notice.target_type === 'specific_users' ? (
+                    <div className="p-3 bg-light rounded border">
+                      <span className="badge bg-info me-2">Specific Users</span>
+                      <span className="text-dark fs-13">
+                        User IDs:{' '}
+                        {Array.isArray(viewModal.notice.target_user_ids)
+                          ? viewModal.notice.target_user_ids.map((u) => (typeof u === 'object' ? u.id : u)).join(', ')
+                          : 'Specific list'}
                       </span>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="d-flex flex-wrap gap-2">
+                      <span className="badge bg-secondary py-2 px-3 rounded-pill fw-medium fs-12">
+                        <i className="ti ti-world me-1"></i>School-Wide
+                      </span>
+                      {Array.isArray(viewModal.notice.message_to) &&
+                      viewModal.notice.message_to.length > 0 ? (
+                        viewModal.notice.message_to.map((rec) => (
+                          <span
+                            key={rec}
+                            className="badge bg-soft-primary text-primary py-2 px-3 rounded-pill fw-medium fs-12"
+                          >
+                            <i className="ti ti-user-check me-1"></i>
+                            {RECIPIENT_NAMES[rec] || rec}
+                          </span>
+                        ))
+                      ) : null}
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-top pt-3 mt-4 text-muted small d-flex align-items-center">

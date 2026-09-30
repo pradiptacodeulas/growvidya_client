@@ -105,6 +105,7 @@ const EditHostel = lazy(() => import('../pages/admin/hostel/EditHostel'));
 const HostelRoomsList = lazy(() => import('../pages/admin/hostel/HostelRoomsList'));
 const EditHostelRoom = lazy(() => import('../pages/admin/hostel/EditHostelRoom'));
 const NoticeList = lazy(() => import('../pages/admin/announcement/NoticeList'));
+const EditNotice = lazy(() => import('../pages/admin/announcement/EditNotice'));
 const EventList = lazy(() => import('../pages/admin/announcement/EventList'));
 const EditEvent = lazy(() => import('../pages/admin/announcement/EditEvent'));
 const HolidayList = lazy(() => import('../pages/admin/announcement/HolidayList'));
@@ -749,16 +750,16 @@ export const adminRoutes = (
         <Route path="notice" element={<NoticeList />} />
       </Route>
       <Route element={<ProtectedRoute module="announcement/notice" action="add" />}>
-        <Route path="announcement/notice/add" element={<NoticeList />} />
-        <Route path="announcement/notices/add" element={<NoticeList />} />
-        <Route path="notices/add" element={<NoticeList />} />
-        <Route path="notice/add" element={<NoticeList />} />
+        <Route path="announcement/notice/add" element={<EditNotice />} />
+        <Route path="announcement/notices/add" element={<EditNotice />} />
+        <Route path="notices/add" element={<EditNotice />} />
+        <Route path="notice/add" element={<EditNotice />} />
       </Route>
       <Route element={<ProtectedRoute module="announcement/notice" action="edit" />}>
-        <Route path="announcement/notice/edit/:id" element={<NoticeList />} />
-        <Route path="announcement/notices/edit/:id" element={<NoticeList />} />
-        <Route path="notices/edit/:id" element={<NoticeList />} />
-        <Route path="notice/edit/:id" element={<NoticeList />} />
+        <Route path="announcement/notice/edit/:id" element={<EditNotice />} />
+        <Route path="announcement/notices/edit/:id" element={<EditNotice />} />
+        <Route path="notices/edit/:id" element={<EditNotice />} />
+        <Route path="notice/edit/:id" element={<EditNotice />} />
       </Route>
 
       <Route element={<ProtectedRoute module="announcement/event" action="view" />}>

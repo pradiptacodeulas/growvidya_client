@@ -1,3 +1,4 @@
+import React from 'react';
 import {
   toast as realToast,
   ToastContainer,
@@ -198,6 +199,9 @@ export function extractUserFriendlyMessage(target) {
 
 // Proxied toast function
 const toast = (content, options) => {
+  if (React.isValidElement(content)) {
+    return realToast(content, options);
+  }
   if (isFeaturePlanWarning(content)) {
     return realToast.warn(FEATURE_WARNING_MESSAGE, options);
   }
@@ -213,6 +217,9 @@ Object.assign(toast, realToast);
 
 // Enhance toast.error
 toast.error = (content, options) => {
+  if (React.isValidElement(content)) {
+    return realToast.error(content, options);
+  }
   if (isFeaturePlanWarning(content)) {
     return realToast.warn(FEATURE_WARNING_MESSAGE, options);
   }
@@ -225,6 +232,9 @@ toast.error = (content, options) => {
 
 // Enhance toast.warn / warning
 toast.warn = (content, options) => {
+  if (React.isValidElement(content)) {
+    return realToast.warn(content, options);
+  }
   if (isFeaturePlanWarning(content)) {
     return realToast.warn(FEATURE_WARNING_MESSAGE, options);
   }
@@ -235,12 +245,18 @@ toast.warning = toast.warn;
 
 // Enhance toast.info
 toast.info = (content, options) => {
+  if (React.isValidElement(content)) {
+    return realToast.info(content, options);
+  }
   const resolved = typeof content === 'string' ? cleanErrorMessage(content) : extractUserFriendlyMessage(content);
   return realToast.info(resolved, options);
 };
 
 // Enhance toast.success
 toast.success = (content, options) => {
+  if (React.isValidElement(content)) {
+    return realToast.success(content, options);
+  }
   const resolved = typeof content === 'string' ? content : (content?.message || String(content));
   return realToast.success(resolved, options);
 };

@@ -3,6 +3,11 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { clearAllUnread } from '../../store/slices/messageNotificationSlice';
 import { resolveImageUrl } from '../../utils/url.util';
+import {
+  isWebPushSupported,
+  getNotificationPermission,
+  subscribeToWebPush,
+} from '../../services/webPush.service';
 
 /**
  * Modern unified Navbar Notification Dropdown
@@ -19,6 +24,20 @@ const NavbarNotificationDropdown = ({
 
   const [isOpen, setIsOpen] = useState(false);
   const [hasNoticeUnread, setHasNoticeUnread] = useState(true);
+  const [pushPerm, setPushPerm] = useState(() => getNotificationPermission());
+  const [subscribingPush, setSubscribingPush] = useState(false);
+
+  const handleEnablePush = async () => {
+    setSubscribingPush(true);
+    try {
+      const res = await subscribeToWebPush(true);
+      if (res?.success) {
+        setPushPerm('granted');
+      }
+    } finally {
+      setSubscribingPush(false);
+    }
+  };
 
   // Read message notification state from Redux
   const { unreadCount: messageUnreadCount, unreadConversations } = useSelector(
@@ -158,6 +177,32 @@ const NavbarNotificationDropdown = ({
               </button>
             )}
           </div>
+
+          {/* Web Push Prompt (if supported and permission not yet granted) */}
+          {isWebPushSupported() && pushPerm === 'default' && (
+            <div className="alert alert-primary py-2 px-2 d-flex align-items-center justify-content-between mb-2 fs-11 rounded-2 border border-primary-subtle">
+              <div className="d-flex align-items-center gap-1 text-primary">
+                <i className="ti ti-bell-ringing fs-14"></i>
+                <span className="fw-medium">Enable desktop alerts</span>
+              </div>
+              <button
+                type="button"
+                className="btn btn-primary btn-sm px-2 py-0 fs-11 fw-semibold"
+                onClick={handleEnablePush}
+                disabled={subscribingPush}
+              >
+                {subscribingPush ? 'Enabling...' : 'Enable'}
+              </button>
+            </div>
+          )}
+
+          {/* Web Push Active Status */}
+          {isWebPushSupported() && pushPerm === 'granted' && (
+            <div className="alert alert-light py-1 px-2 d-flex align-items-center mb-2 fs-11 rounded-2 border text-success">
+              <i className="ti ti-bell-check fs-13 me-1"></i>
+              <span className="fw-medium">Desktop alerts enabled</span>
+            </div>
+          )}
 
           {/* Segmented Tab Navigation */}
           <div className="p-1 bg-light rounded d-flex mb-3 gap-1">

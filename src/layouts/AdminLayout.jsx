@@ -4,6 +4,7 @@ import Navbar from '../components/common/Navbar';
 import Sidebar from '../components/common/Sidebar';
 import Footer from '../components/common/Footer';
 import PageLoader from '../components/common/PageLoader';
+import NotificationPermissionBanner from '../components/common/NotificationPermissionBanner';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useMessageNotificationSync } from '../hooks/useMessageNotificationSync';
 
@@ -105,6 +106,7 @@ const AdminLayout = () => {
         onCloseMobileMenu={closeMobileMenu}
       />
       <div className="page-wrapper d-flex flex-column justify-content-between">
+        <NotificationPermissionBanner />
         <div className="flex-grow-1">
           {isExpired && !loading && !isAllowedExpiredPath ? (
             <div className="content d-flex align-items-center justify-content-center" style={{ minHeight: '60vh' }}>

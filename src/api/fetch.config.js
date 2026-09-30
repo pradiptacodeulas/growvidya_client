@@ -13,10 +13,12 @@ export const apiFetch = async (endpoint, options = {}) => {
     const currentPath = window.location.pathname || '';
     const cleanEndpoint = String(endpoint || '').replace(/^\/api/, '');
 
-    // 1. Shared / multi-role routes (messages, attachments, options) resolve by current portal path
+    // 1. Shared / multi-role routes (messages, notifications, attachments, options) resolve by current portal path
     if (
       cleanEndpoint.startsWith('/messages') ||
       cleanEndpoint.startsWith('/v1/messages') ||
+      cleanEndpoint.startsWith('/notifications') ||
+      cleanEndpoint.startsWith('/v1/notifications') ||
       cleanEndpoint.startsWith('/upload') ||
       cleanEndpoint.startsWith('/v1/upload') ||
       cleanEndpoint.startsWith('/common') ||

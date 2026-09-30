@@ -18,7 +18,7 @@ export default defineConfig({
   },
   server: {
     host: true, // Listens on 0.0.0.0 for LAN and Wi-Fi access from other devices
-    port: 5173,
+    port: 5174,
   },
   build: {
     chunkSizeWarningLimit: 1000,
@@ -36,3 +36,4 @@ export default defineConfig({
     },
   },
 })
+

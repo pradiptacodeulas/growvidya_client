@@ -10,7 +10,7 @@ export const getServerBaseUrl = () => {
   }
   const hostname = typeof window !== 'undefined' && window.location.hostname ? window.location.hostname : 'localhost';
   const protocol = typeof window !== 'undefined' && window.location.protocol ? window.location.protocol : 'http:';
-  return `${protocol}//${hostname}:5000`;
+  return `${protocol}//${hostname}:5001`;
 };
 
 export const getApiBaseUrl = () => {

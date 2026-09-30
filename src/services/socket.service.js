@@ -19,6 +19,9 @@ export const getActiveAuthToken = () => {
   if (currentPath.startsWith('/student')) {
     return localStorage.getItem('student_token');
   }
+  if (currentPath.startsWith('/admin')) {
+    return localStorage.getItem('admin_token') || localStorage.getItem('token');
+  }
   return (
     localStorage.getItem('admin_token') ||
     localStorage.getItem('token') ||
@@ -33,7 +36,9 @@ export const getActiveAuthToken = () => {
  */
 export const connectSocket = () => {
   const token = getActiveAuthToken();
-  if (!token) return null;
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+  const effectiveToken = token || (currentPath.startsWith('/admin') ? 'cookie_session' : null);
+  if (!effectiveToken) return null;
 
   if (socket && socket.connected) {
     return socket;
@@ -41,7 +46,7 @@ export const connectSocket = () => {
 
   // If socket exists but disconnected, reconnect
   if (socket) {
-    socket.auth = { token };
+    socket.auth = { token: effectiveToken };
     socket.connect();
     return socket;
   }
@@ -49,7 +54,7 @@ export const connectSocket = () => {
   const serverUrl = getServerBaseUrl();
 
   socket = io(serverUrl, {
-    auth: { token },
+    auth: { token: effectiveToken },
     transports: ['websocket', 'polling'],
     reconnection: true,
     reconnectionAttempts: 10,

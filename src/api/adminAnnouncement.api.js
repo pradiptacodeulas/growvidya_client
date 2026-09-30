@@ -26,6 +26,15 @@ export const deleteNoticeApi = async (id) => {
   return response.data;
 };
 
+export const searchAnnouncementUsersApi = async (query = '', role = '') => {
+  const params = new URLSearchParams();
+  if (query) params.set('q', query);
+  if (role) params.set('role', role);
+  const qs = params.toString();
+  const response = await axiosInstance.get(`/admin/announcement/search-users${qs ? `?${qs}` : ''}`);
+  return response.data;
+};
+
 // ================= EVENT API =================
 export const fetchEventsApi = async () => {
   const response = await axiosInstance.get('/admin/announcement/events');

@@ -4,6 +4,7 @@ import ParentNavbar from '../components/parent/ParentNavbar';
 import ParentSidebar from '../components/parent/ParentSidebar';
 import Footer from '../components/common/Footer';
 import PageLoader from '../components/common/PageLoader';
+import NotificationPermissionBanner from '../components/common/NotificationPermissionBanner';
 import { useMessageNotificationSync } from '../hooks/useMessageNotificationSync';
 
 const ParentLayout = () => {
@@ -91,6 +92,7 @@ const ParentLayout = () => {
         onCloseMobileMenu={closeMobileMenu}
       />
       <div className="page-wrapper d-flex flex-column justify-content-between">
+        <NotificationPermissionBanner />
         <div className="flex-grow-1">
           <React.Suspense fallback={<PageLoader />}>
             <Outlet />

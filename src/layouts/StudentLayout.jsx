@@ -4,6 +4,7 @@ import StudentNavbar from '../components/student/StudentNavbar';
 import StudentSidebar from '../components/student/StudentSidebar';
 import Footer from '../components/common/Footer';
 import PageLoader from '../components/common/PageLoader';
+import NotificationPermissionBanner from '../components/common/NotificationPermissionBanner';
 import { useMessageNotificationSync } from '../hooks/useMessageNotificationSync';
 
 const StudentLayout = () => {
@@ -86,6 +87,7 @@ const StudentLayout = () => {
         onCloseMobileMenu={closeMobileMenu}
       />
       <div className="page-wrapper d-flex flex-column justify-content-between">
+        <NotificationPermissionBanner />
         <div className="flex-grow-1">
           <React.Suspense fallback={<PageLoader />}>
             <Outlet />

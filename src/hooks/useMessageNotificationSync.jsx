@@ -1,11 +1,19 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import {
   fetchUnreadSummaryThunk,
   addIncomingMessage,
   markConversationRead,
 } from '../store/slices/messageNotificationSlice';
 import { getSocket, getActiveAuthToken } from '../services/socket.service';
+import {
+  registerServiceWorker,
+  subscribeToWebPush,
+  getNotificationPermission,
+} from '../services/webPush.service';
+import { toast } from '../utils/customToast';
+import { playNotificationChime } from '../utils/notificationAudio';
 
 /**
  * Custom hook to keep global unread message counts & notifications
@@ -13,11 +21,24 @@ import { getSocket, getActiveAuthToken } from '../services/socket.service';
  */
 export const useMessageNotificationSync = () => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
   const socketRef = useRef(null);
 
   useEffect(() => {
     const token = getActiveAuthToken();
-    if (!token) return;
+    const currentPath = typeof window !== 'undefined' ? window.location.pathname || '' : '';
+    const isAdminPath = currentPath.startsWith('/admin');
+
+    if (!token && !isAdminPath) return;
+
+    // Background registration of Service Worker and Web Push Sync
+    try {
+      if (getNotificationPermission() === 'granted') {
+        subscribeToWebPush(false).catch(() => {});
+      } else {
+        registerServiceWorker().catch(() => {});
+      }
+    } catch (_) {}
 
     // 1. Fetch initial unread count & unread conversations summary
     dispatch(fetchUnreadSummaryThunk());
@@ -48,7 +69,47 @@ export const useMessageNotificationSync = () => {
       // Add to global unread state
       dispatch(addIncomingMessage(incomingMsg));
 
-      // Dispatch window event in case other listeners want to show a toast or play chime
+      // Play soft audio chime
+      playNotificationChime();
+
+      // Show interactive in-app toast notification
+      const senderName =
+        incomingMsg.sender_name ||
+        (senderRole ? senderRole.charAt(0).toUpperCase() + senderRole.slice(1) : 'New Message');
+      const rawText = incomingMsg.message || (incomingMsg.file ? '📎 Sent an attachment' : 'Sent you a message');
+      const previewText = rawText.length > 70 ? rawText.substring(0, 67) + '...' : rawText;
+
+      toast.info(
+        <div
+          style={{ cursor: 'pointer', minWidth: '220px' }}
+          onClick={() => {
+            const currentPath = window.location.pathname || '';
+            let basePath = '/admin/message';
+            if (currentPath.startsWith('/teacher')) basePath = '/teacher/messages';
+            else if (currentPath.startsWith('/student')) basePath = '/student/messages';
+            else if (currentPath.startsWith('/parent')) basePath = '/parent/messages';
+            navigate(`${basePath}?contactId=${senderId}&contactRole=${senderRole}`);
+          }}
+        >
+          <div className="d-flex align-items-center justify-content-between mb-1 gap-2">
+            <span className="fw-bold fs-13 text-dark text-truncate">{senderName}</span>
+            <span className="badge bg-primary text-white fs-10 text-capitalize flex-shrink-0">
+              {senderRole}
+            </span>
+          </div>
+          <div className="fs-12 text-muted text-truncate" style={{ maxWidth: '240px' }}>
+            {previewText}
+          </div>
+        </div>,
+        {
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+        }
+      );
+
+      // Dispatch window event in case other listeners want to respond
       try {
         window.dispatchEvent(
           new CustomEvent('new_chat_message_received', { detail: incomingMsg })
