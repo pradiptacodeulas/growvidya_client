@@ -61,6 +61,10 @@ export const fetchStudentDocumentsApi = async () => {
   return apiClient.get('/student/portal/documents');
 };
 
+export const fetchStudentNoticesApi = async () => {
+  return apiClient.get('/student/portal/notices');
+};
+
 export const fetchStudentAssignmentsApi = async () => {
   const res = await apiClient.get('/student/portal/assignments');
   if (Array.isArray(res?.data?.data)) {

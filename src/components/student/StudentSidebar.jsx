@@ -192,6 +192,16 @@ const StudentSidebar = ({
 
                 <li>
                   <NavLink
+                    to="/student/notices"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                    onClick={onCloseMobileMenu}
+                  >
+                    <i className="ti ti-speakerphone"></i><span>Notice Board</span>
+                  </NavLink>
+                </li>
+
+                <li>
+                  <NavLink
                     to="/student/messages"
                     className={({ isActive }) =>
                       isActive ? 'active d-flex align-items-center position-relative' : 'd-flex align-items-center position-relative'

@@ -143,13 +143,59 @@ export const useMessageNotificationSync = () => {
       }
     };
 
+    // 6. Socket event handler for real-time notice / announcement broadcast
+    const handleNewNotice = (notice) => {
+      if (!notice) return;
+      playNotificationChime();
+
+      toast.info(
+        <div
+          style={{ cursor: 'pointer', minWidth: '220px' }}
+          onClick={() => {
+            const currentPath = window.location.pathname || '';
+            let targetPath = '/admin/announcement/notice';
+            if (currentPath.startsWith('/teacher')) targetPath = '/teacher/announcements/notices';
+            else if (currentPath.startsWith('/student')) targetPath = '/student/notices';
+            else if (currentPath.startsWith('/parent')) targetPath = '/parent/notices';
+            navigate(targetPath);
+          }}
+        >
+          <div className="d-flex align-items-center justify-content-between mb-1 gap-2">
+            <span className="fw-bold fs-13 text-dark text-truncate">
+              📢 {notice.title || 'New Notice'}
+            </span>
+            <span className="badge bg-warning text-dark fs-10 flex-shrink-0">
+              Notice
+            </span>
+          </div>
+          <div className="fs-12 text-muted text-truncate" style={{ maxWidth: '240px' }}>
+            Click to view notice details
+          </div>
+        </div>,
+        {
+          autoClose: 6000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+        }
+      );
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent('growvidya:new_notice', { detail: notice })
+        );
+      } catch (_) {}
+    };
+
     socket.on('receive_message', handleReceiveMessage);
     socket.on('unread_count_updated', handleUnreadCountUpdated);
+    socket.on('new_notice', handleNewNotice);
     window.addEventListener('chat_messages_marked_read', handleLocalMessagesRead);
 
     return () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('unread_count_updated', handleUnreadCountUpdated);
+      socket.off('new_notice', handleNewNotice);
       window.removeEventListener('chat_messages_marked_read', handleLocalMessagesRead);
     };
   }, [dispatch]);
