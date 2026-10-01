@@ -63,11 +63,18 @@ const PricingPlans = () => {
     );
     if (!pushItem) return null;
     const limit = pushItem.quota_limit;
+    const isIncluded = pushItem.item_type === 'included' || parseFloat(pushItem.price) === 0;
     return {
       item: pushItem,
       limit: limit ? Number(limit).toLocaleString() : null,
-      label: limit ? `${Number(limit).toLocaleString()} Notifications` : 'Unlimited Notifications',
-      isUnlimited: !limit,
+      label: limit
+        ? `${Number(limit).toLocaleString()} Push Notifications ${
+            isIncluded ? 'Included' : `(Add-on: ₹${Number(pushItem.price).toLocaleString('en-IN')})`
+          }`
+        : isIncluded
+        ? 'Push Notifications Included'
+        : `Add-on: ₹${Number(pushItem.price).toLocaleString('en-IN')}`,
+      isIncluded,
     };
   };
 
@@ -86,27 +93,12 @@ const PricingPlans = () => {
     });
   };
 
-  // 14-Day Free Trial Plan (common to both monthly & annual)
+  // Free Trial Plan (strictly from admin database, common to both monthly & annual)
   const trialPlan =
-    plans.find((p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0) || {
-      id: 'trial_default',
-      plan_name: '14-Day Free Trial',
-      plan_code: 'TRIAL_14',
-      description: 'Complete platform evaluation for your administrative staff and teachers.',
-      price: 0,
-      billing_cycle: 'trial',
-      duration_days: 14,
-      max_students: 1000,
-      max_teachers: 100,
-      max_branches: 1,
-      items: [
-        { id: 't_sms', item_name: 'Transactional SMS', item_code: 'SMS_ALERT', item_type: 'included', quota_limit: 500, price: 0 },
-        { id: 't_push', item_name: 'Push Notifications', item_code: 'PUSH_NOTIF', item_type: 'included', quota_limit: 1000, price: 0 },
-      ],
-    };
+    plans.find((p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0) || null;
 
-  const trialSms = getSmsAllocation(trialPlan);
-  const trialPush = getPushAllocation(trialPlan);
+  const trialSms = trialPlan ? getSmsAllocation(trialPlan) : null;
+  const trialPush = trialPlan ? getPushAllocation(trialPlan) : null;
 
   // Filter paid plans for selected billing cycle
   const currentPaidPlans = plans.filter((p) => {
@@ -185,7 +177,10 @@ const PricingPlans = () => {
               </button>
             </div>
             <div className="text-muted fs-13 mt-2 text-center">
-              Showing <strong>{billingCycle === 'monthly' ? 'Monthly' : 'Annual'}</strong> packages. The <strong>14-Day Free Trial</strong> is available under both options.
+              Showing <strong>{billingCycle === 'monthly' ? 'Monthly' : 'Annual'}</strong> packages.
+              {trialPlan && (
+                <> The <strong>{trialPlan.plan_name}</strong> is available under both options.</>
+              )}
             </div>
           </div>
 
@@ -198,9 +193,9 @@ const PricingPlans = () => {
             </div>
           ) : (
             <div>
-              {/* 4 PRICING CARDS IN A UNIFIED ROW */}
+              {/* PRICING CARDS IN A UNIFIED ROW */}
               <div className="row g-4 justify-content-center mb-5 pt-3">
-                {/* CARD 1: 14-DAY FREE TRIAL (Normal pricing card design, common to monthly and annual) */}
+                {/* CARD 1: FREE TRIAL (Strictly rendered if configured by admin in database) */}
                 {trialPlan && (
                   <div className="col-12 col-md-6 col-xl-3 d-flex">
                     <div
@@ -210,7 +205,7 @@ const PricingPlans = () => {
                       {/* Top Badge */}
                       <div className="position-absolute top-0 start-50 translate-middle">
                         <span className="badge rounded-pill bg-success text-white px-3 py-1.5 fs-11 fw-bold shadow-sm text-uppercase">
-                          ✨ 14-Day Free Trial
+                          ✨ {trialPlan.plan_name}
                         </span>
                       </div>
 
@@ -218,7 +213,7 @@ const PricingPlans = () => {
                         <div className="mb-2">
                           <h4 className="fw-bold text-dark mb-1 fs-18">{trialPlan.plan_name}</h4>
                           <p className="text-muted fs-13 mb-0" style={{ minHeight: '44px' }}>
-                            {trialPlan.description}
+                            {trialPlan.description || 'Full platform access evaluation for your institution.'}
                           </p>
                         </div>
 
@@ -226,7 +221,9 @@ const PricingPlans = () => {
                         <div className="my-3 pb-3 border-bottom">
                           <div className="d-flex align-items-baseline gap-1">
                             <span className="display-6 fw-bold text-success">₹0</span>
-                            <span className="text-muted fs-13 fw-semibold">/ 14 days access</span>
+                            <span className="text-muted fs-13 fw-semibold">
+                              {trialPlan.duration_days ? `/ ${trialPlan.duration_days} days access` : '/ evaluation access'}
+                            </span>
                           </div>
                           <div className="mt-1">
                             <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 fs-11 fw-semibold">
@@ -239,46 +236,64 @@ const PricingPlans = () => {
                         <div className="mb-4 flex-grow-1">
                           <div className="fw-semibold text-dark fs-12 mb-3 text-uppercase">Features & Quotas:</div>
                           <ul className="list-unstyled fs-13 mb-0 d-flex flex-column gap-2">
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-users text-primary me-2 fs-16"></i>
-                              <span>
-                                <strong>{trialPlan.max_students > 0 ? `Up to ${trialPlan.max_students.toLocaleString()}` : 'Full'}</strong> Students
-                              </span>
-                            </li>
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-user-check text-primary me-2 fs-16"></i>
-                              <span>
-                                <strong>{trialPlan.max_teachers > 0 ? `Up to ${trialPlan.max_teachers.toLocaleString()}` : 'Full'}</strong> Staff & Teachers
-                              </span>
-                            </li>
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
-                              <span>
-                                <strong>{trialSms ? trialSms.label : '500 SMS Included'}</strong>
-                              </span>
-                            </li>
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-bell-ringing text-success me-2 fs-16"></i>
-                              <span>
-                                <strong>{trialPush ? trialPush.label : '1,000 Push Notifications'}</strong>
-                              </span>
-                            </li>
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-check text-success me-2 fs-16"></i>
-                              <span>Attendance & Routine Engine</span>
-                            </li>
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-check text-success me-2 fs-16"></i>
-                              <span>Parent & Student Portal</span>
-                            </li>
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-check text-success me-2 fs-16"></i>
-                              <span>Fee Structures & Invoicing</span>
-                            </li>
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-sparkles text-success me-2 fs-16"></i>
-                              <span>14-Day Full Platform Access</span>
-                            </li>
+                            {trialPlan.max_students !== undefined && trialPlan.max_students !== null && (
+                              <li className="d-flex align-items-center">
+                                <i className="ti ti-users text-primary me-2 fs-16"></i>
+                                <span>
+                                  <strong>{trialPlan.max_students > 0 ? `Up to ${Number(trialPlan.max_students).toLocaleString()}` : 'Unlimited'}</strong> Students
+                                </span>
+                              </li>
+                            )}
+                            {trialPlan.max_teachers !== undefined && trialPlan.max_teachers !== null && (
+                              <li className="d-flex align-items-center">
+                                <i className="ti ti-user-check text-primary me-2 fs-16"></i>
+                                <span>
+                                  <strong>{trialPlan.max_teachers > 0 ? `Up to ${Number(trialPlan.max_teachers).toLocaleString()}` : 'Unlimited'}</strong> Staff & Teachers
+                                </span>
+                              </li>
+                            )}
+                            {trialSms && (
+                              <li className="d-flex align-items-center">
+                                <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
+                                <span>
+                                  <strong>{trialSms.label}</strong>
+                                </span>
+                              </li>
+                            )}
+                            {trialPush && (
+                              <li className="d-flex align-items-center">
+                                <i className="ti ti-bell-ringing text-success me-2 fs-16"></i>
+                                <span>
+                                  <strong>{trialPush.label}</strong>
+                                </span>
+                              </li>
+                            )}
+                            {(trialPlan.items || [])
+                              .filter(
+                                (it) =>
+                                  it.item_code !== 'PUSH_NOTIF' &&
+                                  !it.item_code?.toUpperCase().includes('SMS') &&
+                                  it.item_code !== 'EMAIL_ALERTS'
+                              )
+                              .map((it) => (
+                                <li key={it.id} className="d-flex align-items-center">
+                                  <i
+                                    className={`ti ${
+                                      it.item_type === 'included' || parseFloat(it.price) === 0
+                                        ? 'ti-check text-success'
+                                        : 'ti-plus text-primary'
+                                    } me-2 fs-16`}
+                                  ></i>
+                                  <span>
+                                    {it.item_name}{' '}
+                                    {it.item_type === 'addon' && parseFloat(it.price) > 0 && (
+                                      <span className="text-muted">
+                                        (Add-on: ₹{Number(it.price).toLocaleString('en-IN')})
+                                      </span>
+                                    )}
+                                  </span>
+                                </li>
+                              ))}
                           </ul>
                         </div>
 
@@ -289,7 +304,7 @@ const PricingPlans = () => {
                             onClick={() => handleSelectPlan(trialPlan, true)}
                             className="btn btn-outline-success py-2.5 fw-semibold d-flex align-items-center justify-content-center shadow-xs w-100"
                           >
-                            <span>Start 14-Day Free Trial</span>
+                            <span>Start {trialPlan.plan_name}</span>
                             <i className="ti ti-arrow-right ms-2 fs-15"></i>
                           </button>
                           <div className="text-center text-muted fs-11 mt-1">
@@ -301,16 +316,14 @@ const PricingPlans = () => {
                   </div>
                 )}
 
-                {/* CARDS 2, 3, 4: PAID PLANS (Starter, Growth, Enterprise for current billing cycle) */}
+                {/* PAID PLANS (Strictly from admin database for current billing cycle) */}
                 {currentPaidPlans.map((plan) => {
                   const isGrowth =
                     (plan.plan_code || '').toLowerCase().includes('growth') ||
-                    plan.id === 2 ||
-                    plan.id === 8;
+                    (plan.plan_name || '').toLowerCase().includes('growth');
                   const isEnterprise =
                     (plan.plan_code || '').toLowerCase().includes('enterprise') ||
-                    plan.id === 3 ||
-                    plan.id === 9;
+                    (plan.plan_name || '').toLowerCase().includes('enterprise');
                   const smsInfo = getSmsAllocation(plan);
                   const pushInfo = getPushAllocation(plan);
 
@@ -344,7 +357,7 @@ const PricingPlans = () => {
                         {!isGrowth && !isEnterprise && (
                           <div className="position-absolute top-0 start-50 translate-middle">
                             <span className="badge rounded-pill bg-light text-secondary border px-3 py-1.5 fs-11 fw-semibold text-uppercase">
-                              Starter Tier
+                              {plan.plan_name}
                             </span>
                           </div>
                         )}
@@ -353,7 +366,7 @@ const PricingPlans = () => {
                           <div className="mb-2">
                             <h4 className="fw-bold text-dark mb-1 fs-18">{plan.plan_name}</h4>
                             <p className="text-muted fs-13 mb-0" style={{ minHeight: '44px' }}>
-                              {plan.description}
+                              {plan.description || ''}
                             </p>
                           </div>
 
@@ -385,18 +398,22 @@ const PricingPlans = () => {
                           <div className="mb-4 flex-grow-1">
                             <div className="fw-semibold text-dark fs-12 mb-3 text-uppercase">Features & Quotas:</div>
                             <ul className="list-unstyled fs-13 mb-0 d-flex flex-column gap-2">
-                              <li className="d-flex align-items-center">
-                                <i className="ti ti-users text-primary me-2 fs-16"></i>
-                                <span>
-                                  <strong>{plan.max_students > 0 ? `Up to ${plan.max_students.toLocaleString()}` : 'Unlimited'}</strong> Students
-                                </span>
-                              </li>
-                              <li className="d-flex align-items-center">
-                                <i className="ti ti-user-check text-primary me-2 fs-16"></i>
-                                <span>
-                                  <strong>{plan.max_teachers > 0 ? `Up to ${plan.max_teachers.toLocaleString()}` : 'Unlimited'}</strong> Staff & Teachers
-                                </span>
-                              </li>
+                              {plan.max_students !== undefined && plan.max_students !== null && (
+                                <li className="d-flex align-items-center">
+                                  <i className="ti ti-users text-primary me-2 fs-16"></i>
+                                  <span>
+                                    <strong>{plan.max_students > 0 ? `Up to ${Number(plan.max_students).toLocaleString()}` : 'Unlimited'}</strong> Students
+                                  </span>
+                                </li>
+                              )}
+                              {plan.max_teachers !== undefined && plan.max_teachers !== null && (
+                                <li className="d-flex align-items-center">
+                                  <i className="ti ti-user-check text-primary me-2 fs-16"></i>
+                                  <span>
+                                    <strong>{plan.max_teachers > 0 ? `Up to ${Number(plan.max_teachers).toLocaleString()}` : 'Unlimited'}</strong> Staff & Teachers
+                                  </span>
+                                </li>
+                              )}
                               {smsInfo && (
                                 <li className="d-flex align-items-center">
                                   <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
@@ -413,18 +430,6 @@ const PricingPlans = () => {
                                   </span>
                                 </li>
                               )}
-                              <li className="d-flex align-items-center">
-                                <i className="ti ti-check text-success me-2 fs-16"></i>
-                                <span>Attendance & Class Routine</span>
-                              </li>
-                              <li className="d-flex align-items-center">
-                                <i className="ti ti-check text-success me-2 fs-16"></i>
-                                <span>Student & Parent Mobile Portal</span>
-                              </li>
-                              <li className="d-flex align-items-center">
-                                <i className="ti ti-check text-success me-2 fs-16"></i>
-                                <span>Fee Structures & Invoicing</span>
-                              </li>
                               {(plan.items || [])
                                 .filter(
                                   (it) =>
@@ -481,6 +486,16 @@ const PricingPlans = () => {
                     </div>
                   );
                 })}
+
+                {!trialPlan && currentPaidPlans.length === 0 && (
+                  <div className="col-12 text-center py-5">
+                    <div className="avatar avatar-xl rounded-circle bg-light text-muted mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: '64px', height: '64px' }}>
+                      <i className="ti ti-packages fs-32"></i>
+                    </div>
+                    <h5 className="fw-bold text-dark">No Subscription Plans Available</h5>
+                    <p className="text-muted fs-14">There are currently no active plans configured for this billing cycle.</p>
+                  </div>
+                )}
               </div>
 
               {/* Value Proposition Callouts */}
@@ -490,9 +505,11 @@ const PricingPlans = () => {
                     <div className="avatar avatar-md rounded-circle bg-success-subtle text-success mx-auto mb-3 d-flex align-items-center justify-content-center" style={{ width: '48px', height: '48px' }}>
                       <i className="ti ti-shield-check fs-24"></i>
                     </div>
-                    <h6 className="fw-bold mb-2 fs-16 text-dark">Risk-Free 14-Day Trial</h6>
+                    <h6 className="fw-bold mb-2 fs-16 text-dark">{trialPlan ? 'Risk-Free Evaluation' : 'Transparent Pricing'}</h6>
                     <p className="text-muted fs-13 mb-0">
-                      Try the full platform with your team for 14 days without any credit card or upfront commitment.
+                      {trialPlan
+                        ? `Experience the platform with your team during your free evaluation period without any upfront commitment.`
+                        : 'Straightforward institutional pricing with full transparency and instant activation.'}
                     </p>
                   </div>
                 </div>
@@ -520,107 +537,91 @@ const PricingPlans = () => {
                 </div>
               </div>
 
-              {/* Comprehensive Feature Comparison Matrix */}
-              <div className="card border-0 shadow-sm rounded-3 mb-5 overflow-hidden">
-                <div className="card-header bg-white p-4 border-bottom">
-                  <h4 className="fw-bold text-dark mb-1">Feature Comparison Matrix</h4>
-                  <p className="text-muted fs-13 mb-0">Compare all modules, capacity limits, and capabilities across tiers.</p>
+              {/* Dynamic Feature Comparison Matrix - strictly shown when multiple admin plans exist */}
+              {plans.length > 1 && (
+                <div className="card border-0 shadow-sm rounded-3 mb-5 overflow-hidden">
+                  <div className="card-header bg-white p-4 border-bottom">
+                    <h4 className="fw-bold text-dark mb-1">Plan Comparison Matrix</h4>
+                    <p className="text-muted fs-13 mb-0">Compare capacity limits and included capabilities across configured plans.</p>
+                  </div>
+                  <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0 fs-13">
+                      <thead className="table-light">
+                        <tr>
+                          <th style={{ width: '28%' }}>Core Capabilities</th>
+                          {plans.map((p) => (
+                            <th key={p.id} className="text-center">
+                              {p.plan_name}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="fw-semibold text-dark">Price</td>
+                          {plans.map((p) => (
+                            <td key={p.id} className="text-center fw-bold">
+                              {parseFloat(p.price) === 0 ? 'Free' : `₹${Number(p.price).toLocaleString('en-IN')}`}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td className="fw-semibold text-dark">Billing Cycle</td>
+                          {plans.map((p) => (
+                            <td key={p.id} className="text-center text-capitalize">
+                              {p.billing_cycle || 'N/A'}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td className="fw-semibold text-dark">Student Limit</td>
+                          {plans.map((p) => (
+                            <td key={p.id} className="text-center">
+                              {p.max_students > 0 ? `Up to ${Number(p.max_students).toLocaleString()}` : 'Unlimited'}
+                            </td>
+                          ))}
+                        </tr>
+                        <tr>
+                          <td className="fw-semibold text-dark">Staff & Teacher Limit</td>
+                          {plans.map((p) => (
+                            <td key={p.id} className="text-center">
+                              {p.max_teachers > 0 ? `Up to ${Number(p.max_teachers).toLocaleString()}` : 'Unlimited'}
+                            </td>
+                          ))}
+                        </tr>
+                        {/* SMS Allocation Row: Only rendered if at least one plan has SMS configured by admin */}
+                        {plans.some((p) => getSmsAllocation(p)) && (
+                          <tr>
+                            <td className="fw-semibold text-dark">SMS Included / Quota</td>
+                            {plans.map((p) => {
+                              const sms = getSmsAllocation(p);
+                              return (
+                                <td key={p.id} className="text-center">
+                                  {sms ? sms.label : <span className="text-muted">—</span>}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        )}
+                        {/* Push Notifications Row: Only rendered if at least one plan has Push configured by admin */}
+                        {plans.some((p) => getPushAllocation(p)) && (
+                          <tr>
+                            <td className="fw-semibold text-dark">Push Notifications</td>
+                            {plans.map((p) => {
+                              const push = getPushAllocation(p);
+                              return (
+                                <td key={p.id} className="text-center">
+                                  {push ? push.label : <span className="text-muted">—</span>}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                <div className="table-responsive">
-                  <table className="table table-hover align-middle mb-0 fs-13">
-                    <thead className="table-light">
-                      <tr>
-                        <th style={{ width: '36%' }}>Core Feature & Capabilities</th>
-                        <th className="text-center" style={{ width: '16%' }}>14-Day Free Trial</th>
-                        <th className="text-center" style={{ width: '16%' }}>Starter Plan</th>
-                        <th className="text-center bg-primary-subtle bg-opacity-25 text-primary" style={{ width: '16%' }}>
-                          Growth (Popular)
-                        </th>
-                        <th className="text-center" style={{ width: '16%' }}>Enterprise Plan</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td className="fw-semibold text-dark">Student Management & Admission</td>
-                        <td className="text-center">Up to 1,000</td>
-                        <td className="text-center">Up to 500</td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 fw-bold">Up to 2,000</td>
-                        <td className="text-center fw-bold">Unlimited</td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Staff, Teacher & HR Profiles</td>
-                        <td className="text-center">Up to 100</td>
-                        <td className="text-center">Up to 50</td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 fw-bold">Up to 150</td>
-                        <td className="text-center fw-bold">Unlimited</td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Attendance Engine (Student & Staff)</td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Fee Structure, Billing & Online Payment</td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Routine & Timetable Management</td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Exam Schedules, Marks & Report Cards</td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Biometric & RFID Machine Integration</td>
-                        <td className="text-center text-muted"><i className="ti ti-minus"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Automated SMS & Push Gateway</td>
-                        <td className="text-center">500 SMS</td>
-                        <td className="text-center">Optional Add-on</td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 fw-bold">1,000 SMS / mo</td>
-                        <td className="text-center fw-bold">5,000 SMS / mo</td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Parent & Student Mobile Application</td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 text-success"><i className="ti ti-check fs-16"></i></td>
-                        <td className="text-center text-success"><i className="ti ti-check fs-16"></i></td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Multi-Branch Campus Architecture</td>
-                        <td className="text-center text-muted"><i className="ti ti-minus"></i></td>
-                        <td className="text-center text-muted"><i className="ti ti-minus"></i></td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 text-muted"><i className="ti ti-minus"></i></td>
-                        <td className="text-center text-success fw-bold"><i className="ti ti-check fs-16 me-1"></i>Included</td>
-                      </tr>
-                      <tr>
-                        <td className="fw-semibold text-dark">Dedicated Account Manager & VIP Support</td>
-                        <td className="text-center text-muted"><i className="ti ti-minus"></i></td>
-                        <td className="text-center text-muted"><i className="ti ti-minus"></i></td>
-                        <td className="text-center bg-primary-subtle bg-opacity-10 text-muted"><i className="ti ti-minus"></i></td>
-                        <td className="text-center text-success fw-bold"><i className="ti ti-check fs-16 me-1"></i>24/7 Priority</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-              </div>
+              )}
             </div>
           )}
         </div>

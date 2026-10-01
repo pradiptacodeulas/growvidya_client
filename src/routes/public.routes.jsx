@@ -6,12 +6,15 @@ const PricingPlans = lazy(() => import('../pages/saas/PricingPlans'));
 const SubscriptionConfigurePublic = lazy(() => import('../pages/saas/SubscriptionConfigurePublic'));
 const SchoolRegistrationWizard = lazy(() => import('../pages/saas/SchoolRegistrationWizard'));
 const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'));
+const AuthCallback = lazy(() => import('../pages/auth/AuthCallback'));
 const TeacherLogin = lazy(() => import('../pages/teacher/TeacherLogin'));
 const ParentLogin = lazy(() => import('../pages/parent/ParentLogin'));
 const StudentLogin = lazy(() => import('../pages/student/StudentLogin'));
 
 export const publicRoutes = (
   <>
+    {/* Onboarding Handover / SSO Callback */}
+    <Route path="/auth/callback" element={<AuthCallback />} />
     {/* Exact original portal selection URL: /account/login */}
     <Route path="/account/login" element={<PortalSelection />} />
     <Route path="/portal-selection" element={<Navigate to="/account/login" replace />} />

@@ -1,7 +1,29 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { adminLoginApi, getAdminProfileApi, adminLogoutApi } from '../../api/adminAuth.api';
+import { adminLoginApi, getAdminProfileApi, adminLogoutApi, exchangeHandoverTokenApi } from '../../api/adminAuth.api';
 
 // Async Thunks
+export const loginWithHandoverToken = createAsyncThunk(
+  'auth/loginWithHandoverToken',
+  async (handoverToken, { rejectWithValue }) => {
+    try {
+      const response = await exchangeHandoverTokenApi(handoverToken);
+      const resData = response.data || response || {};
+      const token = resData.token;
+      const user = resData.user;
+
+      if (token) {
+        localStorage.setItem('admin_token', token);
+      }
+      return { user, token };
+    } catch (error) {
+      if (!error.response) {
+        return rejectWithValue('Network error: Unable to reach backend server.');
+      }
+      return rejectWithValue(error.response?.data?.message || 'Handover token exchange failed.');
+    }
+  }
+);
+
 export const loginAdmin = createAsyncThunk(
   'auth/loginAdmin',
   async (credentials, { rejectWithValue }) => {
@@ -92,6 +114,25 @@ const authSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
+      // Handover Login
+      .addCase(loginWithHandoverToken.pending, (state) => {
+        state.loading = true;
+        state.checkingAuth = true;
+        state.error = null;
+      })
+      .addCase(loginWithHandoverToken.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = true;
+        state.checkingAuth = false;
+        state.user = action.payload.user;
+        state.error = null;
+      })
+      .addCase(loginWithHandoverToken.rejected, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = false;
+        state.checkingAuth = false;
+        state.error = action.payload;
+      })
       // Login
       .addCase(loginAdmin.pending, (state) => {
         state.loading = true;

@@ -14,3 +14,8 @@ export const adminLogoutApi = async () => {
   const response = await apiClient.post('/admin/auth/logout');
   return response.data;
 };
+
+export const exchangeHandoverTokenApi = async (token) => {
+  const response = await apiClient.post('/saas/auth/exchange-handover', { token });
+  return response.data;
+};

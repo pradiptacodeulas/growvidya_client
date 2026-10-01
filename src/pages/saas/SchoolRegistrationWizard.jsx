@@ -245,35 +245,27 @@ const SchoolRegistrationWizard = () => {
     );
     if (!pushItem) return null;
     const limit = pushItem.quota_limit;
+    const isIncluded = pushItem.item_type === 'included' || parseFloat(pushItem.price) === 0;
     return {
       item: pushItem,
       limit: limit ? Number(limit).toLocaleString() : null,
-      label: limit ? `${Number(limit).toLocaleString()} Notifications` : 'Unlimited Notifications',
+      label: limit
+        ? `${Number(limit).toLocaleString()} Push Notifications ${
+            isIncluded ? 'Included' : `(Add-on: ₹${Number(pushItem.price).toLocaleString('en-IN')})`
+          }`
+        : isIncluded
+        ? 'Push Notifications Included'
+        : `Add-on: ₹${Number(pushItem.price).toLocaleString('en-IN')}`,
       isUnlimited: !limit,
     };
   };
 
-  // 14-Day Free Trial Plan (common to both monthly & annual)
+  // Free Trial Plan (strictly from admin database, common to both monthly & annual)
   const trialPlan =
-    plans.find((p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0) || {
-      id: 'trial_default',
-      plan_name: '14-Day Free Trial',
-      plan_code: 'TRIAL_14',
-      description: 'Complete platform evaluation for your administrative staff and teachers.',
-      price: 0,
-      billing_cycle: 'trial',
-      duration_days: 14,
-      max_students: 1000,
-      max_teachers: 100,
-      max_branches: 1,
-      items: [
-        { id: 't_sms', item_name: 'Transactional SMS', item_code: 'SMS_ALERT', item_type: 'included', quota_limit: 500, price: 0 },
-        { id: 't_push', item_name: 'Push Notifications', item_code: 'PUSH_NOTIF', item_type: 'included', quota_limit: 1000, price: 0 },
-      ],
-    };
+    plans.find((p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0) || null;
 
-  const trialSms = getSmsAllocation(trialPlan);
-  const trialPush = getPushAllocation(trialPlan);
+  const trialSms = trialPlan ? getSmsAllocation(trialPlan) : null;
+  const trialPush = trialPlan ? getPushAllocation(trialPlan) : null;
 
   // Filter paid plans for selected billing cycle
   const currentPaidPlans = plans.filter((p) => {
@@ -284,7 +276,7 @@ const SchoolRegistrationWizard = () => {
   // Toggle Billing Cycle between Monthly and Annual
   const handleCycleChange = (newCycle) => {
     setBillingCycle(newCycle);
-    if (String(selectedPlanId) === String(trialPlan.id) || selectedPlanId === 'trial_default') {
+    if (trialPlan && String(selectedPlanId) === String(trialPlan.id)) {
       return; // Keep trial selected as it is common to both options
     }
     const currentSelected = plans.find((p) => String(p.id) === String(selectedPlanId));
@@ -1545,9 +1537,7 @@ const SchoolRegistrationWizard = () => {
                   <div className="row g-4 justify-content-center align-items-stretch pt-3">
                     {/* CARD 1: 14-DAY FREE TRIAL (Always shown under both Monthly and Annual) */}
                     {trialPlan && (() => {
-                      const isTrialSelected =
-                        String(selectedPlanId) === String(trialPlan.id) ||
-                        selectedPlanId === 'trial_default';
+                      const isTrialSelected = String(selectedPlanId) === String(trialPlan.id);
 
                       return (
                         <div className="col-12 col-md-6 col-xl-3 d-flex">
@@ -1592,46 +1582,64 @@ const SchoolRegistrationWizard = () => {
                               <div className="mb-4 flex-grow-1">
                                 <div className="fw-semibold text-dark fs-12 mb-3 text-uppercase">Features & Quotas:</div>
                                 <ul className="list-unstyled fs-13 mb-0 d-flex flex-column gap-2">
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-users text-primary me-2 fs-16"></i>
-                                    <span>
-                                      <strong>{trialPlan.max_students > 0 ? `Up to ${trialPlan.max_students.toLocaleString()}` : 'Full'}</strong> Students
-                                    </span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-user-check text-primary me-2 fs-16"></i>
-                                    <span>
-                                      <strong>{trialPlan.max_teachers > 0 ? `Up to ${trialPlan.max_teachers.toLocaleString()}` : 'Full'}</strong> Staff & Teachers
-                                    </span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
-                                    <span>
-                                      <strong>{trialSms ? trialSms.label : '500 SMS Included'}</strong>
-                                    </span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-bell-ringing text-success me-2 fs-16"></i>
-                                    <span>
-                                      <strong>{trialPush ? trialPush.label : '1,000 Push Notifications'}</strong>
-                                    </span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-check text-success me-2 fs-16"></i>
-                                    <span>Attendance & Routine Engine</span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-check text-success me-2 fs-16"></i>
-                                    <span>Parent & Student Portal</span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-check text-success me-2 fs-16"></i>
-                                    <span>Fee Structures & Invoicing</span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-sparkles text-success me-2 fs-16"></i>
-                                    <span>14-Day Full Platform Access</span>
-                                  </li>
+                                  {trialPlan.max_students !== undefined && trialPlan.max_students !== null && (
+                                    <li className="d-flex align-items-center">
+                                      <i className="ti ti-users text-primary me-2 fs-16"></i>
+                                      <span>
+                                        <strong>{trialPlan.max_students > 0 ? `Up to ${Number(trialPlan.max_students).toLocaleString()}` : 'Unlimited'}</strong> Students
+                                      </span>
+                                    </li>
+                                  )}
+                                  {trialPlan.max_teachers !== undefined && trialPlan.max_teachers !== null && (
+                                    <li className="d-flex align-items-center">
+                                      <i className="ti ti-user-check text-primary me-2 fs-16"></i>
+                                      <span>
+                                        <strong>{trialPlan.max_teachers > 0 ? `Up to ${Number(trialPlan.max_teachers).toLocaleString()}` : 'Unlimited'}</strong> Staff & Teachers
+                                      </span>
+                                    </li>
+                                  )}
+                                  {trialSms && (
+                                    <li className="d-flex align-items-center">
+                                      <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
+                                      <span>
+                                        <strong>{trialSms.label}</strong>
+                                      </span>
+                                    </li>
+                                  )}
+                                  {trialPush && (
+                                    <li className="d-flex align-items-center">
+                                      <i className="ti ti-bell-ringing text-success me-2 fs-16"></i>
+                                      <span>
+                                        <strong>{trialPush.label}</strong>
+                                      </span>
+                                    </li>
+                                  )}
+                                  {(trialPlan.items || [])
+                                    .filter(
+                                      (it) =>
+                                        it.item_code !== 'PUSH_NOTIF' &&
+                                        !it.item_code?.toUpperCase().includes('SMS') &&
+                                        it.item_code !== 'EMAIL_ALERTS'
+                                    )
+                                    .map((it) => (
+                                      <li key={it.id} className="d-flex align-items-center">
+                                        <i
+                                          className={`ti ${
+                                            it.item_type === 'included' || parseFloat(it.price) === 0
+                                              ? 'ti-check text-success'
+                                              : 'ti-plus text-primary'
+                                          } me-2 fs-16`}
+                                        ></i>
+                                        <span>
+                                          {it.item_name}{' '}
+                                          {it.item_type === 'addon' && parseFloat(it.price) > 0 && (
+                                            <span className="text-muted">
+                                              (Add-on: ₹{Number(it.price).toLocaleString('en-IN')})
+                                            </span>
+                                          )}
+                                        </span>
+                                      </li>
+                                    ))}
                                 </ul>
                               </div>
 
@@ -1770,18 +1778,6 @@ const SchoolRegistrationWizard = () => {
                                       </span>
                                     </li>
                                   )}
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-check text-success me-2 fs-16"></i>
-                                    <span>Attendance & Class Routine</span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-check text-success me-2 fs-16"></i>
-                                    <span>Student & Parent Mobile Portal</span>
-                                  </li>
-                                  <li className="d-flex align-items-center">
-                                    <i className="ti ti-check text-success me-2 fs-16"></i>
-                                    <span>Fee Structures & Invoicing</span>
-                                  </li>
                                   {(p.items || [])
                                     .filter(
                                       (it) =>
