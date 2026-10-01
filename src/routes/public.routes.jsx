@@ -4,12 +4,19 @@ import { Route, Navigate, useLocation } from 'react-router-dom';
 const PortalSelection = lazy(() => import('../pages/PortalSelection'));
 const PricingPlans = lazy(() => import('../pages/saas/PricingPlans'));
 const SubscriptionConfigurePublic = lazy(() => import('../pages/saas/SubscriptionConfigurePublic'));
-const SchoolRegistrationWizard = lazy(() => import('../pages/saas/SchoolRegistrationWizard'));
 const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'));
 const AuthCallback = lazy(() => import('../pages/auth/AuthCallback'));
 const TeacherLogin = lazy(() => import('../pages/teacher/TeacherLogin'));
 const ParentLogin = lazy(() => import('../pages/parent/ParentLogin'));
 const StudentLogin = lazy(() => import('../pages/student/StudentLogin'));
+
+const OnboardingRedirect = () => {
+  React.useEffect(() => {
+    const onboardingUrl = import.meta.env.VITE_ONBOARDING_URL || 'http://localhost:3000';
+    window.location.replace(`${onboardingUrl}/register`);
+  }, []);
+  return null;
+};
 
 export const publicRoutes = (
   <>
@@ -23,16 +30,14 @@ export const publicRoutes = (
     {/* Standalone Single Pricing Page */}
     <Route path="/pricing" element={<PricingPlans />} />
     <Route path="/plans" element={<PricingPlans />} />
-    <Route path="/register/plans" element={<PricingPlans />} />
 
     {/* Separate Dedicated Configuration Page */}
     <Route path="/configure" element={<SubscriptionConfigurePublic />} />
     <Route path="/pricing/configure" element={<SubscriptionConfigurePublic />} />
-    <Route path="/register/configure" element={<SubscriptionConfigurePublic />} />
-    <Route path="/register" element={<SchoolRegistrationWizard />} />
-    <Route path="/register/wizard" element={<SchoolRegistrationWizard />} />
-    <Route path="/register/school-setup" element={<SchoolRegistrationWizard />} />
-    <Route path="/register/school" element={<SchoolRegistrationWizard />} />
+
+    {/* Dedicated Onboarding Redirect (handled by growvidya_onboarding) */}
+    <Route path="/register" element={<OnboardingRedirect />} />
+    <Route path="/register/*" element={<OnboardingRedirect />} />
 
     {/* Exact original admin login URL: /account/login/adminlogin */}
     <Route path="/account/login/adminlogin" element={<AdminLogin />} />

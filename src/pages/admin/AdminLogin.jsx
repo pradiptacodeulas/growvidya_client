@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, Navigate, useLocation } from 'react-router-dom';
+import { useNavigate, Link, Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginAdmin, clearAuthError } from '../../store/slices/authSlice';
 import { toast } from 'react-toastify';
@@ -8,7 +8,11 @@ import logoDark from '../../assets/logo_dark.png';
 
 const AdminLogin = () => {
   const location = useLocation();
-  const [email, setEmail] = useState(location.state?.registeredEmail || '');
+  const [searchParams] = useSearchParams();
+  const registeredFromQuery = searchParams.get('registered') === '1';
+  const emailFromQuery = searchParams.get('email');
+
+  const [email, setEmail] = useState(location.state?.registeredEmail || emailFromQuery || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
@@ -79,7 +83,7 @@ const AdminLogin = () => {
                 </div>
                 <div className="card shadow-sm border-0 rounded-3 w-100">
                   <div className="card-body p-4">
-                    {location.state?.registrationSuccess && (
+                    {(location.state?.registrationSuccess || registeredFromQuery) && (
                       <div className="alert alert-success d-flex align-items-center mb-4 py-2 px-3 fs-13">
                         <i className="ti ti-circle-check fs-18 me-2"></i>
                         <div>
@@ -171,12 +175,6 @@ const AdminLogin = () => {
                     </div>
 
                     <div className="text-center pt-3 border-top mt-3">
-                      <div className="mb-2">
-                        <span className="text-muted fs-13">New School? </span>
-                        <Link to="/register" className="text-primary fs-13 fw-semibold text-decoration-none">
-                          Register your school here
-                        </Link>
-                      </div>
                       <Link to="/account/login" className="text-secondary fs-12 fw-semibold text-decoration-none">
                         <i className="ti ti-arrow-left me-1"></i>Go to Main Portal Selection
                       </Link>
