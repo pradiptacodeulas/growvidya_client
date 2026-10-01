@@ -113,7 +113,7 @@ const TrialExpiredLockoutModal = ({
 
               toast.success(
                 verifyRes?.message ||
-                  `🎉 Congratulations! Your school has been upgraded to ${selectedPlan.plan_name}. All features are unlocked!`
+                  `🎉 Payment submitted for ${selectedPlan.plan_name}! Your plan is currently pending review and approval by the Super Admin.`
               );
               if (refreshSubscription) await refreshSubscription();
             } catch (err) {
@@ -149,7 +149,7 @@ const TrialExpiredLockoutModal = ({
           payment_gateway: paymentGateway,
           payment_transaction_id: `OFFLINE_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
         });
-        toast.success(`🎉 Upgrade request submitted for ${selectedPlan.plan_name}.`);
+        toast.success(`🎉 Upgrade request submitted for ${selectedPlan.plan_name}. It will remain pending until approved by the Super Admin.`);
         if (refreshSubscription) await refreshSubscription();
         setIsProcessing(false);
       }

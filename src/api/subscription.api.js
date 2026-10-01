@@ -40,3 +40,9 @@ export const validateSubscriptionCoupon = async (code, amount) => {
   return response.data?.data || response.data;
 };
 
+export const selectSubscriptionPlan = async (planData) => {
+  const response = await apiClient.post('/admin/subscription/select-plan', planData);
+  return response.data?.data || response.data;
+};
+
+

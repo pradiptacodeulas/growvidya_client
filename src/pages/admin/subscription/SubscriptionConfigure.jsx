@@ -611,7 +611,7 @@ const SubscriptionConfigure = () => {
 
               toast.success(
                 verifyRes?.message ||
-                  `🎉 Congratulations! Your school has been upgraded to ${selectedPlan.plan_name}. All features and hardware allocations are active!`
+                  `🎉 Payment submitted for ${selectedPlan.plan_name}! Your plan is currently pending review and approval by the Super Admin.`
               );
 
               // Clear session storage selections
@@ -669,7 +669,7 @@ const SubscriptionConfigure = () => {
 
         toast.info(
           res?.message ||
-            `Offline payment request submitted for ${selectedPlan.plan_name}. Platform administrators will verify and activate your license within 24 hours.`
+            `Offline payment request recorded for ${selectedPlan.plan_name}. Your plan will remain pending until the Super Admin reviews and approves it.`
         );
 
         sessionStorage.removeItem('selected_subscription_plan');
@@ -2551,7 +2551,7 @@ const SubscriptionConfigure = () => {
                 </span>
               </div>
               <div className="text-muted fs-11 mb-3">
-                License and hardware orders are dispatched upon payment verification.
+                Plan selection will be reviewed and activated upon Super Admin approval.
               </div>
 
               {/* Primary CTA Button */}

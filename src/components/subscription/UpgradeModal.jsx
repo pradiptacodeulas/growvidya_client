@@ -127,7 +127,7 @@ const UpgradeModal = ({
 
               toast.success(
                 verifyRes?.message ||
-                  `🎉 Congratulations! Your school has been upgraded to ${selectedPlan.plan_name}. All features are unlocked!`
+                  `🎉 Payment submitted for ${selectedPlan.plan_name}! Your plan is currently pending review and approval by the Super Admin.`
               );
               if (onClose) onClose();
               if (refreshSubscription) await refreshSubscription();
@@ -179,7 +179,7 @@ const UpgradeModal = ({
 
         toast.info(
           res?.message ||
-            `Offline payment request submitted for ${selectedPlan.plan_name}. Platform administrators will verify and activate your license within 24 hours.`
+            `Plan request submitted for ${selectedPlan.plan_name}. It will remain pending until the Super Admin reviews and approves it.`
         );
         if (onClose) onClose();
         if (refreshSubscription) await refreshSubscription();

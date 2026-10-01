@@ -10,6 +10,8 @@ const SubscriptionBilling = () => {
     loading,
     isTrial,
     isExpired,
+    isPending,
+    pendingSubscription,
     daysLeft,
   } = useSubscription();
 
@@ -122,8 +124,68 @@ const SubscriptionBilling = () => {
         </div>
       </div>
 
+      {/* Plan Approval Pending Notice */}
+      {isPending && pendingSubscription && (
+        <div className="alert alert-warning border-warning d-flex align-items-center p-3 mb-4 rounded-3 shadow-sm bg-warning-subtle">
+          <div className="avatar avatar-md bg-warning text-dark rounded-circle flex-shrink-0 me-3 d-flex align-items-center justify-content-center">
+            <i className="ti ti-clock-hour-4 fs-22"></i>
+          </div>
+          <div className="flex-grow-1">
+            <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
+              <h6 className="alert-heading fw-bold mb-0 text-dark">
+                Plan Approval Pending Review
+              </h6>
+              <span className="badge bg-warning text-dark border border-warning-subtle fw-semibold px-2 py-0.5 fs-11">
+                Awaiting Super Admin Approval
+              </span>
+            </div>
+            <p className="mb-1 fs-13 text-secondary">
+              Your request for <strong>{pendingSubscription.plan_name}</strong> ({pendingSubscription.billing_cycle || 'annual'}) has been submitted and is currently pending review and approval by the Super Admin. Once approved, your new plan will become active automatically.
+            </p>
+            <div className="d-flex flex-wrap align-items-center gap-3 text-muted fs-12 mt-2 pt-2 border-top border-warning-subtle">
+              {pendingSubscription.payment_transaction_id && (
+                <div>
+                  <span className="fw-semibold text-secondary">Ref / Transaction ID:</span>{' '}
+                  <span className="font-monospace text-dark">{pendingSubscription.payment_transaction_id}</span>
+                </div>
+              )}
+              {pendingSubscription.amount_paid > 0 && (
+                <div>
+                  <span className="fw-semibold text-secondary">Amount:</span>{' '}
+                  <span className="text-dark fw-bold">₹{Number(pendingSubscription.amount_paid).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              {pendingSubscription.payment_gateway && (
+                <div>
+                  <span className="fw-semibold text-secondary">Payment Method:</span>{' '}
+                  <span className="badge bg-light text-dark border text-capitalize">
+                    {pendingSubscription.payment_gateway === 'bank_transfer'
+                      ? 'Direct Bank Transfer'
+                      : pendingSubscription.payment_gateway === 'razorpay'
+                      ? 'Online (Razorpay)'
+                      : pendingSubscription.payment_gateway.replace(/_/g, ' ')}
+                  </span>
+                </div>
+              )}
+              {pendingSubscription.created_at && (
+                <div>
+                  <span className="fw-semibold text-secondary">Submitted On:</span>{' '}
+                  <span className="text-dark">
+                    {new Date(pendingSubscription.created_at).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Active Trial Notice */}
-      {isTrial && !isExpired && (
+      {isTrial && !isExpired && !isPending && (
         <div className="alert alert-primary border-primary d-flex align-items-center p-3 mb-4 rounded-3 shadow-sm">
           <div className="avatar avatar-md bg-primary text-white rounded-circle flex-shrink-0 me-3 d-flex align-items-center justify-content-center">
             <i className="ti ti-bolt fs-22"></i>
@@ -218,7 +280,7 @@ const SubscriptionBilling = () => {
       )}
 
       {/* Expired Notice (Trial or Paid) */}
-      {isExpired && (
+      {isExpired && !isPending && subscription?.status !== 'pending' && (
         <div className="alert alert-danger border-danger d-flex align-items-center p-3 mb-4 rounded-3 shadow-sm">
           <div className="avatar avatar-md bg-danger text-white rounded-circle flex-shrink-0 me-3 d-flex align-items-center justify-content-center">
             <i className="ti ti-lock fs-22"></i>
@@ -261,24 +323,33 @@ const SubscriptionBilling = () => {
         <div
           className="p-4 text-white"
           style={{
-            background: isExpired
-              ? 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)'
-              : isTrial
-              ? 'linear-gradient(135deg, #4338ca 0%, #312e81 100%)'
-              : 'linear-gradient(135deg, #059669 0%, #065f46 100%)',
+            background:
+              subscription?.status === 'pending'
+                ? 'linear-gradient(135deg, #d97706 0%, #b45309 100%)'
+                : isExpired
+                ? 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)'
+                : isTrial
+                ? 'linear-gradient(135deg, #4338ca 0%, #312e81 100%)'
+                : 'linear-gradient(135deg, #059669 0%, #065f46 100%)',
           }}
         >
           <div className="row align-items-center">
             <div className="col-12 col-lg-8">
               <div className="d-flex align-items-center gap-2 mb-2">
                 <span className="badge bg-white text-dark fw-bold px-3 py-1.5 fs-12 rounded-pill">
-                  {isExpired
+                  {subscription?.status === 'pending'
+                    ? `${planName.toUpperCase()} — PENDING APPROVAL`
+                    : isExpired
                     ? `${planName.toUpperCase()} — EXPIRED`
                     : isTrial
                     ? `${planName.toUpperCase()} — EVALUATION TRIAL`
                     : `${planName.toUpperCase()} — ACTIVE LICENSE`}
                 </span>
-                {!isExpired && (
+                {subscription?.status === 'pending' ? (
+                  <span className="badge bg-white bg-opacity-25 text-white fw-bold px-2 py-1 fs-11 rounded-pill">
+                    ⏳ Under Review by Super Admin
+                  </span>
+                ) : !isExpired && (
                   <span
                     className={`badge ${
                       daysLeft <= 15
@@ -295,7 +366,9 @@ const SubscriptionBilling = () => {
 
               <h2 className="fw-bold text-white mb-2">{planName}</h2>
               <p className="text-white-50 mb-3 fs-14">
-                {isExpired
+                {subscription?.status === 'pending'
+                  ? `Your request for ${planName} is currently pending review and approval by the Super Admin. Once approved, your subscription and institutional features will be activated automatically.`
+                  : isExpired
                   ? isTrial
                     ? `Your evaluation period for ${planName || 'trial'} has concluded. Select a plan below to restore administrative workflows.`
                     : `Your ${planName} subscription expired on ${subscription?.end_date || 'recently'}. Renew your current plan or upgrade to restore administrative workflows.`
@@ -441,6 +514,7 @@ const SubscriptionBilling = () => {
                 plan.id === 8;
 
               const isCurrent = Number(subscription?.plan_id) === Number(plan.id);
+              const isPendingPlan = Boolean(pendingSubscription && Number(pendingSubscription.plan_id) === Number(plan.id));
               const includedFeatures = (plan.items || []).filter((i) => i.item_type === 'included');
               const addonFeatures = (plan.items || []).filter((i) => i.item_type === 'addon');
 
@@ -468,7 +542,29 @@ const SubscriptionBilling = () => {
                           zIndex: 2,
                         }}
                       >
-                        ★ {isExpired ? 'CURRENT PLAN (EXPIRED)' : 'YOUR CURRENT PLAN'}
+                        {subscription?.status === 'pending'
+                          ? '⏳ APPROVAL PENDING'
+                          : isExpired
+                          ? '★ CURRENT PLAN (EXPIRED)'
+                          : '★ YOUR CURRENT PLAN'}
+                      </div>
+                    )}
+
+                    {!isCurrent && isPendingPlan && (
+                      <div
+                        className="badge bg-warning text-dark position-absolute"
+                        style={{
+                          top: '-12px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          padding: '6px 14px',
+                          fontSize: '11px',
+                          borderRadius: '20px',
+                          boxShadow: '0 4px 10px rgba(245, 158, 11, 0.3)',
+                          zIndex: 2,
+                        }}
+                      >
+                        ⏳ APPROVAL PENDING
                       </div>
                     )}
 
@@ -586,16 +682,27 @@ const SubscriptionBilling = () => {
                       </div>
 
                       {/* Clear Selection Button redirecting to Configure page */}
-                      <button
-                        type="button"
-                        className={`btn w-100 py-2.5 fw-semibold d-inline-flex align-items-center justify-content-center shadow-sm ${
-                          isPopular ? 'btn-primary' : 'btn-outline-primary'
-                        }`}
-                        onClick={() => handleSelectPlan(plan)}
-                      >
-                        <span>Select Plan</span>
-                        <i className="ti ti-arrow-right ms-2 fs-15"></i>
-                      </button>
+                      {isPendingPlan || (isCurrent && subscription?.status === 'pending') ? (
+                        <button
+                          type="button"
+                          disabled
+                          className="btn btn-warning text-dark w-100 py-2.5 fw-semibold d-inline-flex align-items-center justify-content-center opacity-85 cursor-not-allowed"
+                        >
+                          <i className="ti ti-clock me-2 fs-15"></i>
+                          <span>Approval Pending</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className={`btn w-100 py-2.5 fw-semibold d-inline-flex align-items-center justify-content-center shadow-sm ${
+                            isPopular ? 'btn-primary' : 'btn-outline-primary'
+                          }`}
+                          onClick={() => handleSelectPlan(plan)}
+                        >
+                          <span>Select Plan</span>
+                          <i className="ti ti-arrow-right ms-2 fs-15"></i>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

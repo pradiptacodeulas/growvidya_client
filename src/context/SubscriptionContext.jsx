@@ -15,6 +15,8 @@ export const useSubscription = () => {
       loading: false,
       isTrial: false,
       isExpired: false,
+      isPending: false,
+      pendingSubscription: null,
       daysLeft: 0,
       openUpgradeModal: () => {},
       closeUpgradeModal: () => {},
@@ -37,6 +39,18 @@ export const SubscriptionProvider = ({ children }) => {
   const activePlanName = activeSubscription?.plan_name || '';
   const planNameLower = activePlanName.toLowerCase();
 
+  const isPending = Boolean(
+    activeSubscription?.isPending ||
+    activeSubscription?.status === 'pending' ||
+    activeSubscription?.pending_subscription ||
+    activeSubscription?.pendingSubscription
+  );
+
+  const pendingSubscription =
+    activeSubscription?.pending_subscription ||
+    activeSubscription?.pendingSubscription ||
+    (activeSubscription?.status === 'pending' ? activeSubscription : null);
+
   const isTrial = activeSubscription
     ? Boolean(
         activeSubscription.isTrial ||
@@ -54,7 +68,7 @@ export const SubscriptionProvider = ({ children }) => {
     ? Math.max(0, Number(activeSubscription.days_left))
     : 0;
 
-  const isExpired = activeSubscription
+  const isExpired = activeSubscription && activeSubscription.status !== 'pending'
     ? Boolean(
         activeSubscription.isExpired ||
         activeSubscription.liveStatus === 'expired' ||
@@ -153,6 +167,8 @@ export const SubscriptionProvider = ({ children }) => {
         loading,
         isTrial,
         isExpired,
+        isPending,
+        pendingSubscription,
         daysLeft,
         openUpgradeModal,
         closeUpgradeModal,
@@ -163,7 +179,7 @@ export const SubscriptionProvider = ({ children }) => {
       {children}
 
       {/* Global Non-Dismissible Lockout Modal if trial/subscription has expired */}
-      {isLockoutModalOpen && (
+      {isLockoutModalOpen && !isPending && (
         <TrialExpiredLockoutModal
           subscription={subscription}
           plans={upgradePlans}
