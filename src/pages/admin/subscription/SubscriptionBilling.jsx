@@ -40,8 +40,17 @@ const SubscriptionBilling = () => {
   // Filter plans strictly by cycle: NEVER mix monthly and annual pricing
   const filteredPlans = (upgradePlans || []).filter((p) => p.billing_cycle === billingCycle);
 
+  // Active subscription plan price for downgrade comparison
+  const currentPlanPrice = (subscription && subscription.status === 'active' && !isTrial && subscription.price !== null)
+    ? parseFloat(subscription.price)
+    : 0;
+
   // Navigate to Step 2 (Configure Page) with selected plan and billing cycle
   const handleSelectPlan = (plan) => {
+    if (plan.is_downgrade || (currentPlanPrice > 0 && parseFloat(plan.price) < currentPlanPrice)) {
+      alert(`Downgrading to a lower-tier plan is not permitted. You are currently subscribed to "${planName}" (₹${currentPlanPrice.toFixed(2)}). You may only remain on your current plan or upgrade to an equal or higher-tier plan.`);
+      return;
+    }
     sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
     sessionStorage.setItem('selected_billing_cycle', billingCycle);
     navigate('/admin/subscription/configure', {
@@ -429,12 +438,10 @@ const SubscriptionBilling = () => {
             <div className="col-12 col-md-4">
               <div className="p-3 rounded-3 bg-light border">
                 <div className="d-flex align-items-center justify-content-between mb-1">
-                  <span className="text-muted fs-12">Teacher Capacity</span>
+                  <span className="text-muted fs-12">Staff & Teachers</span>
                   <i className="ti ti-users fs-18 text-success"></i>
                 </div>
-                <h4 className="fw-bold text-dark mb-0">
-                  {maxTeachers > 0 ? `${maxTeachers} Teachers` : 'Unlimited Staff'}
-                </h4>
+                <h4 className="fw-bold text-dark mb-0">Unlimited</h4>
               </div>
             </div>
 
@@ -515,6 +522,10 @@ const SubscriptionBilling = () => {
 
               const isCurrent = Number(subscription?.plan_id) === Number(plan.id);
               const isPendingPlan = Boolean(pendingSubscription && Number(pendingSubscription.plan_id) === Number(plan.id));
+              const isDowngrade = Boolean(
+                plan.is_downgrade || (currentPlanPrice > 0 && parseFloat(plan.price) < currentPlanPrice)
+              );
+              const isUpgrade = Boolean(currentPlanPrice > 0 && parseFloat(plan.price) > currentPlanPrice);
               const includedFeatures = (plan.items || []).filter((i) => i.item_type === 'included');
               const addonFeatures = (plan.items || []).filter((i) => i.item_type === 'addon');
 
@@ -522,13 +533,33 @@ const SubscriptionBilling = () => {
                 <div className="col-12 col-lg-4" key={plan.id}>
                   <div
                     className={`card h-100 rounded-3 border transition-all ${
-                      isPopular
+                      isDowngrade
+                        ? 'border-200 bg-light opacity-90'
+                        : isPopular
                         ? 'border-2 border-primary shadow'
                         : 'border-200 shadow-sm'
                     }`}
                     style={{ position: 'relative' }}
                   >
-                    {isCurrent && (
+                    {isDowngrade && (
+                      <div
+                        className="badge bg-secondary text-white position-absolute"
+                        style={{
+                          top: '-12px',
+                          left: '50%',
+                          transform: 'translateX(-50%)',
+                          padding: '6px 14px',
+                          fontSize: '11px',
+                          borderRadius: '20px',
+                          boxShadow: '0 4px 10px rgba(100, 116, 139, 0.4)',
+                          zIndex: 2,
+                        }}
+                      >
+                        ⛔ DOWNGRADE RESTRICTED
+                      </div>
+                    )}
+
+                    {!isDowngrade && isCurrent && (
                       <div
                         className="badge bg-warning text-dark position-absolute"
                         style={{
@@ -550,7 +581,7 @@ const SubscriptionBilling = () => {
                       </div>
                     )}
 
-                    {!isCurrent && isPendingPlan && (
+                    {!isDowngrade && !isCurrent && isPendingPlan && (
                       <div
                         className="badge bg-warning text-dark position-absolute"
                         style={{
@@ -568,7 +599,7 @@ const SubscriptionBilling = () => {
                       </div>
                     )}
 
-                    {!isCurrent && isPopular && (
+                    {!isDowngrade && !isCurrent && isPopular && (
                       <div
                         className="badge bg-primary text-white position-absolute"
                         style={{
@@ -625,11 +656,7 @@ const SubscriptionBilling = () => {
                         </div>
                         <div className="d-flex align-items-center justify-content-between mb-1 fs-12">
                           <span className="text-muted">Staff / Teachers:</span>
-                          <strong className="text-dark">
-                            {plan.max_teachers > 0
-                              ? `${Number(plan.max_teachers).toLocaleString()} Staff`
-                              : 'Unlimited'}
-                          </strong>
+                          <strong className="text-dark">Unlimited</strong>
                         </div>
                         <div className="d-flex align-items-center justify-content-between fs-12">
                           <span className="text-muted">Cloud Backup:</span>
@@ -682,7 +709,22 @@ const SubscriptionBilling = () => {
                       </div>
 
                       {/* Clear Selection Button redirecting to Configure page */}
-                      {isPendingPlan || (isCurrent && subscription?.status === 'pending') ? (
+                      {isDowngrade ? (
+                        <div>
+                          <button
+                            type="button"
+                            disabled
+                            className="btn btn-secondary text-white w-100 py-2.5 fw-semibold d-inline-flex align-items-center justify-content-center opacity-75 cursor-not-allowed"
+                            title={`Downgrading to a lower-tier plan is not permitted. You are currently subscribed to "${planName}" (₹${currentPlanPrice.toFixed(2)}).`}
+                          >
+                            <i className="ti ti-ban me-2 fs-15"></i>
+                            <span>Downgrade Not Allowed</span>
+                          </button>
+                          <div className="text-danger text-center fs-11 mt-1.5 fw-semibold">
+                            <i className="ti ti-info-circle me-1"></i> Cannot downgrade from {planName} (₹{currentPlanPrice.toFixed(2)})
+                          </div>
+                        </div>
+                      ) : isPendingPlan || (isCurrent && subscription?.status === 'pending') ? (
                         <button
                           type="button"
                           disabled
@@ -690,6 +732,15 @@ const SubscriptionBilling = () => {
                         >
                           <i className="ti ti-clock me-2 fs-15"></i>
                           <span>Approval Pending</span>
+                        </button>
+                      ) : isCurrent ? (
+                        <button
+                          type="button"
+                          className="btn btn-outline-primary w-100 py-2.5 fw-semibold d-inline-flex align-items-center justify-content-center shadow-sm"
+                          onClick={() => handleSelectPlan(plan)}
+                        >
+                          <i className="ti ti-refresh me-2 fs-15"></i>
+                          <span>Renew Current Plan</span>
                         </button>
                       ) : (
                         <button
@@ -699,7 +750,7 @@ const SubscriptionBilling = () => {
                           }`}
                           onClick={() => handleSelectPlan(plan)}
                         >
-                          <span>Select Plan</span>
+                          <span>{isUpgrade ? 'Upgrade Plan' : 'Select Plan'}</span>
                           <i className="ti ti-arrow-right ms-2 fs-15"></i>
                         </button>
                       )}

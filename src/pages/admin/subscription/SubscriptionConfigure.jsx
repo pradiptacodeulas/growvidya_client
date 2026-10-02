@@ -54,6 +54,18 @@ const SubscriptionConfigure = () => {
     }
   }, [selectedPlan, upgradePlans, billingCycle]);
 
+  // Downgrade Guard: prevent configuring or purchasing a lower-tier plan
+  useEffect(() => {
+    if (selectedPlan && subscription && subscription.status === 'active' && !subscription.isTrial && subscription.price !== null) {
+      const currentPrice = parseFloat(subscription.price);
+      const targetPrice = parseFloat(selectedPlan.price);
+      if (currentPrice > 0 && targetPrice < currentPrice) {
+        toast.error(`Downgrading to a lower-tier plan is not permitted. You are currently subscribed to the "${subscription.plan_name}" plan (₹${currentPrice.toFixed(2)}). You may only remain on your current plan or upgrade to an equal or higher tier.`);
+        navigate('/admin/subscription');
+      }
+    }
+  }, [selectedPlan, subscription, navigate]);
+
   // Catalog data from storage_master, attendance_machine_master, rfid_card_master, bank_account_master, and notification_master
   const [catalog, setCatalog] = useState({
     storage_plans: [],
