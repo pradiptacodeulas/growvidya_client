@@ -129,9 +129,8 @@ const AddUser = () => {
               { id: 4, blood_group: 'B-' },
               { id: 5, blood_group: 'AB+' },
               { id: 6, blood_group: 'AB-' },
-              { id: 7, blood_group: 'AB-' },
-              { id: 8, blood_group: 'O+' },
-              { id: 9, blood_group: 'O-' },
+              { id: 7, blood_group: 'O+' },
+              { id: 8, blood_group: 'O-' },
             ]
           );
 

@@ -8,6 +8,7 @@ import {
   searchAnnouncementUsersApi,
 } from '../../../api/adminAnnouncement.api';
 import { fetchClassesApi, fetchSectionsApi } from '../../../api/adminAcademic.api';
+import { fetchStaffRolesApi } from '../../../api/adminStaff.api';
 import RichTextEditor from '../../../components/common/RichTextEditor';
 import { decodeParam } from '../../../utils/idHelper';
 
@@ -61,9 +62,57 @@ const EditNotice = () => {
     message_to: [1, 2, 3, 4, 5],
   });
 
-  // Academic data
+  // Academic & Role data
   const [classList, setClassList] = useState([]);
   const [sectionList, setSectionList] = useState([]);
+  const [dynamicRoles, setDynamicRoles] = useState([]);
+
+  // Compute dynamic recipient options merging base roles with school's configured roles
+  const recipientOptions = useMemo(() => {
+    const base = [
+      { id: 1, label: 'Student', icon: 'ti-school' },
+      { id: 2, label: 'Parent', icon: 'ti-users' },
+      { id: 3, label: 'Teacher', icon: 'ti-user-check' },
+      { id: 4, label: 'Admin', icon: 'ti-shield-lock' },
+      { id: 5, label: 'Super Admin', icon: 'ti-crown' },
+    ];
+    if (!dynamicRoles || dynamicRoles.length === 0) return base;
+
+    const seenLabels = new Set(base.map((b) => b.label.toLowerCase()));
+    const extra = [];
+    dynamicRoles.forEach((r) => {
+      const name = r.role_name || r.name;
+      if (name && !seenLabels.has(name.toLowerCase())) {
+        seenLabels.add(name.toLowerCase());
+        extra.push({
+          id: r.id || name.toLowerCase(),
+          label: name,
+          icon: 'ti-user',
+        });
+      }
+    });
+    return [...base, ...extra];
+  }, [dynamicRoles]);
+
+  const recipientNames = useMemo(() => {
+    const map = {
+      1: 'Student',
+      2: 'Parent',
+      3: 'Teacher',
+      4: 'Admin',
+      5: 'Super Admin',
+      student: 'Student',
+      parent: 'Parent',
+      teacher: 'Teacher',
+      admin: 'Admin',
+      'super admin': 'Super Admin',
+    };
+    recipientOptions.forEach((opt) => {
+      map[opt.id] = opt.label;
+      map[opt.label.toLowerCase()] = opt.label;
+    });
+    return map;
+  }, [recipientOptions]);
 
   // Class Dropdown UI State
   const [classDropdownOpen, setClassDropdownOpen] = useState(false);
@@ -81,11 +130,15 @@ const EditNotice = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // 1. Fetch Classes and Sections
+  // 1. Fetch Classes, Sections, and Roles
   useEffect(() => {
     const loadAcademicData = async () => {
       try {
-        const [cRes, sRes] = await Promise.allSettled([fetchClassesApi(), fetchSectionsApi()]);
+        const [cRes, sRes, rRes] = await Promise.allSettled([
+          fetchClassesApi(),
+          fetchSectionsApi(),
+          fetchStaffRolesApi(),
+        ]);
         if (cRes.status === 'fulfilled') {
           const raw = cRes.value?.data?.classes || cRes.value?.classes || cRes.value?.data || cRes.value;
           setClassList(Array.isArray(raw) ? raw : []);
@@ -94,8 +147,12 @@ const EditNotice = () => {
           const raw = sRes.value?.data?.sections || sRes.value?.sections || sRes.value?.data || sRes.value;
           setSectionList(Array.isArray(raw) ? raw : []);
         }
+        if (rRes.status === 'fulfilled') {
+          const raw = rRes.value?.data?.roles || rRes.value?.roles || rRes.value?.data || rRes.value;
+          setDynamicRoles(Array.isArray(raw) ? raw : []);
+        }
       } catch (err) {
-        console.error('Error loading classes/sections:', err);
+        console.error('Error loading academic and role data:', err);
       }
     };
     loadAcademicData();
@@ -115,7 +172,7 @@ const EditNotice = () => {
           if (Array.isArray(notice.message_to) && notice.message_to.length > 0) {
             parsedRecipients = notice.message_to.map((item) => {
               if (typeof item === 'number') return item;
-              const found = RECIPIENT_OPTIONS.find(
+              const found = recipientOptions.find(
                 (opt) => opt.label.toLowerCase() === String(item).toLowerCase()
               );
               return found ? found.id : Number(item) || item;
@@ -315,10 +372,10 @@ const EditNotice = () => {
   // Toggle all broadcast recipients
   const handleToggleAllBroadcastRecipients = () => {
     setFormData((prev) => {
-      const isAll = prev.message_to.length === RECIPIENT_OPTIONS.length;
+      const isAll = prev.message_to.length === recipientOptions.length;
       return {
         ...prev,
-        message_to: isAll ? [] : RECIPIENT_OPTIONS.map((r) => r.id),
+        message_to: isAll ? [] : recipientOptions.map((r) => r.id),
       };
     });
   };
@@ -416,7 +473,7 @@ const EditNotice = () => {
         target_roles:
           formData.target_type === 'class_section'
             ? formData.target_roles
-            : formData.message_to.map((r) => RECIPIENT_NAMES[r] || r),
+            : formData.message_to.map((r) => recipientNames[r] || r),
         target_user_ids: formData.target_user_ids,
         message_to:
           formData.target_type === 'class_section'
@@ -682,13 +739,13 @@ const EditNotice = () => {
                         className="btn btn-sm btn-link p-0 text-decoration-none fw-medium"
                         onClick={handleToggleAllBroadcastRecipients}
                       >
-                        {formData.message_to.length === RECIPIENT_OPTIONS.length
+                        {formData.message_to.length === recipientOptions.length
                           ? 'Clear All'
                           : 'Select All Roles'}
                       </button>
                     </div>
                     <div className="d-flex flex-wrap gap-2">
-                      {RECIPIENT_OPTIONS.map((item) => {
+                      {recipientOptions.map((item) => {
                         const isChecked = formData.message_to.includes(item.id);
                         return (
                           <button

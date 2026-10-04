@@ -141,6 +141,22 @@ const FeesPaymentsList = () => {
     }
   };
 
+  const availablePaymentMethods = useMemo(() => {
+    const defaultMethods = ['Cash', 'UPI', 'Bank Transfer', 'Cheque', 'Debit / Credit Card', 'Net Banking'];
+    const seen = new Set(defaultMethods.map((m) => m.toLowerCase()));
+    const list = [...defaultMethods];
+
+    (payments || []).forEach((p) => {
+      const method = p.payment_method || p.method;
+      if (method && typeof method === 'string' && !seen.has(method.trim().toLowerCase())) {
+        seen.add(method.trim().toLowerCase());
+        list.push(method.trim());
+      }
+    });
+
+    return list;
+  }, [payments]);
+
   const filteredPayments = useMemo(() => {
     return payments.filter((p) => {
       const matchMethod = !selectedMethod || (p.payment_method || '').toLowerCase() === selectedMethod.toLowerCase();
@@ -434,11 +450,11 @@ const FeesPaymentsList = () => {
               onChange={(e) => setSelectedMethod(e.target.value)}
             >
               <option value="">All Payment Methods</option>
-              <option value="Cash">Cash</option>
-              <option value="UPI">UPI / Online</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-              <option value="Cheque">Cheque</option>
-              <option value="Debit / Credit Card">Debit / Credit Card</option>
+              {availablePaymentMethods.map((method) => (
+                <option key={method} value={method}>
+                  {method}
+                </option>
+              ))}
             </select>
           </div>
           <div className="col-md-3">
