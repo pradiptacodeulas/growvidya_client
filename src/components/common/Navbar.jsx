@@ -14,7 +14,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.auth);
   const { can, isSuperAdmin } = usePermission();
-  const { subscription, isTrial, isExpired, daysLeft, openUpgradeModal } = useSubscription();
+  const { subscription, isTrial, isExpired, isPending, isActivePaid, isActiveTrial, daysLeft, openUpgradeModal } = useSubscription();
   const [darkMode, setDarkMode] = useState(false);
   const [currentYearText, setCurrentYearText] = useState('2026');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -165,12 +165,37 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
           <div className="me-auto"></div>
 
           <div className="d-flex align-items-center">
+            {/* Pending Subscription Request (Awaiting Super Admin Approval) */}
+            {isPending && (
+              <div
+                className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none"
+                title={subscription?.end_date ? `Valid until ${subscription.end_date} (${daysLeft} days validity once approved)` : 'Plan approval is pending Super Admin review'}
+              >
+                <i className="ti ti-clock-hour-4 text-warning-emphasis me-1 fs-14"></i>
+                <span className="d-none d-sm-inline">{subscription?.plan_name ? `${subscription.plan_name}: ` : ''}</span>
+                <strong className="text-warning-emphasis me-1">
+                  Pending Approval
+                </strong>
+                {daysLeft > 0 && (
+                  <span className="text-muted fs-11 me-2">({daysLeft}d validity)</span>
+                )}
+                <Link
+                  to="/admin/subscription"
+                  className="btn btn-sm btn-outline-warning text-dark fw-bold py-0 px-2 fs-11 rounded-pill"
+                >
+                  View
+                </Link>
+              </div>
+            )}
+
             {/* Free Trial Countdown (Active Trial) */}
-            {isTrial && !isExpired && (
+            {isActiveTrial && (
               <div className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none">
                 <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
                 <span className="d-none d-sm-inline">{subscription?.plan_name ? `${subscription.plan_name}: ` : ''}</span>
-                <strong className="text-danger">{daysLeft} days remaining</strong>
+                <strong className="text-danger">
+                  {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
+                </strong>
                 <button
                   type="button"
                   onClick={() => openUpgradeModal()}
@@ -182,7 +207,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             )}
 
             {/* Expired Status (Paid Plan or Trial) */}
-            {isExpired && (
+            {isExpired && !isPending && (
               <div className="me-2 d-flex align-items-center bg-danger-subtle border border-danger rounded px-3 py-1 text-danger fw-semibold fs-12 shadow-none">
                 <i className="ti ti-alert-triangle me-1 fs-14"></i>
                 <span>
@@ -214,7 +239,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             )}
 
             {/* Active Paid License with Countdown and Clear Quick Actions */}
-            {!isTrial && !isExpired && (
+            {isActivePaid && (
               <div
                 className={`me-2 d-flex align-items-center rounded px-3 py-1 fw-semibold fs-12 shadow-none border ${
                   daysLeft <= 15
@@ -242,7 +267,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                       : 'text-success me-2'
                   }
                 >
-                  {daysLeft} days remaining
+                  {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
                 </strong>
                 {daysLeft <= 30 ? (
                   <div className="d-flex align-items-center gap-1">

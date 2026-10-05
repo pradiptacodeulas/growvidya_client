@@ -15,6 +15,7 @@ const AdminLogin = () => {
   const [email, setEmail] = useState(location.state?.registeredEmail || emailFromQuery || '');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [pendingApprovalMsg, setPendingApprovalMsg] = useState(null);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -51,12 +52,20 @@ const AdminLogin = () => {
     }
     const res = await dispatch(loginAdmin({ email, password }));
     if (loginAdmin.fulfilled.match(res)) {
+      setPendingApprovalMsg(null);
       toast.success('Signed in successfully!');
       const loggedUser = res.payload?.user;
       if (loggedUser?.isExpired) {
         navigate('/admin/subscription', { replace: true });
       } else {
         navigate('/admin/dashboard', { replace: true });
+      }
+    } else {
+      const errMsg = typeof res.payload === 'string' ? res.payload : (res.payload?.message || '');
+      if (errMsg.toLowerCase().includes('pending') || errMsg.toLowerCase().includes('approval')) {
+        setPendingApprovalMsg(errMsg);
+      } else {
+        setPendingApprovalMsg(null);
       }
     }
   };
@@ -88,6 +97,15 @@ const AdminLogin = () => {
                         <i className="ti ti-circle-check fs-18 me-2"></i>
                         <div>
                           <strong>Registration Complete!</strong> Your school and Super Admin account have been created. Please sign in below.
+                        </div>
+                      </div>
+                    )}
+                    {pendingApprovalMsg && (
+                      <div className="alert alert-warning border-warning d-flex align-items-start mb-4 py-2 px-3 fs-13 bg-warning-subtle">
+                        <i className="ti ti-clock-hour-4 fs-18 text-warning-emphasis me-2 mt-0.5 flex-shrink-0"></i>
+                        <div>
+                          <strong className="d-block text-dark mb-0.5">Plan Approval Pending</strong>
+                          <span className="text-secondary">{pendingApprovalMsg}</span>
                         </div>
                       </div>
                     )}

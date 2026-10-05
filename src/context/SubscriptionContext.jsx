@@ -16,6 +16,9 @@ export const useSubscription = () => {
       isTrial: false,
       isExpired: false,
       isPending: false,
+      isActive: false,
+      isActivePaid: false,
+      isActiveTrial: false,
       pendingSubscription: null,
       daysLeft: 0,
       openUpgradeModal: () => {},
@@ -38,6 +41,10 @@ export const SubscriptionProvider = ({ children }) => {
   const activeSubscription = subscription || user?.subscription || null;
   const activePlanName = activeSubscription?.plan_name || '';
   const planNameLower = activePlanName.toLowerCase();
+
+  const hasSubscription = Boolean(
+    activeSubscription && (activeSubscription.subscription_id || activeSubscription.id || activeSubscription.plan_id)
+  );
 
   const isPending = Boolean(
     activeSubscription?.isPending ||
@@ -64,11 +71,28 @@ export const SubscriptionProvider = ({ children }) => {
       !planNameLower.includes('enterprise')
     : false;
 
-  const daysLeft = activeSubscription?.days_left !== undefined
-    ? Math.max(0, Number(activeSubscription.days_left))
-    : 0;
+  // Calculate dynamic days left: prefer MySQL DATEDIFF from DB, fallback to dynamic end_date calculation
+  const getDynamicDaysLeft = (sub) => {
+    if (!sub) return 0;
+    if (sub.days_left !== undefined && sub.days_left !== null) {
+      return Math.max(0, Number(sub.days_left));
+    }
+    if (sub.end_date) {
+      try {
+        const end = new Date(String(sub.end_date).replace(' ', 'T'));
+        const now = new Date();
+        const diffTime = end.getTime() - now.getTime();
+        return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+      } catch {
+        return 0;
+      }
+    }
+    return 0;
+  };
 
-  const isExpired = activeSubscription && activeSubscription.status !== 'pending'
+  const daysLeft = getDynamicDaysLeft(activeSubscription);
+
+  const isExpired = activeSubscription && !isPending
     ? Boolean(
         activeSubscription.isExpired ||
         activeSubscription.liveStatus === 'expired' ||
@@ -76,6 +100,10 @@ export const SubscriptionProvider = ({ children }) => {
         daysLeft <= 0
       )
     : false;
+
+  const isActive = Boolean(hasSubscription && !isPending && !isExpired);
+  const isActivePaid = Boolean(isActive && !isTrial);
+  const isActiveTrial = Boolean(isActive && isTrial);
 
   const refreshSubscription = useCallback(async () => {
     const hasAdminToken =
@@ -168,6 +196,9 @@ export const SubscriptionProvider = ({ children }) => {
         isTrial,
         isExpired,
         isPending,
+        isActive,
+        isActivePaid,
+        isActiveTrial,
         pendingSubscription,
         daysLeft,
         openUpgradeModal,

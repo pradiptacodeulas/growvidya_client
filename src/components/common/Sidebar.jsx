@@ -83,7 +83,7 @@ const Sidebar = ({
   const { user } = useSelector((state) => state.auth);
   const messageUnreadCount = useSelector((state) => state.messageNotification?.unreadCount || 0);
   const { can, hasAny, isSuperAdmin } = usePermission();
-  const { subscription, isTrial, isExpired, daysLeft, openUpgradeModal } = useSubscription();
+  const { subscription, isTrial, isExpired, isPending, isActivePaid, isActiveTrial, daysLeft, openUpgradeModal } = useSubscription();
 
   const handleLockedMenuClick = (e) => {
     if (isExpired) {
@@ -260,8 +260,31 @@ const Sidebar = ({
           <ul>
             <li>
               <ul>
+                {/* Pending Plan Approval Notice */}
+                {isPending && (
+                  <li className="p-2 mb-2">
+                    <div className="bg-warning-subtle border border-warning rounded p-2 text-dark">
+                      <div className="d-flex align-items-center mb-1">
+                        <i className="ti ti-clock-hour-4 text-warning-emphasis fs-16 me-1"></i>
+                        <span className="fw-bold fs-11 text-uppercase">
+                          {subscription?.plan_name || 'Subscription'}
+                        </span>
+                      </div>
+                      <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
+                        Plan approval pending review by Super Admin{daysLeft > 0 ? ` (${daysLeft} days validity once approved).` : '.'}
+                      </p>
+                      <Link
+                        to="/admin/subscription"
+                        className="btn btn-warning btn-sm w-100 py-1 fs-11 fw-bold text-dark shadow-none text-center d-block"
+                      >
+                        View Status
+                      </Link>
+                    </div>
+                  </li>
+                )}
+
                 {/* Trial Notice (When active and not expired: Full Access) */}
-                {isTrial && !isExpired && (
+                {isActiveTrial && (
                   <li className="p-2 mb-2">
                     <div className="bg-warning-subtle border border-warning rounded p-2 text-dark">
                       <div className="d-flex align-items-center mb-1">
@@ -271,7 +294,7 @@ const Sidebar = ({
                         </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
-                        Full access enabled ({daysLeft} days remaining).
+                        Full access enabled ({daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}).
                       </p>
                       <button
                         type="button"
@@ -285,7 +308,7 @@ const Sidebar = ({
                 )}
 
                 {/* Active Paid Plan Notice (Showing days remaining notification & Renewal CTA) */}
-                {!isTrial && !isExpired && (
+                {isActivePaid && (
                   <li className="p-2 mb-2">
                     <div
                       className={`border rounded p-2 ${
@@ -313,10 +336,16 @@ const Sidebar = ({
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
                         {daysLeft <= 30 ? (
                           <>
-                            Expires in{' '}
-                            <strong className={daysLeft <= 15 ? 'text-danger' : 'text-dark'}>
-                              {daysLeft} days
-                            </strong>
+                            {daysLeft <= 0 ? (
+                              <strong className="text-danger">Expires today</strong>
+                            ) : (
+                              <>
+                                Expires in{' '}
+                                <strong className={daysLeft <= 15 ? 'text-danger' : 'text-dark'}>
+                                  {daysLeft} days
+                                </strong>
+                              </>
+                            )}
                             . Renew early to avoid interruption.
                           </>
                         ) : (

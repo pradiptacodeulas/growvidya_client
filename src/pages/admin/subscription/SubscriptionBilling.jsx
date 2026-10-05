@@ -11,6 +11,9 @@ const SubscriptionBilling = () => {
     isTrial,
     isExpired,
     isPending,
+    isActive,
+    isActivePaid,
+    isActiveTrial,
     pendingSubscription,
     daysLeft,
   } = useSubscription();
@@ -33,9 +36,12 @@ const SubscriptionBilling = () => {
   const maxStudents = subscription?.max_students || 0;
   const maxTeachers = subscription?.max_teachers || 0;
 
-  // Calculate percentage for progress bar if in trial
-  const trialDaysPassed = Math.max(0, 14 - daysLeft);
-  const trialProgressPercent = Math.min(100, Math.max(0, (trialDaysPassed / 14) * 100));
+  // Calculate percentage for progress bar dynamically using plan's free_trial_days from DB
+  const totalTrialDays = Number(subscription?.free_trial_days || 14);
+  const trialDaysPassed = Math.max(0, totalTrialDays - daysLeft);
+  const trialProgressPercent = totalTrialDays > 0
+    ? Math.min(100, Math.max(0, (trialDaysPassed / totalTrialDays) * 100))
+    : 0;
 
   // Filter plans strictly by cycle: NEVER mix monthly and annual pricing
   const filteredPlans = (upgradePlans || []).filter((p) => p.billing_cycle === billingCycle);
@@ -106,7 +112,7 @@ const SubscriptionBilling = () => {
               <span>Renew {planName}</span>
             </button>
           )}
-          {!isExpired && daysLeft <= 30 && !isTrial && (
+          {isActivePaid && daysLeft <= 30 && (
             <button
               type="button"
               className="btn btn-warning text-dark fw-bold d-inline-flex align-items-center shadow-sm"
@@ -194,14 +200,14 @@ const SubscriptionBilling = () => {
       )}
 
       {/* Active Trial Notice */}
-      {isTrial && !isExpired && !isPending && (
+      {isActiveTrial && (
         <div className="alert alert-primary border-primary d-flex align-items-center p-3 mb-4 rounded-3 shadow-sm">
           <div className="avatar avatar-md bg-primary text-white rounded-circle flex-shrink-0 me-3 d-flex align-items-center justify-content-center">
             <i className="ti ti-bolt fs-22"></i>
           </div>
           <div className="flex-grow-1">
             <h6 className="alert-heading fw-bold mb-1 text-dark">
-              {planName} Active ({daysLeft} Days Remaining)
+              {planName} Active ({daysLeft <= 0 ? 'Expires Today' : `${daysLeft} Days Remaining`})
             </h6>
             <p className="mb-0 fs-13 text-secondary">
               You have full access to features during your evaluation period.
@@ -221,7 +227,7 @@ const SubscriptionBilling = () => {
       )}
 
       {/* Paid Plan Expiring Soon Notice */}
-      {!isTrial && !isExpired && daysLeft <= 30 && (
+      {isActivePaid && daysLeft <= 30 && (
         <div
           className={`alert ${
             daysLeft <= 15 ? 'alert-danger border-danger' : 'alert-warning border-warning'
@@ -236,7 +242,7 @@ const SubscriptionBilling = () => {
           </div>
           <div className="flex-grow-1">
             <h6 className="alert-heading fw-bold mb-1 text-dark">
-              {planName} Expiring Soon ({daysLeft} Days Remaining)
+              {planName} Expiring Soon ({daysLeft <= 0 ? 'Expires Today' : `${daysLeft} Days Remaining`})
             </h6>
             <p className="mb-0 fs-13 text-secondary">
               Your subscription will expire on{' '}
@@ -263,7 +269,7 @@ const SubscriptionBilling = () => {
       )}
 
       {/* Paid Plan Fully Active Notice */}
-      {!isTrial && !isExpired && daysLeft > 30 && (
+      {isActivePaid && daysLeft > 30 && (
         <div className="alert alert-success border-success-subtle d-flex align-items-center p-3 mb-4 rounded-3 shadow-sm">
           <div className="avatar avatar-md bg-success text-white rounded-circle flex-shrink-0 me-3 d-flex align-items-center justify-content-center">
             <i className="ti ti-shield-check fs-22"></i>
@@ -358,7 +364,7 @@ const SubscriptionBilling = () => {
                   <span className="badge bg-white bg-opacity-25 text-white fw-bold px-2 py-1 fs-11 rounded-pill">
                     ⏳ Under Review by Super Admin
                   </span>
-                ) : !isExpired && (
+                ) : isActive && (
                   <span
                     className={`badge ${
                       daysLeft <= 15
@@ -368,7 +374,7 @@ const SubscriptionBilling = () => {
                         : 'bg-success text-white'
                     } fw-bold px-2 py-1 fs-11 rounded-pill`}
                   >
-                    ⚡ {daysLeft} Days Remaining
+                    ⚡ {daysLeft <= 0 ? 'Expires Today' : `${daysLeft} Days Remaining`}
                   </span>
                 )}
               </div>
@@ -383,14 +389,14 @@ const SubscriptionBilling = () => {
                     : `Your ${planName} subscription expired on ${subscription?.end_date || 'recently'}. Renew your current plan or upgrade to restore administrative workflows.`
                   : isTrial
                   ? `You are currently experiencing the platform under ${planName || 'trial'}. Period ends on ${subscription?.end_date || ''}.`
-                  : `Your institutional license is active until ${subscription?.end_date || ''} (${daysLeft} days remaining). Cloud hosting, security patches, and support are included.`}
+                  : `Your institutional license is active until ${subscription?.end_date || ''} (${daysLeft <= 0 ? 'expires today' : `${daysLeft} days remaining`}). Cloud hosting, security patches, and support are included.`}
               </p>
 
-              {isTrial && !isExpired && (
+              {isActiveTrial && (
                 <div className="mb-2" style={{ maxWidth: '500px' }}>
                   <div className="d-flex justify-content-between text-white-50 fs-12 mb-1">
                     <span>Trial Usage</span>
-                    <span>{daysLeft} days remaining</span>
+                    <span>{daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}</span>
                   </div>
                   <div className="progress" style={{ height: '8px', backgroundColor: 'rgba(255,255,255,0.2)' }}>
                     <div
