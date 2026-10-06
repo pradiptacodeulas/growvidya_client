@@ -8,6 +8,7 @@ import {
   updateStaffApi,
   deleteStaffApi,
   fetchStaffRolesApi,
+  fetchStaffOptionsApi,
   checkStaffEmailApi,
   checkStaffPhoneApi,
   checkStaffDuplicateApi,
@@ -19,17 +20,8 @@ import { encodeParam } from '../../../utils/idHelper';
 const StaffList = () => {
   const [staffList, setStaffList] = useState([]);
   const [roles, setRoles] = useState([]);
-  const [bloodGroups, setBloodGroups] = useState([
-    { id: 1, blood_group: 'A+' },
-    { id: 2, blood_group: 'A-' },
-    { id: 3, blood_group: 'B+' },
-    { id: 4, blood_group: 'B-' },
-    { id: 5, blood_group: 'AB+' },
-    { id: 6, blood_group: 'AB-' },
-    { id: 7, blood_group: 'AB-' },
-    { id: 8, blood_group: 'O+' },
-    { id: 9, blood_group: 'O-' },
-  ]);
+  const [genders, setGenders] = useState([]);
+  const [bloodGroups, setBloodGroups] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Filters & Search
@@ -52,9 +44,9 @@ const StaffList = () => {
     last_name: '',
     email: '',
     phone: '',
-    gender: '1',
+    gender: '',
     blood_group: '',
-    role: '6', // Staff default
+    role: '',
     password: '',
     status: 1,
     // Bank details
@@ -65,14 +57,15 @@ const StaffList = () => {
     branch_name: '',
   });
 
-  const loadRoles = async () => {
+  const loadMasterData = async () => {
     try {
-      const res = await fetchStaffRolesApi();
-      if (res && res.data && res.data.roles) {
-        setRoles(res.data.roles);
-      }
+      const res = await fetchStaffOptionsApi();
+      const data = res?.data || res?.options || res || {};
+      if (Array.isArray(data.roles)) setRoles(data.roles);
+      if (Array.isArray(data.genders)) setGenders(data.genders);
+      if (Array.isArray(data.bloodGroups)) setBloodGroups(data.bloodGroups);
     } catch (err) {
-      console.error('Failed to load staff roles:', err);
+      console.error('Failed to load staff master data:', err);
     }
   };
 
@@ -103,7 +96,7 @@ const StaffList = () => {
   }, [pagination.page, pagination.limit, search]);
 
   useEffect(() => {
-    loadRoles();
+    loadMasterData();
   }, []);
 
   useEffect(() => {
@@ -210,9 +203,9 @@ const StaffList = () => {
       last_name: '',
       email: '',
       phone: '',
-      gender: '1',
+      gender: '',
       blood_group: '',
-      role: roles.length > 0 ? String(roles[0].id) : '6',
+      role: roles.length > 0 ? String(roles[0].id) : '',
       password: '',
       status: 1,
       account_name: '',
@@ -263,11 +256,17 @@ const StaffList = () => {
         console.warn('Pre-submit staff duplicate check warning:', checkErr);
       }
 
+      const payload = {
+        ...formData,
+        gender: formData.gender ? Number(formData.gender) : null,
+        blood_group: formData.blood_group ? Number(formData.blood_group) : null,
+      };
+
       if (editingStaffId) {
-        await updateStaffApi(editingStaffId, formData);
+        await updateStaffApi(editingStaffId, payload);
         toast.success('Staff user updated successfully');
       } else {
-        await createStaffApi(formData);
+        await createStaffApi(payload);
         toast.success('Staff user created successfully');
       }
       setShowModal(false);
@@ -683,12 +682,15 @@ const StaffList = () => {
                       <label className="form-label fw-semibold">Gender</label>
                       <select
                         className="form-select"
-                        value={formData.gender}
+                        value={formData.gender || ''}
                         onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                       >
-                        <option value="1">Male</option>
-                        <option value="2">Female</option>
-                        <option value="3">Other</option>
+                        <option value="">Select Gender</option>
+                        {genders.map((g) => (
+                          <option key={g.id} value={String(g.id)}>
+                            {g.gender || g.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
 

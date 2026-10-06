@@ -44,6 +44,7 @@ const AddUser = () => {
   const [rooms, setRooms] = useState([]);
   const [documentTypes, setDocumentTypes] = useState([]);
   const [bloodGroups, setBloodGroups] = useState([]);
+  const [genders, setGenders] = useState([]);
   const [branches, setBranches] = useState([]);
 
   // Form State
@@ -59,7 +60,7 @@ const AddUser = () => {
     last_name: '',
     email: '',
     phone: '',
-    gender: '1',
+    gender: '',
     blood_group: '',
     password: '',
     country_id: '',
@@ -121,18 +122,8 @@ const AddUser = () => {
           setVehicles(data.vehicles || []);
           setHostels(data.hostels || []);
           setDocumentTypes(data.documentTypes || []);
-          setBloodGroups(
-            data.bloodGroups || [
-              { id: 1, blood_group: 'A+' },
-              { id: 2, blood_group: 'A-' },
-              { id: 3, blood_group: 'B+' },
-              { id: 4, blood_group: 'B-' },
-              { id: 5, blood_group: 'AB+' },
-              { id: 6, blood_group: 'AB-' },
-              { id: 7, blood_group: 'O+' },
-              { id: 8, blood_group: 'O-' },
-            ]
-          );
+          setBloodGroups(Array.isArray(data.bloodGroups) ? data.bloodGroups : []);
+          setGenders(Array.isArray(data.genders) ? data.genders : []);
 
           if (!isEditMode && data.roles?.length > 0) {
             setPersonalInfo((prev) => ({
@@ -179,7 +170,7 @@ const AddUser = () => {
               last_name: u.last_name || '',
               email: u.email || '',
               phone: u.phone || '',
-              gender: u.gender !== undefined ? String(u.gender) : '1',
+              gender: u.gender !== undefined && u.gender !== null ? String(u.gender) : '',
               blood_group: u.blood_group ? String(u.blood_group) : '',
               password: '',
               country_id: u.country_id ? String(u.country_id) : '',
@@ -648,7 +639,7 @@ const AddUser = () => {
         last_name: String(personalInfo.last_name || '').trim(),
         email: String(personalInfo.email || '').trim(),
         phone: String(personalInfo.phone || '').trim(),
-        gender: personalInfo.gender || '1',
+        gender: personalInfo.gender ? Number(personalInfo.gender) : null,
         blood_group: personalInfo.blood_group ? Number(personalInfo.blood_group) : null,
         password: personalInfo.password ? String(personalInfo.password).trim() : undefined,
         country_id: personalInfo.country_id || null,
@@ -947,14 +938,17 @@ const AddUser = () => {
                           className="select form-select"
                           name="gender"
                           id="gender"
-                          value={personalInfo.gender || '1'}
+                          value={personalInfo.gender || ''}
                           onChange={(e) =>
                             setPersonalInfo({ ...personalInfo, gender: e.target.value })
                           }
                         >
-                          <option value="1">Male</option>
-                          <option value="2">Female</option>
-                          <option value="3">Other</option>
+                          <option value="">Select Gender</option>
+                          {genders.map((g) => (
+                            <option key={g.id} value={String(g.id)}>
+                              {g.gender || g.name}
+                            </option>
+                          ))}
                         </select>
                       </div>
                     </div>
