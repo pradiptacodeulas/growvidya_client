@@ -68,8 +68,7 @@ const RolePermissionForm = () => {
           const roleObj = res.data.role;
           const isSystem = Boolean(
             roleObj?.is_system_role ||
-            String(roleObj?.role_name || '').toLowerCase().trim() === 'super admin' ||
-            Number(roleObj?.id) === 1
+            String(roleObj?.role_name || '').toLowerCase().trim() === 'super admin'
           );
           setIsReadOnlyRole(isSystem);
           setRoleName(roleObj?.role_name || '');

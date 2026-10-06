@@ -10,8 +10,7 @@ const isSuperAdminRole = (role) => {
   if (!role) return false;
   return Boolean(
     role.is_system_role ||
-    String(role.role_name || '').toLowerCase().trim() === 'super admin' ||
-    Number(role.id) === 1
+    String(role.role_name || '').toLowerCase().trim() === 'super admin'
   );
 };
 
