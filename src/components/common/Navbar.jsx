@@ -114,6 +114,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
       setActiveBranchId(String(branchId));
       window.dispatchEvent(new CustomEvent('branch_changed', { detail: { branchId: Number(branchId) } }));
     }
+    window.location.reload();
   };
 
   const activeBranchName =
