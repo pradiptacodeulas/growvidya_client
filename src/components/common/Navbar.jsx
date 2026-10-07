@@ -86,7 +86,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   }, [isExpired]);
 
   useEffect(() => {
-    if (isExpired) return;
+    if (isExpired || !isSuperAdmin) return;
     const loadBranches = async () => {
       try {
         const res = await fetchBranchesApi({ status: 1 });
@@ -102,7 +102,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
     return () => {
       window.removeEventListener('branch_list_updated', loadBranches);
     };
-  }, [isExpired]);
+  }, [isExpired, isSuperAdmin]);
 
   const handleSelectBranch = (branchId) => {
     if (!branchId || branchId === 'all') {
@@ -301,8 +301,22 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
               </div>
             )}
 
-            {/* Branch Switcher Dropdown */}
-            {!isExpired && branches.length > 0 && (
+            {/* Static Campus Indicator for Non-Superadmin Staff / Branch Head */}
+            {!isExpired && !isSuperAdmin && (user?.branchName || user?.branch_name) && (
+              <div
+                className="me-2 d-none d-sm-flex align-items-center bg-white border rounded px-3 py-1 text-dark fs-12 fw-medium shadow-none"
+                title="Your assigned campus"
+              >
+                <i className="ti ti-building-community text-primary fs-15 me-1.5"></i>
+                <span className="text-muted me-1">Campus:</span>
+                <strong className="text-primary text-truncate" style={{ maxWidth: '160px' }}>
+                  {user?.branchName || user?.branch_name || 'My Campus'}
+                </strong>
+              </div>
+            )}
+
+            {/* Branch Switcher Dropdown (Super Admin only) */}
+            {!isExpired && isSuperAdmin && branches.length > 0 && (
               <div className="dropdown me-2">
                 <button
                   className="btn btn-sm btn-white border d-flex align-items-center gap-1 px-3 py-1 text-dark fw-medium fs-13 shadow-none dropdown-toggle"

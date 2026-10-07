@@ -1411,7 +1411,7 @@ const Sidebar = ({
                           </NavLink>
                         </li>
                       )}
-                      {(isSuperAdmin || can('settings/general', 'view')) && (
+                      {(isSuperAdmin || can('settings/branches', 'view')) && (
                         <li>
                           <NavLink
                             to="/admin/settings/branches"
@@ -1448,33 +1448,35 @@ const Sidebar = ({
                   </div>
                 </div>
 
-                {/* Subscription & License - ALWAYS active and accessible */}
-                <li
-                  className={
-                    isExpired
-                      ? 'my-2 rounded border border-warning bg-warning-subtle shadow-sm'
-                      : ''
-                  }
-                >
-                  <NavLink
-                    to="/admin/subscription"
-                    className={({ isActive }) =>
-                      isActive || location.pathname.startsWith('/admin/subscription')
-                        ? 'active'
+                {/* Subscription & License - Super Admin only */}
+                {isSuperAdmin && (
+                  <li
+                    className={
+                      isExpired
+                        ? 'my-2 rounded border border-warning bg-warning-subtle shadow-sm'
                         : ''
                     }
                   >
-                    <i className="ti ti-crown text-warning"></i>
-                    <span className={isExpired ? 'fw-bold text-dark' : ''}>
-                      Subscription &amp; Plans
-                    </span>
-                    {isExpired && (
-                      <span className="badge bg-danger text-white ms-auto fs-10 px-1.5 py-0.5">
-                        {isTrial ? 'Upgrade' : 'Renew'}
+                    <NavLink
+                      to="/admin/subscription"
+                      className={({ isActive }) =>
+                        isActive || location.pathname.startsWith('/admin/subscription')
+                          ? 'active'
+                          : ''
+                      }
+                    >
+                      <i className="ti ti-crown text-warning"></i>
+                      <span className={isExpired ? 'fw-bold text-dark' : ''}>
+                        Subscription &amp; Plans
                       </span>
-                    )}
-                  </NavLink>
-                </li>
+                      {isExpired && (
+                        <span className="badge bg-danger text-white ms-auto fs-10 px-1.5 py-0.5">
+                          {isTrial ? 'Upgrade' : 'Renew'}
+                        </span>
+                      )}
+                    </NavLink>
+                  </li>
+                )}
 
                 {/* Logout */}
                 <li>

@@ -739,7 +739,11 @@ const BranchManagement = () => {
                                 {branch.head_name || branch.principal_name}
                               </div>
                               {branch.head_role && (
-                                <div className="fs-11 text-muted">{branch.head_role}</div>
+                                <div className="mt-0.5">
+                                  <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-1.5 py-0">
+                                    {branch.head_role}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -935,7 +939,8 @@ const BranchManagement = () => {
                   ))}
                 </select>
                 <div className="fs-11 text-muted mt-1">
-                  Assign an existing staff member as the head of this campus.
+                  <i className="ti ti-shield-check text-primary me-1"></i>
+                  Assigning a staff member as Campus Head automatically grants them the <strong>Branch Head</strong> role with full operational administrative access scoped strictly to this campus.
                 </div>
               </div>
 
