@@ -28,6 +28,7 @@ const UserDetails = () => {
       setLoading(true);
       const res = await fetchStaffByIdApi(id);
       const data = res?.data?.staff || res?.data || null;
+            
       if (!data) {
         toast.error('User record not found.');
         navigate('/admin/users');
@@ -119,6 +120,9 @@ const UserDetails = () => {
   }
 
   const roleName = Number(user.admin_type) === 1 ? 'Super Admin' : (user.role_name || 'Staff');
+  console.log(roleName);
+  
+  
   const isActive = Number(user.status) === 1;
   const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A';
   const bank = user.bank_details || null;

@@ -125,12 +125,6 @@ const AddUser = () => {
           setBloodGroups(Array.isArray(data.bloodGroups) ? data.bloodGroups : []);
           setGenders(Array.isArray(data.genders) ? data.genders : []);
 
-          if (!isEditMode && data.roles?.length > 0) {
-            setPersonalInfo((prev) => ({
-              ...prev,
-              role: prev.role || String(data.roles[0].id),
-            }));
-          }
           if (data.documentTypes?.length > 0) {
             setCurrentDocType(String(data.documentTypes[0].id));
           }
@@ -645,7 +639,7 @@ const AddUser = () => {
         country_id: personalInfo.country_id || null,
         state_id: personalInfo.state_id || null,
         city: personalInfo.city || null,
-        role: personalInfo.role || null,
+        role: personalInfo.role ? Number(personalInfo.role) : null,
         status: Number(personalInfo.status) || 1,
         picture: uploadedPicPath || personalInfo.picture || null,
 
@@ -1136,16 +1130,16 @@ const AddUser = () => {
                               className={`select form-select ${errors.role ? 'is-invalid border-danger' : ''}`}
                               name="role"
                               id="role"
-                              value={personalInfo.role}
+                              value={personalInfo.role || ''}
                               onChange={(e) => {
                                 setPersonalInfo({ ...personalInfo, role: e.target.value });
                                 if (errors.role) setErrors({ ...errors, role: null });
                               }}
                               required
                             >
-                              <option value="">Select</option>
+                              <option value="">Select Role</option>
                               {roles.map((r) => (
-                                <option key={r.id} value={r.id}>
+                                <option key={r.id} value={String(r.id)}>
                                   {r.role_name}
                                 </option>
                               ))}

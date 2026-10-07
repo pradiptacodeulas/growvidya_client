@@ -205,7 +205,7 @@ const StaffList = () => {
       phone: '',
       gender: '',
       blood_group: '',
-      role: roles.length > 0 ? String(roles[0].id) : '',
+      role: '',
       password: '',
       status: 1,
       account_name: '',
@@ -351,7 +351,8 @@ const StaffList = () => {
         sortable: true,
         cell: ({ row, value }) => {
           const isSuperAdmin = Number(row?.admin_type) === 1 || String(value || '').toLowerCase().trim() === 'super admin';
-          const roleText = isSuperAdmin ? 'Super Admin' : (value || 'Staff');
+          const roleText = isSuperAdmin ? 'Super Admin' : (value || '--');
+          
           return (
             <span className={`badge ${isSuperAdmin ? 'badge-soft-warning' : 'bg-light text-dark border'} px-2.5 py-1.5 fw-medium`}>
               {isSuperAdmin && <i className="ti ti-lock me-1"></i>}
@@ -716,12 +717,13 @@ const StaffList = () => {
                       </label>
                       <select
                         className="form-select"
-                        value={formData.role}
+                        value={formData.role || ''}
                         onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                         required
                       >
+                        <option value="">Select Role</option>
                         {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
+                          <option key={r.id} value={String(r.id)}>
                             {r.role_name}
                           </option>
                         ))}

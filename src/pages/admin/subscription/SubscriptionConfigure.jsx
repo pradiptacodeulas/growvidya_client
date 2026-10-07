@@ -1941,7 +1941,7 @@ const SubscriptionConfigure = () => {
                 ) : (
                   <div className="col-12 py-3 text-center text-muted fs-13">
                     <i className="ti ti-info-circle me-1"></i>
-                    No notification records found in <code>notification_master</code>.
+                    No notification records found.
                   </div>
                 )}
               </div>
