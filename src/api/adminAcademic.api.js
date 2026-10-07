@@ -138,8 +138,19 @@ export const updatePeriodApi = async (id, data) => await apiFetch(`/admin/academ
 export const deletePeriodApi = async (id) => await apiFetch(`/admin/academics/periods/${id}`, { method: 'DELETE' });
 
 // Days
-export const fetchDaysApi = async () => {
-  const res = await apiFetch('/admin/academics/days');
+export const fetchDaysApi = async (paramsOrBranchId = null) => {
+  let res;
+  if (typeof paramsOrBranchId === 'object' && paramsOrBranchId !== null) {
+    const query = new URLSearchParams();
+    const branchId = paramsOrBranchId.branch_id ?? paramsOrBranchId.branchId;
+    if (branchId) query.set('branch_id', branchId);
+    const qs = query.toString();
+    res = await apiFetch(`/admin/academics/days${qs ? `?${qs}` : ''}`);
+  } else if (paramsOrBranchId && paramsOrBranchId !== 'all') {
+    res = await apiFetch(`/admin/academics/days?branch_id=${paramsOrBranchId}`);
+  } else {
+    res = await apiFetch('/admin/academics/days');
+  }
   if (Array.isArray(res)) return sortDropdownDesc(res);
   if (Array.isArray(res?.data)) res.data = sortDropdownDesc(res.data);
   return res;

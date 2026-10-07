@@ -54,6 +54,9 @@ const AcademicMasterList = () => {
 
   useEffect(() => {
     fetchData();
+    const handleBranchChange = () => fetchData();
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, []);
 
   const fetchData = async () => {
@@ -291,6 +294,21 @@ const AcademicMasterList = () => {
       fetchData();
     } catch (err) {
       toast.error(err.message);
+    }
+  };
+
+  const handleToggleDayStatus = async (day) => {
+    try {
+      const newStatus = Number(day.status) === 0 ? 1 : 0;
+      await adminAcademicApi.updateDayApi(day.id, {
+        status: newStatus,
+        day_name: day.day_name,
+        branch_id: day.branch_id,
+      });
+      toast.success(`${day.day_name} marked as ${newStatus === 0 ? 'Weekend / Holiday' : 'Working Day'}`);
+      fetchData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update day status');
     }
   };
 
@@ -921,8 +939,13 @@ const AcademicMasterList = () => {
           {/* TAB: DAYS */}
           {activeTab === 'days' && (
             <div className="card border-0 shadow-sm">
-              <div className="card-header bg-white py-3">
-                <h5 className="mb-0 text-dark fw-bold">Working Days Master</h5>
+              <div className="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <div>
+                  <h5 className="mb-0 text-dark fw-bold">Working Days Master</h5>
+                  <p className="text-muted fs-12 mb-0 mt-0.5">
+                    Configure operational working days and weekends per campus
+                  </p>
+                </div>
               </div>
               <div className="card-body p-0">
                 <div className="table-responsive">
@@ -931,21 +954,51 @@ const AcademicMasterList = () => {
                       <tr>
                         <th>#</th>
                         <th>Day Name</th>
+                        <th>Campus / Branch</th>
                         <th>Status</th>
+                        <th className="text-end">Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {days.map((d, idx) => (
-                        <tr key={d.id || idx}>
-                          <td>{idx + 1}</td>
-                          <td className="fw-bold text-dark">{d.day_name}</td>
-                          <td>
-                            <span className={`badge ${d.status === 0 ? 'bg-danger' : 'bg-success'}`}>
-                              {d.status === 0 ? 'Weekend / Holiday' : 'Working Day'}
-                            </span>
+                      {days.length === 0 ? (
+                        <tr>
+                          <td colSpan="5" className="text-center py-4">
+                            <NoData title="No Days Found" message="No working days configured." imageHeight={80} py={2} />
                           </td>
                         </tr>
-                      ))}
+                      ) : (
+                        days.map((d, idx) => (
+                          <tr key={d.id || idx}>
+                            <td>{idx + 1}</td>
+                            <td className="fw-bold text-dark">{d.day_name}</td>
+                            <td>
+                              {d.branch_name ? (
+                                <span className="badge bg-primary-transparent text-primary fs-11">
+                                  <i className="ti ti-building me-1"></i>{d.branch_name}
+                                </span>
+                              ) : (
+                                <span className="badge bg-light text-muted border fs-11">All Campuses</span>
+                              )}
+                            </td>
+                            <td>
+                              <span className={`badge ${Number(d.status) === 0 ? 'bg-danger' : 'bg-success'}`}>
+                                {Number(d.status) === 0 ? 'Weekend / Holiday' : 'Working Day'}
+                              </span>
+                            </td>
+                            <td className="text-end">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleDayStatus(d)}
+                                className={`btn btn-sm ${Number(d.status) === 0 ? 'btn-outline-success' : 'btn-outline-warning'}`}
+                                title={Number(d.status) === 0 ? 'Mark as Working Day' : 'Mark as Weekend / Holiday'}
+                              >
+                                <i className={`ti ${Number(d.status) === 0 ? 'ti-calendar-check' : 'ti-calendar-off'} me-1`}></i>
+                                {Number(d.status) === 0 ? 'Set Working' : 'Set Weekend'}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
