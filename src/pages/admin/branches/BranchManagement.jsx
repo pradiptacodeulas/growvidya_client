@@ -11,6 +11,7 @@ import {
   fetchCountriesApi,
   fetchStatesByCountryApi,
   fetchCitiesByStateApi,
+  fetchBranchHeadCandidatesApi,
 } from '../../../api/branch.api';
 import NoData from '../../../components/common/NoData';
 
@@ -19,6 +20,10 @@ const BranchManagement = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  // Branch Head Candidates (Active Staff)
+  const [headCandidates, setHeadCandidates] = useState([]);
+  const [loadingCandidates, setLoadingCandidates] = useState(false);
 
   // Location Lists & Selected IDs for Dependent Dropdowns
   const [countries, setCountries] = useState([]);
@@ -38,6 +43,7 @@ const BranchManagement = () => {
   const [formData, setFormData] = useState({
     branch_name: '',
     branch_code: '',
+    head_user_id: '',
     address: '',
     pincode: '',
     phone: '',
@@ -161,9 +167,27 @@ const BranchManagement = () => {
     }
   };
 
+  // Load Head Candidates (Staff eligible for branch leadership)
+  const loadHeadCandidates = async () => {
+    try {
+      setLoadingCandidates(true);
+      const res = await fetchBranchHeadCandidatesApi();
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setHeadCandidates(list);
+      return list;
+    } catch (err) {
+      console.error('Failed to load head candidates:', err);
+      setHeadCandidates([]);
+      return [];
+    } finally {
+      setLoadingCandidates(false);
+    }
+  };
+
   useEffect(() => {
     loadBranches();
     loadCountries();
+    loadHeadCandidates();
   }, []);
 
   // Open Add Modal
@@ -173,6 +197,7 @@ const BranchManagement = () => {
     setFormData({
       branch_name: '',
       branch_code: '',
+      head_user_id: '',
       address: '',
       pincode: '',
       phone: '',
@@ -186,6 +211,9 @@ const BranchManagement = () => {
     setStates([]);
     setCities([]);
     setShowModal(true);
+    if (!headCandidates || headCandidates.length === 0) {
+      loadHeadCandidates();
+    }
 
     let countryList = countries;
     if (!countryList || countryList.length === 0) {
@@ -215,6 +243,7 @@ const BranchManagement = () => {
     setFormData({
       branch_name: branch.branch_name || '',
       branch_code: branch.branch_code || '',
+      head_user_id: branch.head_user_id ? String(branch.head_user_id) : '',
       address: branch.address || '',
       pincode: branch.pincode || '',
       phone: branch.phone || '',
@@ -229,6 +258,9 @@ const BranchManagement = () => {
     setStates([]);
     setCities([]);
     setShowModal(true);
+    if (!headCandidates || headCandidates.length === 0) {
+      loadHeadCandidates();
+    }
 
     let countryList = countries;
     if (!countryList || countryList.length === 0) {
@@ -323,6 +355,7 @@ const BranchManagement = () => {
 
     const payload = {
       ...formData,
+      head_user_id: formData.head_user_id ? Number(formData.head_user_id) : null,
       country_id: selectedCountryId ? Number(selectedCountryId) : null,
       state_id: selectedStateId ? Number(selectedStateId) : null,
       city_id: selectedCityId ? Number(selectedCityId) : null,
@@ -457,6 +490,8 @@ const BranchManagement = () => {
       (b.city || '').toLowerCase().includes(q) ||
       (b.state || '').toLowerCase().includes(q) ||
       (b.country || '').toLowerCase().includes(q) ||
+      (b.head_name || '').toLowerCase().includes(q) ||
+      (b.head_role || '').toLowerCase().includes(q) ||
       (b.principal_name || '').toLowerCase().includes(q)
     );
   });
@@ -680,11 +715,37 @@ const BranchManagement = () => {
                         </span>
                       </td>
 
-                      {/* Principal */}
+                      {/* Principal / Campus Head */}
                       <td>
-                        <span className="fs-13 text-dark fw-medium">
-                          {branch.principal_name || <span className="text-muted fst-italic">—</span>}
-                        </span>
+                        {branch.head_name || branch.principal_name ? (
+                          <div className="d-flex align-items-center gap-2">
+                            {branch.head_picture ? (
+                              <img
+                                src={branch.head_picture}
+                                alt={branch.head_name || branch.principal_name}
+                                className="rounded-circle"
+                                style={{ width: '28px', height: '28px', objectFit: 'cover' }}
+                              />
+                            ) : (
+                              <div
+                                className="rounded-circle bg-light text-primary d-flex align-items-center justify-content-center fw-semibold fs-11"
+                                style={{ width: '28px', height: '28px', minWidth: '28px' }}
+                              >
+                                {(branch.head_name || branch.principal_name || 'H').charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div>
+                              <div className="fs-13 text-dark fw-medium">
+                                {branch.head_name || branch.principal_name}
+                              </div>
+                              {branch.head_role && (
+                                <div className="fs-11 text-muted">{branch.head_role}</div>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-muted fst-italic">Unassigned</span>
+                        )}
                       </td>
 
                       {/* Contact */}
@@ -844,19 +905,38 @@ const BranchManagement = () => {
                 />
               </div>
 
-              {/* Principal Name */}
+              {/* Principal / Campus Head */}
               <div className="col-12 col-md-6">
                 <label className="form-label fs-12 fw-semibold text-dark">
                   Principal / Campus Head
                 </label>
-                <input
-                  type="text"
-                  name="principal_name"
-                  className="form-control form-control-sm"
-                  placeholder="e.g. Dr. Robert Vance"
-                  value={formData.principal_name}
-                  onChange={handleChange}
-                />
+                <select
+                  name="head_user_id"
+                  className="form-select form-select-sm"
+                  value={formData.head_user_id || ''}
+                  disabled={loadingCandidates}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    const selectedUser = headCandidates.find((c) => String(c.id) === String(val));
+                    setFormData((prev) => ({
+                      ...prev,
+                      head_user_id: val,
+                      principal_name: selectedUser ? selectedUser.full_name : '',
+                      phone: !prev.phone && selectedUser?.phone ? selectedUser.phone : prev.phone,
+                      email: !prev.email && selectedUser?.email ? selectedUser.email : prev.email,
+                    }));
+                  }}
+                >
+                  <option value="">-- Select Staff Member (Optional) --</option>
+                  {headCandidates.map((staff) => (
+                    <option key={staff.id} value={staff.id}>
+                      {staff.full_name} {staff.role_name ? `(${staff.role_name})` : ''}
+                    </option>
+                  ))}
+                </select>
+                <div className="fs-11 text-muted mt-1">
+                  Assign an existing staff member as the head of this campus.
+                </div>
               </div>
 
               {/* Phone */}

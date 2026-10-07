@@ -58,3 +58,7 @@ export const fetchCitiesByStateApi = async (stateId) => {
   return apiFetch(`/admin/branches/locations/cities?state_id=${stateId}`, { method: 'GET' });
 };
 
+export const fetchBranchHeadCandidatesApi = async () => {
+  return apiFetch('/admin/branches/head-candidates', { method: 'GET' });
+};
+
