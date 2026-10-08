@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import { fetchBranchesApi } from '../../../api/branch.api';
 import NoData from '../../../components/common/NoData';
 
 const AcademicMasterList = () => {
@@ -20,6 +21,7 @@ const AcademicMasterList = () => {
   const [houses, setHouses] = useState([]);
   const [periods, setPeriods] = useState([]);
   const [days, setDays] = useState([]);
+  const [branches, setBranches] = useState([]);
   const [docTypes, setDocTypes] = useState([]);
   const [routines, setRoutines] = useState([]);
   const [lessons, setLessons] = useState([]);
@@ -28,6 +30,7 @@ const AcademicMasterList = () => {
 
   // Form states
   const [newYear, setNewYear] = useState({ academic_year: '', start_date: '', end_date: '', is_current: 0 });
+  const [newDay, setNewDay] = useState({ day_name: '', branch_id: '', status: 1 });
   const [newClass, setNewClass] = useState({ class_name: '', shift_id: '', sort_order: 0 });
   const [newSection, setNewSection] = useState({ class_id: '', section_name: '', capacity: 40 });
   const [newSubject, setNewSubject] = useState({ class_id: '', subject_name: '', sort_order: 0 });
@@ -70,6 +73,7 @@ const AcademicMasterList = () => {
         lessonsRes,
         atRes,
         assignRes,
+        branchesRes,
       ] = await Promise.all([
         adminAcademicApi.fetchAcademicOverviewApi().catch(() => ({ data: {} })),
         adminAcademicApi.getDays().catch(() => ({ data: [] })),
@@ -78,6 +82,7 @@ const AcademicMasterList = () => {
         adminAcademicApi.getLessons().catch(() => ({ data: [] })),
         adminAcademicApi.getAssignmentTypes().catch(() => ({ data: [] })),
         adminAcademicApi.getAssignments().catch(() => ({ data: [] })),
+        fetchBranchesApi({ status: 1 }).catch(() => ({ data: [] })),
       ]);
 
       const ov = overviewRes?.data || {};
@@ -90,6 +95,8 @@ const AcademicMasterList = () => {
       setPeriods(Array.isArray(ov.periods) ? ov.periods : []);
 
       setDays(Array.isArray(daysRes?.data) ? daysRes.data : []);
+      const branchList = Array.isArray(branchesRes?.data) ? branchesRes.data : Array.isArray(branchesRes) ? branchesRes : [];
+      setBranches(branchList);
       setDocTypes(Array.isArray(docRes?.data) ? docRes.data : []);
       setRoutines(Array.isArray(routinesRes?.data) ? routinesRes.data : []);
       setLessons(Array.isArray(lessonsRes?.data) ? lessonsRes.data : []);
@@ -309,6 +316,36 @@ const AcademicMasterList = () => {
       fetchData();
     } catch (err) {
       toast.error(err.message || 'Failed to update day status');
+    }
+  };
+
+  const handleAddDay = async (e) => {
+    e.preventDefault();
+    if (!newDay.day_name.trim()) return toast.warning('Please enter Day name.');
+    try {
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const resolvedBranch = newDay.branch_id || (activeBranchId && activeBranchId !== 'all' ? activeBranchId : null);
+      await adminAcademicApi.createDayApi({
+        day_name: newDay.day_name.trim(),
+        branch_id: resolvedBranch ? Number(resolvedBranch) : null,
+        status: Number(newDay.status),
+      });
+      toast.success('Day added successfully!');
+      setNewDay({ day_name: '', branch_id: '', status: 1 });
+      fetchData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to add Day.');
+    }
+  };
+
+  const handleDeleteDay = async (id) => {
+    if (!window.confirm('Delete this Day?')) return;
+    try {
+      await adminAcademicApi.deleteDayApi(id);
+      toast.success('Day deleted.');
+      fetchData();
+    } catch (err) {
+      toast.error(err.message || 'Failed to delete Day.');
     }
   };
 
@@ -938,69 +975,134 @@ const AcademicMasterList = () => {
 
           {/* TAB: DAYS */}
           {activeTab === 'days' && (
-            <div className="card border-0 shadow-sm">
-              <div className="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
-                <div>
-                  <h5 className="mb-0 text-dark fw-bold">Working Days Master</h5>
-                  <p className="text-muted fs-12 mb-0 mt-0.5">
-                    Configure operational working days and weekends per campus
-                  </p>
+            <div className="row g-3">
+              <div className="col-lg-4">
+                <div className="card border-0 shadow-sm">
+                  <div className="card-header bg-white py-3">
+                    <h5 className="mb-0 text-dark fw-bold"><i className="ti ti-plus me-1 text-primary"></i> Add Working Day</h5>
+                  </div>
+                  <div className="card-body">
+                    <form onSubmit={handleAddDay}>
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold">Campus / Branch</label>
+                        <select
+                          className="form-select"
+                          value={newDay.branch_id}
+                          onChange={(e) => setNewDay({ ...newDay, branch_id: e.target.value })}
+                        >
+                          <option value="">Default / Main Campus</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.branch_name} {b.is_main_branch ? '(Main Campus)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold">Day Name <span className="text-danger">*</span></label>
+                        <input
+                          type="text"
+                          className="form-control"
+                          placeholder="e.g. Monday, Tuesday"
+                          value={newDay.day_name}
+                          onChange={(e) => setNewDay({ ...newDay, day_name: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold">Status</label>
+                        <select
+                          className="form-select"
+                          value={newDay.status}
+                          onChange={(e) => setNewDay({ ...newDay, status: Number(e.target.value) })}
+                        >
+                          <option value={1}>Working Day</option>
+                          <option value={0}>Weekend / Holiday</option>
+                        </select>
+                      </div>
+                      <button type="submit" className="btn btn-primary w-100">
+                        <i className="ti ti-check me-1"></i> Save Day
+                      </button>
+                    </form>
+                  </div>
                 </div>
               </div>
-              <div className="card-body p-0">
-                <div className="table-responsive">
-                  <table className="table table-hover align-middle mb-0">
-                    <thead className="table-light">
-                      <tr>
-                        <th>#</th>
-                        <th>Day Name</th>
-                        <th>Campus / Branch</th>
-                        <th>Status</th>
-                        <th className="text-end">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {days.length === 0 ? (
-                        <tr>
-                          <td colSpan="5" className="text-center py-4">
-                            <NoData title="No Days Found" message="No working days configured." imageHeight={80} py={2} />
-                          </td>
-                        </tr>
-                      ) : (
-                        days.map((d, idx) => (
-                          <tr key={d.id || idx}>
-                            <td>{idx + 1}</td>
-                            <td className="fw-bold text-dark">{d.day_name}</td>
-                            <td>
-                              {d.branch_name ? (
-                                <span className="badge bg-primary-transparent text-primary fs-11">
-                                  <i className="ti ti-building me-1"></i>{d.branch_name}
-                                </span>
-                              ) : (
-                                <span className="badge bg-light text-muted border fs-11">All Campuses</span>
-                              )}
-                            </td>
-                            <td>
-                              <span className={`badge ${Number(d.status) === 0 ? 'bg-danger' : 'bg-success'}`}>
-                                {Number(d.status) === 0 ? 'Weekend / Holiday' : 'Working Day'}
-                              </span>
-                            </td>
-                            <td className="text-end">
-                              <button
-                                type="button"
-                                onClick={() => handleToggleDayStatus(d)}
-                                className={`btn btn-sm ${Number(d.status) === 0 ? 'btn-outline-success' : 'btn-outline-warning'}`}
-                                title={Number(d.status) === 0 ? 'Mark as Working Day' : 'Mark as Weekend / Holiday'}
-                              >
-                                <i className={`ti ${Number(d.status) === 0 ? 'ti-calendar-check' : 'ti-calendar-off'} me-1`}></i>
-                                {Number(d.status) === 0 ? 'Set Working' : 'Set Weekend'}
-                              </button>
-                            </td>
+              <div className="col-lg-8">
+                <div className="card border-0 shadow-sm">
+                  <div className="card-header bg-white py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                    <div>
+                      <h5 className="mb-0 text-dark fw-bold">Working Days Master</h5>
+                      <p className="text-muted fs-12 mb-0 mt-0.5">
+                        Configure operational working days and weekends per campus
+                      </p>
+                    </div>
+                  </div>
+                  <div className="card-body p-0">
+                    <div className="table-responsive">
+                      <table className="table table-hover align-middle mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th>#</th>
+                            <th>Day Name</th>
+                            <th>Campus / Branch</th>
+                            <th>Status</th>
+                            <th className="text-end">Action</th>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        </thead>
+                        <tbody>
+                          {days.length === 0 ? (
+                            <tr>
+                              <td colSpan="5" className="text-center py-4">
+                                <NoData title="No Days Found" message="No working days configured." imageHeight={80} py={2} />
+                              </td>
+                            </tr>
+                          ) : (
+                            days.map((d, idx) => (
+                              <tr key={d.id || idx}>
+                                <td>{idx + 1}</td>
+                                <td className="fw-bold text-dark">{d.day_name}</td>
+                                <td>
+                                  {d.branch_name ? (
+                                    <span className="badge bg-primary-transparent text-primary fs-11">
+                                      <i className="ti ti-building me-1"></i>{d.branch_name}
+                                    </span>
+                                  ) : (
+                                    <span className="badge bg-light text-muted border fs-11">All Campuses</span>
+                                  )}
+                                </td>
+                                <td>
+                                  <span className={`badge ${Number(d.status) === 0 ? 'bg-danger' : 'bg-success'}`}>
+                                    {Number(d.status) === 0 ? 'Weekend / Holiday' : 'Working Day'}
+                                  </span>
+                                </td>
+                                <td className="text-end">
+                                  <div className="d-inline-flex gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleDayStatus(d)}
+                                      className={`btn btn-sm ${Number(d.status) === 0 ? 'btn-outline-success' : 'btn-outline-warning'}`}
+                                      title={Number(d.status) === 0 ? 'Mark as Working Day' : 'Mark as Weekend / Holiday'}
+                                    >
+                                      <i className={`ti ${Number(d.status) === 0 ? 'ti-calendar-check' : 'ti-calendar-off'} me-1`}></i>
+                                      {Number(d.status) === 0 ? 'Set Working' : 'Set Weekend'}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeleteDay(d.id)}
+                                      className="btn btn-sm btn-outline-danger"
+                                      title="Delete Day"
+                                    >
+                                      <i className="ti ti-trash"></i>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

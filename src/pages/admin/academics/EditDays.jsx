@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchDayByIdApi, fetchDaysApi, updateDayApi, createDayApi } from '../../../api/adminAcademic.api';
+import { fetchBranchesApi } from '../../../api/branch.api';
 import { decodeParam } from '../../../utils/idHelper';
 
 const EditDays = () => {
@@ -10,18 +11,50 @@ const EditDays = () => {
   const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
+  const [branches, setBranches] = useState([]);
   const [formData, setFormData] = useState({
     day_name: '',
+    branch_id: '',
     status: '1',
   });
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    loadBranches();
     if (isEdit) {
       fetchDayDetails();
     }
   }, [rawId]);
+
+  const loadBranches = async () => {
+    try {
+      const res = await fetchBranchesApi({ status: 1 });
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setBranches(list);
+
+      // Pre-select active branch or default main branch in Add mode
+      if (!isEdit) {
+        const activeBranchId = localStorage.getItem('active_branch_id');
+        if (activeBranchId && activeBranchId !== 'all') {
+          setFormData((prev) => ({
+            ...prev,
+            branch_id: prev.branch_id || String(activeBranchId),
+          }));
+        } else if (list.length > 0) {
+          const mainBranch = list.find((b) => b.is_main_branch === 1) || list[0];
+          if (mainBranch) {
+            setFormData((prev) => ({
+              ...prev,
+              branch_id: prev.branch_id || String(mainBranch.id),
+            }));
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load branches', e);
+    }
+  };
 
   const fetchDayDetails = async () => {
     try {
@@ -40,6 +73,7 @@ const EditDays = () => {
       if (dayData) {
         setFormData({
           day_name: dayData.day_name || '',
+          branch_id: dayData.branch_id ? String(dayData.branch_id) : '',
           status: dayData.status === 2 || dayData.status === 0 ? '2' : '1',
         });
       } else {
@@ -68,8 +102,14 @@ const EditDays = () => {
 
     try {
       setSaving(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const resolvedBranchId = formData.branch_id
+        ? Number(formData.branch_id)
+        : (activeBranchId && activeBranchId !== 'all' ? Number(activeBranchId) : null);
+
       const payload = {
         day_name: formData.day_name.trim(),
+        branch_id: resolvedBranchId,
         status: Number(formData.status),
       };
 
@@ -119,7 +159,7 @@ const EditDays = () => {
             </div>
           ) : (
             <form onSubmit={handleSubmit}>
-              {/* Personal Information */}
+              {/* Day Information */}
               <div className="card">
                 <div className="card-header bg-light">
                   <div className="d-flex align-items-center">
@@ -127,8 +167,32 @@ const EditDays = () => {
                   </div>
                 </div>
                 <div className="card-body pb-1">
-                  <div className="row row-cols-md-6">
-                    <div className="col-md-6">
+                  <div className="row">
+                    {/* Campus / Branch */}
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label">
+                          Campus / Branch
+                        </label>
+                        <select
+                          className="form-select"
+                          name="branch_id"
+                          id="branch_id"
+                          value={formData.branch_id}
+                          onChange={handleChange}
+                        >
+                          <option value="">Default / Main Campus</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.branch_name} {b.is_main_branch ? '(Main Campus)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Day Name */}
+                    <div className="col-md-4">
                       <div className="mb-3">
                         <label className="form-label">
                           Day Name <span className="text-danger">*</span>
@@ -140,12 +204,14 @@ const EditDays = () => {
                           id="day_name"
                           value={formData.day_name}
                           onChange={handleChange}
-                          placeholder="Day Name"
+                          placeholder="e.g. Monday"
                           required
                         />
                       </div>
                     </div>
-                    <div className="col-md-6">
+
+                    {/* Status */}
+                    <div className="col-md-4">
                       <div className="mb-3">
                         <label className="form-label">Status</label>
                         <select
@@ -155,8 +221,8 @@ const EditDays = () => {
                           value={formData.status}
                           onChange={handleChange}
                         >
-                          <option value="1">Active</option>
-                          <option value="2">Inactive</option>
+                          <option value="1">Working Day (Active)</option>
+                          <option value="2">Weekend / Holiday (Inactive)</option>
                         </select>
                       </div>
                     </div>
@@ -184,7 +250,7 @@ const EditDays = () => {
                   </button>
                 </div>
               </div>
-              {/* /Personal Information */}
+              {/* /Day Information */}
             </form>
           )}
         </div>

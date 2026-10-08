@@ -17,12 +17,16 @@ const DaysList = () => {
 
   useEffect(() => {
     fetchDays();
+    const handleBranchChange = () => fetchDays();
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, []);
 
   const fetchDays = async () => {
     try {
       setLoading(true);
-      const res = await adminAcademicApi.fetchDaysApi();
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const res = await adminAcademicApi.fetchDaysApi(activeBranchId);
       const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
       setDays(list);
     } catch (err) {
@@ -38,9 +42,9 @@ const DaysList = () => {
 
   const handleExportCSV = () => {
     if (days.length === 0) return toast.info('No days to export');
-    let csv = 'Sl No.,Day Name,Status\n';
+    let csv = 'Sl No.,Day Name,Campus / Branch,Status\n';
     days.forEach((d, idx) => {
-      csv += `"${idx + 1}","${d.day_name || ''}","${d.status === 1 ? 'Active' : 'Inactive'}"\n`;
+      csv += `"${idx + 1}","${d.day_name || ''}","${d.branch_name || 'All Campuses'}","${d.status === 1 ? 'Active' : 'Inactive'}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -92,6 +96,20 @@ const DaysList = () => {
           >
             {value}
           </Link>
+        ),
+      },
+      {
+        accessorKey: 'branch_name',
+        header: 'Campus / Branch',
+        sortable: true,
+        cell: ({ row }) => (
+          row.branch_name ? (
+            <span className="badge bg-primary-transparent text-primary fs-11">
+              <i className="ti ti-building me-1"></i>{row.branch_name}
+            </span>
+          ) : (
+            <span className="badge bg-light text-muted border fs-11">All Campuses</span>
+          )
         ),
       },
       {

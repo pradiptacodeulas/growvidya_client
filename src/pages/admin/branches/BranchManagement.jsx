@@ -922,16 +922,28 @@ const BranchManagement = () => {
                   onChange={(e) => {
                     const val = e.target.value;
                     const selectedUser = headCandidates.find((c) => String(c.id) === String(val));
-                    setFormData((prev) => ({
-                      ...prev,
-                      head_user_id: val,
-                      principal_name: selectedUser ? selectedUser.full_name : '',
-                      phone: !prev.phone && selectedUser?.phone ? selectedUser.phone : prev.phone,
-                      email: !prev.email && selectedUser?.email ? selectedUser.email : prev.email,
-                    }));
+                    if (selectedUser) {
+                      setFormData((prev) => ({
+                        ...prev,
+                        head_user_id: val,
+                        principal_name: selectedUser.full_name || `${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`.trim(),
+                        phone: selectedUser.phone || selectedUser.mobile || selectedUser.contact_no || '',
+                        email: selectedUser.email || selectedUser.email_address || '',
+                      }));
+                    } else {
+                      setFormData((prev) => ({
+                        ...prev,
+                        head_user_id: '',
+                        principal_name: '',
+                        phone: modalMode === 'edit' ? (selectedBranch?.phone || '') : '',
+                        email: modalMode === 'edit' ? (selectedBranch?.email || '') : '',
+                      }));
+                    }
                   }}
                 >
-                  <option value="">-- Select Staff Member (Optional) --</option>
+                  <option value="">
+                    {loadingCandidates ? 'Loading staff members...' : '-- Select Staff Member (Optional) --'}
+                  </option>
                   {headCandidates.map((staff) => (
                     <option key={staff.id} value={staff.id}>
                       {staff.full_name} {staff.role_name ? `(${staff.role_name})` : ''}
@@ -946,7 +958,14 @@ const BranchManagement = () => {
 
               {/* Phone */}
               <div className="col-12 col-md-6">
-                <label className="form-label fs-12 fw-semibold text-dark">Contact Phone</label>
+                <label className="form-label fs-12 fw-semibold text-dark d-flex align-items-center justify-content-between">
+                  <span>Contact Phone</span>
+                  {formData.head_user_id && formData.phone && (
+                    <span className="text-muted fw-normal fs-11">
+                      <i className="ti ti-check text-success me-1"></i>From Principal
+                    </span>
+                  )}
+                </label>
                 <input
                   type="tel"
                   name="phone"
@@ -959,7 +978,14 @@ const BranchManagement = () => {
 
               {/* Email */}
               <div className="col-12 col-md-6">
-                <label className="form-label fs-12 fw-semibold text-dark">Campus Email</label>
+                <label className="form-label fs-12 fw-semibold text-dark d-flex align-items-center justify-content-between">
+                  <span>Campus Email</span>
+                  {formData.head_user_id && formData.email && (
+                    <span className="text-muted fw-normal fs-11">
+                      <i className="ti ti-check text-success me-1"></i>From Principal
+                    </span>
+                  )}
+                </label>
                 <input
                   type="email"
                   name="email"
