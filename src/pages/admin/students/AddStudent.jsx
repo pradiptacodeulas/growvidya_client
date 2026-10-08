@@ -112,6 +112,9 @@ const AddStudent = () => {
   const [parentSearchText, setParentSearchText] = useState('');
   const [parentSearchResults, setParentSearchResults] = useState([]);
   const [isSearchingParent, setIsSearchingParent] = useState(false);
+  const [isParentLoaded, setIsParentLoaded] = useState(false);
+  const [loadedParentSummary, setLoadedParentSummary] = useState('');
+  const [loadedParentIds, setLoadedParentIds] = useState({ father_id: null, mother_id: null });
 
   const [fatherImgPreview, setFatherImgPreview] = useState('');
   const [fatherImgFile, setFatherImgFile] = useState(null);
@@ -870,13 +873,140 @@ const AddStudent = () => {
     }
   };
 
-  const handleSelectParent = (p) => {
+  const handleSelectParent = async (p) => {
+    try {
+      setIsSearchingParent(true);
+      const res = await apiClient.get(`/admin/parents/${p.id}`);
+      const parentData = res.data?.data?.parent || p;
+      const father = parentData.father || (parentData.relation === 'Father' || parentData.parent_type === 1 ? parentData : null);
+      const mother = parentData.mother || (parentData.relation === 'Mother' || parentData.parent_type === 2 ? parentData : null);
+
+      let summaryParts = [];
+
+      if (father) {
+        setFatherInfo({
+          father_first_name: father.first_name || '',
+          father_last_name: father.last_name || '',
+          father_phone: father.phone || '',
+          father_email: father.email || '',
+          father_occupation: father.occupation || '',
+          father_country: father.country ? String(father.country) : '',
+          father_state: father.state ? String(father.state) : '',
+          father_city: father.city ? String(father.city) : '',
+          father_postal_code: father.postal_code || '',
+          father_address_1: father.address1 || father.address_1 || '',
+          father_address_2: father.address2 || father.address_2 || '',
+        });
+        if (father.picture) {
+          setFatherImgPreview(formatImageUrl(father.picture));
+        } else {
+          setFatherImgPreview('');
+        }
+        setFatherImgFile(null);
+
+        if (father.country) {
+          try {
+            const fStatesRes = await apiClient.get(`/admin/academics/states?country_id=${father.country}`);
+            const fStatesList = fStatesRes.data?.data || [];
+            setFatherStates(fStatesList);
+            const resolvedFState = resolveId(fStatesList, father.state, 'state');
+            if (resolvedFState) {
+              setFatherInfo((prev) => ({ ...prev, father_state: resolvedFState }));
+              const fCitiesRes = await apiClient.get(`/admin/academics/cities?state_id=${resolvedFState}`);
+              const fCitiesList = fCitiesRes.data?.data || [];
+              setFatherCities(fCitiesList);
+              const resolvedFCity = resolveId(fCitiesList, father.city, 'name') || resolveId(fCitiesList, father.city, 'city');
+              if (resolvedFCity) {
+                setFatherInfo((prev) => ({ ...prev, father_city: resolvedFCity }));
+              }
+            }
+          } catch (e) {}
+        }
+        const fFullName = `${father.first_name || ''} ${father.last_name || ''}`.trim();
+        if (fFullName) summaryParts.push(`Father: ${fFullName}`);
+      }
+
+      if (mother) {
+        setMotherInfo({
+          mother_first_name: mother.first_name || '',
+          mother_last_name: mother.last_name || '',
+          mother_phone: mother.phone || '',
+          mother_email: mother.email || '',
+          mother_occupation: mother.occupation || '',
+          mother_country: mother.country ? String(mother.country) : '',
+          mother_state: mother.state ? String(mother.state) : '',
+          mother_city: mother.city ? String(mother.city) : '',
+          mother_postal_code: mother.postal_code || '',
+          mother_address_1: mother.address1 || mother.address_1 || '',
+          mother_address_2: mother.address2 || mother.address_2 || '',
+        });
+        if (mother.picture) {
+          setMotherImgPreview(formatImageUrl(mother.picture));
+        } else {
+          setMotherImgPreview('');
+        }
+        setMotherImgFile(null);
+
+        if (mother.country) {
+          try {
+            const mStatesRes = await apiClient.get(`/admin/academics/states?country_id=${mother.country}`);
+            const mStatesList = mStatesRes.data?.data || [];
+            setMotherStates(mStatesList);
+            const resolvedMState = resolveId(mStatesList, mother.state, 'state');
+            if (resolvedMState) {
+              setMotherInfo((prev) => ({ ...prev, mother_state: resolvedMState }));
+              const mCitiesRes = await apiClient.get(`/admin/academics/cities?state_id=${resolvedMState}`);
+              const mCitiesList = mCitiesRes.data?.data || [];
+              setMotherCities(mCitiesList);
+              const resolvedMCity = resolveId(mCitiesList, mother.city, 'name') || resolveId(mCitiesList, mother.city, 'city');
+              if (resolvedMCity) {
+                setMotherInfo((prev) => ({ ...prev, mother_city: resolvedMCity }));
+              }
+            }
+          } catch (e) {}
+        }
+        const mFullName = `${mother.first_name || ''} ${mother.last_name || ''}`.trim();
+        if (mFullName) summaryParts.push(`Mother: ${mFullName}`);
+      }
+
+      setIsParentLoaded(true);
+      setLoadedParentSummary(summaryParts.join(' | ') || (p.full_name || p.first_name));
+      setLoadedParentIds({
+        father_id: father?.id || null,
+        mother_id: mother?.id || null,
+      });
+
+      // Clear any parent validation errors
+      setErrors((prev) => {
+        const next = { ...prev };
+        Object.keys(next).forEach((k) => {
+          if (k.startsWith('father_') || k.startsWith('mother_')) {
+            delete next[k];
+          }
+        });
+        return next;
+      });
+
+      toast.success(`Loaded details for ${summaryParts.join(' & ')}`);
+    } catch (e) {
+      toast.error('Failed to load parent family details.');
+    } finally {
+      setIsSearchingParent(false);
+    }
+  };
+
+  const handleClearLoadedParent = () => {
+    setIsParentLoaded(false);
+    setLoadedParentSummary('');
+    setLoadedParentIds({ father_id: null, mother_id: null });
+    setParentSearchText('');
+    setParentSearchResults([]);
     setFatherInfo({
-      father_first_name: p.first_name || '',
-      father_last_name: p.last_name || '',
-      father_phone: p.phone || '',
-      father_email: p.email || '',
-      father_occupation: p.occupation || '',
+      father_first_name: '',
+      father_last_name: '',
+      father_phone: '',
+      father_email: '',
+      father_occupation: '',
       father_country: '',
       father_state: '',
       father_city: '',
@@ -884,7 +1014,28 @@ const AddStudent = () => {
       father_address_1: '',
       father_address_2: '',
     });
-    toast.success(`Selected parent: ${p.full_name || p.first_name}`);
+    setMotherInfo({
+      mother_first_name: '',
+      mother_last_name: '',
+      mother_phone: '',
+      mother_email: '',
+      mother_occupation: '',
+      mother_country: '',
+      mother_state: '',
+      mother_city: '',
+      mother_postal_code: '',
+      mother_address_1: '',
+      mother_address_2: '',
+    });
+    setFatherImgPreview('');
+    setFatherImgFile(null);
+    setMotherImgPreview('');
+    setMotherImgFile(null);
+    setFatherStates([]);
+    setFatherCities([]);
+    setMotherStates([]);
+    setMotherCities([]);
+    toast.info('Parent details cleared.');
   };
 
   // Sibling Rows Management
@@ -1152,12 +1303,16 @@ const AddStudent = () => {
         picture: personalImgPreview || personalInfo.picture || null,
         class_id: personalInfo.class_student,
         section_id: personalInfo.section_student,
+        father_id: loadedParentIds.father_id || undefined,
+        mother_id: loadedParentIds.mother_id || undefined,
         father_info: {
           ...fatherInfo,
+          father_id: loadedParentIds.father_id || undefined,
           father_picture: fatherImgPreview || fatherInfo.father_picture || null,
         },
         mother_info: {
           ...motherInfo,
+          mother_id: loadedParentIds.mother_id || undefined,
           mother_picture: motherImgPreview || motherInfo.mother_picture || null,
         },
         guardian_relation: guardianRelation,
@@ -1696,7 +1851,7 @@ const AddStudent = () => {
                 <div className="tab-pane fade show active card p-3">
                   {/* Search Parents */}
                   <div className="card-body mb-4 border-bottom">
-                    <div className="col-lg-4 col-md-6 d-flex align-items-end gap-2">
+                    <div className="col-lg-5 col-md-6 d-flex align-items-end gap-2">
                       <div className="flex-grow-1">
                         <label className="form-label fw-medium">Parents Name or Email</label>
                         <input
@@ -1715,6 +1870,16 @@ const AddStudent = () => {
                       >
                         {isSearchingParent ? 'Searching...' : 'Search'}
                       </button>
+                      {(isParentLoaded || parentSearchText || parentSearchResults.length > 0) && (
+                        <button
+                          type="button"
+                          onClick={handleClearLoadedParent}
+                          className="btn btn-outline-danger d-flex align-items-center"
+                        >
+                          <i className="ti ti-rotate-clockwise me-1"></i>
+                          Clear
+                        </button>
+                      )}
                     </div>
 
                     {parentSearchResults.length > 0 && (
@@ -1723,6 +1888,7 @@ const AddStudent = () => {
                           <thead>
                             <tr>
                               <th>Parent Name</th>
+                              <th>Relation</th>
                               <th>Parent Email</th>
                               <th>Phone</th>
                               <th>Action</th>
@@ -1732,6 +1898,11 @@ const AddStudent = () => {
                             {parentSearchResults.map((p) => (
                               <tr key={p.id}>
                                 <td>{p.full_name || `${p.first_name} ${p.last_name}`}</td>
+                                <td>
+                                  <span className="badge bg-light text-dark border">
+                                    {p.relation || (p.parent_type === 2 ? 'Mother' : 'Father')}
+                                  </span>
+                                </td>
                                 <td>{p.email}</td>
                                 <td>{p.phone}</td>
                                 <td>
@@ -1739,8 +1910,9 @@ const AddStudent = () => {
                                     type="button"
                                     className="btn btn-sm btn-success"
                                     onClick={() => handleSelectParent(p)}
+                                    disabled={isSearchingParent}
                                   >
-                                    Select
+                                    {isSearchingParent ? 'Loading...' : 'Select'}
                                   </button>
                                 </td>
                               </tr>
@@ -1774,12 +1946,13 @@ const AddStudent = () => {
                             </div>
                             <div className="profile-upload">
                               <div className="profile-uploader d-flex align-items-center gap-2 mb-2">
-                                <label className="btn btn-primary drag-upload-btn mb-0">
+                                <label className={`btn btn-primary drag-upload-btn mb-0 ${isParentLoaded ? 'disabled opacity-50 pe-none' : ''}`}>
                                   Upload
                                   <input
                                     type="file"
                                     className="d-none"
                                     accept="image/*"
+                                    disabled={isParentLoaded}
                                     onChange={(e) =>
                                       handleImageUpload(e, setFatherImgFile, setFatherImgPreview)
                                     }
@@ -1789,6 +1962,7 @@ const AddStudent = () => {
                                   type="button"
                                   onClick={() => removeImage(setFatherImgFile, setFatherImgPreview)}
                                   className="btn btn-light border text-dark mb-0"
+                                  disabled={isParentLoaded}
                                 >
                                   Remove
                                 </button>
@@ -1804,6 +1978,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.father_first_name ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_first_name}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setFatherInfo({ ...fatherInfo, father_first_name: e.target.value });
                               clearError('father_first_name');
@@ -1816,6 +1991,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.father_last_name ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_last_name}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setFatherInfo({ ...fatherInfo, father_last_name: e.target.value });
                               clearError('father_last_name');
@@ -1828,6 +2004,7 @@ const AddStudent = () => {
                             type="number"
                             className={`form-control ${errors.father_phone ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_phone}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setFatherInfo({ ...fatherInfo, father_phone: e.target.value });
                               clearError('father_phone');
@@ -1840,6 +2017,7 @@ const AddStudent = () => {
                             type="email"
                             className={`form-control ${errors.father_email ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_email}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setFatherInfo({ ...fatherInfo, father_email: e.target.value });
                               clearError('father_email');
@@ -1852,6 +2030,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.father_occupation ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_occupation}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setFatherInfo({ ...fatherInfo, father_occupation: e.target.value });
                               clearError('father_occupation');
@@ -1863,6 +2042,7 @@ const AddStudent = () => {
                           <select
                             className={`form-select ${errors.father_country ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_country}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               const cid = e.target.value;
                               setFatherInfo({ ...fatherInfo, father_country: cid, father_state: '', father_city: '' });
@@ -1883,6 +2063,7 @@ const AddStudent = () => {
                           <select
                             className={`form-select ${errors.father_state ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_state}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               const sid = e.target.value;
                               setFatherInfo({ ...fatherInfo, father_state: sid, father_city: '' });
@@ -1903,6 +2084,7 @@ const AddStudent = () => {
                           <select
                             className={`form-select ${errors.father_city ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_city}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setFatherInfo({ ...fatherInfo, father_city: e.target.value });
                               clearError('father_city');
@@ -1922,6 +2104,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.father_postal_code ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_postal_code}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setFatherInfo({ ...fatherInfo, father_postal_code: e.target.value });
                               clearError('father_postal_code');
@@ -1934,6 +2117,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.father_address_1 ? 'is-invalid border-danger' : ''}`}
                             value={fatherInfo.father_address_1}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setFatherInfo({ ...fatherInfo, father_address_1: e.target.value });
                               clearError('father_address_1');
@@ -1946,6 +2130,7 @@ const AddStudent = () => {
                             type="text"
                             className="form-control"
                             value={fatherInfo.father_address_2}
+                            disabled={isParentLoaded}
                             onChange={(e) =>
                               setFatherInfo({ ...fatherInfo, father_address_2: e.target.value })
                             }
@@ -1976,12 +2161,13 @@ const AddStudent = () => {
                             </div>
                             <div className="profile-upload">
                               <div className="profile-uploader d-flex align-items-center gap-2 mb-2">
-                                <label className="btn btn-primary drag-upload-btn mb-0">
+                                <label className={`btn btn-primary drag-upload-btn mb-0 ${isParentLoaded ? 'disabled opacity-50 pe-none' : ''}`}>
                                   Upload
                                   <input
                                     type="file"
                                     className="d-none"
                                     accept="image/*"
+                                    disabled={isParentLoaded}
                                     onChange={(e) =>
                                       handleImageUpload(e, setMotherImgFile, setMotherImgPreview)
                                     }
@@ -1991,6 +2177,7 @@ const AddStudent = () => {
                                   type="button"
                                   onClick={() => removeImage(setMotherImgFile, setMotherImgPreview)}
                                   className="btn btn-light border text-dark mb-0"
+                                  disabled={isParentLoaded}
                                 >
                                   Remove
                                 </button>
@@ -2006,6 +2193,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.mother_first_name ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_first_name}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setMotherInfo({ ...motherInfo, mother_first_name: e.target.value });
                               clearError('mother_first_name');
@@ -2018,6 +2206,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.mother_last_name ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_last_name}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setMotherInfo({ ...motherInfo, mother_last_name: e.target.value });
                               clearError('mother_last_name');
@@ -2030,6 +2219,7 @@ const AddStudent = () => {
                             type="number"
                             className={`form-control ${errors.mother_phone ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_phone}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setMotherInfo({ ...motherInfo, mother_phone: e.target.value });
                               clearError('mother_phone');
@@ -2042,6 +2232,7 @@ const AddStudent = () => {
                             type="email"
                             className={`form-control ${errors.mother_email ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_email}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setMotherInfo({ ...motherInfo, mother_email: e.target.value });
                               clearError('mother_email');
@@ -2054,6 +2245,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.mother_occupation ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_occupation}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setMotherInfo({ ...motherInfo, mother_occupation: e.target.value });
                               clearError('mother_occupation');
@@ -2065,6 +2257,7 @@ const AddStudent = () => {
                           <select
                             className={`form-select ${errors.mother_country ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_country}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               const cid = e.target.value;
                               setMotherInfo({ ...motherInfo, mother_country: cid, mother_state: '', mother_city: '' });
@@ -2085,6 +2278,7 @@ const AddStudent = () => {
                           <select
                             className={`form-select ${errors.mother_state ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_state}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               const sid = e.target.value;
                               setMotherInfo({ ...motherInfo, mother_state: sid, mother_city: '' });
@@ -2105,6 +2299,7 @@ const AddStudent = () => {
                           <select
                             className={`form-select ${errors.mother_city ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_city}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setMotherInfo({ ...motherInfo, mother_city: e.target.value });
                               clearError('mother_city');
@@ -2124,6 +2319,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.mother_postal_code ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_postal_code}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setMotherInfo({ ...motherInfo, mother_postal_code: e.target.value });
                               clearError('mother_postal_code');
@@ -2136,6 +2332,7 @@ const AddStudent = () => {
                             type="text"
                             className={`form-control ${errors.mother_address_1 ? 'is-invalid border-danger' : ''}`}
                             value={motherInfo.mother_address_1}
+                            disabled={isParentLoaded}
                             onChange={(e) => {
                               setMotherInfo({ ...motherInfo, mother_address_1: e.target.value });
                               clearError('mother_address_1');
@@ -2148,6 +2345,7 @@ const AddStudent = () => {
                             type="text"
                             className="form-control"
                             value={motherInfo.mother_address_2}
+                            disabled={isParentLoaded}
                             onChange={(e) =>
                               setMotherInfo({ ...motherInfo, mother_address_2: e.target.value })
                             }

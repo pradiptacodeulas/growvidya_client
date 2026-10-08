@@ -36,7 +36,7 @@ export const apiFetch = async (endpoint, options = {}) => {
     }
     // 2. Portal-specific API routes (strictly prefix matched)
     else if (cleanEndpoint.startsWith('/admin') || cleanEndpoint.startsWith('/v1/admin')) {
-      token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+      token = localStorage.getItem('admin_token') || localStorage.getItem('token') || (currentPath.startsWith('/teacher') ? localStorage.getItem('teacher_token') : null);
     } else if (cleanEndpoint.startsWith('/teacher') || cleanEndpoint.startsWith('/v1/teacher') || cleanEndpoint.includes('/teacheraccount')) {
       token = localStorage.getItem('teacher_token');
     } else if (cleanEndpoint.startsWith('/parent') || cleanEndpoint.startsWith('/v1/parent') || cleanEndpoint.includes('/parentchild') || cleanEndpoint.includes('/parentaccount')) {
