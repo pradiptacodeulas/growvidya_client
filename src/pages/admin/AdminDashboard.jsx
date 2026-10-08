@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { fetchDashboardStatsApi } from '../../api/adminDashboard.api';
 import Avatar from '../../components/common/Avatar';
 import usePermission from '../../hooks/usePermission';
@@ -17,7 +18,11 @@ const FEES_MODULES = [
 ];
 
 const AdminDashboard = () => {
+  const { user } = useSelector((state) => state.auth);
   const { hasAny, isSuperAdmin } = usePermission();
+  const [searchParams] = useSearchParams();
+  const isBranchView = searchParams.get('view') === 'branch';
+
   const [stats, setStats] = useState({
     students: { total: 0, active: 0, inactive: 0 },
     teachers: { total: 0, active: 0, inactive: 0 },
@@ -42,9 +47,21 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [attendanceTab, setAttendanceTab] = useState('students');
 
+  const regType = String(user?.registrationType || user?.registration_type || '').toLowerCase();
+  const isAdmin = Boolean(
+    isSuperAdmin ||
+    user?.isSuperAdmin ||
+    Number(user?.adminType || user?.admin_type) === 1 ||
+    String(user?.roleName || user?.role_name || '').toLowerCase() === 'super admin'
+  );
+  const isMultiBranchSuperAdmin = regType === 'multiple' && isAdmin;
+
   const canViewFees = isSuperAdmin || hasAny(FEES_MODULES, 'view');
 
   useEffect(() => {
+    if (isMultiBranchSuperAdmin && !isBranchView) {
+      return;
+    }
     const loadStats = async () => {
       try {
         setLoading(true);
@@ -67,7 +84,13 @@ const AdminDashboard = () => {
     return () => {
       window.removeEventListener('branch_changed', handleBranchChange);
     };
-  }, []);
+  }, [isMultiBranchSuperAdmin, isBranchView]);
+
+  // Multi-branch Super Admins should always view the consolidated Super Admin Dashboard
+  // unless explicitly navigating to the individual campus view (?view=branch)
+  if (isMultiBranchSuperAdmin && !isBranchView) {
+    return <Navigate to="/admin/super-admin/dashboard" replace />;
+  }
 
   const currentAttendance = stats?.attendanceSummary?.[attendanceTab] || {
     present: 0,
@@ -90,6 +113,26 @@ const AdminDashboard = () => {
 
   return (
     <div className="content">
+      {/* Multi-Branch Organization Super Admin Banner */}
+      {isMultiBranchSuperAdmin && (
+        <div className="alert alert-primary d-flex align-items-center justify-content-between p-3 mb-3 border-0 shadow-sm rounded-3">
+          <div className="d-flex align-items-center">
+            <div className="avatar avatar-md bg-primary text-white rounded me-3 d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
+              <i className="ti ti-building-community fs-4"></i>
+            </div>
+            <div>
+              <h6 className="mb-1 fw-bold text-dark">School Super Admin / Multi-Branch Organization</h6>
+              <p className="mb-0 text-muted small">
+                You are currently viewing the individual campus/branch dashboard. Consolidated organization KPIs, branch matrices, and storage analytics are in your Organization Dashboard.
+              </p>
+            </div>
+          </div>
+          <Link to="/admin/super-admin/dashboard" className="btn btn-primary btn-sm px-3 fw-bold text-nowrap ms-3">
+            <i className="ti ti-arrow-left me-1"></i> Open Organization Dashboard
+          </Link>
+        </div>
+      )}
+
       {/* Page Header */}
       <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
         <div className="my-auto mb-2">

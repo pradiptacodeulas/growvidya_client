@@ -103,6 +103,11 @@ const Sidebar = ({
   const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogoDefault;
   const schoolName = user?.schoolName || user?.school_name || '';
 
+  const isMultiBranchSuperAdmin =
+    String(user?.registrationType || user?.registration_type || '').toLowerCase() === 'multiple' &&
+    (isSuperAdmin || Number(user?.adminType || user?.admin_type) === 1);
+  const homeDashboardPath = isMultiBranchSuperAdmin ? '/admin/super-admin/dashboard' : '/admin/dashboard';
+
   // Helper to determine the single active menu from current URL path
   const getActiveMenuFromPath = (path) => {
     if (path.includes('/admin/students') || path.includes('/admin/parents')) return 'ward';
@@ -182,7 +187,7 @@ const Sidebar = ({
     >
       {/* Sidebar Top Header Element (App Logo & Desktop Hamburger / Mobile Close Button) */}
       <div className="sidebar-logo d-flex align-items-center justify-content-between ps-3 pe-2">
-        <Link to="/admin/dashboard" className="d-flex align-items-center text-decoration-none">
+        <Link to={homeDashboardPath} className="d-flex align-items-center text-decoration-none">
           <img
             src={showFullLogo ? logoDark : logoSmall}
             alt="Growvidya Logo"
@@ -307,82 +312,6 @@ const Sidebar = ({
                   </li>
                 )}
 
-                {/* Active Paid Plan Notice (Showing days remaining notification & Renewal CTA) */}
-                {isActivePaid && (
-                  <li className="p-2 mb-2">
-                    <div
-                      className={`border rounded p-2 ${
-                        daysLeft <= 15
-                          ? 'bg-danger-subtle border-danger text-danger'
-                          : daysLeft <= 30
-                          ? 'bg-warning-subtle border-warning text-dark'
-                          : 'bg-success-subtle border-success text-dark'
-                      }`}
-                    >
-                      <div className="d-flex align-items-center mb-1">
-                        <i
-                          className={`ti ${
-                            daysLeft <= 15
-                              ? 'ti-alert-triangle text-danger'
-                              : daysLeft <= 30
-                              ? 'ti-clock-hour-4 text-warning'
-                              : 'ti-crown text-warning'
-                          } fs-16 me-1`}
-                        ></i>
-                        <span className="fw-bold fs-11 text-uppercase">
-                          {subscription?.plan_name}
-                        </span>
-                      </div>
-                      <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
-                        {daysLeft <= 30 ? (
-                          <>
-                            {daysLeft <= 0 ? (
-                              <strong className="text-danger">Expires today</strong>
-                            ) : (
-                              <>
-                                Expires in{' '}
-                                <strong className={daysLeft <= 15 ? 'text-danger' : 'text-dark'}>
-                                  {daysLeft} days
-                                </strong>
-                              </>
-                            )}
-                            . Renew early to avoid interruption.
-                          </>
-                        ) : (
-                          <>{daysLeft} days remaining on your subscription.</>
-                        )}
-                      </p>
-                      <div className="d-flex flex-column gap-1">
-                        {daysLeft <= 30 ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => openUpgradeModal(subscription?.plan_id)}
-                              className="btn btn-warning text-dark btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center"
-                            >
-                              <i className="ti ti-refresh me-1"></i> Renew Plan
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openUpgradeModal()}
-                              className="btn btn-outline-primary btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center"
-                            >
-                              <i className="ti ti-arrow-up-right me-1"></i> Upgrade Plan
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => openUpgradeModal()}
-                            className="btn btn-outline-primary btn-sm w-100 py-1 fs-11 fw-bold shadow-none"
-                          >
-                            Manage / Upgrade Plan
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  </li>
-                )}
 
                 {/* Plan Expired Notice (Trial or Paid: Menus Locked) */}
                 {isExpired && (
@@ -456,11 +385,31 @@ const Sidebar = ({
                         : {}
                     }
                   >
+                    {/* Organization Dashboard */}
+                    {isMultiBranchSuperAdmin && (
+                      <li>
+                        <NavLink
+                          to="/admin/super-admin/dashboard"
+                          className={({ isActive }) =>
+                            isActive || location.pathname.includes('/admin/super-admin') ? 'active' : ''
+                          }
+                        >
+                          <i className="ti ti-building-community"></i>
+                          <span>Organization Dashboard</span>
+                        </NavLink>
+                      </li>
+                    )}
+
                     {/* Dashboard */}
                     <li>
-                      <NavLink to="/admin/dashboard" className={({ isActive }) => (isActive ? 'active' : '')}>
+                      <NavLink
+                        to={isMultiBranchSuperAdmin ? '/admin/dashboard?view=branch' : '/admin/dashboard'}
+                        className={({ isActive }) =>
+                          isActive && !location.pathname.includes('/admin/super-admin') ? 'active' : ''
+                        }
+                      >
                         <i className="ti ti-layout-dashboard"></i>
-                        <span>Dashboard</span>
+                        <span>{isMultiBranchSuperAdmin ? 'Branch Dashboard' : 'Dashboard'}</span>
                       </NavLink>
                     </li>
 

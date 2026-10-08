@@ -197,13 +197,6 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                 <strong className="text-danger">
                   {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
                 </strong>
-                <button
-                  type="button"
-                  onClick={() => openUpgradeModal()}
-                  className="btn btn-sm btn-primary py-0 px-2 ms-2 fs-11 rounded-pill"
-                >
-                  Upgrade Plan
-                </button>
               </div>
             )}
 
@@ -227,19 +220,11 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   >
                     <i className="ti ti-refresh me-1"></i> Renew Plan
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => openUpgradeModal()}
-                    className="btn btn-sm btn-outline-danger py-0 px-2 fs-11 rounded-pill bg-white text-danger fw-semibold"
-                    title="Upgrade Plan"
-                  >
-                    Upgrade Plan
-                  </button>
                 </div>
               </div>
             )}
 
-            {/* Active Paid License with Countdown and Clear Quick Actions */}
+            {/* Active Paid License with Countdown */}
             {isActivePaid && (
               <div
                 className={`me-2 d-flex align-items-center rounded px-3 py-1 fw-semibold fs-12 shadow-none border ${
@@ -262,16 +247,16 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                 <strong
                   className={
                     daysLeft <= 15
-                      ? 'text-danger me-2'
+                      ? 'text-danger'
                       : daysLeft <= 30
-                      ? 'text-dark me-2'
-                      : 'text-success me-2'
+                      ? 'text-dark'
+                      : 'text-success'
                   }
                 >
                   {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
                 </strong>
-                {daysLeft <= 30 ? (
-                  <div className="d-flex align-items-center gap-1">
+                {daysLeft <= 30 && (
+                  <div className="d-flex align-items-center gap-1 ms-2">
                     <button
                       type="button"
                       onClick={() => openUpgradeModal(subscription?.plan_id)}
@@ -280,23 +265,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                     >
                       <i className="ti ti-refresh me-1"></i> Renew Plan
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => openUpgradeModal()}
-                      className="btn btn-sm btn-primary py-0 px-2 fs-11 rounded-pill"
-                      title="Upgrade Plan"
-                    >
-                      Upgrade Plan
-                    </button>
                   </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => openUpgradeModal()}
-                    className="btn btn-sm btn-primary py-0 px-2 ms-2 fs-11 rounded-pill"
-                  >
-                    Upgrade Plan
-                  </button>
                 )}
               </div>
             )}

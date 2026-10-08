@@ -30,15 +30,28 @@ const AdminLogin = () => {
     }
   }, [error, dispatch]);
 
+  const checkIsMultiBranchSuperAdmin = (u) => {
+    if (!u) return false;
+    const regType = String(u.registrationType || u.registration_type || '').toLowerCase();
+    const isAdmin = Boolean(
+      u.isSuperAdmin ||
+      Number(u.adminType || u.admin_type) === 1 ||
+      String(u.roleName || u.role_name || '').toLowerCase() === 'super admin'
+    );
+    return regType === 'multiple' && isAdmin;
+  };
+
   useEffect(() => {
     if (token && isAuthenticated && user) {
       if (user?.isExpired) {
-        navigate('/admin/subscription', { replace: true });
+        window.location.href = '/admin/subscription';
+      } else if (checkIsMultiBranchSuperAdmin(user)) {
+        window.location.href = '/admin/super-admin/dashboard';
       } else {
-        navigate('/admin/dashboard', { replace: true });
+        window.location.href = '/admin/dashboard';
       }
     }
-  }, [token, isAuthenticated, user, navigate]);
+  }, [token, isAuthenticated, user]);
 
   if (token && (checkingAuth || (isAuthenticated && user))) {
     return <LoadingScreen message="Checking session..." />;
@@ -55,10 +68,13 @@ const AdminLogin = () => {
       setPendingApprovalMsg(null);
       toast.success('Signed in successfully!');
       const loggedUser = res.payload?.user;
+
       if (loggedUser?.isExpired) {
-        navigate('/admin/subscription', { replace: true });
+        window.location.href = '/admin/subscription';
+      } else if (checkIsMultiBranchSuperAdmin(loggedUser)) {
+        window.location.href = '/admin/super-admin/dashboard';
       } else {
-        navigate('/admin/dashboard', { replace: true });
+        window.location.href = '/admin/dashboard';
       }
     } else {
       const errMsg = typeof res.payload === 'string' ? res.payload : (res.payload?.message || '');

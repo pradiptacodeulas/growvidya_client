@@ -1,5 +1,6 @@
 import React, { lazy } from 'react';
 import { Route, Navigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import ProtectedRoute from '../components/common/ProtectedRoute';
 import AdminLayout from '../layouts/AdminLayout';
 
@@ -129,13 +130,36 @@ const MiscManagement = lazy(() => import('../pages/admin/settings/MiscManagement
 const GeneralSetting = lazy(() => import('../pages/admin/settings/GeneralSetting'));
 const SalaryDate = lazy(() => import('../pages/admin/settings/SalaryDate'));
 const BranchManagement = lazy(() => import('../pages/admin/branches/BranchManagement'));
+const SuperAdminDashboard = lazy(() => import('../pages/admin/superAdmin/SuperAdminDashboard'));
+const BranchDetailsView = lazy(() => import('../pages/admin/superAdmin/BranchDetailsView'));
 const Media = lazy(() => import('../pages/admin/media/Media'));
 const Message = lazy(() => import('../pages/admin/messages/Message'));
+
+const AdminIndexRedirect = () => {
+  const { user, checkingAuth } = useSelector((state) => state.auth);
+
+  if (checkingAuth || !user) {
+    return null;
+  }
+
+  const regType = String(user?.registrationType || user?.registration_type || '').toLowerCase();
+  const isAdmin = Boolean(
+    user?.isSuperAdmin ||
+    Number(user?.adminType || user?.admin_type) === 1 ||
+    String(user?.roleName || user?.role_name || '').toLowerCase() === 'super admin'
+  );
+  const isMultiBranchSuperAdmin = regType === 'multiple' && isAdmin;
+  return <Navigate to={isMultiBranchSuperAdmin ? '/admin/super-admin/dashboard' : '/admin/dashboard'} replace />;
+};
 
 export const adminRoutes = (
   <Route element={<ProtectedRoute />}>
     <Route path="/admin" element={<AdminLayout />}>
+      <Route index element={<AdminIndexRedirect />} />
       <Route path="dashboard" element={<AdminDashboard />} />
+      <Route path="super-admin/dashboard" element={<SuperAdminDashboard />} />
+      <Route path="super-admin/branches/:id" element={<BranchDetailsView />} />
+      <Route path="super-admin" element={<Navigate to="/admin/super-admin/dashboard" replace />} />
       <Route path="subscription" element={<SubscriptionBilling />} />
       <Route path="subscription/configure" element={<SubscriptionConfigure />} />
       <Route path="billing" element={<SubscriptionBilling />} />

@@ -27,7 +27,12 @@ const AuthCallback = () => {
         const result = await dispatch(loginWithHandoverToken(token));
         if (loginWithHandoverToken.fulfilled.match(result)) {
           toast.success('🎉 Welcome to Growvidya! Your school portal is ready.');
-          navigate('/admin/dashboard', { replace: true });
+          const user = result.payload?.user;
+          if (user?.registrationType === 'multiple' && (user?.isSuperAdmin || user?.adminType === 1)) {
+            navigate('/admin/super-admin/dashboard', { replace: true });
+          } else {
+            navigate('/admin/dashboard', { replace: true });
+          }
         } else {
           toast.error(result.payload || 'Handover token expired. Please log in.');
           navigate('/account/login/adminlogin', { replace: true });
