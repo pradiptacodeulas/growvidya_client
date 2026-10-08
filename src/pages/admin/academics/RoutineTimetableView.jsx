@@ -52,6 +52,8 @@ const RoutineTimetableView = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingRoutine, setEditingRoutine] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [modalError, setModalError] = useState('');
+  const [dayRoutines, setDayRoutines] = useState([]);
   const [formData, setFormData] = useState({
     shift_id: '',
     day: '',
@@ -195,8 +197,51 @@ const RoutineTimetableView = () => {
     }));
   };
 
+  // Fetch all routines for this school on the selected day to detect teacher conflicts in real-time
+  useEffect(() => {
+    if (!showModal || !formData.day) {
+      setDayRoutines([]);
+      return;
+    }
+    let isMounted = true;
+    fetchRoutinesApi({ day: formData.day })
+      .then((res) => {
+        if (isMounted) {
+          const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+          setDayRoutines(list);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, [showModal, formData.day]);
+
+  // Check if a teacher has an overlapping scheduled period on this day
+  const getTeacherConflict = (tId) => {
+    if (!tId || !dayRoutines.length || !formData.period_id) return null;
+    const numTId = Number(tId);
+    const targetPeriod = allPeriods.find((p) => String(p.id) === String(formData.period_id));
+    const targetStart = targetPeriod?.start_time;
+    const targetEnd = targetPeriod?.end_time;
+
+    return dayRoutines.find((r) => {
+      // Exclude current routine being edited
+      if (editingRoutine && Number(r.id) === Number(editingRoutine.id)) return false;
+      if (Number(r.teacher_id) !== numTId) return false;
+
+      // Check time overlap if period times exist
+      if (targetStart && targetEnd && r.start_time && r.end_time) {
+        return targetStart < r.end_time && targetEnd > r.start_time;
+      }
+      // Fallback: match by period_id
+      return String(r.period_id) === String(formData.period_id);
+    });
+  };
+
   const handleOpenAddModal = (selectedDay = '', selectedPeriod = '') => {
     setEditingRoutine(null);
+    setModalError('');
 
     const initialDay = selectedDay
       ? String(selectedDay)
@@ -222,6 +267,7 @@ const RoutineTimetableView = () => {
 
   const handleOpenEditModal = (routine) => {
     setEditingRoutine(routine);
+    setModalError('');
     const routineSubId = String(routine.subject_id || '');
     const routineSubObj = subjects.find((s) => String(s.id) === routineSubId);
     const routineSubName = routine.subject_name || routineSubObj?.subject_name;
@@ -260,6 +306,7 @@ const RoutineTimetableView = () => {
 
   const handleSaveRoutine = async (e) => {
     e.preventDefault();
+    setModalError('');
     if (!formData.subject_id) {
       return toast.warning('Please select a Subject.');
     }
@@ -294,7 +341,9 @@ const RoutineTimetableView = () => {
       const rtsRes = await fetchRoutinesApi({ class_id: classId, section_id: sectionId });
       setRoutines(Array.isArray(rtsRes?.data) ? rtsRes.data : []);
     } catch (err) {
-      toast.error(err.message || 'Failed to save period.');
+      const msg = err.response?.data?.message || err.message || 'Failed to save period.';
+      setModalError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -643,6 +692,13 @@ const RoutineTimetableView = () => {
               </div>
               <form id="routineForm" onSubmit={handleSaveRoutine}>
                 <div className="modal-body">
+                  {modalError && (
+                    <div className="alert alert-danger py-2 px-3 mb-3 d-flex align-items-center">
+                      <i className="ti ti-alert-circle me-2 fs-5 flex-shrink-0"></i>
+                      <div className="small fw-medium">{modalError}</div>
+                    </div>
+                  )}
+
                   <div className="row">
                     <div className="col-md-6">
                       <div className="mb-3">
@@ -759,12 +815,32 @@ const RoutineTimetableView = () => {
                                 {editingRoutine.teacher_name || `Teacher ${editingRoutine.teacher_id}`}
                               </option>
                             )}
-                          {availableTeachers.map((t) => (
-                            <option key={t.id} value={String(t.id)}>
-                              {t.first_name ? `${t.first_name} ${t.last_name || ''}`.trim() : (t.full_name || t.name || `Teacher ${t.id}`)}
-                            </option>
-                          ))}
+                          {availableTeachers.map((t) => {
+                            const conflict = getTeacherConflict(t.id);
+                            const tName = t.first_name ? `${t.first_name} ${t.last_name || ''}`.trim() : (t.full_name || t.name || `Teacher ${t.id}`);
+                            return (
+                              <option key={t.id} value={String(t.id)}>
+                                {tName}
+                                {conflict ? ` ⚠️ (Busy: Class ${conflict.class_name || ''}-${conflict.section_name || ''})` : ''}
+                              </option>
+                            );
+                          })}
                         </select>
+                        {(() => {
+                          const activeConflict = getTeacherConflict(formData.teacher_id);
+                          if (!activeConflict) return null;
+                          return (
+                            <div className="alert alert-warning py-2 px-3 mt-2 mb-0 d-flex align-items-center">
+                              <i className="ti ti-alert-triangle me-2 fs-5 text-warning flex-shrink-0"></i>
+                              <div className="small">
+                                <strong>Teacher Collision Warning:</strong> This teacher is already scheduled in{' '}
+                                <strong>Class {activeConflict.class_name || ''} - Section {activeConflict.section_name || ''}</strong>{' '}
+                                during {activeConflict.period_name || 'this period'}{' '}
+                                {activeConflict.start_time && activeConflict.end_time ? `(${formatTime(activeConflict.start_time)} - ${formatTime(activeConflict.end_time)})` : ''}.
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
