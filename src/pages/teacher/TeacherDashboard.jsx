@@ -20,8 +20,6 @@ const TeacherDashboard = () => {
   const [syllabusList, setSyllabusList] = useState([]);
   const [attendanceFilter, setAttendanceFilter] = useState('This Week');
 
-  // Calendar State
-  const [calendarDate, setCalendarDate] = useState(new Date());
 
   useEffect(() => {
     const loadAllDashboardData = async () => {
@@ -80,62 +78,6 @@ const TeacherDashboard = () => {
     };
   }, [syllabusList]);
 
-  // Calendar weeks generator
-  const calendarWeeks = useMemo(() => {
-    const year = calendarDate.getFullYear();
-    const month = calendarDate.getMonth();
-    const firstDay = new Date(year, month, 1);
-    const lastDay = new Date(year, month + 1, 0);
-
-    const prevLastDay = new Date(year, month, 0);
-    const firstDayIndex = firstDay.getDay();
-    const lastDayDate = lastDay.getDate();
-
-    const today = new Date();
-    const isThisMonth = today.getFullYear() === year && today.getMonth() === month;
-
-    const days = [];
-
-    // Prev month trailing days
-    for (let x = firstDayIndex; x > 0; x--) {
-      days.push({
-        dayNum: prevLastDay.getDate() - x + 1,
-        isCurrentMonth: false,
-        isToday: false,
-      });
-    }
-
-    // Current month days
-    for (let i = 1; i <= lastDayDate; i++) {
-      days.push({
-        dayNum: i,
-        isCurrentMonth: true,
-        isToday: isThisMonth && today.getDate() === i,
-      });
-    }
-
-    // Next month leading days to complete rows
-    const totalCells = days.length <= 35 ? 35 : 42;
-    const remaining = totalCells - days.length;
-    for (let j = 1; j <= remaining; j++) {
-      days.push({
-        dayNum: j,
-        isCurrentMonth: false,
-        isToday: false,
-      });
-    }
-
-    // Chunk into 7-day rows
-    const weeks = [];
-    for (let k = 0; k < days.length; k += 7) {
-      weeks.push(days.slice(k, k + 7));
-    }
-    return weeks;
-  }, [calendarDate]);
-
-  const handleMonthChange = (offset) => {
-    setCalendarDate(new Date(calendarDate.getFullYear(), calendarDate.getMonth() + offset, 1));
-  };
 
   // Date range for attendance
   const dateRangeText = useMemo(() => {
@@ -427,71 +369,14 @@ const TeacherDashboard = () => {
           </div>
         </div>
 
-        {/* Schedules */}
+        {/* Schedules / Upcoming Events */}
         <div className="col-xxl-4 col-xl-12 d-flex">
           <div className="card flex-fill">
             <div className="card-header d-flex align-items-center justify-content-between">
-              <h4 className="card-title mb-0">Schedules</h4>
+              <h4 className="card-title mb-0">Upcoming Events</h4>
+              <Link to="/teacher/announcements/events" className="link-primary fw-medium">View All</Link>
             </div>
             <div className="card-body">
-              {/* Calendar */}
-              <div className="datepic mb-4 border rounded p-3 bg-white">
-                <div className="d-flex align-items-center justify-content-between mb-3">
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-icon btn-light"
-                    onClick={() => handleMonthChange(-1)}
-                  >
-                    <i className="ti ti-chevron-left"></i>
-                  </button>
-                  <h6 className="mb-0 fw-bold text-dark">
-                    {calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' })}
-                  </h6>
-                  <button
-                    type="button"
-                    className="btn btn-sm btn-icon btn-light"
-                    onClick={() => handleMonthChange(1)}
-                  >
-                    <i className="ti ti-chevron-right"></i>
-                  </button>
-                </div>
-                <table className="table table-sm table-borderless text-center mb-0">
-                  <thead>
-                    <tr className="text-muted small">
-                      <th>Su</th><th>Mo</th><th>Tu</th><th>We</th><th>Th</th><th>Fr</th><th>Sa</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {calendarWeeks.map((week, wIdx) => (
-                      <tr key={wIdx}>
-                        {week.map((day, dIdx) => (
-                          <td
-                            key={dIdx}
-                            className="p-1"
-                            style={{ width: '14.28%' }}
-                          >
-                            <span
-                              className={`d-inline-flex align-items-center justify-content-center rounded-circle ${
-                                day.isToday
-                                  ? 'bg-primary text-white fw-bold shadow-sm'
-                                  : day.isCurrentMonth
-                                  ? 'text-dark'
-                                  : 'text-muted opacity-50'
-                              }`}
-                              style={{ width: '28px', height: '28px', fontSize: '13px' }}
-                            >
-                              {day.dayNum}
-                            </span>
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              <h4 className="mb-3">Upcoming Events</h4>
-
               <div className="event-scroll">
                 {events.length === 0 ? (
                   <NoData
