@@ -14,6 +14,7 @@ import {
   fetchBranchHeadCandidatesApi,
 } from '../../../api/branch.api';
 import NoData from '../../../components/common/NoData';
+import { resolveImageUrl, maleUserDefault, femaleUserDefault } from '../../../utils/url.util';
 
 const BranchManagement = () => {
   const [branches, setBranches] = useState([]);
@@ -717,39 +718,54 @@ const BranchManagement = () => {
 
                       {/* Principal / Campus Head */}
                       <td>
-                        {branch.head_name || branch.principal_name ? (
-                          <div className="d-flex align-items-center gap-2">
-                            {branch.head_picture ? (
+                        {(() => {
+                          const headName = branch.head_name || branch.principal_name;
+                          const isFemale = branch.head_gender === 2 || branch.head_gender === '2' || String(branch.head_gender || '').toLowerCase() === 'female';
+                          const defaultAvatar = isFemale ? femaleUserDefault : maleUserDefault;
+
+                          if (!headName) {
+                            return (
+                              <div className="d-flex align-items-center gap-2">
+                                <img
+                                  src={defaultAvatar}
+                                  alt="Default Avatar"
+                                  className="rounded-circle border"
+                                  style={{ width: '32px', height: '32px', objectFit: 'cover', opacity: 0.6 }}
+                                />
+                                <span className="text-muted fst-italic fs-13">Unassigned</span>
+                              </div>
+                            );
+                          }
+
+                          const avatarUrl = resolveImageUrl(branch.head_picture, defaultAvatar);
+
+                          return (
+                            <div className="d-flex align-items-center gap-2">
                               <img
-                                src={branch.head_picture}
-                                alt={branch.head_name || branch.principal_name}
-                                className="rounded-circle"
-                                style={{ width: '28px', height: '28px', objectFit: 'cover' }}
+                                src={avatarUrl}
+                                alt={headName}
+                                className="rounded-circle border flex-shrink-0"
+                                style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                                onError={(e) => {
+                                  e.target.onerror = null;
+                                  e.target.src = defaultAvatar;
+                                }}
                               />
-                            ) : (
-                              <div
-                                className="rounded-circle bg-light text-primary d-flex align-items-center justify-content-center fw-semibold fs-11"
-                                style={{ width: '28px', height: '28px', minWidth: '28px' }}
-                              >
-                                {(branch.head_name || branch.principal_name || 'H').charAt(0).toUpperCase()}
-                              </div>
-                            )}
-                            <div>
-                              <div className="fs-13 text-dark fw-medium">
-                                {branch.head_name || branch.principal_name}
-                              </div>
-                              {branch.head_role && (
-                                <div className="mt-0.5">
-                                  <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-1.5 py-0">
-                                    {branch.head_role}
-                                  </span>
+                              <div>
+                                <div className="fs-13 text-dark fw-semibold">
+                                  {headName}
                                 </div>
-                              )}
+                                {branch.head_role && (
+                                  <div className="mt-0.5">
+                                    <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-1.5 py-0">
+                                      {branch.head_role}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          </div>
-                        ) : (
-                          <span className="text-muted fst-italic">Unassigned</span>
-                        )}
+                          );
+                        })()}
                       </td>
 
                       {/* Contact */}
@@ -923,12 +939,14 @@ const BranchManagement = () => {
                     const val = e.target.value;
                     const selectedUser = headCandidates.find((c) => String(c.id) === String(val));
                     if (selectedUser) {
+                      const userPhone = selectedUser.phone || selectedUser.head_phone || selectedUser.mobile || selectedUser.contact_no || '';
+                      const userEmail = selectedUser.email || selectedUser.email_address || '';
                       setFormData((prev) => ({
                         ...prev,
                         head_user_id: val,
                         principal_name: selectedUser.full_name || `${selectedUser.first_name || ''} ${selectedUser.last_name || ''}`.trim(),
-                        phone: selectedUser.phone || selectedUser.mobile || selectedUser.contact_no || '',
-                        email: selectedUser.email || selectedUser.email_address || '',
+                        phone: userPhone,
+                        email: userEmail,
                       }));
                     } else {
                       setFormData((prev) => ({
@@ -944,12 +962,39 @@ const BranchManagement = () => {
                   <option value="">
                     {loadingCandidates ? 'Loading staff members...' : '-- Select Staff Member (Optional) --'}
                   </option>
-                  {headCandidates.map((staff) => (
-                    <option key={staff.id} value={staff.id}>
-                      {staff.full_name} {staff.role_name ? `(${staff.role_name})` : ''}
-                    </option>
-                  ))}
+                  {headCandidates
+                    .filter((staff) => Number(staff.admin_type) !== 1)
+                    .map((staff) => (
+                      <option key={staff.id} value={staff.id}>
+                        {staff.full_name} {staff.role_name ? `(${staff.role_name})` : ''}
+                      </option>
+                    ))}
                 </select>
+                {formData.head_user_id && (() => {
+                  const selectedUser = headCandidates.find((c) => String(c.id) === String(formData.head_user_id));
+                  const candidateName = selectedUser?.full_name || formData.principal_name;
+                  const isFemale = selectedUser?.gender === 2 || selectedUser?.gender === '2' || String(selectedUser?.gender || '').toLowerCase() === 'female';
+                  const defAvatar = isFemale ? femaleUserDefault : maleUserDefault;
+                  const picUrl = resolveImageUrl(selectedUser?.picture, defAvatar);
+                  return (
+                    <div className="d-flex align-items-center gap-2 mt-2 p-2 rounded bg-light border">
+                      <img
+                        src={picUrl}
+                        alt={candidateName}
+                        className="rounded-circle border flex-shrink-0"
+                        style={{ width: '32px', height: '32px', objectFit: 'cover' }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = defAvatar;
+                        }}
+                      />
+                      <div>
+                        <div className="fs-12 fw-bold text-dark">{candidateName}</div>
+                        <div className="fs-11 text-muted">{selectedUser?.role_name || 'Campus Head'}</div>
+                      </div>
+                    </div>
+                  );
+                })()}
                 <div className="fs-11 text-muted mt-1">
                   <i className="ti ti-shield-check text-primary me-1"></i>
                   Assigning a staff member as Campus Head automatically grants them the <strong>Branch Head</strong> role with full operational administrative access scoped strictly to this campus.

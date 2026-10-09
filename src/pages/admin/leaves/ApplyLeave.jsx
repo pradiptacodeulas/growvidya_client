@@ -1,21 +1,31 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   fetchLeaveTypesApi,
   fetchStaffByRoleApi,
   createLeaveApi,
+  fetchAllLeavesApi,
 } from '../../../api/adminLeave.api';
 import {
   fetchTeacherLeaveTypesApi,
   applyTeacherLeaveApi,
+  fetchTeacherMyLeavesApi,
 } from '../../../api/teacherLeave.api';
 import apiClient from '../../../api/axios.config';
+
+const getTodayDateString = () => {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 const ApplyLeave = () => {
   const navigate = useNavigate();
   const fileInputRef = useRef(null);
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getTodayDateString();
 
   const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
   const basePath = isTeacher ? '/teacher' : '/admin';
@@ -40,13 +50,14 @@ const ApplyLeave = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
+  const [bookedLeaves, setBookedLeaves] = useState([]);
+
   // Find currently selected leave type object to check if document is mandatory
   const selectedLeaveType = leaveTypes.find(
     (lt) => String(lt.id) === String(form.leave_id)
   );
   const isDocumentRequired = Number(selectedLeaveType?.need_document) === 1;
 
-  // Load staff & leave types when role changes
   // Load staff & leave types when role changes
   useEffect(() => {
     const loadRoleData = async () => {
@@ -86,6 +97,61 @@ const ApplyLeave = () => {
     loadRoleData();
   }, [role, isTeacher]);
 
+  // Load existing active leaves for the selected staff member to validate against duplicate applications
+  useEffect(() => {
+    const loadStaffLeaves = async () => {
+      try {
+        if (isTeacher) {
+          const res = await fetchTeacherMyLeavesApi().catch(() => null);
+          const list = (res?.data?.leaves || res?.leaves || []).filter(
+            (l) => Number(l.leave_status) === 1 || Number(l.leave_status) === 2 || Number(l.status) === 1 || Number(l.status) === 2
+          );
+          setBookedLeaves(list);
+        } else if (form.staff_id) {
+          const res = await fetchAllLeavesApi({ role, staff_id: form.staff_id }).catch(() => null);
+          const list = (res?.data?.leaves || res?.leaves || []).filter(
+            (l) => Number(l.leave_status) === 1 || Number(l.leave_status) === 2 || Number(l.status) === 1 || Number(l.status) === 2
+          );
+          setBookedLeaves(list);
+        } else {
+          setBookedLeaves([]);
+        }
+      } catch (err) {
+        setBookedLeaves([]);
+      }
+    };
+
+    loadStaffLeaves();
+  }, [role, form.staff_id, isTeacher]);
+
+  // Construct map of booked date -> leave type name for active leaves
+  const bookedDateMap = useMemo(() => {
+    const map = {};
+    for (const l of bookedLeaves) {
+      const typeName = l.leave_name || 'Leave';
+      if (l.leave_dates_str) {
+        l.leave_dates_str.split(',').forEach((d) => {
+          const trimmed = d.trim();
+          if (trimmed) map[trimmed] = typeName;
+        });
+      }
+      if (Array.isArray(l.dates)) {
+        l.dates.forEach((dObj) => {
+          const dateStr = typeof dObj === 'string' ? dObj : dObj?.date;
+          if (dateStr) {
+            const trimmed = String(dateStr).split('T')[0].split(' ')[0];
+            if (trimmed) map[trimmed] = typeName;
+          }
+        });
+      }
+      if (l.leave_date) {
+        const trimmed = String(l.leave_date).split('T')[0].split(' ')[0];
+        if (trimmed) map[trimmed] = typeName;
+      }
+    }
+    return map;
+  }, [bookedLeaves]);
+
   // Handle Document upload
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -120,11 +186,17 @@ const ApplyLeave = () => {
   // Helper to generate dates array in range for multiple days
   const getDatesInRange = (start, end) => {
     const dates = [];
-    const curr = new Date(start);
-    const stop = new Date(end);
+    if (!start || !end) return dates;
+    const [sY, sM, sD] = start.split('-').map(Number);
+    const [eY, eM, eD] = end.split('-').map(Number);
+    const curr = new Date(sY, sM - 1, sD);
+    const stop = new Date(eY, eM - 1, eD);
 
     while (curr <= stop) {
-      dates.push(curr.toISOString().split('T')[0]);
+      const year = curr.getFullYear();
+      const month = String(curr.getMonth() + 1).padStart(2, '0');
+      const day = String(curr.getDate()).padStart(2, '0');
+      dates.push(`${year}-${month}-${day}`);
       curr.setDate(curr.getDate() + 1);
     }
     return dates;
@@ -139,12 +211,39 @@ const ApplyLeave = () => {
     if (!form.duration) newErrors.duration = 'Please select leave duration.';
 
     if (form.duration === '1' || form.duration === '2') {
-      if (!form.singleDate) newErrors.singleDate = 'Date is required.';
+      if (!form.singleDate) {
+        newErrors.singleDate = 'Date is required.';
+      } else if (form.singleDate < todayStr) {
+        newErrors.singleDate = 'Date must not be earlier than today.';
+      } else if (bookedDateMap[form.singleDate]) {
+        const errorMsg = `Staff has already applied for ${bookedDateMap[form.singleDate]} on ${form.singleDate}. Duplicate applications on the same day are not allowed.`;
+        newErrors.singleDate = errorMsg;
+        toast.error(errorMsg);
+      }
     } else if (form.duration === '3') {
-      if (!form.startDate) newErrors.startDate = 'Start date is required.';
-      if (!form.endDate) newErrors.endDate = 'End date is required.';
-      if (form.startDate && form.endDate && new Date(form.startDate) > new Date(form.endDate)) {
-        newErrors.endDate = 'End date cannot be before start date.';
+      if (!form.startDate) {
+        newErrors.startDate = 'Start date is required.';
+      } else if (form.startDate < todayStr) {
+        newErrors.startDate = 'Start date must not be earlier than today.';
+      }
+
+      if (!form.endDate) {
+        newErrors.endDate = 'End date is required.';
+      } else if (form.startDate && form.endDate && form.startDate > form.endDate) {
+        newErrors.endDate = 'End date cannot be earlier than the selected start date.';
+      }
+
+      // Check duplicate leave applications for the date range
+      if (form.startDate && form.endDate && form.startDate <= form.endDate) {
+        const requestedDates = getDatesInRange(form.startDate, form.endDate);
+        const conflicts = requestedDates.filter((d) => bookedDateMap[d]);
+        if (conflicts.length > 0) {
+          const conflictDetails = conflicts.map((d) => `${d} (${bookedDateMap[d]})`).join(', ');
+          const duplicateMsg = `Leave already exists on: ${conflictDetails}. Duplicate applications on the same day are not allowed.`;
+          newErrors.startDate = duplicateMsg;
+          newErrors.endDate = duplicateMsg;
+          toast.error(duplicateMsg);
+        }
       }
     }
 
@@ -403,9 +502,19 @@ const ApplyLeave = () => {
                           </label>
                           <input
                             type="date"
+                            min={todayStr}
                             className={`form-control ${errors.startDate ? 'is-invalid border-danger' : ''}`}
                             value={form.startDate}
-                            onChange={(e) => setForm({ ...form, startDate: e.target.value })}
+                            onChange={(e) => {
+                              const newStart = e.target.value;
+                              setForm((prev) => ({
+                                ...prev,
+                                startDate: newStart,
+                                endDate: prev.endDate && prev.endDate < newStart ? newStart : prev.endDate,
+                              }));
+                              if (errors.startDate) setErrors((prev) => ({ ...prev, startDate: null }));
+                              if (errors.endDate && newStart <= form.endDate) setErrors((prev) => ({ ...prev, endDate: null }));
+                            }}
                             required
                           />
                           {errors.startDate && (
@@ -422,9 +531,14 @@ const ApplyLeave = () => {
                           </label>
                           <input
                             type="date"
+                            min={form.startDate || todayStr}
                             className={`form-control ${errors.endDate ? 'is-invalid border-danger' : ''}`}
                             value={form.endDate}
-                            onChange={(e) => setForm({ ...form, endDate: e.target.value })}
+                            onChange={(e) => {
+                              const newEnd = e.target.value;
+                              setForm((prev) => ({ ...prev, endDate: newEnd }));
+                              if (errors.endDate) setErrors((prev) => ({ ...prev, endDate: null }));
+                            }}
                             required
                           />
                           {errors.endDate && (
@@ -444,14 +558,25 @@ const ApplyLeave = () => {
                         <input
                           type="date"
                           name="daterange"
+                          min={todayStr}
                           className={`form-control ${errors.singleDate ? 'is-invalid border-danger' : ''}`}
                           value={form.singleDate}
-                          onChange={(e) => setForm({ ...form, singleDate: e.target.value })}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setForm((prev) => ({ ...prev, singleDate: val }));
+                            if (errors.singleDate) setErrors((prev) => ({ ...prev, singleDate: null }));
+                          }}
                           required
                         />
                         {errors.singleDate && (
                           <div className="invalid-feedback d-block text-danger fs-12 mt-1">
                             {errors.singleDate}
+                          </div>
+                        )}
+                        {form.singleDate && bookedDateMap[form.singleDate] && !errors.singleDate && (
+                          <div className="text-danger fs-11 mt-1">
+                            <i className="ti ti-alert-triangle me-1"></i>
+                            An active leave ({bookedDateMap[form.singleDate]}) already exists for this date.
                           </div>
                         )}
                       </div>
