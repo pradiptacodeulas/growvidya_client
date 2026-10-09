@@ -5,7 +5,19 @@ import { sortDropdownDesc } from '../utils/dropdownSort.util';
  * Fetch all applied leaves with optional filters (name, role, date, status)
  */
 export const fetchAllLeavesApi = async (params = {}) => {
-  const response = await apiClient.get('/admin/leaves', { params });
+  let queryParams = {};
+  if (typeof params === 'object' && params !== null) {
+    queryParams = { ...params };
+  } else if (params && params !== 'all') {
+    queryParams = { branch_id: params };
+  }
+  if (queryParams.branch_id === undefined && queryParams.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      queryParams.branch_id = activeBranch;
+    }
+  }
+  const response = await apiClient.get('/admin/leaves', { params: queryParams });
   return response.data;
 };
 
@@ -21,7 +33,14 @@ export const fetchLeaveByIdApi = async (id) => {
  * Apply for a new leave
  */
 export const createLeaveApi = async (data) => {
-  const response = await apiClient.post('/admin/leaves', data);
+  const payload = { ...data };
+  if (payload.branch_id === undefined && payload.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      payload.branch_id = Number(activeBranch);
+    }
+  }
+  const response = await apiClient.post('/admin/leaves', payload);
   return response.data;
 };
 
@@ -53,9 +72,22 @@ export const deleteLeaveApi = async (id) => {
  * Fetch master leave types
  */
 export const fetchLeaveTypesApi = async (params = {}) => {
-  const response = await apiClient.get('/admin/leaves/types', { params });
+  let queryParams = {};
+  if (typeof params === 'object' && params !== null) {
+    queryParams = { ...params };
+  } else if (params && params !== 'all') {
+    queryParams = { branch_id: params };
+  }
+  if (queryParams.branch_id === undefined && queryParams.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      queryParams.branch_id = activeBranch;
+    }
+  }
+  const response = await apiClient.get('/admin/leaves/types', { params: queryParams });
   const data = response.data;
   if (Array.isArray(data?.leaveTypes)) data.leaveTypes = sortDropdownDesc(data.leaveTypes);
+  if (Array.isArray(data?.data?.types)) data.data.types = sortDropdownDesc(data.data.types);
   if (Array.isArray(data?.data)) data.data = sortDropdownDesc(data.data);
   return data;
 };
@@ -72,7 +104,14 @@ export const fetchLeaveTypeByIdApi = async (id) => {
  * Create a new master leave type
  */
 export const createLeaveTypeApi = async (data) => {
-  const response = await apiClient.post('/admin/leaves/types', data);
+  const payload = { ...data };
+  if (payload.branch_id === undefined && payload.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      payload.branch_id = Number(activeBranch);
+    }
+  }
+  const response = await apiClient.post('/admin/leaves/types', payload);
   return response.data;
 };
 
@@ -80,7 +119,14 @@ export const createLeaveTypeApi = async (data) => {
  * Update a master leave type
  */
 export const updateLeaveTypeApi = async (id, data) => {
-  const response = await apiClient.put(`/admin/leaves/types/${id}`, data);
+  const payload = { ...data };
+  if (payload.branch_id === undefined && payload.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      payload.branch_id = Number(activeBranch);
+    }
+  }
+  const response = await apiClient.put(`/admin/leaves/types/${id}`, payload);
   return response.data;
 };
 
@@ -92,8 +138,20 @@ export const deleteLeaveTypeApi = async (id) => {
   return response.data;
 };
 
-export const fetchStaffByRoleApi = async (role) => {
-  const response = await apiClient.get(`/admin/leaves/staff/${role}`);
+export const fetchStaffByRoleApi = async (role, params = {}) => {
+  let queryParams = {};
+  if (typeof params === 'object' && params !== null) {
+    queryParams = { ...params };
+  } else if (params && params !== 'all') {
+    queryParams = { branch_id: params };
+  }
+  if (queryParams.branch_id === undefined && queryParams.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      queryParams.branch_id = activeBranch;
+    }
+  }
+  const response = await apiClient.get(`/admin/leaves/staff/${role}`, { params: queryParams });
   if (Array.isArray(response?.data?.staff)) {
     response.data.staff = sortDropdownDesc(response.data.staff);
   } else if (Array.isArray(response?.data?.data)) {
@@ -103,4 +161,3 @@ export const fetchStaffByRoleApi = async (role) => {
   }
   return response.data;
 };
-

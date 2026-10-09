@@ -6,6 +6,7 @@ import {
   createLeaveTypeApi,
   updateLeaveTypeApi,
 } from '../../../api/adminLeave.api';
+import { fetchBranchesApi } from '../../../api/branch.api';
 import { decodeParam } from '../../../utils/idHelper';
 
 const AddLeaveAssign = () => {
@@ -14,6 +15,8 @@ const AddLeaveAssign = () => {
   const navigate = useNavigate();
   const isEditMode = Boolean(id);
 
+  const [branches, setBranches] = useState([]);
+  const [selectedBranchId, setSelectedBranchId] = useState('');
   const [role, setRole] = useState('1'); // '1' = Teacher, '2' = User
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -30,6 +33,42 @@ const AddLeaveAssign = () => {
     },
   ]);
 
+  const loadBranches = async () => {
+    try {
+      const res = await fetchBranchesApi({ status: 1 });
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setBranches(list);
+
+      if (!isEditMode) {
+        const activeBranchId = localStorage.getItem('active_branch_id');
+        if (activeBranchId && activeBranchId !== 'all') {
+          setSelectedBranchId(String(activeBranchId));
+        } else if (list.length > 0) {
+          const mainBranch = list.find((b) => b.is_main_branch === 1) || list[0];
+          if (mainBranch) {
+            setSelectedBranchId(String(mainBranch.id));
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load branches', e);
+    }
+  };
+
+  useEffect(() => {
+    loadBranches();
+
+    const handleBranchChange = (e) => {
+      const newBranch = e?.detail?.branchId ?? localStorage.getItem('active_branch_id');
+      if (newBranch && newBranch !== 'all' && !isEditMode) {
+        setSelectedBranchId(String(newBranch));
+      }
+    };
+
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
+  }, [isEditMode]);
+
   // Load existing data in Edit Mode
   useEffect(() => {
     if (isEditMode && id) {
@@ -37,9 +76,12 @@ const AddLeaveAssign = () => {
         try {
           setLoading(true);
           const res = await fetchLeaveTypeByIdApi(id);
-          if (res?.data?.type) {
-            const t = res.data.type;
+          if (res?.data?.type || res?.type) {
+            const t = res?.data?.type || res?.type;
             setRole(String(t.role || '1'));
+            if (t.branch_id) {
+              setSelectedBranchId(String(t.branch_id));
+            }
             setLeaveRows([
               {
                 id: t.id,
@@ -95,6 +137,11 @@ const AddLeaveAssign = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!selectedBranchId) {
+      toast.warning('Please select a Campus / Branch.');
+      return;
+    }
+
     if (!role) {
       toast.warning('Please select a Role.');
       return;
@@ -129,11 +176,13 @@ const AddLeaveAssign = () => {
           no_leave: Number(row.no_leave),
           sort_order: Number(row.sort_order),
           status: Number(row.status),
+          branch_id: Number(selectedBranchId),
         });
         toast.success('Leave assignment updated successfully!');
       } else {
         await createLeaveTypeApi({
           role: Number(role),
+          branch_id: Number(selectedBranchId),
           leaveRows,
         });
         toast.success('Leave assignment(s) created successfully!');
@@ -142,7 +191,7 @@ const AddLeaveAssign = () => {
       navigate('/admin/leaves/assign');
     } catch (err) {
       console.error('Error saving leave assignment:', err);
-      toast.error(err.response?.data?.message || 'Failed to save leave assignment.');
+      toast.error(err.response?.data?.message || err.message || 'Failed to save leave assignment.');
     } finally {
       setSubmitting(false);
     }
@@ -192,6 +241,29 @@ const AddLeaveAssign = () => {
               </div>
               <div className="card-body pb-1">
                 <div className="row row-cols-md-6 mb-3">
+                  <div className="col-md-4">
+                    <div className="mb-3">
+                      <label className="form-label fw-medium">
+                        Campus / Branch <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="form-select"
+                        name="branch_id"
+                        id="branch_id"
+                        value={selectedBranchId}
+                        onChange={(e) => setSelectedBranchId(e.target.value)}
+                        required
+                      >
+                        <option value="">Select Campus / Branch</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.branch_name} {b.is_main_branch ? '(Main Campus)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
                   <div className="col-md-3">
                     <div className="mb-3">
                       <label className="form-label fw-medium">
@@ -237,39 +309,15 @@ const AddLeaveAssign = () => {
 
                       <div className="col-md-2">
                         <div className="mb-3">
-                          <label className="form-label fw-medium">
-                            Need Document <span className="text-danger">*</span>
-                          </label>
-                          <div className="d-flex mt-2 gap-3">
-                            <div className="form-check cursor-pointer">
-                              <input
-                                className="form-check-input"
-                                type="radio"
-                                name={`need_document[${idx}]`}
-                                id={`need_doc_no_${idx}`}
-                                value="0"
-                                checked={row.need_document === '0'}
-                                onChange={() => handleRowChange(idx, 'need_document', '0')}
-                              />
-                              <label className="form-check-label ms-1" htmlFor={`need_doc_no_${idx}`}>
-                                No
-                              </label>
-                            </div>
-                            <div className="form-check cursor-pointer">
-                              <input
-                                className="form-check-input"
-                                type="radio"
-                                name={`need_document[${idx}]`}
-                                id={`need_doc_yes_${idx}`}
-                                value="1"
-                                checked={row.need_document === '1'}
-                                onChange={() => handleRowChange(idx, 'need_document', '1')}
-                              />
-                              <label className="form-check-label ms-1" htmlFor={`need_doc_yes_${idx}`}>
-                                Yes
-                              </label>
-                            </div>
-                          </div>
+                          <label className="form-label fw-medium">Doc Required</label>
+                          <select
+                            className="form-select"
+                            value={row.need_document}
+                            onChange={(e) => handleRowChange(idx, 'need_document', e.target.value)}
+                          >
+                            <option value="0">No</option>
+                            <option value="1">Yes</option>
+                          </select>
                         </div>
                       </div>
 
@@ -281,8 +329,8 @@ const AddLeaveAssign = () => {
                           <input
                             type="number"
                             min="1"
-                            max="365"
                             className="form-control"
+                            placeholder="e.g. 5"
                             value={row.no_leave}
                             onChange={(e) => handleRowChange(idx, 'no_leave', e.target.value)}
                             required
@@ -297,9 +345,8 @@ const AddLeaveAssign = () => {
                           </label>
                           <input
                             type="number"
-                            min="1"
-                            max="100"
                             className="form-control"
+                            placeholder="Order"
                             value={row.sort_order}
                             onChange={(e) => handleRowChange(idx, 'sort_order', e.target.value)}
                             required

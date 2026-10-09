@@ -14,12 +14,17 @@ const LeaveTypes = () => {
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
   const [deleteModal, setDeleteModal] = useState({ show: false, id: null, processing: false });
+  const [activeBranch, setActiveBranch] = useState(
+    typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') || 'all' : 'all'
+  );
 
-  const loadTypes = useCallback(async () => {
+  const loadTypes = useCallback(async (branchOverride) => {
     try {
       setLoading(true);
-      const res = await fetchLeaveTypesApi();
-      setTypes(res?.data?.types || []);
+      const bId = branchOverride !== undefined ? branchOverride : (localStorage.getItem('active_branch_id') || 'all');
+      const params = (bId && bId !== 'all') ? { branch_id: bId } : {};
+      const res = await fetchLeaveTypesApi(params);
+      setTypes(res?.data?.types || res?.types || []);
     } catch (err) {
       toast.error('Failed to load leave assigns.');
     } finally {
@@ -28,7 +33,18 @@ const LeaveTypes = () => {
   }, []);
 
   useEffect(() => {
-    loadTypes();
+    const currentBranch = localStorage.getItem('active_branch_id') || 'all';
+    setActiveBranch(currentBranch);
+    loadTypes(currentBranch);
+
+    const handleBranchChange = (e) => {
+      const newBranch = e?.detail?.branchId ?? localStorage.getItem('active_branch_id') ?? 'all';
+      setActiveBranch(String(newBranch));
+      loadTypes(newBranch);
+    };
+
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, [loadTypes]);
 
   const handleDelete = async () => {
@@ -39,7 +55,7 @@ const LeaveTypes = () => {
       setDeleteModal({ show: false, id: null, processing: false });
       loadTypes();
     } catch (err) {
-      toast.error('Failed to delete leave assign.');
+      toast.error(err.response?.data?.message || 'Failed to delete leave assign.');
       setDeleteModal((prev) => ({ ...prev, processing: false }));
     }
   };
@@ -94,6 +110,22 @@ const LeaveTypes = () => {
           >
             {value}
           </Link>
+        ),
+      },
+      {
+        accessorKey: 'branch_name',
+        header: 'Campus / Branch',
+        sortable: true,
+        cell: ({ row }) => (
+          row.branch_name ? (
+            <span className="badge bg-primary-transparent text-primary fs-11">
+              <i className="ti ti-building me-1"></i>{row.branch_name}
+            </span>
+          ) : (
+            <span className="badge bg-secondary-transparent text-secondary fs-11">
+              <i className="ti ti-world me-1"></i>All Campuses
+            </span>
+          )
         ),
       },
       {
@@ -192,7 +224,7 @@ const LeaveTypes = () => {
           <button
             type="button"
             className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={loadTypes}
+            onClick={() => loadTypes()}
             title="Refresh"
           >
             <i className="ti ti-refresh"></i>
