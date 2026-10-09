@@ -64,11 +64,17 @@ const AddExam = () => {
 
     try {
       setSaving(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const payload = {
+        ...formData,
+        ...(activeBranchId && activeBranchId !== 'all' ? { branch_id: Number(activeBranchId) } : {}),
+      };
+
       if (isEdit) {
-        await adminExaminationApi.updateExam(id, formData);
+        await adminExaminationApi.updateExam(id, payload);
         toast.success(`Exam "${formData.exam_name}" updated successfully!`);
       } else {
-        await adminExaminationApi.createExam(formData);
+        await adminExaminationApi.createExam(payload);
         toast.success(`Exam "${formData.exam_name}" created successfully!`);
       }
       navigate('/admin/examinations/exams');

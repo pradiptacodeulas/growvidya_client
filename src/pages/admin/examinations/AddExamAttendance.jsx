@@ -82,15 +82,24 @@ const AddExamAttendance = () => {
 
   useEffect(() => {
     fetchInitialOptions();
+    const handleBranchChange = () => {
+      fetchInitialOptions();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => {
+      window.removeEventListener('branch_changed', handleBranchChange);
+    };
   }, []);
 
   const fetchInitialOptions = async () => {
     try {
       setInitialLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const fetchClasses = isTeacher ? fetchTeacherClassesApi : adminAcademicApi.getAllClasses;
       const [exRes, clsRes, yrRes] = await Promise.all([
-        adminExaminationApi.getAllExams({ status: 1 }),
-        fetchClasses({ status: 1 }),
+        adminExaminationApi.getAllExams({ status: 1, ...branchParam }),
+        fetchClasses({ status: 1, ...branchParam }),
         adminAcademicApi.getAllAcademicYears(),
       ]);
 
@@ -183,12 +192,15 @@ const AddExamAttendance = () => {
       }
 
       const activeYear = yearId || selectedYearId;
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       // Load scheduled subjects specifically for this exam, class, and academic year
       const schedRes = await adminExaminationApi.getExamSchedules({
         exam_id: activeExam,
         class_id: classId,
         academic_year_id: activeYear || undefined,
         assigned_only: isTeacher ? 1 : undefined,
+        ...branchParam,
       });
 
       const schedList = (schedRes?.data?.schedules || schedRes?.data || []).filter(Boolean);
@@ -314,6 +326,8 @@ const AddExamAttendance = () => {
     try {
       setLoading(true);
       setHasSearched(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const res = await adminExaminationApi.getStudentsForExamAttendance({
         exam_id: examId,
         class_id: classId,
@@ -321,6 +335,7 @@ const AddExamAttendance = () => {
         academic_year_id: selectedYearId || undefined,
         exam_schedule_id: scheduleId || currentScheduleId || queryScheduleId || undefined,
         roster: 1,
+        ...branchParam,
       });
 
       if (res?.data?.hasSchedule === false) {
@@ -421,6 +436,7 @@ const AddExamAttendance = () => {
 
     try {
       setSaving(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
       const records = students.map((s) => ({
         studentId: s.student_id,
         attendanceStatus: s.attendanceStatus,
@@ -432,6 +448,7 @@ const AddExamAttendance = () => {
         class_id: selectedClassId,
         subject_id: selectedSubjectId,
         exam_schedule_id: currentScheduleId || queryScheduleId || undefined,
+        ...(activeBranchId && activeBranchId !== 'all' ? { branch_id: Number(activeBranchId) } : {}),
         records,
       });
 
@@ -680,7 +697,7 @@ const AddExamAttendance = () => {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleMarkAll(2)}
+                  onClick={() => handleMarkAll(0)}
                   className="btn btn-sm btn-outline-danger"
                   disabled={(!isSubjectEditable && isTeacher) || isTeacherLocked || saving}
                 >
@@ -798,7 +815,7 @@ const AddExamAttendance = () => {
                               type="radio"
                               name={`attendance_${st.student_id}`}
                               id={`absent_${st.student_id}`}
-                              checked={st.attendanceStatus === 0}
+                              checked={Number(st.attendanceStatus) === 0 || Number(st.attendanceStatus) === 2}
                               disabled={(!isSubjectEditable && isTeacher) || isTeacherLocked || saving}
                               title={
                                 !isSubjectEditable && isTeacher

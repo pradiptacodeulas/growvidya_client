@@ -29,13 +29,21 @@ const ExamSubjectList = () => {
 
   useEffect(() => {
     fetchInitialExamsAndClasses();
+    const handleBranchChange = () => fetchInitialExamsAndClasses();
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, []);
 
   const fetchInitialExamsAndClasses = async () => {
     try {
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const params = { status: 1 };
+      if (activeBranchId && activeBranchId !== 'all') {
+        params.branch_id = activeBranchId;
+      }
       const [exRes, clsRes] = await Promise.all([
-        adminExaminationApi.getAllExams({ status: 1 }),
-        adminAcademicApi.getAllClasses({ status: 1 }),
+        adminExaminationApi.getAllExams(params),
+        adminAcademicApi.getAllClasses(params),
       ]);
 
       const examsList = Array.isArray(exRes?.data?.exams)
@@ -90,10 +98,12 @@ const ExamSubjectList = () => {
 
     try {
       setLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
       const res = await adminExaminationApi.getExamSubjectConfig({
         exam_id: examId,
         class_id: classId,
         configured_only: 1,
+        ...(activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {}),
       });
 
       const data = res?.data || res || {};

@@ -18,12 +18,20 @@ const GradeSettingsList = () => {
 
   useEffect(() => {
     fetchGrades();
+    const handleBranchChange = () => fetchGrades();
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, []);
 
   const fetchGrades = async () => {
     try {
       setLoading(true);
-      const res = await adminExaminationApi.getAllGrades();
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const params = {};
+      if (activeBranchId && activeBranchId !== 'all') {
+        params.branch_id = activeBranchId;
+      }
+      const res = await adminExaminationApi.getAllGrades(params);
       if (res?.data?.grades) {
         setGrades(res.data.grades);
       }

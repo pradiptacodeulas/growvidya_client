@@ -52,7 +52,15 @@ apiClient.interceptors.request.use((config) => {
     }
     // 2. Portal-specific API routes (strictly prefix matched)
     else if (cleanUrl.startsWith('/admin') || cleanUrl.startsWith('/v1/admin')) {
-      token = localStorage.getItem('admin_token') || localStorage.getItem('token') || (currentPath.startsWith('/teacher') ? localStorage.getItem('teacher_token') : null);
+      if (currentPath.startsWith('/teacher')) {
+        token = localStorage.getItem('teacher_token') || localStorage.getItem('token');
+      } else if (currentPath.startsWith('/parent')) {
+        token = localStorage.getItem('parent_token') || localStorage.getItem('token');
+      } else if (currentPath.startsWith('/student')) {
+        token = localStorage.getItem('student_token') || localStorage.getItem('token');
+      } else {
+        token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+      }
     } else if (cleanUrl.startsWith('/teacher') || cleanUrl.startsWith('/v1/teacher') || cleanUrl.includes('/teacheraccount')) {
       token = localStorage.getItem('teacher_token');
     } else if (cleanUrl.startsWith('/parent') || cleanUrl.startsWith('/v1/parent') || cleanUrl.includes('/parentchild') || cleanUrl.includes('/parentaccount')) {
@@ -81,6 +89,13 @@ apiClient.interceptors.request.use((config) => {
   const activeBranchId = typeof window !== 'undefined' ? (localStorage.getItem('active_branch_id') || 'all') : null;
   if (activeBranchId && !config.headers['X-Branch-Id']) {
     config.headers['X-Branch-Id'] = activeBranchId;
+  }
+
+  if (typeof window !== 'undefined' && !config.headers['X-Portal-Type']) {
+    const p = window.location.pathname || '';
+    if (p.startsWith('/teacher')) config.headers['X-Portal-Type'] = 'TeacherPortal';
+    else if (p.startsWith('/parent')) config.headers['X-Portal-Type'] = 'ParentPortal';
+    else if (p.startsWith('/student')) config.headers['X-Portal-Type'] = 'StudentPortal';
   }
 
   // 1. Encode URL path numeric ID parameters (e.g. /api/admin/teachers/22 -> /api/admin/teachers/MjI=)

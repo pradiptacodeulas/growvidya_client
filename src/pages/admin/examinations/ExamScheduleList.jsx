@@ -53,14 +53,19 @@ const ExamScheduleList = () => {
 
   useEffect(() => {
     fetchInitialExamsAndClasses();
+    const handleBranchChange = () => fetchInitialExamsAndClasses();
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, []);
 
   const fetchInitialExamsAndClasses = async () => {
     try {
       setInitialLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const [ayRes, clsRes] = await Promise.all([
         adminAcademicApi.getAllAcademicYears().catch(() => ({ data: [] })),
-        adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
+        adminAcademicApi.getAllClasses({ status: 1, ...branchParam }).catch(() => ({ data: [] })),
       ]);
 
       const ayList = Array.isArray(ayRes?.data)
@@ -105,8 +110,10 @@ const ExamScheduleList = () => {
 
   const fetchExamsForYear = async (academicYearId) => {
     try {
+      const activeBranchId = localStorage.getItem('active_branch_id');
       const params = { status: 1 };
       if (academicYearId) params.academic_year_id = academicYearId;
+      if (activeBranchId && activeBranchId !== 'all') params.branch_id = activeBranchId;
       const exRes = await adminExaminationApi.getAllExams(params).catch(() => ({ data: [] }));
 
       const examsList = Array.isArray(exRes?.data?.exams)
@@ -124,10 +131,12 @@ const ExamScheduleList = () => {
   const fetchSchedule = async (examId = selectedExamId, classId = selectedClassId, yearId = selectedAcademicYearId) => {
     try {
       setLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
       const params = {};
       if (examId) params.exam_id = examId;
       if (classId) params.class_id = classId;
       if (yearId) params.academic_year_id = yearId;
+      if (activeBranchId && activeBranchId !== 'all') params.branch_id = activeBranchId;
 
       const res = await adminExaminationApi.getExamSchedules(params);
       const list = Array.isArray(res?.data?.schedules)

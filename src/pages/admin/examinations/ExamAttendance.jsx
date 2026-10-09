@@ -71,15 +71,24 @@ const ExamAttendance = () => {
 
   useEffect(() => {
     fetchInitialData();
+    const handleBranchChange = () => {
+      fetchInitialData();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => {
+      window.removeEventListener('branch_changed', handleBranchChange);
+    };
   }, []);
 
   const fetchInitialData = async () => {
     try {
       setInitialLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const fetchClasses = isTeacher ? fetchTeacherClassesApi : adminAcademicApi.getAllClasses;
       const [exRes, clsRes, yrRes] = await Promise.all([
-        adminExaminationApi.getAllExams({ status: 1 }),
-        fetchClasses({ status: 1 }),
+        adminExaminationApi.getAllExams({ status: 1, ...branchParam }),
+        fetchClasses({ status: 1, ...branchParam }),
         adminAcademicApi.getAllAcademicYears(),
       ]);
 
@@ -191,7 +200,9 @@ const ExamAttendance = () => {
       return;
     }
     try {
-      const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1 });
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
+      const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1, ...branchParam });
       const secList = Array.isArray(res?.data)
         ? res.data
         : Array.isArray(res?.data?.sections)
@@ -238,6 +249,7 @@ const ExamAttendance = () => {
       const targetLimit = Number(limit) || 10;
       setCurrentPage(targetPage);
 
+      const activeBranchId = localStorage.getItem('active_branch_id');
       const params = {
         exam_id: examId,
         class_id: classId,
@@ -245,6 +257,7 @@ const ExamAttendance = () => {
         academic_year_id: yearId || selectedYear || undefined,
         page: targetPage,
         limit: targetLimit,
+        ...(activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {}),
       };
       if (typeof search === 'string' && search.trim()) {
         params.search = search.trim();

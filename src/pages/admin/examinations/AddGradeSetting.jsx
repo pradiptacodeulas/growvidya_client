@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminExaminationApi from '../../../api/adminExamination.api';
+import { fetchBranchesApi } from '../../../api/branch.api';
 import { decodeParam } from '../../../utils/idHelper';
 
 const AddGradeSetting = () => {
@@ -10,20 +11,43 @@ const AddGradeSetting = () => {
   const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
+  const [branches, setBranches] = useState([]);
   const [formData, setFormData] = useState({
     grade_name: '',
     min_percentage: '',
     max_percentage: '',
     status: 1,
+    branch_id: '',
   });
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    loadBranches();
     if (isEdit) {
       fetchGradeDetails();
     }
   }, [id]);
+
+  const loadBranches = async () => {
+    try {
+      const res = await fetchBranchesApi({ status: 1 });
+      const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+      setBranches(list);
+
+      if (!isEdit) {
+        const activeBranchId = localStorage.getItem('active_branch_id');
+        if (activeBranchId && activeBranchId !== 'all') {
+          setFormData((prev) => ({
+            ...prev,
+            branch_id: prev.branch_id || String(activeBranchId),
+          }));
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load branches:', e);
+    }
+  };
 
   const fetchGradeDetails = async () => {
     try {
@@ -36,6 +60,7 @@ const AddGradeSetting = () => {
           min_percentage: g.min_percentage !== undefined ? g.min_percentage : '',
           max_percentage: g.max_percentage !== undefined ? g.max_percentage : '',
           status: g.status !== undefined ? g.status : 1,
+          branch_id: g.branch_id ? String(g.branch_id) : '',
         });
       } else {
         toast.error('Grade setting not found.');
@@ -54,7 +79,7 @@ const AddGradeSetting = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: name === 'status' ? parseInt(value, 10) : value,
     }));
   };
 
@@ -78,13 +103,20 @@ const AddGradeSetting = () => {
       return;
     }
 
+    const activeBranchId = localStorage.getItem('active_branch_id');
+    const branchVal = formData.branch_id || (activeBranchId && activeBranchId !== 'all' ? activeBranchId : null);
+    const payload = {
+      ...formData,
+      branch_id: branchVal ? Number(branchVal) : null,
+    };
+
     try {
       setSaving(true);
       if (isEdit) {
-        await adminExaminationApi.updateGrade(id, formData);
+        await adminExaminationApi.updateGrade(id, payload);
         toast.success(`Grade "${formData.grade_name}" updated successfully!`);
       } else {
-        await adminExaminationApi.createGrade(formData);
+        await adminExaminationApi.createGrade(payload);
         toast.success(`Grade "${formData.grade_name}" created successfully!`);
       }
       navigate('/admin/examinations/grades');
@@ -151,12 +183,50 @@ const AddGradeSetting = () => {
                           id="grade_name"
                           value={formData.grade_name}
                           onChange={handleChange}
-                          placeholder="Grade"
+                          placeholder="e.g. A+, A, B"
                           required
                         />
                       </div>
                     </div>
                     <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold">
+                          Campus / Branch
+                        </label>
+                        <select
+                          className="form-select"
+                          name="branch_id"
+                          id="branch_id"
+                          value={formData.branch_id}
+                          onChange={handleChange}
+                        >
+                          <option value="">All Campuses (School-wide)</option>
+                          {branches.map((b) => (
+                            <option key={b.id} value={b.id}>
+                              {b.branch_name} {b.is_main_branch === 1 ? '(Main Campus)' : ''}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <label className="form-label fw-semibold">
+                          Status <span className="text-danger">*</span>
+                        </label>
+                        <select
+                          className="form-select"
+                          name="status"
+                          id="status"
+                          value={formData.status}
+                          onChange={handleChange}
+                        >
+                          <option value="1">Active</option>
+                          <option value="2">Inactive</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="col-md-6">
                       <div className="mb-3">
                         <label className="form-label fw-semibold">
                           Minimum Percentage <span className="text-danger">*</span>
@@ -175,7 +245,7 @@ const AddGradeSetting = () => {
                         />
                       </div>
                     </div>
-                    <div className="col-md-4">
+                    <div className="col-md-6">
                       <div className="mb-3">
                         <label className="form-label fw-semibold">
                           Maximum Percentage <span className="text-danger">*</span>

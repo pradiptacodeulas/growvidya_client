@@ -41,7 +41,12 @@ const AddExamType = () => {
   const fetchInitialData = async () => {
     try {
       setLoading(true);
-      const exRes = await adminExaminationApi.getAllExams({ status: 1 });
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const exParams = { status: 1 };
+      if (activeBranchId && activeBranchId !== 'all') {
+        exParams.branch_id = activeBranchId;
+      }
+      const exRes = await adminExaminationApi.getAllExams(exParams);
       if (exRes?.data?.exams) {
         const sortedExams = sortExamsDesc(exRes.data.exams);
         setExams(sortedExams);
@@ -118,6 +123,9 @@ const AddExamType = () => {
 
     try {
       setSaving(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchPayload = activeBranchId && activeBranchId !== 'all' ? { branch_id: Number(activeBranchId) } : {};
+
       if (isEdit) {
         if (!editFormData.exam_type.trim()) {
           toast.warning('Please enter Exam Type Name.');
@@ -128,6 +136,7 @@ const AddExamType = () => {
           exam_type: editFormData.exam_type.trim(),
           sort_order: editFormData.sort_order,
           status: editFormData.status,
+          ...branchPayload,
         });
         toast.success(`Exam type "${editFormData.exam_type}" updated successfully!`);
       } else {
@@ -139,6 +148,7 @@ const AddExamType = () => {
 
         await adminExaminationApi.createExamType({
           exam_id: selectedExamId,
+          ...branchPayload,
           items: validRows,
         });
         toast.success(`${validRows.length} Exam Type(s) added successfully!`);

@@ -9,8 +9,8 @@ import {
 
 const adminExaminationApi = {
   // 1. Grade Settings
-  getAllGrades: async () => {
-    const res = await apiClient.get('/admin/examinations/grades');
+  getAllGrades: async (params) => {
+    const res = await apiClient.get('/admin/examinations/grades', { params });
     const data = res.data;
     if (Array.isArray(data?.grades)) data.grades = sortGradesDesc(data.grades);
     if (Array.isArray(data?.data?.grades)) data.data.grades = sortGradesDesc(data.data.grades);

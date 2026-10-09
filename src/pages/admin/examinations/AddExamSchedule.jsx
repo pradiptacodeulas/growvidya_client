@@ -54,14 +54,23 @@ const AddExamSchedule = () => {
 
   useEffect(() => {
     fetchInitialData();
+    const handleBranchChange = () => {
+      fetchInitialData();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => {
+      window.removeEventListener('branch_changed', handleBranchChange);
+    };
   }, []);
 
   const fetchInitialData = async () => {
     try {
       setLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const [ayRes, clsRes] = await Promise.all([
         adminAcademicApi.getAllAcademicYears().catch(() => ({ data: [] })),
-        adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
+        adminAcademicApi.getAllClasses({ status: 1, ...branchParam }).catch(() => ({ data: [] })),
       ]);
 
       const ayList = Array.isArray(ayRes?.data)
@@ -95,6 +104,7 @@ const AddExamSchedule = () => {
       const exRes = await adminExaminationApi.getAllExams({
         academic_year: targetYear,
         status: 1,
+        ...branchParam,
       }).catch(() => ({ data: [] }));
 
       const examsList = Array.isArray(exRes?.data?.exams)
@@ -132,13 +142,16 @@ const AddExamSchedule = () => {
 
     try {
       setTableLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const [configRes, schRes] = await Promise.all([
         adminExaminationApi.getExamSubjectConfig({
           exam_id: examId,
           class_id: classId,
           configured_only: 1,
+          ...branchParam,
         }),
-        adminExaminationApi.getExamSchedules({ exam_id: examId, class_id: classId, academic_year_id: yearId }),
+        adminExaminationApi.getExamSchedules({ exam_id: examId, class_id: classId, academic_year_id: yearId, ...branchParam }),
       ]);
 
       const subs = sortSubjectsDesc(configRes?.data?.subjects || []);
@@ -182,9 +195,12 @@ const AddExamSchedule = () => {
 
     try {
       setTableLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const exRes = await adminExaminationApi.getAllExams({
         academic_year: yearId,
         status: 1,
+        ...branchParam,
       }).catch(() => ({ data: [] }));
 
       const examsList = Array.isArray(exRes?.data?.exams)
@@ -253,6 +269,7 @@ const AddExamSchedule = () => {
 
     try {
       setSaving(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
       const items = subjects.map((sub) => {
         const entry = scheduleEntries[sub.subject_id] || {};
         return {
@@ -268,6 +285,7 @@ const AddExamSchedule = () => {
         exam_id: selectedExamId,
         class_id: selectedClassId,
         academic_year_id: selectedAcademicYearId,
+        ...(activeBranchId && activeBranchId !== 'all' ? { branch_id: Number(activeBranchId) } : {}),
         items,
       });
 

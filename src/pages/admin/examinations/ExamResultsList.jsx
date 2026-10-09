@@ -63,6 +63,13 @@ const ExamResultsList = () => {
 
   useEffect(() => {
     fetchInitialData();
+    const handleBranchChange = () => {
+      fetchInitialData();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => {
+      window.removeEventListener('branch_changed', handleBranchChange);
+    };
   }, []);
 
   const fetchSectionsForClass = async (classId) => {
@@ -71,7 +78,9 @@ const ExamResultsList = () => {
       return;
     }
     try {
-      const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1 });
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
+      const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1, ...branchParam });
       const secList = Array.isArray(res?.data)
         ? res.data
         : Array.isArray(res?.data?.sections)
@@ -89,9 +98,11 @@ const ExamResultsList = () => {
   const fetchInitialData = async () => {
     try {
       setInitialLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const [exRes, clsRes, ayRes] = await Promise.all([
-        adminExaminationApi.getAllExams({ status: 1 }),
-        adminAcademicApi.getAllClasses({ status: 1 }),
+        adminExaminationApi.getAllExams({ status: 1, ...branchParam }),
+        adminAcademicApi.getAllClasses({ status: 1, ...branchParam }),
         adminAcademicApi.getAllAcademicYears(),
       ]);
 
@@ -183,11 +194,14 @@ const ExamResultsList = () => {
     try {
       setLoading(true);
       setHasSearched(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const res = await adminExaminationApi.getExamResultsList({
         academic_year_id: yearId,
         exam_id: examId,
         class_id: classId || undefined,
         section_id: sectionId || undefined,
+        ...branchParam,
       });
 
       if (res?.data) {

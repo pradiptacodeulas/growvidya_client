@@ -82,6 +82,13 @@ const AddExamResult = () => {
 
   useEffect(() => {
     fetchInitialData();
+    const handleBranchChange = () => {
+      fetchInitialData();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => {
+      window.removeEventListener('branch_changed', handleBranchChange);
+    };
   }, []);
 
   const fetchSectionsForClass = async (classId) => {
@@ -90,7 +97,9 @@ const AddExamResult = () => {
       return;
     }
     try {
-      const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1 });
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
+      const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1, ...branchParam });
       const secList = Array.isArray(res?.data)
         ? res.data
         : Array.isArray(res?.data?.sections)
@@ -108,10 +117,12 @@ const AddExamResult = () => {
   const fetchInitialData = async () => {
     try {
       setInitialLoading(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const [exRes, clsRes, grRes, yrRes] = await Promise.all([
-        adminExaminationApi.getAllExams({ status: 1 }).catch(() => ({ data: [] })),
-        adminAcademicApi.getAllClasses({ status: 1 }).catch(() => ({ data: [] })),
-        adminExaminationApi.getAllGrades({ status: 1 }).catch(() => ({ data: [] })),
+        adminExaminationApi.getAllExams({ status: 1, ...branchParam }).catch(() => ({ data: [] })),
+        adminAcademicApi.getAllClasses({ status: 1, ...branchParam }).catch(() => ({ data: [] })),
+        adminExaminationApi.getAllGrades({ status: 1, ...branchParam }).catch(() => ({ data: [] })),
         adminAcademicApi.getAllAcademicYears().catch(() => ({ data: [] })),
       ]);
 
@@ -202,11 +213,14 @@ const AddExamResult = () => {
     try {
       setLoading(true);
       setHasSearched(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const res = await adminExaminationApi.getStudentsForExamAttendance({
         exam_id: examId,
         class_id: classId,
         section_id: sectionId || selectedSection || undefined,
         academic_year_id: yearId || undefined,
+        ...branchParam,
       });
 
       const list = res?.data?.students || [];
@@ -232,13 +246,16 @@ const AddExamResult = () => {
       setShowModal(true);
       setModalLoading(true);
 
+      const activeBranchId = localStorage.getItem('active_branch_id');
+      const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const [configRes, marksheetRes] = await Promise.all([
         adminExaminationApi.getExamSubjectConfig({
           exam_id: selectedExam,
           class_id: selectedClass,
+          ...branchParam,
         }),
         adminExaminationApi
-          .getStudentMarksheet(studentId, { exam_id: selectedExam })
+          .getStudentMarksheet(studentId, { exam_id: selectedExam, ...branchParam })
           .catch(() => ({ data: null })),
       ]);
 
@@ -296,10 +313,26 @@ const AddExamResult = () => {
   };
 
   const handleMarkChange = (subjectId, examTypeId, val) => {
-    // If subject is not editable for this user or student is not present, do not allow change
+    // If subject is not editable for this user, do not allow change
     const targetSub = subjects.find((s) => s.subject_id === subjectId);
-    const isStudentPresent = Number(studentAttendanceMap[subjectId]) === 1;
-    if (targetSub && (targetSub.isEditable === false || !isStudentPresent)) {
+    if (targetSub && targetSub.isEditable === false) {
+      return;
+    }
+
+    // Check attendance status
+    const attendanceStatus = studentAttendanceMap[subjectId];
+    const isAttendanceUnmarked = attendanceStatus === undefined || attendanceStatus === null || attendanceStatus === '';
+    if (isAttendanceUnmarked) {
+      toast.warning('Attendance has not been recorded for this subject. Please record attendance first.');
+      return;
+    }
+
+    const targetType = examTypes.find((et) => (et.exam_type_id !== undefined ? et.exam_type_id : et.id) === examTypeId);
+    const isTheoryType = /theory|written/i.test(String(targetType?.exam_type || targetType?.name || ''));
+    const isStudentAbsent = Number(attendanceStatus) === 0 || Number(attendanceStatus) === 2 || String(attendanceStatus).toLowerCase() === 'absent';
+
+    if (isStudentAbsent && isTheoryType) {
+      toast.warning('Student is marked absent in theory exam attendance. Theory marks cannot be entered.');
       return;
     }
 
@@ -355,8 +388,7 @@ const AddExamResult = () => {
 
   const handleGradeChange = (subjectId, gradeId) => {
     const targetSub = subjects.find((s) => s.subject_id === subjectId);
-    const isStudentPresent = Number(studentAttendanceMap[subjectId]) === 1;
-    if (targetSub && (targetSub.isEditable === false || !isStudentPresent)) {
+    if (targetSub && targetSub.isEditable === false) {
       return;
     }
 
@@ -380,14 +412,21 @@ const AddExamResult = () => {
     if (subjects.length === 0 || examTypes.length === 0) return false;
     for (const sub of subjects) {
       if (sub.isEditable === false) continue; // Skip view-only subjects
-      const isPresent = Number(studentAttendanceMap[sub.subject_id]) === 1;
-      if (!isPresent) continue; // Skip subjects where student is not present
+
+      const attendanceStatus = studentAttendanceMap[sub.subject_id];
+      const isAttendanceUnmarked = attendanceStatus === undefined || attendanceStatus === null || attendanceStatus === '';
+      if (isAttendanceUnmarked) continue;
+
+      const isStudentAbsent = Number(attendanceStatus) === 0 || Number(attendanceStatus) === 2 || String(attendanceStatus).toLowerCase() === 'absent';
 
       for (const et of examTypes) {
         const typeId = et.exam_type_id !== undefined ? et.exam_type_id : et.id;
         const key = `${sub.subject_id}_${typeId}`;
         const isConfigured = !hasPatternConfig || Boolean(configuredMarksMap[key]);
         if (!isConfigured) continue; // Skip unconfigured assessments
+
+        const isTheoryType = /theory|written/i.test(String(et.exam_type || et.name || ''));
+        if (isStudentAbsent && isTheoryType) continue; // Skip theory for absent student
 
         const val = marksMatrix[sub.subject_id]?.[typeId];
         if (!existingMarksMap[key] && val !== undefined && val !== '' && val !== null) {
@@ -396,7 +435,7 @@ const AddExamResult = () => {
       }
     }
     return false;
-  }, [subjects, examTypes, marksMatrix, existingMarksMap, studentAttendanceMap, configuredMarksMap, hasPatternConfig]);
+  }, [subjects, examTypes, marksMatrix, existingMarksMap, configuredMarksMap, hasPatternConfig, studentAttendanceMap]);
 
   const handleSaveStudentMarks = async (e) => {
     e.preventDefault();
@@ -405,13 +444,20 @@ const AddExamResult = () => {
     const studentId = activeStudent.student_id || activeStudent.id || activeStudent.stu_id;
 
     const items = [];
+    const unrecordedSubjects = [];
+    const absentTheoryAttemptSubjects = [];
+
     subjects.forEach((sub) => {
       if (sub.isEditable === false) return; // Unassigned subjects cannot be submitted
-      const isPresent = Number(studentAttendanceMap[sub.subject_id]) === 1;
-      if (!isPresent) return; // Cannot submit marks if student is not marked present
+
+      const attendanceStatus = studentAttendanceMap[sub.subject_id];
+      const isAttendanceUnmarked = attendanceStatus === undefined || attendanceStatus === null || attendanceStatus === '';
+      const isStudentAbsent = Number(attendanceStatus) === 0 || Number(attendanceStatus) === 2 || String(attendanceStatus).toLowerCase() === 'absent';
 
       const subMarks = marksMatrix[sub.subject_id] || {};
       const gradeId = gradesMatrix[sub.subject_id] || null;
+
+      let hasAnyMarkForThisSub = false;
 
       examTypes.forEach((et) => {
         const typeId = et.exam_type_id !== undefined ? et.exam_type_id : et.id;
@@ -422,17 +468,68 @@ const AddExamResult = () => {
         // Only submit new marks that were NOT previously given
         if (!existingMarksMap[key]) {
           const mark = subMarks[typeId];
+          const isTheoryType = /theory|written/i.test(String(et.exam_type || et.name || ''));
+
           if (mark !== undefined && mark !== '' && mark !== null) {
+            if (isAttendanceUnmarked) {
+              unrecordedSubjects.push(sub.subject_name);
+              return;
+            }
+
+            if (isStudentAbsent && isTheoryType && parseFloat(mark) > 0) {
+              absentTheoryAttemptSubjects.push(sub.subject_name);
+              return;
+            }
+
             items.push({
               subjectId: sub.subject_id,
               examTypeId: typeId,
-              marks: parseFloat(mark),
+              marks: isStudentAbsent && isTheoryType ? 0 : parseFloat(mark),
               gradeId: gradeId || null,
             });
+            hasAnyMarkForThisSub = true;
           }
         }
       });
+
+      // If marks were entered for practical/assessment for an absent student,
+      // and Theory is configured but not yet recorded in DB, auto-submit Theory as 0
+      if (hasAnyMarkForThisSub && isStudentAbsent) {
+        examTypes.forEach((et) => {
+          const typeId = et.exam_type_id !== undefined ? et.exam_type_id : et.id;
+          const key = `${sub.subject_id}_${typeId}`;
+          const isConfigured = !hasPatternConfig || Boolean(configuredMarksMap[key]);
+          const isTheoryType = /theory|written/i.test(String(et.exam_type || et.name || ''));
+          if (isConfigured && isTheoryType && !existingMarksMap[key]) {
+            const alreadyInItems = items.some(
+              (it) => it.subjectId === sub.subject_id && it.examTypeId === typeId
+            );
+            if (!alreadyInItems) {
+              items.push({
+                subjectId: sub.subject_id,
+                examTypeId: typeId,
+                marks: 0,
+                gradeId: gradeId || null,
+              });
+            }
+          }
+        });
+      }
     });
+
+    if (unrecordedSubjects.length > 0) {
+      toast.error(
+        `Cannot submit marks: Exam attendance has not been recorded for ${[...new Set(unrecordedSubjects)].join(', ')}. Please record attendance first.`
+      );
+      return;
+    }
+
+    if (absentTheoryAttemptSubjects.length > 0) {
+      toast.error(
+        `Cannot submit theory marks: Student is marked absent in exam attendance for ${[...new Set(absentTheoryAttemptSubjects)].join(', ')}.`
+      );
+      return;
+    }
 
     if (items.length === 0) {
       toast.info('No new marks to submit. Previously submitted marks or unassigned subjects cannot be modified.');
@@ -441,11 +538,13 @@ const AddExamResult = () => {
 
     try {
       setSaving(true);
+      const activeBranchId = localStorage.getItem('active_branch_id');
       await adminExaminationApi.saveStudentMarksBatch({
         academic_year_id: selectedYear || undefined,
         exam_id: selectedExam,
         class_id: selectedClass,
         student_id: studentId,
+        ...(activeBranchId && activeBranchId !== 'all' ? { branch_id: Number(activeBranchId) } : {}),
         items,
       });
 
@@ -969,16 +1068,8 @@ const AddExamResult = () => {
                             {examTypes.map((type) => {
                               const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
                               return (
-                                <th key={typeId} className="text-center">
+                                <th key={typeId} className="text-center align-middle">
                                   {type.exam_type}
-                                  {type.mark ? (
-                                    <>
-                                      <br />
-                                      <span className="fs-12 text-muted">({type.mark})</span>
-                                    </>
-                                  ) : (
-                                    ''
-                                  )}
                                 </th>
                               );
                             })}
@@ -988,16 +1079,20 @@ const AddExamResult = () => {
                         <tbody>
                           {subjects.map((sub) => {
                             const attendanceStatus = studentAttendanceMap[sub.subject_id];
-                            const isStudentPresent = Number(attendanceStatus) === 1;
-                            const isStudentAbsent = Number(attendanceStatus) === 0;
-                            const isAttendanceUnmarked = attendanceStatus === undefined;
-                            const isSubjectEditable = sub.isEditable !== false && isStudentPresent;
+                            const isStudentPresent = Number(attendanceStatus) === 1 || String(attendanceStatus).toLowerCase() === 'present';
+                            const isStudentAbsent = Number(attendanceStatus) === 0 || Number(attendanceStatus) === 2 || String(attendanceStatus).toLowerCase() === 'absent';
+                            const isAttendanceUnmarked = attendanceStatus === undefined || attendanceStatus === null || attendanceStatus === '';
+                            const isSubjectEditable = sub.isEditable !== false;
                             const hasSubjectAnyEditable =
                               isSubjectEditable &&
+                              !isAttendanceUnmarked &&
                               examTypes.some((type) => {
                                 const typeId = type.exam_type_id !== undefined ? type.exam_type_id : type.id;
                                 const isConfigured = !hasPatternConfig || Boolean(configuredMarksMap[`${sub.subject_id}_${typeId}`]);
-                                return isConfigured && !existingMarksMap[`${sub.subject_id}_${typeId}`];
+                                const isExisting = Boolean(existingMarksMap[`${sub.subject_id}_${typeId}`]);
+                                const isTheory = /theory|written/i.test(String(type.exam_type || type.name || ''));
+                                if (isStudentAbsent && isTheory) return false;
+                                return isConfigured && !isExisting;
                               });
 
                             return (
@@ -1015,11 +1110,17 @@ const AddExamResult = () => {
                                         <i className="ti ti-check me-1"></i>Present
                                       </span>
                                     ) : isStudentAbsent ? (
-                                      <span className="badge bg-danger-subtle text-danger border border-danger-subtle fs-11 px-2 py-1">
-                                        <i className="ti ti-x me-1"></i>Absent
+                                      <span
+                                        className="badge bg-danger-subtle text-danger border border-danger-subtle fs-11 px-2 py-1"
+                                        title="Student marked absent on theory exam schedule. Theory is locked; assessment/practical marks can be entered."
+                                      >
+                                        <i className="ti ti-x me-1"></i>Exam Absent
                                       </span>
                                     ) : (
-                                      <span className="badge bg-warning-subtle text-warning border border-warning-subtle fs-11 px-2 py-1">
+                                      <span
+                                        className="badge bg-warning-subtle text-warning border border-warning-subtle fs-11 px-2 py-1"
+                                        title="Exam attendance has not been recorded yet. Please record attendance first."
+                                      >
                                         <i className="ti ti-clock me-1"></i>No Attendance
                                       </span>
                                     )}
@@ -1032,53 +1133,91 @@ const AddExamResult = () => {
                                   const isExisting = Boolean(existingMarksMap[key]);
                                   const isAssessmentConfigured = !hasPatternConfig || Boolean(configuredMarksMap[key]);
                                   const maxAllowed = configuredMarksMap[key] ?? type.mark ?? null;
-                                  const isFieldReadOnly = !isSubjectEditable || isExisting || !isAssessmentConfigured;
+                                  const typeName = String(type.exam_type || type.name || '').trim();
+                                  const isTheoryType = /theory|written/i.test(typeName);
+
+                                  const isFieldReadOnly =
+                                    !isSubjectEditable ||
+                                    isExisting ||
+                                    !isAssessmentConfigured ||
+                                    isAttendanceUnmarked ||
+                                    (isStudentAbsent && isTheoryType);
 
                                   let tooltipText = '';
+                                  let placeholderText = '0';
+
                                   if (!isAssessmentConfigured) {
                                     tooltipText = 'No assessment or marks configured for this subject and exam type.';
+                                    placeholderText = 'N/A';
                                   } else if (isExisting) {
-                                    tooltipText = 'Already submitted marks cannot be modified';
-                                  } else if (sub.isEditable === false) {
+                                    tooltipText = 'Already submitted marks cannot be modified.';
+                                    placeholderText = '-';
+                                  } else if (!isSubjectEditable) {
                                     tooltipText = 'You are not assigned to this subject. Marks can only be viewed.';
-                                  } else if (isStudentAbsent) {
-                                    tooltipText = 'Student was absent for this exam subject. Marks entry is disabled.';
+                                    placeholderText = '-';
                                   } else if (isAttendanceUnmarked) {
-                                    tooltipText = 'Student has no attendance recorded for this exam subject. Marks entry is disabled.';
+                                    tooltipText = 'Attendance has not been recorded for this subject. Please record attendance first.';
+                                    placeholderText = 'No Attn';
+                                  } else if (isStudentAbsent && isTheoryType) {
+                                    tooltipText = 'Student marked absent in theory exam attendance. Theory marks locked to 0 / Absent.';
+                                    placeholderText = 'Absent';
+                                  } else if (isStudentAbsent && !isTheoryType) {
+                                    tooltipText = maxAllowed
+                                      ? `Student absent in theory, but ${typeName} marks can be entered. Max marks: ${maxAllowed}`
+                                      : `Student absent in theory, but ${typeName} marks can be entered.`;
+                                    placeholderText = '0';
                                   } else if (maxAllowed) {
                                     tooltipText = `Max marks: ${maxAllowed}`;
+                                    placeholderText = '0';
                                   }
 
+                                  const rawVal = marksMatrix[sub.subject_id]?.[typeId];
+                                  const displayValue = !isAssessmentConfigured
+                                    ? ''
+                                    : isStudentAbsent && isTheoryType && !isExisting
+                                    ? ''
+                                    : rawVal ?? '';
+
                                   return (
-                                    <td key={typeId} style={{ width: '110px' }}>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        max={maxAllowed ?? undefined}
-                                        className={`form-control text-center mx-auto ${
-                                          isFieldReadOnly ? 'bg-light text-muted fw-semibold' : ''
-                                        }`}
-                                        style={{
-                                          width: '85px',
-                                          backgroundColor: !isAssessmentConfigured
-                                            ? '#f1f5f9'
-                                            : isFieldReadOnly
-                                            ? '#f8f9fa'
-                                            : '#fff',
-                                          cursor: isFieldReadOnly ? 'not-allowed' : 'text',
-                                          borderStyle: !isAssessmentConfigured ? 'dashed' : 'solid',
-                                          borderColor: !isAssessmentConfigured ? '#cbd5e1' : undefined,
-                                        }}
-                                        placeholder={!isAssessmentConfigured ? 'N/A' : (isSubjectEditable ? '0' : '-')}
-                                        disabled={isFieldReadOnly}
-                                        readOnly={isFieldReadOnly}
-                                        title={tooltipText}
-                                        value={!isAssessmentConfigured ? '' : (marksMatrix[sub.subject_id]?.[typeId] ?? '')}
-                                        onChange={(e) => {
-                                          if (!isSubjectEditable || !isAssessmentConfigured) return;
-                                          handleMarkChange(sub.subject_id, typeId, e.target.value);
-                                        }}
-                                      />
+                                    <td key={typeId} style={{ minWidth: '125px' }}>
+                                      <div className="d-flex align-items-center justify-content-center gap-1 mx-auto">
+                                        <input
+                                          type={isFieldReadOnly && (isAttendanceUnmarked || (isStudentAbsent && isTheoryType)) ? 'text' : 'number'}
+                                          min="0"
+                                          max={maxAllowed ?? undefined}
+                                          className={`form-control form-control-sm text-center ${
+                                            isFieldReadOnly ? 'bg-light text-muted fw-semibold' : ''
+                                          }`}
+                                          style={{
+                                            width: '68px',
+                                            backgroundColor: !isAssessmentConfigured
+                                              ? '#f1f5f9'
+                                              : isFieldReadOnly
+                                              ? '#f8f9fa'
+                                              : '#fff',
+                                            cursor: isFieldReadOnly ? 'not-allowed' : 'text',
+                                            borderStyle: !isAssessmentConfigured ? 'dashed' : 'solid',
+                                            borderColor: !isAssessmentConfigured ? '#cbd5e1' : undefined,
+                                          }}
+                                          placeholder={placeholderText}
+                                          disabled={isFieldReadOnly}
+                                          readOnly={isFieldReadOnly}
+                                          title={tooltipText}
+                                          value={displayValue}
+                                          onChange={(e) => {
+                                            if (isFieldReadOnly) return;
+                                            handleMarkChange(sub.subject_id, typeId, e.target.value);
+                                          }}
+                                        />
+                                        {isAssessmentConfigured && maxAllowed !== null && maxAllowed !== undefined && (
+                                          <span
+                                            className="text-muted fw-semibold fs-12 text-nowrap user-select-none"
+                                            title={`Full Marks: ${maxAllowed}`}
+                                          >
+                                            / {maxAllowed}
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
                                   );
                                 })}
