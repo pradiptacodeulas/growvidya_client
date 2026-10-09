@@ -92,6 +92,20 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
         const res = await fetchBranchesApi({ status: 1 });
         const list = Array.isArray(res?.data) ? res.data : [];
         setBranches(list);
+
+        // Verify stored active_branch_id actually belongs to the loaded branches for current school
+        const currentActive = localStorage.getItem('active_branch_id');
+        if (currentActive && currentActive !== 'all' && list.length > 0) {
+          const isValid = list.some((b) => String(b.id) === String(currentActive));
+          if (!isValid) {
+            // Stale branch from another school! Reset to main branch
+            const main = list.find((b) => Number(b.is_main_branch) === 1) || list[0];
+            const fallbackId = main ? String(main.id) : 'all';
+            localStorage.setItem('active_branch_id', fallbackId);
+            setActiveBranchId(fallbackId);
+            window.dispatchEvent(new CustomEvent('branch_changed', { detail: { branchId: fallbackId === 'all' ? null : Number(fallbackId) } }));
+          }
+        }
       } catch (err) {
         // quiet fallback
       }

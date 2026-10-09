@@ -13,6 +13,11 @@ export const loginWithHandoverToken = createAsyncThunk(
 
       if (token) {
         localStorage.setItem('admin_token', token);
+        if (user?.branch_id || user?.branchId) {
+          localStorage.setItem('active_branch_id', String(user.branch_id || user.branchId));
+        } else {
+          localStorage.setItem('active_branch_id', 'all');
+        }
       }
       return { user, token };
     } catch (error) {
@@ -35,6 +40,11 @@ export const loginAdmin = createAsyncThunk(
 
       if (token) {
         localStorage.setItem('admin_token', token);
+        if (user?.branch_id || user?.branchId) {
+          localStorage.setItem('active_branch_id', String(user.branch_id || user.branchId));
+        } else {
+          localStorage.setItem('active_branch_id', 'all');
+        }
       }
       return { user, token };
     } catch (error) {
@@ -64,6 +74,7 @@ export const checkAdminAuth = createAsyncThunk(
     } catch (error) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('admin_token');
+        localStorage.removeItem('active_branch_id');
       }
       return rejectWithValue('Session invalid or expired');
     }
@@ -76,7 +87,10 @@ export const logoutAdmin = createAsyncThunk('auth/logoutAdmin', async () => {
   } catch (e) {
     // Ignore network errors during logout
   } finally {
-    localStorage.removeItem('admin_token');
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('active_branch_id');
+    }
   }
 });
 

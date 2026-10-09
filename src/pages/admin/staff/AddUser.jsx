@@ -133,7 +133,19 @@ const AddUser = () => {
         try {
           const bRes = await apiClient.get('/admin/branches');
           if (bRes?.data?.data) {
-            setBranches(Array.isArray(bRes.data.data) ? bRes.data.data : []);
+            const list = Array.isArray(bRes.data.data) ? bRes.data.data : [];
+            setBranches(list);
+
+            if (!isEditMode && list.length > 0) {
+              setPersonalInfo((prev) => {
+                const isCurrentValid = list.some((b) => String(b.id) === String(prev.branch_id));
+                if (!isCurrentValid) {
+                  const mainBranch = list.find((b) => Number(b.is_main_branch) === 1) || list[0];
+                  return { ...prev, branch_id: mainBranch ? String(mainBranch.id) : '' };
+                }
+                return prev;
+              });
+            }
           }
         } catch (bErr) {
           console.warn('Failed to load branches:', bErr);
