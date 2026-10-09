@@ -170,7 +170,7 @@ const SuperAdminDashboard = () => {
           </Link>
 
           <Link
-            to="/admin/subscription/billing"
+            to="/admin/subscription"
             className="btn btn-primary btn-sm d-flex align-items-center shadow-sm"
           >
             <i className="ti ti-crown me-1"></i> Subscription & Storage
@@ -190,7 +190,7 @@ const SuperAdminDashboard = () => {
               </p>
             </div>
           </div>
-          <Link to="/admin/subscription/billing" className="btn btn-danger btn-sm text-nowrap ms-3">
+          <Link to="/admin/subscription" className="btn btn-danger btn-sm text-nowrap ms-3">
             Upgrade Storage Now
           </Link>
         </div>
@@ -207,7 +207,7 @@ const SuperAdminDashboard = () => {
               </p>
             </div>
           </div>
-          <Link to="/admin/subscription/billing" className="btn btn-warning btn-sm text-nowrap ms-3 text-dark fw-semibold">
+          <Link to="/admin/subscription" className="btn btn-warning btn-sm text-nowrap ms-3 text-dark fw-semibold">
             Upgrade Storage
           </Link>
         </div>
@@ -224,7 +224,7 @@ const SuperAdminDashboard = () => {
               </p>
             </div>
           </div>
-          <Link to="/admin/subscription/billing" className="btn btn-outline-info btn-sm text-nowrap ms-3">
+          <Link to="/admin/subscription" className="btn btn-outline-info btn-sm text-nowrap ms-3">
             Expand Storage
           </Link>
         </div>
@@ -426,9 +426,6 @@ const SuperAdminDashboard = () => {
               </div>
               <div className="d-flex justify-content-between small text-muted">
                 <span>Available: {storage.availableFormatted}</span>
-                <Link to="/admin/subscription/billing" className="text-primary text-decoration-none fw-semibold">
-                  Manage Storage &rarr;
-                </Link>
               </div>
             </div>
           </div>
@@ -501,11 +498,8 @@ const SuperAdminDashboard = () => {
                 <p className="text-muted small mb-0">No branch storage breakdown recorded.</p>
               )}
             </div>
-            <div className="card-footer bg-white border-top py-2 d-flex justify-content-between align-items-center">
+            <div className="card-footer bg-white border-top py-2">
               <span className="small text-muted">Thresholds: 75% Warning &bull; 90% Critical</span>
-              <Link to="/admin/subscription/billing" className="btn btn-sm btn-outline-primary">
-                <i className="ti ti-plus me-1"></i> Add Storage
-              </Link>
             </div>
           </div>
         </div>
@@ -586,11 +580,8 @@ const SuperAdminDashboard = () => {
                 </div>
               </div>
             </div>
-            <div className="card-footer bg-white border-top py-2 d-flex justify-content-between align-items-center">
+            <div className="card-footer bg-white border-top py-2">
               <span className="small text-muted">Multi-Branch SaaS Subscription</span>
-              <Link to="/admin/subscription/billing" className="btn btn-sm btn-primary">
-                Manage Plan / Upgrade &rarr;
-              </Link>
             </div>
           </div>
         </div>
