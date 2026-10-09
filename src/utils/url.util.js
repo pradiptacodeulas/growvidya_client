@@ -5,6 +5,21 @@
  */
 
 export const getServerBaseUrl = () => {
+  if (typeof window !== 'undefined' && window.location?.hostname) {
+    const hostname = window.location.hostname;
+    const protocol = window.location.protocol || 'http:';
+
+    // When accessing via localhost/127.0.0.1, always target localhost:5001 so cookies and CORS match browser host
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return `${protocol}//localhost:5001`;
+    }
+
+    // When accessing via LAN IP (e.g. 192.168.x.x), dynamically use that same IP on port 5001
+    if (/^(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3})$/.test(hostname)) {
+      return `${protocol}//${hostname}:5001`;
+    }
+  }
+
   if (import.meta.env?.VITE_SERVER_BASE_URL) {
     return import.meta.env.VITE_SERVER_BASE_URL;
   }
@@ -14,9 +29,6 @@ export const getServerBaseUrl = () => {
 };
 
 export const getApiBaseUrl = () => {
-  if (import.meta.env?.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL;
-  }
   return `${getServerBaseUrl()}/api/v1`;
 };
 
