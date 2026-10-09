@@ -22,22 +22,31 @@ const EditSubject = () => {
     subject_name: '',
     sort_order: '1',
     status: '1',
+    branch_id: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadInitialData();
+
+    const handleBranchChange = () => {
+      loadInitialData();
+    };
+
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, [rawId]);
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
 
-      // Load active classes
+      const currentBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') || 'all' : 'all';
       let classList = [];
       try {
-        const clsRes = await fetchClassesApi();
+        const clsParams = (currentBranch && currentBranch !== 'all') ? { branch_id: currentBranch } : {};
+        const clsRes = await fetchClassesApi(clsParams);
         classList = Array.isArray(clsRes?.data) ? clsRes.data : Array.isArray(clsRes) ? clsRes : [];
         setClasses(classList);
       } catch (err) {
@@ -62,6 +71,7 @@ const EditSubject = () => {
             subject_name: subjectData.subject_name || '',
             sort_order: subjectData.sort_order !== undefined && subjectData.sort_order !== null ? String(subjectData.sort_order) : '1',
             status: subjectData.status === 2 || subjectData.status === 0 ? '2' : '1',
+            branch_id: subjectData.branch_id ? String(subjectData.branch_id) : '',
           });
         } else {
           toast.error('Subject record not found.');
@@ -98,11 +108,16 @@ const EditSubject = () => {
 
     try {
       setSaving(true);
+      const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+      const selectedClass = classes.find((c) => String(c.id) === String(formData.class_id));
+      const resolvedBranch = selectedClass?.branch_id || (activeBranch && activeBranch !== 'all' ? Number(activeBranch) : null) || (formData.branch_id ? Number(formData.branch_id) : null);
+
       const payload = {
         class_id: formData.class_id,
         subject_name: formData.subject_name.trim(),
         sort_order: Number(formData.sort_order) || 0,
         status: Number(formData.status),
+        ...(resolvedBranch ? { branch_id: resolvedBranch } : {}),
       };
 
       if (isEdit) {
@@ -155,7 +170,7 @@ const EditSubject = () => {
               <div className="card">
                 <div className="card-header bg-light">
                   <div className="d-flex align-items-center">
-                    <h4 className="text-dark mb-0">Subject</h4>
+                    <h4 className="text-dark mb-0">Subject Details</h4>
                   </div>
                 </div>
                 <div className="card-body pb-1">
@@ -176,7 +191,7 @@ const EditSubject = () => {
                           <option value="">Select Class</option>
                           {classes.map((cls) => (
                             <option key={cls.id} value={cls.id}>
-                              {cls.class_name || `Class ${cls.id}`}
+                              {cls.class_name || `Class ${cls.id}`} {cls.branch_name ? `(${cls.branch_name})` : ''}
                             </option>
                           ))}
                         </select>

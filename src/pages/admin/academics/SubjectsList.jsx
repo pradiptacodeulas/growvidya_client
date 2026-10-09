@@ -10,6 +10,9 @@ const SubjectsList = () => {
   const [subjects, setSubjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [activeBranch, setActiveBranch] = useState(
+    typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') || 'all' : 'all'
+  );
 
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -17,13 +20,26 @@ const SubjectsList = () => {
   const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
-    fetchSubjects();
+    const currentBranch = localStorage.getItem('active_branch_id') || 'all';
+    setActiveBranch(currentBranch);
+    fetchSubjects(currentBranch);
+
+    const handleBranchChange = (e) => {
+      const newBranch = e?.detail?.branchId ?? localStorage.getItem('active_branch_id') ?? 'all';
+      setActiveBranch(String(newBranch));
+      fetchSubjects(newBranch);
+    };
+
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, []);
 
-  const fetchSubjects = async () => {
+  const fetchSubjects = async (branchIdOverride) => {
     try {
       setLoading(true);
-      const res = await adminAcademicApi.fetchSubjectsApi();
+      const bId = branchIdOverride !== undefined ? branchIdOverride : (localStorage.getItem('active_branch_id') || 'all');
+      const params = (bId && bId !== 'all') ? { branch_id: bId } : {};
+      const res = await adminAcademicApi.fetchSubjectsApi(params);
       const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
       setSubjects(list);
     } catch (err) {
@@ -53,9 +69,9 @@ const SubjectsList = () => {
 
   const handleExportExcel = () => {
     if (subjects.length === 0) return toast.info('No subjects to export');
-    let csv = 'Sl No.,Subject Name,Class,Sort Order,Status\n';
+    let csv = 'Sl No.,Subject Name,Class,Campus / Branch,Sort Order,Status\n';
     subjects.forEach((s, idx) => {
-      csv += `"${idx + 1}","${s.subject_name || ''}","${s.class_name || ''}","${s.sort_order || ''}","${s.status === 1 ? 'Active' : 'Inactive'}"\n`;
+      csv += `"${idx + 1}","${s.subject_name || ''}","${s.class_name || ''}","${s.branch_name || 'All Campuses'}","${s.sort_order || ''}","${s.status === 1 ? 'Active' : 'Inactive'}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -115,6 +131,22 @@ const SubjectsList = () => {
         sortable: true,
         cell: ({ value }) => (
           <span className="badge bg-light text-dark border px-2.5 py-1.5">{value || 'All Classes'}</span>
+        ),
+      },
+      {
+        accessorKey: 'branch_name',
+        header: 'Campus / Branch',
+        sortable: true,
+        cell: ({ row }) => (
+          row.branch_name ? (
+            <span className="badge bg-primary-transparent text-primary fs-11">
+              <i className="ti ti-building me-1"></i>{row.branch_name}
+            </span>
+          ) : (
+            <span className="badge bg-secondary-transparent text-secondary fs-11">
+              <i className="ti ti-world me-1"></i>All Campuses
+            </span>
+          )
         ),
       },
       {
@@ -191,7 +223,7 @@ const SubjectsList = () => {
           <button
             type="button"
             className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={fetchSubjects}
+            onClick={() => fetchSubjects()}
             title="Refresh"
           >
             <i className="ti ti-refresh"></i>

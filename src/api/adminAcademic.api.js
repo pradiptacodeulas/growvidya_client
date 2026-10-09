@@ -35,12 +35,20 @@ export const deleteAcademicYearApi = async (id) => await apiFetch(`/admin/academ
 // Classes
 export const fetchClassesApi = async (params = {}) => {
   let res;
+  let queryParams = {};
   if (typeof params === 'object' && params !== null) {
-    const query = new URLSearchParams(params).toString();
-    res = await apiFetch(`/admin/academics/classes${query ? `?${query}` : ''}`);
-  } else {
-    res = await apiFetch('/admin/academics/classes');
+    queryParams = { ...params };
+  } else if (params && params !== 'all') {
+    queryParams = { branch_id: params };
   }
+  if (queryParams.branch_id === undefined && queryParams.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      queryParams.branch_id = activeBranch;
+    }
+  }
+  const query = new URLSearchParams(queryParams).toString();
+  res = await apiFetch(`/admin/academics/classes${query ? `?${query}` : ''}`);
   if (Array.isArray(res)) return sortClassesDesc(res);
   if (Array.isArray(res?.data)) res.data = sortClassesDesc(res.data);
   if (Array.isArray(res?.data?.classes)) res.data.classes = sortClassesDesc(res.data.classes);
@@ -88,7 +96,19 @@ export const deleteSectionApi = async (id) => await apiFetch(`/admin/academics/s
 
 // Subjects
 export const fetchSubjectsApi = async (params = {}) => {
-  const query = new URLSearchParams(params).toString();
+  let queryParams = {};
+  if (typeof params === 'object' && params !== null) {
+    queryParams = { ...params };
+  } else if (params && params !== 'all') {
+    queryParams = { branch_id: params };
+  }
+  if (queryParams.branch_id === undefined && queryParams.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      queryParams.branch_id = activeBranch;
+    }
+  }
+  const query = new URLSearchParams(queryParams).toString();
   const res = await apiFetch(`/admin/academics/subjects${query ? `?${query}` : ''}`);
   if (Array.isArray(res)) return sortSubjectsDesc(res);
   if (Array.isArray(res?.data)) res.data = sortSubjectsDesc(res.data);
