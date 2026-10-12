@@ -1,0 +1,63 @@
+import React, { lazy } from 'react';
+import { Route, Navigate, useLocation } from 'react-router-dom';
+
+const PortalSelection = lazy(() => import('../pages/PortalSelection'));
+const PricingPlans = lazy(() => import('../pages/saas/PricingPlans'));
+const SubscriptionConfigurePublic = lazy(() => import('../pages/saas/SubscriptionConfigurePublic'));
+const AdminLogin = lazy(() => import('../pages/admin/AdminLogin'));
+const AuthCallback = lazy(() => import('../pages/auth/AuthCallback'));
+const TeacherLogin = lazy(() => import('../pages/teacher/TeacherLogin'));
+const ParentLogin = lazy(() => import('../pages/parent/ParentLogin'));
+const StudentLogin = lazy(() => import('../pages/student/StudentLogin'));
+
+const OnboardingRedirect = () => {
+  React.useEffect(() => {
+    const onboardingUrl = import.meta.env.VITE_ONBOARDING_URL || 'http://localhost:3000';
+    window.location.replace(`${onboardingUrl}/register`);
+  }, []);
+  return null;
+};
+
+export const publicRoutes = (
+  <>
+    {/* Onboarding Handover / SSO Callback */}
+    <Route path="/auth/callback" element={<AuthCallback />} />
+    {/* Exact original portal selection URL: /account/login */}
+    <Route path="/account/login" element={<PortalSelection />} />
+    <Route path="/portal-selection" element={<Navigate to="/account/login" replace />} />
+    <Route path="/" element={<Navigate to="/account/login" replace />} />
+
+    {/* Standalone Single Pricing Page */}
+    <Route path="/pricing" element={<PricingPlans />} />
+    <Route path="/plans" element={<PricingPlans />} />
+
+    {/* Separate Dedicated Configuration Page */}
+    <Route path="/configure" element={<SubscriptionConfigurePublic />} />
+    <Route path="/pricing/configure" element={<SubscriptionConfigurePublic />} />
+
+    {/* Dedicated Onboarding Redirect (handled by growvidya_onboarding) */}
+    <Route path="/register" element={<OnboardingRedirect />} />
+    <Route path="/register/*" element={<OnboardingRedirect />} />
+
+    {/* Exact original admin login URL: /account/login/adminlogin */}
+    <Route path="/account/login/adminlogin" element={<AdminLogin />} />
+    <Route path="/admin/login" element={<AdminLogin />} />
+
+    {/* Teacher login routes */}
+    <Route path="/teacheraccount/teacherlogin" element={<TeacherLogin />} />
+    <Route path="/teacher/login" element={<TeacherLogin />} />
+    <Route path="/teacheraccount" element={<Navigate to="/teacheraccount/teacherlogin" replace />} />
+
+    {/* Parent login routes */}
+    <Route path="/parentaccount/parentlogin" element={<ParentLogin />} />
+    <Route path="/parentaccount/login" element={<ParentLogin />} />
+    <Route path="/parent/login" element={<ParentLogin />} />
+    <Route path="/parentaccount" element={<Navigate to="/parentaccount/parentlogin" replace />} />
+
+    {/* Student login routes */}
+    <Route path="/studentaccount/studentlogin" element={<StudentLogin />} />
+    <Route path="/studentaccount/login" element={<StudentLogin />} />
+    <Route path="/student/login" element={<StudentLogin />} />
+    <Route path="/studentaccount" element={<Navigate to="/studentaccount/studentlogin" replace />} />
+  </>
+);
