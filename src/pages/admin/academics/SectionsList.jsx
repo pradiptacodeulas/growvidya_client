@@ -50,24 +50,7 @@ const SectionsList = () => {
     );
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
-  const handleExportExcel = () => {
-    if (sections.length === 0) return toast.info('No sections to export');
-    let csv = 'Sl No.,Section Name,Class Name,Sort Order,Status\n';
-    sections.forEach((s, idx) => {
-      csv += `"${idx + 1}","${s.section_name || ''}","${s.class_name || ''}","${s.sort_order || ''}","${s.status === 1 ? 'Active' : 'Inactive'}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Sections_List_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const confirmDelete = (section) => {
     setSectionToDelete(section);
@@ -204,34 +187,6 @@ const SectionsList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
-          <TableActionMenu
-            trigger={
-              <span className="btn btn-light fw-medium d-inline-flex align-items-center">
-                <i className="ti ti-file-export me-2"></i>Export
-              </span>
-            }
-            items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
-              {
-                label: 'Export as Excel',
-                icon: 'ti ti-file-type-xls text-success',
-                onClick: handleExportExcel,
-              },
-            ]}
-          />
 
           {can('academic/sections', 'add') && (
             <Link

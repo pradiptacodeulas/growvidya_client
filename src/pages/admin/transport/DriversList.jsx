@@ -8,6 +8,7 @@ import {
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
+import { resolveImageUrl } from '../../../utils/url.util';
 
 const DriversList = () => {
   const [drivers, setDrivers] = useState([]);
@@ -92,11 +93,60 @@ const DriversList = () => {
       },
       {
         accessorKey: 'license_number',
-        header: 'License Number',
+        header: 'License Details',
         sortable: true,
-        cell: ({ value }) => (
-          <span className="badge bg-light text-dark border px-2.5 py-1.5">{value || '—'}</span>
-        ),
+        cell: ({ row }) => {
+          const licNum = row.license_number || '—';
+          return (
+            <div className="d-flex align-items-center gap-1.5">
+              <span className="badge bg-light text-dark border px-2 py-1">{licNum}</span>
+              {row.lisence_doc && (
+                <a
+                  href={resolveImageUrl(row.lisence_doc)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-xs btn-outline-primary px-1.5 py-0.5"
+                  title="View Driving License Document"
+                >
+                  <i className="ti ti-file-certificate fs-13"></i>
+                </a>
+              )}
+            </div>
+          );
+        },
+      },
+      {
+        accessorKey: 'id_proof_type',
+        header: 'Govt ID Proof',
+        sortable: true,
+        cell: ({ row }) => {
+          if (!row.id_proof_type && !row.id_proof_number && !row.id_proof_doc) {
+            return <span className="text-muted">—</span>;
+          }
+          return (
+            <div className="d-flex align-items-center gap-1.5">
+              <div>
+                <span className="badge bg-light text-primary border px-2 py-0.5 fs-11 d-block mb-0.5">
+                  {row.id_proof_type || 'Govt ID'}
+                </span>
+                {row.id_proof_number && (
+                  <span className="text-muted fs-11">{row.id_proof_number}</span>
+                )}
+              </div>
+              {row.id_proof_doc && (
+                <a
+                  href={resolveImageUrl(row.id_proof_doc)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-xs btn-outline-secondary px-1.5 py-0.5"
+                  title="View Government ID Document"
+                >
+                  <i className="ti ti-file-text fs-13"></i>
+                </a>
+              )}
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'status',
@@ -120,23 +170,42 @@ const DriversList = () => {
         width: '90px',
         align: 'center',
         sortable: false,
-        cell: ({ row }) => (
-          <TableActionMenu
-            items={[
-              {
-                label: 'Edit',
-                icon: 'ti ti-edit-circle text-primary',
-                to: `/admin/transport/driver/edit/${encodeParam(row.id)}`,
-              },
-              {
-                label: 'Delete',
-                icon: 'ti ti-trash-x',
-                variant: 'danger',
-                onClick: () => setDeleteModal({ show: true, id: row.id, processing: false }),
-              },
-            ]}
-          />
-        ),
+        cell: ({ row }) => {
+          const extraItems = [];
+          if (row.lisence_doc) {
+            extraItems.push({
+              label: 'View License Doc',
+              icon: 'ti ti-file-certificate text-info',
+              onClick: () => window.open(resolveImageUrl(row.lisence_doc), '_blank'),
+            });
+          }
+          if (row.id_proof_doc) {
+            extraItems.push({
+              label: 'View ID Proof Doc',
+              icon: 'ti ti-file-text text-secondary',
+              onClick: () => window.open(resolveImageUrl(row.id_proof_doc), '_blank'),
+            });
+          }
+
+          return (
+            <TableActionMenu
+              items={[
+                {
+                  label: 'Edit',
+                  icon: 'ti ti-edit-circle text-primary',
+                  to: `/admin/transport/driver/edit/${encodeParam(row.id)}`,
+                },
+                ...extraItems,
+                {
+                  label: 'Delete',
+                  icon: 'ti ti-trash-x',
+                  variant: 'danger',
+                  onClick: () => setDeleteModal({ show: true, id: row.id, processing: false }),
+                },
+              ]}
+            />
+          );
+        },
       },
     ],
     []

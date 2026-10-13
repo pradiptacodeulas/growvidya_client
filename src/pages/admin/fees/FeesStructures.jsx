@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
+import { usePermission } from '../../../hooks/usePermission';
 import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
 import { fetchRoutesApi } from '../../../api/adminTransport.api';
@@ -8,7 +10,40 @@ import { fetchHostelsApi } from '../../../api/adminHostel.api';
 import { fetchBranchesApi } from '../../../api/branch.api';
 import NoData from '../../../components/common/NoData';
 
+const MONTHS_OPTIONS = [
+  { value: 1, label: 'January' },
+  { value: 2, label: 'February' },
+  { value: 3, label: 'March' },
+  { value: 4, label: 'April' },
+  { value: 5, label: 'May' },
+  { value: 6, label: 'June' },
+  { value: 7, label: 'July' },
+  { value: 8, label: 'August' },
+  { value: 9, label: 'September' },
+  { value: 10, label: 'October' },
+  { value: 11, label: 'November' },
+  { value: 12, label: 'December' },
+];
+
+const DAYS_OF_MONTH = Array.from({ length: 31 }, (_, i) => i + 1);
+
+const getMonthName = (monthVal) => {
+  const found = MONTHS_OPTIONS.find((m) => Number(m.value) === Number(monthVal));
+  return found ? found.label : '-';
+};
+
 const FeesStructures = () => {
+  const { user } = useSelector((state) => state.auth || {});
+  const { isSuperAdmin } = usePermission();
+  const userBranchId = user?.branch_id || user?.branchId || (localStorage.getItem('active_branch_id') !== 'all' ? localStorage.getItem('active_branch_id') : null);
+
+  const canManageStruct = (struct) => {
+    if (isSuperAdmin) return true;
+    if (!struct?.branch_id) return false;
+    if (userBranchId && String(struct.branch_id) !== String(userBranchId)) return false;
+    return true;
+  };
+
   const [structures, setStructures] = useState([]);
   const [classes, setClasses] = useState([]);
   const [academicYears, setAcademicYears] = useState([]);
@@ -21,36 +56,11 @@ const FeesStructures = () => {
   // Filters & Search
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedYear, setSelectedYear] = useState('');
-
-  // Modal State for Add / Edit
-  const [showModal, setShowModal] = useState(false);
-  const [modalMode, setModalMode] = useState('add'); // 'add' | 'edit'
-  const [saving, setSaving] = useState(false);
-  const [currentId, setCurrentId] = useState(null);
-  const [isOriginallyPublished, setIsOriginallyPublished] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState('');
 
   // Modal State for View / Details
   const [showViewModal, setShowViewModal] = useState(false);
   const [viewStructure, setViewStructure] = useState(null);
-
-  // Form State
-  const [formData, setFormData] = useState({
-    name: '',
-    branch_id: '',
-    class_id: [],
-    academic_year_id: '',
-    frequency: 'Monthly',
-    due_day: 10,
-    grace_period_days: 5,
-    late_fee_type: '0',
-    late_fee_amount: 50,
-    allow_partial_payment: 1,
-    is_published: 0,
-    generate_on_day: 1,
-    description: '',
-    status: 1,
-    components: [],
-  });
 
   const [reloadTrigger, setReloadTrigger] = useState(0);
 
@@ -154,109 +164,6 @@ const FeesStructures = () => {
     return struct.class_name || struct.class_names || 'All Classes';
   };
 
-  const handleOpenAddModal = () => {
-    setModalMode('add');
-    setCurrentId(null);
-    setIsOriginallyPublished(false);
-
-    const defaultYear =
-      academicYears.find((a) => Number(a.is_current) === 1 || String(a.is_current) === '1' || a.isCurrent)?.id ||
-      (academicYears.length > 0 ? academicYears[0].id : '');
-
-    const activeBranch = localStorage.getItem('active_branch_id');
-    const defaultBranchId = (activeBranch && activeBranch !== '0' && activeBranch !== 'all') ? activeBranch : '';
-
-    setFormData({
-      name: '',
-      branch_id: defaultBranchId,
-      class_id: classes.map((c) => String(c.id)),
-      academic_year_id: defaultYear,
-      frequency: 'Monthly',
-      due_day: 10,
-      grace_period_days: 5,
-      late_fee_type: '0',
-      late_fee_amount: 50,
-      allow_partial_payment: 1,
-      is_published: 0,
-      generate_on_day: 1,
-      description: '',
-      status: 1,
-      auto_allocate: true,
-      components: [
-        {
-          fee_component_id: feeComponents.length > 0 ? String(feeComponents[0].id) : '',
-          amount: '0.00',
-          isLocked: false,
-        },
-      ],
-    });
-    setShowModal(true);
-  };
-
-  const handleOpenEditModal = async (struct) => {
-    setModalMode('edit');
-    setCurrentId(struct.id);
-    const structIsPub = Number(struct.is_published) === 1;
-    setIsOriginallyPublished(structIsPub);
-
-    try {
-      const res = await adminFeesApi.getStructureById(struct.id);
-      const detail = res?.data || struct;
-
-      const selectedClassIds = detail.class_id
-        ? String(detail.class_id)
-            .split(',')
-            .map((id) => id.trim())
-            .filter(Boolean)
-        : [];
-
-      const isPublished = Number(detail.is_published) === 1;
-      setIsOriginallyPublished(isPublished);
-      const detailComps = detail.components || [];
-
-      let mappedComps = [];
-      if (detailComps.length > 0) {
-        mappedComps = detailComps.map((dc) => ({
-          fee_component_id: String(dc.fee_component_id),
-          amount: parseFloat(dc.amount) || '0.00',
-          isLocked: isPublished,
-          component_name: dc.component_name || dc.name,
-        }));
-      } else {
-        mappedComps = [
-          {
-            fee_component_id: feeComponents.length > 0 ? String(feeComponents[0].id) : '',
-            amount: '0.00',
-            isLocked: isPublished,
-          },
-        ];
-      }
-
-      setFormData({
-        name: detail.name || '',
-        branch_id: detail.branch_id ? String(detail.branch_id) : '',
-        class_id: selectedClassIds,
-        academic_year_id: detail.academic_year_id || '',
-        frequency: detail.frequency || 'Monthly',
-        due_day: detail.due_day !== undefined ? detail.due_day : 10,
-        grace_period_days: detail.grace_period_days !== undefined ? detail.grace_period_days : 5,
-        late_fee_type: String(detail.late_fee_type || '0'),
-        late_fee_amount: parseFloat(detail.late_fee_amount) || 50,
-        allow_partial_payment: detail.allow_partial_payment !== undefined ? detail.allow_partial_payment : 1,
-        is_published: isPublished ? 1 : 0,
-        generate_on_day: detail.generate_on_day || 1,
-        description: detail.description || '',
-        status: detail.status !== undefined ? detail.status : 1,
-        auto_allocate: true,
-        components: mappedComps,
-      });
-
-      setShowModal(true);
-    } catch (err) {
-      console.error('Failed to load structure details for editing:', err);
-      toast.error('Failed to load structure for edit.');
-    }
-  };
 
   const handleOpenViewModal = async (struct) => {
     try {
@@ -287,191 +194,75 @@ const FeesStructures = () => {
     }
   };
 
-  const handleClassCheckboxToggle = (classId) => {
-    if (isOriginallyPublished) return;
-    const cidStr = String(classId);
-    setFormData((prev) => {
-      const exists = prev.class_id.includes(cidStr);
-      const newClasses = exists
-        ? prev.class_id.filter((id) => id !== cidStr)
-        : [...prev.class_id, cidStr];
-      return { ...prev, class_id: newClasses };
-    });
-  };
 
-  const handleSelectAllClasses = (e) => {
-    if (isOriginallyPublished) return;
-    if (e.target.checked) {
-      setFormData((prev) => ({
-        ...prev,
-        class_id: classes.map((c) => String(c.id)),
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        class_id: [],
-      }));
-    }
-  };
+  // Publish Confirmation Modal State
+  const [publishModal, setPublishModal] = useState({
+    show: false,
+    struct: null,
+    processing: false,
+  });
 
-  // Line Item Row Handlers
-  const handleAddRow = () => {
-    if (isOriginallyPublished) return;
-    setFormData((prev) => ({
-      ...prev,
-      components: [
-        ...prev.components,
-        {
-          fee_component_id: feeComponents.length > 0 ? String(feeComponents[0].id) : '',
-          amount: '0.00',
-          isLocked: false,
-        },
-      ],
-    }));
-  };
-
-  const handleRemoveRow = (index) => {
-    if (formData.components.length <= 1) return;
-    if (formData.components[index]?.isLocked) return;
-    setFormData((prev) => ({
-      ...prev,
-      components: prev.components.filter((_, i) => i !== index),
-    }));
-  };
-
-  const handleRowComponentChange = (index, value) => {
-    setFormData((prev) => {
-      const updated = [...prev.components];
-      const selectedFc = feeComponents.find((fc) => String(fc.id) === String(value));
-      const isDynamic = selectedFc && (
-        selectedFc.name?.toLowerCase().includes('hostel') ||
-        selectedFc.name?.toLowerCase().includes('transport') ||
-        selectedFc.code?.toLowerCase() === 'hostel' ||
-        selectedFc.code?.toLowerCase() === 'trans'
-      );
-      updated[index] = {
-        ...updated[index],
-        fee_component_id: value,
-        amount: isDynamic ? '0.00' : updated[index].amount,
-      };
-      return { ...prev, components: updated };
-    });
-  };
-
-  const handleRowAmountChange = (index, value) => {
-    setFormData((prev) => {
-      const updated = [...prev.components];
-      updated[index] = {
-        ...updated[index],
-        amount: value,
-      };
-      return { ...prev, components: updated };
-    });
-  };
-
-  const handleSubmit = async (e, publishOverride = null) => {
-    if (e && e.preventDefault) e.preventDefault();
-
-    if (!formData.name.trim()) {
-      toast.warning('Please enter Structure Name.');
-      return;
-    }
-    if (formData.class_id.length === 0) {
-      toast.warning('Please select at least one Target Class.');
-      return;
-    }
-
-    // Resolve component IDs directly from selected components
-    const resolvedComponents = [];
-    for (const c of formData.components) {
-      if (!c.fee_component_id) continue;
-
-      const compId = parseInt(c.fee_component_id, 10);
-      const selectedFc = feeComponents.find((fc) => fc.id === compId || String(fc.id) === String(c.fee_component_id));
-      const isDynamic = selectedFc && (
-        selectedFc.name?.toLowerCase().includes('hostel') ||
-        selectedFc.name?.toLowerCase().includes('transport') ||
-        selectedFc.code?.toLowerCase() === 'hostel' ||
-        selectedFc.code?.toLowerCase() === 'trans'
-      );
-
-      resolvedComponents.push({
-        fee_component_id: compId,
-        amount: isDynamic ? 0 : (parseFloat(c.amount) || 0),
-      });
-    }
-
-    if (resolvedComponents.length === 0) {
-      toast.warning('Please select at least one Fee Component.');
-      return;
-    }
-
-    let isPublishedVal = 0;
-    if (isOriginallyPublished) {
-      isPublishedVal = 1; // Once published, it must remain published permanently
-    } else if (publishOverride !== null && publishOverride !== undefined) {
-      isPublishedVal = publishOverride ? 1 : 0;
-    } else if (modalMode === 'add') {
-      isPublishedVal = 0; // First-time creation is always saved as Draft
-    } else {
-      isPublishedVal = Number(formData.is_published) === 1 ? 1 : 0;
-    }
-
-    const payload = {
-      ...formData,
-      is_published: isPublishedVal,
-      id: currentId,
-      branch_id: formData.branch_id ? Number(formData.branch_id) : null,
-      class_id: formData.class_id.join(','),
-      components: resolvedComponents,
-      auto_allocate: formData.auto_allocate !== false,
-    };
-
-    try {
-      setSaving(true);
-      const res = await adminFeesApi.saveStructure(payload);
-      toast.success(
-        res?.message ||
-          (modalMode === 'add'
-            ? 'Fee structure created as Draft successfully.'
-            : isPublishedVal === 1
-            ? 'Fee structure published successfully.'
-            : 'Fee structure updated successfully.')
-      );
-      setShowModal(false);
-      setReloadTrigger((prev) => prev + 1);
-    } catch (err) {
-      console.error('Failed to save fee structure:', err);
-      toast.error(err.response?.data?.message || err.message || 'Failed to save structure.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const [togglingId, setTogglingId] = useState(null);
-
-  const handleTogglePublish = async (struct) => {
+  const handleOpenPublishModal = (struct) => {
     if (Number(struct.is_published) === 1) {
       toast.info('A published fee structure cannot be reverted to Draft. It must remain published.');
       return;
     }
+    setPublishModal({
+      show: true,
+      struct,
+      processing: false,
+    });
+  };
 
-    const confirmMsg = `Are you sure you want to publish "${struct.name}"? It will become active for student billing.`;
-
-    if (!window.confirm(confirmMsg)) return;
+  const handleConfirmPublish = async () => {
+    if (!publishModal.struct?.id) return;
 
     try {
-      setTogglingId(struct.id);
-      const res = await adminFeesApi.togglePublishStructure(struct.id, 1);
-      toast.success(
-        res?.message || 'Fee structure published successfully.'
-      );
+      setPublishModal((prev) => ({ ...prev, processing: true }));
+      const res = await adminFeesApi.togglePublishStructure(publishModal.struct.id, 1);
+      toast.success(res?.message || 'Fee structure published successfully.');
+      setPublishModal({ show: false, struct: null, processing: false });
+      setShowViewModal(false);
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       console.error('Failed to publish fee structure:', err);
+      toast.error(err.response?.data?.message || err.message || 'Failed to publish fee structure.');
+      setPublishModal((prev) => ({ ...prev, processing: false }));
+    }
+  };
+
+  // Status Confirmation Modal State
+  const [statusModal, setStatusModal] = useState({
+    show: false,
+    struct: null,
+    targetStatus: 1, // 1 for Activate, 2 for Deactivate
+    processing: false,
+  });
+
+  const handleOpenStatusModal = (struct, targetStatus) => {
+    setStatusModal({
+      show: true,
+      struct,
+      targetStatus: targetStatus !== undefined ? targetStatus : (Number(struct.status) === 1 ? 2 : 1),
+      processing: false,
+    });
+  };
+
+  const handleConfirmStatusChange = async () => {
+    if (!statusModal.struct?.id) return;
+    try {
+      setStatusModal((prev) => ({ ...prev, processing: true }));
+      const res = await adminFeesApi.updateStructureStatus(statusModal.struct.id, statusModal.targetStatus);
+      toast.success(res?.message || `Fee structure marked ${statusModal.targetStatus === 1 ? 'Active' : 'Inactive'}.`);
+      setStatusModal({ show: false, struct: null, targetStatus: 1, processing: false });
+      if (showViewModal && viewStructure?.id === statusModal.struct.id) {
+        setViewStructure((prev) => ({ ...prev, status: statusModal.targetStatus }));
+      }
+      setReloadTrigger((prev) => prev + 1);
+    } catch (err) {
+      console.error('Failed to update status:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to update status.');
-    } finally {
-      setTogglingId(null);
+      setStatusModal((prev) => ({ ...prev, processing: false }));
     }
   };
 
@@ -483,7 +274,11 @@ const FeesStructures = () => {
     processing: false,
   });
 
-  const handleDelete = (id, name) => {
+  const handleDelete = (id, name, isPublished) => {
+    if (Number(isPublished) === 1) {
+      toast.error('A published fee structure cannot be deleted by anyone, including Super Admin.');
+      return;
+    }
     setDeleteModal({
       show: true,
       id,
@@ -519,10 +314,11 @@ const FeesStructures = () => {
         s.class_names?.toLowerCase().includes(searchTerm.toLowerCase());
 
       const matchYear = !selectedYear || String(s.academic_year_id) === String(selectedYear);
+      const matchStatus = !selectedStatus || String(s.status) === String(selectedStatus);
 
-      return matchSearch && matchYear;
+      return matchSearch && matchYear && matchStatus;
     });
-  }, [structures, searchTerm, selectedYear]);
+  }, [structures, searchTerm, selectedYear, selectedStatus]);
 
   return (
     <div className="content">
@@ -545,9 +341,9 @@ const FeesStructures = () => {
           </nav>
         </div>
         <div className="d-flex gap-2">
-          <button className="btn btn-primary" onClick={handleOpenAddModal}>
+          <Link to="/admin/fees/structures/create" className="btn btn-primary">
             <i className="ti ti-plus me-1"></i>Create Fee Structure
-          </button>
+          </Link>
         </div>
       </div>
       {/* /Page Header */}
@@ -572,6 +368,17 @@ const FeesStructures = () => {
               ))}
             </select>
 
+            <select
+              className="form-select form-select-sm"
+              style={{ width: '130px' }}
+              value={selectedStatus}
+              onChange={(e) => setSelectedStatus(e.target.value)}
+            >
+              <option value="">All Statuses</option>
+              <option value="1">Active</option>
+              <option value="2">Inactive</option>
+            </select>
+
             <input
               type="search"
               className="form-control form-control-sm"
@@ -593,8 +400,10 @@ const FeesStructures = () => {
                   <th>Class</th>
                   <th>Academic Year</th>
                   <th>Frequency</th>
+                  <th>Total Fee</th>
                   <th>Due Day / Grace</th>
                   <th>Late Fee Rule</th>
+                  <th>Publish</th>
                   <th>Status</th>
                   <th>Action</th>
                 </tr>
@@ -602,14 +411,14 @@ const FeesStructures = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-4 text-muted">
+                    <td colSpan="11" className="text-center py-4 text-muted">
                       <div className="spinner-border text-primary spinner-border-sm me-2" role="status"></div>
                       Loading fee structures...
                     </td>
                   </tr>
                 ) : filteredStructures.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-4">
+                    <td colSpan="11" className="text-center py-4">
                       <NoData
                         title="No Fee Structures Found"
                         message='No fee structures found. Click "Create Fee Structure" to build one.'
@@ -647,6 +456,20 @@ const FeesStructures = () => {
                       <td>{struct.academic_year || '-'}</td>
                       <td>
                         <span className="badge bg-light text-dark border">{struct.frequency}</span>
+                        {struct.start_month ? (
+                          <div className="text-muted fs-11 mt-1">
+                            Starts: {getMonthName(struct.start_month)}, Day {struct.generate_on_day || 1}
+                          </div>
+                        ) : null}
+                      </td>
+                      <td>
+                        <span className="fw-bold text-dark">
+                          ₹{(
+                            (struct.components && struct.components.length > 0)
+                              ? struct.components.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0)
+                              : (parseFloat(struct.total_amount) || 0)
+                          ).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
                       </td>
                       <td>
                         Day {struct.due_day}{' '}
@@ -665,25 +488,58 @@ const FeesStructures = () => {
                           >
                             <i className="ti ti-check me-1"></i>Published
                           </span>
-                        ) : (
+                        ) : canManageStruct(struct) ? (
                           <button
                             type="button"
                             className="btn btn-link p-0 text-decoration-none border-0"
-                            onClick={() => handleTogglePublish(struct)}
-                            disabled={togglingId === struct.id}
+                            onClick={() => handleOpenPublishModal(struct)}
                             title="Click to publish this structure"
                           >
-                            {togglingId === struct.id ? (
-                              <span className="badge bg-secondary">
-                                <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                                Updating...
-                              </span>
-                            ) : (
-                              <span className="badge bg-warning text-dark shadow-sm" style={{ cursor: 'pointer' }}>
-                                <i className="ti ti-clock me-1"></i>Draft
-                              </span>
-                            )}
+                            <span className="badge bg-warning text-dark shadow-sm" style={{ cursor: 'pointer' }}>
+                              <i className="ti ti-clock me-1"></i>Draft
+                            </span>
                           </button>
+                        ) : (
+                          <span className="badge bg-warning text-dark shadow-sm" title="Draft">
+                            <i className="ti ti-clock me-1"></i>Draft
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        {Number(struct.status) === 2 ? (
+                          canManageStruct(struct) ? (
+                            <button
+                              type="button"
+                              className="btn btn-link p-0 text-decoration-none border-0"
+                              onClick={() => handleOpenStatusModal(struct, 1)}
+                              title="Inactive - Click to Activate"
+                            >
+                              <span className="badge bg-danger-transparent text-danger border border-danger-subtle shadow-sm" style={{ cursor: 'pointer' }}>
+                                <i className="ti ti-circle-x me-1"></i>Inactive
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="badge bg-danger-transparent text-danger border border-danger-subtle shadow-sm" title="Inactive">
+                              <i className="ti ti-circle-x me-1"></i>Inactive
+                            </span>
+                          )
+                        ) : (
+                          canManageStruct(struct) ? (
+                            <button
+                              type="button"
+                              className="btn btn-link p-0 text-decoration-none border-0"
+                              onClick={() => handleOpenStatusModal(struct, 2)}
+                              title="Active - Click to Deactivate"
+                            >
+                              <span className="badge bg-success-transparent text-success border border-success-subtle shadow-sm" style={{ cursor: 'pointer' }}>
+                                <i className="ti ti-circle-check me-1"></i>Active
+                              </span>
+                            </button>
+                          ) : (
+                            <span className="badge bg-success-transparent text-success border border-success-subtle shadow-sm" title="Active">
+                              <i className="ti ti-circle-check me-1"></i>Active
+                            </span>
+                          )
                         )}
                       </td>
                       <td>
@@ -695,33 +551,56 @@ const FeesStructures = () => {
                         >
                           <i className="ti ti-eye me-1"></i>View
                         </button>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-primary me-1"
-                          onClick={() => handleOpenEditModal(struct)}
-                          title="Edit"
-                        >
-                          <i className="ti ti-edit me-1"></i>Edit
-                        </button>
-                        {struct.is_published !== 1 && (
+                        {struct.is_published !== 1 && canManageStruct(struct) && (
+                          <Link
+                            to={`/admin/fees/structures/edit/${struct.id}`}
+                            className="btn btn-sm btn-outline-primary me-1"
+                            title="Edit"
+                          >
+                            <i className="ti ti-edit me-1"></i>Edit
+                          </Link>
+                        )}
+                        {struct.is_published !== 1 && canManageStruct(struct) && (
                           <button
                             type="button"
                             className="btn btn-sm btn-outline-success me-1"
-                            onClick={() => handleTogglePublish(struct)}
-                            disabled={togglingId === struct.id}
+                            onClick={() => handleOpenPublishModal(struct)}
                             title="Publish Structure"
                           >
                             <i className="ti ti-check me-1"></i>Publish
                           </button>
                         )}
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-danger"
-                          onClick={() => handleDelete(struct.id, struct.name)}
-                          title="Delete"
-                        >
-                          <i className="ti ti-trash me-1"></i>Delete
-                        </button>
+                        {canManageStruct(struct) && (
+                          Number(struct.status) === 2 ? (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-success me-1"
+                              onClick={() => handleOpenStatusModal(struct, 1)}
+                              title="Activate Structure"
+                            >
+                              <i className="ti ti-player-play me-1"></i>Activate
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-warning me-1"
+                              onClick={() => handleOpenStatusModal(struct, 2)}
+                              title="Deactivate Structure"
+                            >
+                              <i className="ti ti-player-pause me-1"></i>Deactivate
+                            </button>
+                          )
+                        )}
+                        {struct.is_published !== 1 && canManageStruct(struct) && (
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger"
+                            onClick={() => handleDelete(struct.id, struct.name, struct.is_published)}
+                            title="Delete"
+                          >
+                            <i className="ti ti-trash me-1"></i>Delete
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))
@@ -732,426 +611,7 @@ const FeesStructures = () => {
         </div>
       </div>
 
-      {/* Add / Edit Structure Modal */}
-      {showModal && (
-        <div
-          className="modal fade show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
-          tabIndex="-1"
-          role="dialog"
-        >
-          <div className="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable" role="document">
-            <div className="modal-content border-0 shadow-lg" style={{ maxHeight: 'calc(100vh - 3.5rem)', display: 'flex', flexDirection: 'column' }}>
-              <form onSubmit={handleSubmit} className="d-flex flex-column h-100 overflow-hidden" style={{ maxHeight: '100%', minHeight: 0 }}>
-                <div className="modal-header py-3 px-4 border-bottom flex-shrink-0">
-                  <h5 className="modal-title text-dark fw-bold" id="structureModalTitle">
-                    {modalMode === 'add'
-                      ? 'Create Master Fee Structure'
-                      : isOriginallyPublished || formData.is_published === 1
-                      ? 'Edit Fee Structure (Published)'
-                      : 'Edit Master Fee Structure'}
-                  </h5>
-                  <button
-                    type="button"
-                    className="btn-close"
-                    onClick={() => setShowModal(false)}
-                    aria-label="Close"
-                  ></button>
-                </div>
 
-                <div className="modal-body p-4" style={{ overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-                  <input type="hidden" name="id" value={currentId || ''} />
-
-                  {/* Row 1: Structure Name, Campus / Branch & Status */}
-                  <div className="row g-3 mb-3">
-                    <div className="col-md-5">
-                      <label className="form-label fw-semibold">
-                        Structure Name <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        name="name"
-                        className="form-control"
-                        placeholder="e.g. Grade 10 - Annual Fee Structure"
-                        required
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label fw-semibold">
-                        Campus / Branch
-                      </label>
-                      <select
-                        name="branch_id"
-                        className="form-select"
-                        disabled={isOriginallyPublished || (modalMode === 'edit' && formData.is_published === 1)}
-                        value={formData.branch_id || ''}
-                        onChange={(e) => setFormData({ ...formData, branch_id: e.target.value })}
-                      >
-                        <option value="">All Campuses (School-wide)</option>
-                        {branches.map((b) => (
-                          <option key={b.id} value={b.id}>
-                            {b.branch_name} {b.branch_code ? `(${b.branch_code})` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <small className="text-muted fs-11">Applies across school or to this campus</small>
-                    </div>
-
-                    <div className="col-md-3">
-                      <label className="form-label fw-semibold">Status</label>
-                      {modalMode === 'add' ? (
-                        <div>
-                          <span className="badge bg-warning text-dark py-2 px-3 fs-12 d-inline-flex align-items-center">
-                            <i className="ti ti-clock me-1"></i>Draft
-                          </span>
-                          <small className="text-muted d-block mt-1 fs-11">Saved initially as Draft</small>
-                        </div>
-                      ) : isOriginallyPublished ? (
-                        <div>
-                          <span
-                            className="badge bg-success py-2 px-3 fs-12 d-inline-flex align-items-center"
-                            title="A published fee structure cannot be reverted to Draft"
-                          >
-                            <i className="ti ti-check me-1"></i>Published
-                          </span>
-                          <small className="text-muted d-block mt-1 fs-11">Published permanently</small>
-                        </div>
-                      ) : (
-                        <div>
-                          <select
-                            name="is_published"
-                            className="form-select"
-                            value={formData.is_published}
-                            onChange={(e) =>
-                              setFormData({ ...formData, is_published: parseInt(e.target.value, 10) })
-                            }
-                          >
-                            <option value="0">Draft</option>
-                            <option value="1">Published</option>
-                          </select>
-                          <small className="text-muted d-block mt-1 fs-11">
-                            {formData.is_published === 1 ? 'Will publish on save' : 'Draft status'}
-                          </small>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Row 1b: Target Classes */}
-                  <div className="row g-3 mb-3">
-                    <div className="col-12">
-                      <div className="d-flex justify-content-between align-items-center mb-1">
-                        <label className="form-label fw-semibold mb-0">
-                          Target Classes <span className="text-danger">*</span>
-                        </label>
-                        {!isOriginallyPublished && (
-                          <div className="form-check form-check-inline mb-0">
-                            <input
-                              type="checkbox"
-                              className="form-check-input"
-                              id="selectAllModalClasses"
-                              checked={
-                                formData.class_id.length === classes.length && classes.length > 0
-                              }
-                              onChange={handleSelectAllClasses}
-                            />
-                            <label
-                              className="form-check-label fs-12 fw-semibold text-primary"
-                              htmlFor="selectAllModalClasses"
-                            >
-                              Select All
-                            </label>
-                          </div>
-                        )}
-                      </div>
-
-                      {isOriginallyPublished ? (
-                        <div className="p-2 border rounded bg-light" style={{ maxHeight: '120px', overflowY: 'auto' }}>
-                          <div className="d-flex flex-wrap gap-1">
-                            {formData.class_id.map((cid) => {
-                              const found = classes.find((c) => String(c.id) === String(cid));
-                              return (
-                                <span key={`locked-cls-${cid}`} className="badge bg-primary text-white fs-12">
-                                  {found ? found.class_name : `Class ${cid}`}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      ) : (
-                        <div
-                          className="border rounded p-2 bg-white"
-                          style={{ maxHeight: '120px', overflowY: 'auto' }}
-                        >
-                          <div className="d-flex flex-wrap gap-1">
-                            {classes.map((cls) => {
-                              const isChecked = formData.class_id.includes(String(cls.id));
-                              return (
-                                <span
-                                  key={`opt-cls-${cls.id}`}
-                                  onClick={() => handleClassCheckboxToggle(cls.id)}
-                                  className={`badge cursor-pointer px-2 py-1 fs-12 ${
-                                    isChecked ? 'bg-primary text-white' : 'bg-light text-dark border'
-                                  }`}
-                                  style={{ cursor: 'pointer', userSelect: 'none' }}
-                                >
-                                  {cls.class_name} {isChecked ? '✓' : '+'}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Row 2: Academic Year, Billing Frequency, Allow Partial Payment */}
-                  <div className="row g-3 mb-3">
-                    <div className="col-md-4">
-                      <label className="form-label fw-semibold">
-                        Academic Year <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        name="academic_year_id"
-                        className="form-select"
-                        required
-                        disabled={isOriginallyPublished}
-                        value={formData.academic_year_id}
-                        onChange={(e) => setFormData({ ...formData, academic_year_id: e.target.value })}
-                      >
-                        <option value="">-- Select Year --</option>
-                        {academicYears.map((ay) => (
-                          <option key={ay.id} value={ay.id}>
-                            {ay.academic_year}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label fw-semibold">Billing Frequency</label>
-                      <select
-                        name="frequency"
-                        className="form-select"
-                        value={formData.frequency}
-                        onChange={(e) => setFormData({ ...formData, frequency: e.target.value })}
-                      >
-                        <option value="Monthly">Monthly</option>
-                        <option value="Quarterly">Quarterly</option>
-                        <option value="Bi-Annually">Bi-Annually</option>
-                        <option value="Annually">Annually</option>
-                        <option value="One-Time">One-Time</option>
-                      </select>
-                    </div>
-
-                    <div className="col-md-4">
-                      <label className="form-label fw-semibold">Allow Partial Payment?</label>
-                      <select
-                        name="allow_partial_payment"
-                        className="form-select"
-                        value={formData.allow_partial_payment}
-                        onChange={(e) =>
-                          setFormData({ ...formData, allow_partial_payment: parseInt(e.target.value) })
-                        }
-                      >
-                        <option value="1">Yes (Allowed)</option>
-                        <option value="0">No (Full Payment Only)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Row 3: Generate On, Due Day, Grace Days, Late Fee */}
-                  <div className="row g-3 mb-3">
-                    <div className="col-md-3">
-                      <label className="form-label fw-semibold">
-                        Generate On (Day) <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        name="generate_on_day"
-                        className="form-control"
-                        value={formData.generate_on_day}
-                        min="1"
-                        max="28"
-                        required
-                        onChange={(e) => setFormData({ ...formData, generate_on_day: e.target.value })}
-                      />
-                      <small className="text-muted fs-11">Day of month (1-28) for auto cron</small>
-                    </div>
-
-                    <div className="col-md-3">
-                      <label className="form-label fw-semibold">Due Day (Day of Month)</label>
-                      <input
-                        type="number"
-                        name="due_day"
-                        className="form-control"
-                        value={formData.due_day}
-                        min="1"
-                        max="31"
-                        onChange={(e) => setFormData({ ...formData, due_day: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="col-md-3">
-                      <label className="form-label fw-semibold">Grace Days</label>
-                      <input
-                        type="number"
-                        name="grace_period_days"
-                        className="form-control"
-                        value={formData.grace_period_days}
-                        min="0"
-                        onChange={(e) => setFormData({ ...formData, grace_period_days: e.target.value })}
-                      />
-                    </div>
-
-                    <div className="col-md-3">
-                      <label className="form-label fw-semibold">Late Fee (₹)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        name="late_fee_amount"
-                        className="form-control"
-                        value={formData.late_fee_amount}
-                        onChange={(e) => setFormData({ ...formData, late_fee_amount: e.target.value })}
-                      />
-                    </div>
-                  </div>
-
-                  <hr className="my-3" />
-
-                  {/* Line Items Table */}
-                  <h6 className="fw-bold text-dark mb-3">
-                    <i className="ti ti-list me-1 text-primary"></i>Fee Line Items / Components Breakdown
-                  </h6>
-
-                  <div className="table-responsive">
-                    <table className="table table-bordered align-middle" id="structure_items_table">
-                      <thead className="table-light">
-                        <tr>
-                          <th>Select Fee Component</th>
-                          <th style={{ width: '200px' }}>Amount (₹)</th>
-                          <th style={{ width: '60px' }} className="text-center"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.components.map((comp, idx) => {
-                          const selectedFc = feeComponents.find(
-                            (fc) => String(fc.id) === String(comp.fee_component_id)
-                          );
-                          const isSpecial =
-                            selectedFc &&
-                            (selectedFc.name?.toLowerCase().includes('hostel') ||
-                              selectedFc.name?.toLowerCase().includes('transport') ||
-                              selectedFc.code?.toLowerCase() === 'hostel' ||
-                              selectedFc.code?.toLowerCase() === 'trans');
-
-                          return (
-                            <tr key={`row-${idx}`}>
-                              <td>
-                                <select
-                                  className="form-select"
-                                  disabled={comp.isLocked}
-                                  value={comp.fee_component_id}
-                                  onChange={(e) => handleRowComponentChange(idx, e.target.value)}
-                                  required
-                                >
-                                  <option value="">-- Choose Component --</option>
-                                  {feeComponents.length === 0 ? (
-                                    <option value="" disabled>
-                                      No fee components found (Create in Fee Components first)
-                                    </option>
-                                  ) : (
-                                    feeComponents.map((fc) => (
-                                      <option key={`fc-${fc.id}`} value={String(fc.id)}>
-                                        {fc.name} {fc.code ? `(${fc.code})` : ''}
-                                      </option>
-                                    ))
-                                  )}
-                                </select>
-                              </td>
-                              <td className="amount-cell">
-                                {isSpecial ? (
-                                  <div className="dynamic-amount-badge">
-                                    <span className="badge bg-light text-primary border">
-                                      <i className="ti ti-user-check me-1"></i>Dynamic per Student
-                                    </span>
-                                  </div>
-                                ) : (
-                                  <input
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    className="form-control component-amount-input fw-bold text-dark"
-                                    placeholder="0.00"
-                                    value={comp.amount}
-                                    onChange={(e) => handleRowAmountChange(idx, e.target.value)}
-                                    required={!isSpecial}
-                                  />
-                                )}
-                              </td>
-                              <td className="text-center">
-                                <button
-                                  type="button"
-                                  className={`btn btn-sm ${
-                                    comp.isLocked ? 'btn-outline-secondary' : 'btn-outline-danger'
-                                  }`}
-                                  disabled={comp.isLocked || formData.components.length <= 1}
-                                  onClick={() => handleRemoveRow(idx)}
-                                  title={comp.isLocked ? 'Locked' : 'Remove Item'}
-                                >
-                                  <i className={comp.isLocked ? 'ti ti-lock' : 'ti ti-minus'}></i>
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-
-                  {!isOriginallyPublished && (
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-primary mt-2"
-                      onClick={handleAddRow}
-                    >
-                      <i className="ti ti-plus me-1"></i>Add Another Line Item
-                    </button>
-                  )}
-                </div>
-
-                <div className="modal-footer bg-light gap-2 flex-shrink-0">
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => setShowModal(false)}
-                    disabled={saving}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="btn btn-primary"
-                    disabled={saving}
-                  >
-                    {saving ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Submitting...
-                      </>
-                    ) : (
-                      'Submit'
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* View Structure Details Modal */}
       {showViewModal && viewStructure && (() => {
@@ -1243,7 +703,7 @@ const FeesStructures = () => {
                         </span>
                       </div>
                     </div>
-                    <div className="col-12 col-md-4">
+                    <div className="col-12 col-md-3">
                       <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
                         Academic Year
                       </label>
@@ -1252,9 +712,9 @@ const FeesStructures = () => {
                         <span>{viewStructure.academic_year || '-'}</span>
                       </div>
                     </div>
-                    <div className="col-12 col-md-3">
+                    <div className="col-6 col-md-2">
                       <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
-                        Status
+                        Publish
                       </label>
                       <div>
                         {viewStructure.is_published === 1 ? (
@@ -1268,30 +728,52 @@ const FeesStructures = () => {
                         )}
                       </div>
                     </div>
+                    <div className="col-6 col-md-2">
+                      <label className="text-muted fs-12 text-uppercase fw-semibold d-block mb-1">
+                        Status
+                      </label>
+                      <div>
+                        {Number(viewStructure.status) === 2 ? (
+                          <span className="badge bg-danger-transparent text-danger border border-danger-subtle fs-12 py-1 px-2.5">
+                            <i className="ti ti-circle-x me-1"></i>Inactive
+                          </span>
+                        ) : (
+                          <span className="badge bg-success-transparent text-success border border-success-subtle fs-12 py-1 px-2.5">
+                            <i className="ti ti-circle-check me-1"></i>Active
+                          </span>
+                        )}
+                      </div>
+                    </div>
                   </div>
 
                   <div className="row g-3 mb-4 p-3 bg-light rounded border">
-                    <div className="col-md-3">
-                      <small className="text-muted d-block">Generate On (Day)</small>
+                    <div className="col-6 col-md-2">
+                      <small className="text-muted d-block">Start Month & Day</small>
                       <span className="fw-bold text-primary">
-                        Day {viewStructure.generate_on_day || 1}
+                        {getMonthName(viewStructure.start_month || 1)}, Day {viewStructure.generate_on_day || 1}
                       </span>
                     </div>
-                    <div className="col-md-3">
+                    <div className="col-6 col-md-2">
                       <small className="text-muted d-block">Billing Frequency</small>
                       <span className="fw-bold text-dark">{viewStructure.frequency || '-'}</span>
                     </div>
-                    <div className="col-md-2">
+                    <div className="col-6 col-md-2">
+                      <small className="text-muted d-block">Total Fee</small>
+                      <span className="fw-bold text-success fs-14">
+                        ₹{comps.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="col-6 col-md-2">
                       <small className="text-muted d-block">Due Day</small>
                       <span className="fw-bold text-dark">Day {viewStructure.due_day || 10}</span>
                     </div>
-                    <div className="col-md-2">
+                    <div className="col-6 col-md-2">
                       <small className="text-muted d-block">Grace Period</small>
                       <span className="fw-bold text-dark">
                         {viewStructure.grace_period_days || 0} Days
                       </span>
                     </div>
-                    <div className="col-md-2">
+                    <div className="col-6 col-md-2">
                       <small className="text-muted d-block">Late Fee Rule</small>
                       <span className="fw-bold text-danger">
                         {parseFloat(viewStructure.late_fee_amount) > 0
@@ -1301,9 +783,14 @@ const FeesStructures = () => {
                     </div>
                   </div>
 
-                  <h6 className="fw-bold text-dark mb-3">
-                    <i className="ti ti-list me-1 text-primary"></i>Fee Line Items / Components Breakdown
-                  </h6>
+                  <div className="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+                    <h6 className="fw-bold text-dark mb-0">
+                      <i className="ti ti-list me-1 text-primary"></i>Fee Line Items / Components Breakdown
+                    </h6>
+                    <span className="badge bg-primary-transparent text-primary fs-13 py-1.5 px-3 border border-primary-subtle fw-semibold">
+                      Total Fee: ₹{comps.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
                   <div className="table-responsive">
                     <table className="table table-bordered table-striped align-middle mb-0">
                       <thead className="table-light">
@@ -1357,6 +844,14 @@ const FeesStructures = () => {
                           })
                         )}
                       </tbody>
+                      <tfoot className="table-light border-top">
+                        <tr>
+                          <th colSpan="3" className="text-end fw-bold">Total Fee:</th>
+                          <th className="text-end fw-bold text-dark fs-14">
+                            ₹{comps.reduce((sum, c) => sum + (parseFloat(c.amount) || 0), 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </th>
+                        </tr>
+                      </tfoot>
                     </table>
                   </div>
 
@@ -1453,15 +948,32 @@ const FeesStructures = () => {
                   >
                     Close
                   </button>
-                  {viewStructure.is_published !== 1 && (
+                  {canManageStruct(viewStructure) && (
+                    Number(viewStructure.status) === 2 ? (
+                      <button
+                        type="button"
+                        className="btn btn-outline-success"
+                        onClick={() => handleOpenStatusModal(viewStructure, 1)}
+                      >
+                        <i className="ti ti-player-play me-1"></i>
+                        Activate Structure
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn btn-outline-warning"
+                        onClick={() => handleOpenStatusModal(viewStructure, 2)}
+                      >
+                        <i className="ti ti-player-pause me-1"></i>
+                        Deactivate Structure
+                      </button>
+                    )
+                  )}
+                  {viewStructure.is_published !== 1 && canManageStruct(viewStructure) && (
                     <button
                       type="button"
                       className="btn btn-success"
-                      disabled={togglingId === viewStructure.id}
-                      onClick={async () => {
-                        await handleTogglePublish(viewStructure);
-                        setShowViewModal(false);
-                      }}
+                      onClick={() => handleOpenPublishModal(viewStructure)}
                     >
                       <i className="ti ti-check me-1"></i>
                       Publish Structure
@@ -1522,6 +1034,143 @@ const FeesStructures = () => {
                       </>
                     ) : (
                       'Delete'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Publish Confirmation Modal */}
+      {publishModal.show && publishModal.struct && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header border-0 pb-0">
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setPublishModal({ show: false, struct: null, processing: false })}
+                  aria-label="Close"
+                  disabled={publishModal.processing}
+                ></button>
+              </div>
+              <div className="modal-body text-center pt-0 pb-4 px-4">
+                <div className="text-success mb-3">
+                  <i className="ti ti-circle-check fs-48"></i>
+                </div>
+                <h4 className="mb-2 text-dark fw-bold">Publish Fee Structure</h4>
+                <p className="text-muted mb-3">
+                  Are you sure you want to publish <strong className="text-dark">"{publishModal.struct.name}"</strong>?
+                </p>
+                <div className="alert alert-info py-2 px-3 fs-12 text-start mb-4">
+                  <i className="ti ti-info-circle me-1"></i>
+                  Once published, this fee structure will become active for student fee generation and cannot be deleted or reverted to Draft.
+                </div>
+                <div className="d-flex justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light px-4 border"
+                    onClick={() => setPublishModal({ show: false, struct: null, processing: false })}
+                    disabled={publishModal.processing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-success px-4"
+                    onClick={handleConfirmPublish}
+                    disabled={publishModal.processing}
+                  >
+                    {publishModal.processing ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Publishing...
+                      </>
+                    ) : (
+                      <>
+                        <i className="ti ti-check me-1"></i>
+                        Confirm &amp; Publish
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Status Change Confirmation Modal */}
+      {statusModal.show && statusModal.struct && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header border-0 pb-0">
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setStatusModal({ show: false, struct: null, targetStatus: 1, processing: false })}
+                  aria-label="Close"
+                  disabled={statusModal.processing}
+                ></button>
+              </div>
+              <div className="modal-body text-center pt-0 pb-4 px-4">
+                <div className={`mb-3 ${statusModal.targetStatus === 1 ? 'text-success' : 'text-warning'}`}>
+                  {statusModal.targetStatus === 1 ? (
+                    <i className="ti ti-circle-check fs-48"></i>
+                  ) : (
+                    <i className="ti ti-alert-triangle fs-48"></i>
+                  )}
+                </div>
+                <h4 className="mb-2 text-dark fw-bold">
+                  {statusModal.targetStatus === 1 ? 'Activate Fee Structure' : 'Deactivate Fee Structure'}
+                </h4>
+                <p className="text-muted mb-3">
+                  Are you sure you want to {statusModal.targetStatus === 1 ? 'activate' : 'deactivate'}{' '}
+                  <strong className="text-dark">"{statusModal.struct.name}"</strong>?
+                </p>
+                <div className={`alert ${statusModal.targetStatus === 1 ? 'alert-success' : 'alert-warning'} py-2 px-3 fs-12 text-start mb-4`}>
+                  <i className="ti ti-info-circle me-1"></i>
+                  {statusModal.targetStatus === 1
+                    ? 'Activating this structure will allow it to be selected and used when generating batch and individual invoices.'
+                    : 'Deactivating this structure will temporarily disable it from new invoice generations. Existing generated invoices will not be affected.'}
+                </div>
+                <div className="d-flex justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light px-4 border"
+                    onClick={() => setStatusModal({ show: false, struct: null, targetStatus: 1, processing: false })}
+                    disabled={statusModal.processing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={`btn px-4 ${statusModal.targetStatus === 1 ? 'btn-success' : 'btn-warning text-dark'}`}
+                    onClick={handleConfirmStatusChange}
+                    disabled={statusModal.processing}
+                  >
+                    {statusModal.processing ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <i className={`ti ${statusModal.targetStatus === 1 ? 'ti-check' : 'ti-player-pause'} me-1`}></i>
+                        Confirm &amp; {statusModal.targetStatus === 1 ? 'Activate' : 'Deactivate'}
+                      </>
                     )}
                   </button>
                 </div>

@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
 import adminAcademicApi from '../../../api/adminAcademic.api';
+import { fetchStudentsApi } from '../../../api/adminStudent.api';
 import { getPaginationRange } from '../../../utils/pagination.util';
 import { encodeParam } from '../../../utils/idHelper';
 import NoData from '../../../components/common/NoData';
 
 const FeesInvoices = () => {
+  const todayStr = new Date().toISOString().split('T')[0];
   const [invoices, setInvoices] = useState([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -35,14 +37,20 @@ const FeesInvoices = () => {
   const [generating, setGenerating] = useState(false);
   const [genSections, setGenSections] = useState([]);
   const [genFormData, setGenFormData] = useState({
+    academic_year_id: '',
     class_id: '',
     section_id: '',
+    student_id: '',
     fee_structure_id: '',
-    academic_year_id: '',
     title: '',
     issue_date: new Date().toISOString().split('T')[0],
-    due_date: '',
   });
+
+  // Target Student dropdown state
+  const [classStudents, setClassStudents] = useState([]);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [alreadyInvoicedStudentIds, setAlreadyInvoicedStudentIds] = useState([]);
+  const [invoicedDetails, setInvoicedDetails] = useState(null);
 
   // Bulk Generate Invoices Modal State
   const [showBulkGenModal, setShowBulkGenModal] = useState(false);
@@ -61,10 +69,14 @@ const FeesInvoices = () => {
   useEffect(() => {
     if (!showGenModal) {
       setDuplicateWarning('');
+      setAlreadyInvoicedStudentIds([]);
+      setInvoicedDetails(null);
       return;
     }
-    if (!genFormData.fee_structure_id || !genFormData.issue_date) {
+    if (!genFormData.fee_structure_id || !genFormData.issue_date || !genFormData.class_id) {
       setDuplicateWarning('');
+      setAlreadyInvoicedStudentIds([]);
+      setInvoicedDetails(null);
       return;
     }
 
@@ -72,19 +84,44 @@ const FeesInvoices = () => {
     const checkDup = async () => {
       try {
         setCheckingDuplicate(true);
-        const res = await adminFeesApi.checkDuplicateInvoice({
+        const params = {
           fee_structure_id: genFormData.fee_structure_id,
+          academic_year_id: genFormData.academic_year_id || undefined,
+          class_id: genFormData.class_id,
+          section_id: genFormData.section_id || undefined,
           issue_date: genFormData.issue_date,
-        });
+        };
+
+        if (genFormData.student_id) {
+          params.student_id = genFormData.student_id;
+        }
+
+        const res = await adminFeesApi.checkDuplicateInvoice(params);
         if (isMounted) {
-          if (res?.data?.exists) {
-            setDuplicateWarning(res.data.message);
+          const data = res?.data || {};
+          setAlreadyInvoicedStudentIds(data.alreadyInvoicedStudentIds || []);
+          setInvoicedDetails(data);
+
+          if (genFormData.student_id) {
+            if (data.exists) {
+              setDuplicateWarning(data.message || 'This student already has an invoice for this period.');
+            } else {
+              setDuplicateWarning('');
+            }
           } else {
-            setDuplicateWarning('');
+            if (data.exists) {
+              setDuplicateWarning(data.message || 'Invoices have already been generated for this class/section.');
+            } else {
+              setDuplicateWarning('');
+            }
           }
         }
       } catch (err) {
-        if (isMounted) setDuplicateWarning('');
+        if (isMounted) {
+          setDuplicateWarning('');
+          setAlreadyInvoicedStudentIds([]);
+          setInvoicedDetails(null);
+        }
       } finally {
         if (isMounted) setCheckingDuplicate(false);
       }
@@ -95,7 +132,15 @@ const FeesInvoices = () => {
       isMounted = false;
       clearTimeout(timer);
     };
-  }, [genFormData.fee_structure_id, genFormData.issue_date, showGenModal]);
+  }, [
+    genFormData.fee_structure_id,
+    genFormData.academic_year_id,
+    genFormData.class_id,
+    genFormData.section_id,
+    genFormData.student_id,
+    genFormData.issue_date,
+    showGenModal,
+  ]);
 
   useEffect(() => {
     fetchInitialDropdowns();
@@ -239,23 +284,51 @@ const FeesInvoices = () => {
     setCurrentPage(1);
   };
 
+  // Published structures filtered by the class selected in the Generate modal
+  const availableGenStructures = useMemo(() => {
+    return structures.filter((st) => {
+      if (Number(st.is_published) !== 1) return false;
+      if (!genFormData.class_id) return true;
+      const cIds = String(st.class_id || '')
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return cIds.length === 0 || cIds.includes(String(genFormData.class_id));
+    });
+  }, [structures, genFormData.class_id]);
+
   // Open Generate Batch Invoices Modal
   const handleOpenGenerateModal = () => {
     const currentYear =
       academicYears.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
       academicYears[0];
-    const defaultYear = currentYear ? currentYear.id : '';
-    setGenFormData({
-      class_id: classes.length > 0 ? classes[0].id : '',
-      section_id: '',
-      fee_structure_id: structures.length > 0 ? structures[0].id : '',
-      academic_year_id: defaultYear,
-      title: `${new Date().toLocaleString('default', { month: 'long' })} ${new Date().getFullYear()} Monthly Fees`,
-      issue_date: new Date().toISOString().split('T')[0],
-      due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    const initialClassId = classes.length > 0 ? String(classes[0].id) : '';
+    const matchingStructs = structures.filter((st) => {
+      if (Number(st.is_published) !== 1) return false;
+      if (!initialClassId) return true;
+      const cIds = String(st.class_id || '').split(',').map((s) => s.trim()).filter(Boolean);
+      return cIds.length === 0 || cIds.includes(String(initialClassId));
     });
-    if (classes.length > 0) {
-      loadGenSections(classes[0].id);
+    const initialStruct = matchingStructs[0] || structures.find((st) => Number(st.is_published) === 1) || null;
+    const defaultYear = initialStruct?.academic_year_id
+      ? String(initialStruct.academic_year_id)
+      : (currentYear ? String(currentYear.id) : '');
+
+    setGenFormData({
+      academic_year_id: defaultYear,
+      class_id: initialClassId,
+      section_id: '',
+      student_id: '',
+      fee_structure_id: initialStruct ? String(initialStruct.id) : '',
+      title: `${new Date().toLocaleString('default', { month: 'long' })} ${new Date().getFullYear()} Fees`,
+      issue_date: new Date().toISOString().split('T')[0],
+    });
+    setAlreadyInvoicedStudentIds([]);
+    setInvoicedDetails(null);
+    setClassStudents([]);
+    if (initialClassId) {
+      loadGenSections(initialClassId);
+      loadGenStudents(initialClassId, '');
     }
     setShowGenModal(true);
   };
@@ -280,9 +353,62 @@ const FeesInvoices = () => {
     }
   };
 
+  const loadGenStudents = async (classId, sectionId) => {
+    if (!classId) {
+      setClassStudents([]);
+      return;
+    }
+    try {
+      setLoadingStudents(true);
+      const params = { classId, limit: 500, status: 1 };
+      if (sectionId) params.sectionId = sectionId;
+      const res = await fetchStudentsApi(params);
+      const list = Array.isArray(res?.data?.students)
+        ? res.data.students
+        : Array.isArray(res?.students)
+        ? res.students
+        : Array.isArray(res?.data)
+        ? res.data
+        : [];
+      setClassStudents(list);
+    } catch (err) {
+      console.error('Failed to load students:', err);
+      setClassStudents([]);
+    } finally {
+      setLoadingStudents(false);
+    }
+  };
+
   const handleGenClassChange = (classId) => {
-    setGenFormData((prev) => ({ ...prev, class_id: classId, section_id: '' }));
+    const matchingStructs = structures.filter((st) => {
+      if (Number(st.is_published) !== 1) return false;
+      if (!classId) return true;
+      const cIds = String(st.class_id || '').split(',').map((s) => s.trim()).filter(Boolean);
+      return cIds.length === 0 || cIds.includes(String(classId));
+    });
+
+    setGenFormData((prev) => {
+      const isCurrentStructValid = matchingStructs.some((st) => String(st.id) === String(prev.fee_structure_id));
+      const nextStruct = isCurrentStructValid
+        ? matchingStructs.find((st) => String(st.id) === String(prev.fee_structure_id))
+        : (matchingStructs[0] || null);
+      const nextStructId = nextStruct ? String(nextStruct.id) : '';
+      return {
+        ...prev,
+        class_id: classId,
+        section_id: '',
+        student_id: '',
+        fee_structure_id: nextStructId,
+        academic_year_id: nextStruct?.academic_year_id ? String(nextStruct.academic_year_id) : prev.academic_year_id,
+      };
+    });
     loadGenSections(classId);
+    loadGenStudents(classId, '');
+  };
+
+  const handleGenSectionChange = (sectionId) => {
+    setGenFormData((prev) => ({ ...prev, section_id: sectionId, student_id: '' }));
+    loadGenStudents(genFormData.class_id, sectionId);
   };
 
   const handleGenerateSubmit = async (e) => {
@@ -293,20 +419,29 @@ const FeesInvoices = () => {
       return;
     }
 
-    if (duplicateWarning) {
-      toast.error(duplicateWarning);
+    if (genFormData.issue_date && genFormData.issue_date < todayStr) {
+      toast.error('Issue Date cannot be earlier than today.');
+      return;
+    }
+
+    if (invoicedDetails?.exists) {
+      toast.error(duplicateWarning || 'Duplicate invoice generation prevented.');
       return;
     }
 
     try {
       setGenerating(true);
-      const res = await adminFeesApi.generateInvoices({
-        ...genFormData,
+      const payload = {
+        academic_year_id: genFormData.academic_year_id || undefined,
         class_id: genFormData.class_id,
         section_id: genFormData.section_id || undefined,
+        student_id: genFormData.student_id || undefined,
         fee_structure_id: genFormData.fee_structure_id,
-        academic_year_id: genFormData.academic_year_id || undefined,
-      });
+        title: genFormData.title,
+        issue_date: genFormData.issue_date,
+      };
+
+      const res = await adminFeesApi.generateInvoices(payload);
 
       toast.success(res?.message || 'Invoices generated successfully.');
       setShowGenModal(false);
@@ -336,6 +471,11 @@ const FeesInvoices = () => {
 
   const handleBulkGenerateSubmit = async (e) => {
     e.preventDefault();
+
+    if (bulkFormData.issue_date && bulkFormData.issue_date < todayStr) {
+      toast.error('Issue Date cannot be earlier than today.');
+      return;
+    }
 
     const publishedStructures = structures.filter((st) => Number(st.is_published) === 1);
     if (publishedStructures.length === 0) {
@@ -834,20 +974,26 @@ const FeesInvoices = () => {
       {showGenModal && (
         <div
           className="modal fade show d-block"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}
+          id="generateInvoicesModal"
           tabIndex="-1"
+          aria-modal="true"
           role="dialog"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', paddingLeft: '0px' }}
         >
-          <div className="modal-dialog modal-dialog-centered" role="document">
+          <div
+            className="modal-dialog modal-dialog-centered"
+            role="document"
+            style={{ maxWidth: '620px', width: '95%' }}
+          >
             <div className="modal-content border-0 shadow-lg">
               <form onSubmit={handleGenerateSubmit}>
-                <div className="modal-header py-3 px-4 border-bottom">
-                  <h5 className="modal-title text-dark fw-bold">
-                    <i className="ti ti-files me-2 text-primary"></i>Generate Batch Invoices
+                <div className="modal-header bg-primary text-white">
+                  <h5 className="modal-title text-white fw-bold">
+                    <i className="ti ti-file-plus me-2"></i>Generate Batch Invoices
                   </h5>
                   <button
                     type="button"
-                    className="btn-close"
+                    className="btn-close btn-close-white"
                     onClick={() => setShowGenModal(false)}
                     aria-label="Close"
                   ></button>
@@ -859,6 +1005,7 @@ const FeesInvoices = () => {
                       Academic Year <span className="text-danger">*</span>
                     </label>
                     <select
+                      name="academic_year_id"
                       className="form-select"
                       required
                       value={genFormData.academic_year_id}
@@ -881,12 +1028,14 @@ const FeesInvoices = () => {
                         Target Class <span className="text-danger">*</span>
                       </label>
                       <select
+                        id="gen_class"
+                        name="class_id"
                         className="form-select"
                         required
                         value={genFormData.class_id}
                         onChange={(e) => handleGenClassChange(e.target.value)}
                       >
-                        <option value="">-- Select Class --</option>
+                        <option value="">-- Class --</option>
                         {classes.map((cls) => (
                           <option key={cls.id} value={cls.id}>
                             {cls.class_name}
@@ -896,13 +1045,13 @@ const FeesInvoices = () => {
                     </div>
 
                     <div className="col-md-6">
-                      <label className="form-label fw-semibold">Target Section (Optional)</label>
+                      <label className="form-label fw-semibold">Target Section</label>
                       <select
+                        id="gen_section"
+                        name="section_id"
                         className="form-select"
                         value={genFormData.section_id}
-                        onChange={(e) =>
-                          setGenFormData({ ...genFormData, section_id: e.target.value })
-                        }
+                        onChange={(e) => handleGenSectionChange(e.target.value)}
                       >
                         <option value="">All Sections</option>
                         {genSections.map((sec) => (
@@ -915,46 +1064,87 @@ const FeesInvoices = () => {
                   </div>
 
                   <div className="mb-3">
-                    <label className="form-label fw-semibold">
-                      Fee Structure <span className="text-danger">*</span>
-                    </label>
-                    {structures.filter((st) => Number(st.is_published) === 1).length === 0 && (
-                      <div className="alert alert-warning py-2 fs-12 mb-2">
-                        <i className="ti ti-alert-triangle me-1"></i>
-                        No published fee structures found. Invoices can only be generated for <strong>Published</strong> structures. Please go to <Link to="/admin/fees/structures" className="alert-link">Master Fee Structure</Link> to publish one first.
-                      </div>
-                    )}
+                    <label className="form-label fw-semibold">Target Student (Optional)</label>
                     <select
+                      id="gen_student"
+                      name="student_id"
                       className="form-select"
-                      required
-                      value={genFormData.fee_structure_id}
+                      value={genFormData.student_id}
                       onChange={(e) =>
-                        setGenFormData({ ...genFormData, fee_structure_id: e.target.value })
+                        setGenFormData({ ...genFormData, student_id: e.target.value })
                       }
-                      disabled={structures.filter((st) => Number(st.is_published) === 1).length === 0}
+                      disabled={loadingStudents || !genFormData.class_id}
                     >
-                      <option value="">-- Select Published Structure --</option>
-                      {structures
-                        .filter((st) => Number(st.is_published) === 1)
-                        .map((st) => (
+                      <option value="">
+                        {loadingStudents
+                          ? 'Loading students...'
+                          : '-- All Students in Target Class / Section --'}
+                      </option>
+                      {classStudents.map((st) => {
+                        const isAlreadyInvoiced = alreadyInvoicedStudentIds.includes(st.id);
+                        return (
                           <option key={st.id} value={st.id}>
-                            {st.name} ({st.frequency})
+                            {st.first_name} {st.last_name}
+                            {st.admission_number ? ` (${st.admission_number})` : ''}
+                            {st.roll_number ? ` [Roll: ${st.roll_number}]` : ''}
+                            {st.section ? ` (Sec: ${st.section})` : ''}
+                            {isAlreadyInvoiced ? ' [Already Invoiced]' : ''}
                           </option>
-                        ))}
+                        );
+                      })}
                     </select>
-                    <small className="text-muted fs-11 mt-1 d-block">
-                      Only active, published fee structures are eligible for invoice generation.
-                    </small>
+                    {genFormData.class_id && !loadingStudents && classStudents.length === 0 && (
+                      <small className="text-muted fs-11 mt-1 d-block">
+                        No active students found in this class/section.
+                      </small>
+                    )}
                   </div>
 
                   <div className="mb-3">
                     <label className="form-label fw-semibold">
-                      Invoice Title <span className="text-danger">*</span>
+                      Fee Structure <span className="text-danger">*</span>
+                    </label>
+                    {availableGenStructures.length === 0 && (
+                      <div className="alert alert-warning py-2 fs-12 mb-2">
+                        <i className="ti ti-alert-triangle me-1"></i>
+                        No published fee structures found for the selected class. Please publish a fee structure configured for this class first.
+                      </div>
+                    )}
+                    <select
+                      id="gen_structure"
+                      name="fee_structure_id"
+                      className="form-select"
+                      required
+                      value={genFormData.fee_structure_id}
+                      onChange={(e) => {
+                        const sId = e.target.value;
+                        const sObj = structures.find((st) => String(st.id) === String(sId));
+                        setGenFormData((prev) => ({
+                          ...prev,
+                          fee_structure_id: sId,
+                          academic_year_id: sObj?.academic_year_id ? String(sObj.academic_year_id) : prev.academic_year_id,
+                        }));
+                      }}
+                      disabled={availableGenStructures.length === 0}
+                    >
+                      <option value="">-- Choose Fee Structure --</option>
+                      {availableGenStructures.map((st) => (
+                        <option key={st.id} value={st.id}>
+                          {st.name} ({st.frequency})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">
+                      Invoice Title / Description <span className="text-danger">*</span>
                     </label>
                     <input
                       type="text"
+                      name="title"
                       className="form-control"
-                      placeholder="e.g. August 2026 Monthly Fees"
+                      placeholder="e.g. July 2026 Monthly Tuition Fee"
                       required
                       value={genFormData.title}
                       onChange={(e) =>
@@ -963,49 +1153,51 @@ const FeesInvoices = () => {
                     />
                   </div>
 
-                  <div className="row g-2">
-                    <div className="col-md-6">
-                      <label className="form-label fw-semibold">Issue Date</label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={genFormData.issue_date}
-                        onChange={(e) =>
-                          setGenFormData({ ...genFormData, issue_date: e.target.value })
-                        }
-                      />
-                    </div>
-                    <div className="col-md-6">
-                      <label className="form-label fw-semibold">Due Date</label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        value={genFormData.due_date}
-                        onChange={(e) =>
-                          setGenFormData({ ...genFormData, due_date: e.target.value })
-                        }
-                      />
-                    </div>
+                  <div className="mb-3">
+                    <label className="form-label fw-semibold">
+                      Issue Date <span className="text-danger">*</span>
+                    </label>
+                    <input
+                      type="date"
+                      id="gen_issue_date"
+                      name="issue_date"
+                      className="form-control"
+                      required
+                      min={todayStr}
+                      value={genFormData.issue_date}
+                      onChange={(e) =>
+                        setGenFormData({ ...genFormData, issue_date: e.target.value })
+                      }
+                    />
                   </div>
 
                   {checkingDuplicate && (
                     <div className="text-muted fs-12 mt-2 d-flex align-items-center">
                       <span className="spinner-border spinner-border-sm me-1.5" role="status"></span>
-                      Checking for existing fee entries...
+                      Checking for existing invoices...
                     </div>
                   )}
 
                   {duplicateWarning && (
-                    <div className="alert alert-danger py-2 px-3 fs-13 mt-3 d-flex align-items-center mb-0 shadow-sm border">
-                      <i className="ti ti-alert-circle fs-18 text-danger me-2 flex-shrink-0"></i>
+                    <div
+                      className={`alert py-2 px-3 fs-13 mt-3 d-flex align-items-center mb-0 shadow-sm border ${
+                        invoicedDetails?.exists ? 'alert-danger' : 'alert-info'
+                      }`}
+                    >
+                      <i
+                        className={`ti fs-18 me-2 flex-shrink-0 ${
+                          invoicedDetails?.exists ? 'ti-alert-circle text-danger' : 'ti-info-circle text-info'
+                        }`}
+                      ></i>
                       <div>
-                        <strong>Duplicate Entry Prevented:</strong> {duplicateWarning}
+                        {invoicedDetails?.exists && <strong>Duplicate Invoice Prevented: </strong>}
+                        {duplicateWarning}
                       </div>
                     </div>
                   )}
                 </div>
 
-                <div className="modal-footer bg-light">
+                <div className="modal-footer bg-light gap-2">
                   <button
                     type="button"
                     className="btn btn-secondary"
@@ -1019,7 +1211,7 @@ const FeesInvoices = () => {
                     disabled={
                       generating ||
                       checkingDuplicate ||
-                      Boolean(duplicateWarning) ||
+                      Boolean(invoicedDetails?.exists) ||
                       structures.filter((st) => Number(st.is_published) === 1).length === 0
                     }
                   >
@@ -1031,7 +1223,7 @@ const FeesInvoices = () => {
                     ) : (
                       <>
                         <i className="ti ti-check me-1"></i>
-                        Generate Invoices
+                        Generate Invoices Now
                       </>
                     )}
                   </button>
@@ -1121,6 +1313,7 @@ const FeesInvoices = () => {
                       <input
                         type="date"
                         className="form-control"
+                        min={todayStr}
                         value={bulkFormData.issue_date}
                         onChange={(e) =>
                           setBulkFormData({ ...bulkFormData, issue_date: e.target.value })
@@ -1132,6 +1325,7 @@ const FeesInvoices = () => {
                       <input
                         type="date"
                         className="form-control"
+                        min={bulkFormData.issue_date || todayStr}
                         value={bulkFormData.due_date}
                         onChange={(e) =>
                           setBulkFormData({ ...bulkFormData, due_date: e.target.value })

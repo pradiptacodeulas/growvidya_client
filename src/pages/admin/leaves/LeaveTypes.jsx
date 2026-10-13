@@ -73,11 +73,6 @@ const LeaveTypes = () => {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
-
-  const handlePrint = () => {
-    window.print();
-  };
-
   const columns = useMemo(
     () => [
       {
@@ -124,6 +119,24 @@ const LeaveTypes = () => {
           ) : (
             <span className="badge bg-secondary-transparent text-secondary fs-11">
               <i className="ti ti-world me-1"></i>All Campuses
+            </span>
+          )
+        ),
+      },
+      {
+        accessorKey: 'is_paid',
+        header: 'Pay Type',
+        sortable: true,
+        width: '110px',
+        align: 'center',
+        cell: ({ value }) => (
+          Number(value) === 0 ? (
+            <span className="badge bg-warning-transparent text-warning border border-warning px-2.5 py-1.5 fw-semibold">
+              Non-Paid
+            </span>
+          ) : (
+            <span className="badge bg-success-transparent text-success border border-success px-2.5 py-1.5 fw-semibold">
+              Paid
             </span>
           )
         ),
@@ -228,14 +241,6 @@ const LeaveTypes = () => {
             title="Refresh"
           >
             <i className="ti ti-refresh"></i>
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
           </button>
 
           <Link

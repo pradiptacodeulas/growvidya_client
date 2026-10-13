@@ -55,29 +55,7 @@ const ClassesList = () => {
     );
   };
 
-  // Export handlers
-  const handleExportExcel = () => {
-    const headers = ['Sl No.', 'Shift', 'Class Name', 'Sort Order', 'Status'];
-    const rows = classes.map((c, idx) => [
-      idx + 1,
-      c.shift_name || 'Morning',
-      `"${c.class_name || ''}"`,
-      c.sort_order ?? 0,
-      c.status === 2 || c.status === 0 ? 'Inactive' : 'Active',
-    ]);
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `classes_list_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
   // Define Columns
   const columns = useMemo(
@@ -193,34 +171,6 @@ const ClassesList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
-          <TableActionMenu
-            trigger={
-              <span className="btn btn-light fw-medium d-inline-flex align-items-center">
-                <i className="ti ti-file-export me-2"></i>Export
-              </span>
-            }
-            items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
-              {
-                label: 'Export as Excel',
-                icon: 'ti ti-file-type-xls text-success',
-                onClick: handleExportExcel,
-              },
-            ]}
-          />
 
           {can('academic/classes', 'add') && (
             <Link

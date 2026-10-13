@@ -104,7 +104,7 @@ const TeacherMyLeaves = () => {
 
   const handleExportCSV = () => {
     if (leaves.length === 0) return toast.info('No leaves to export');
-    let csv = 'Sl No.,Leave Type,Duration,Status,Date\n';
+    let csv = 'Sl No.,Leave Type,Pay Type,Duration,Status,Date\n';
     leaves.forEach((l, idx) => {
       const statusText =
         Number(l.leave_status) === 2
@@ -112,7 +112,8 @@ const TeacherMyLeaves = () => {
           : Number(l.leave_status) === 3
           ? 'Rejected'
           : 'Pending';
-      csv += `"${idx + 1}","${l.leave_name || ''}","${l.duration_label || ''}","${statusText}","${l.leave_date ? l.leave_date.split('T')[0] : ''}"\n`;
+      const payType = Number(l.is_paid) === 0 ? 'Non-Paid' : 'Paid';
+      csv += `"${idx + 1}","${l.leave_name || ''}","${payType}","${l.duration_label || ''}","${statusText}","${l.leave_date ? l.leave_date.split('T')[0] : ''}"\n`;
     });
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -137,13 +138,24 @@ const TeacherMyLeaves = () => {
         header: 'Leave Type',
         sortable: true,
         cell: ({ value, row }) => (
-          <span
-            onClick={() => handleViewStatus(row)}
-            className="fw-semibold text-primary cursor-pointer text-decoration-none"
-            style={{ cursor: 'pointer' }}
-          >
-            {value || 'General Leave'}
-          </span>
+          <div className="d-flex align-items-center gap-2">
+            <span
+              onClick={() => handleViewStatus(row)}
+              className="fw-semibold text-primary cursor-pointer text-decoration-none"
+              style={{ cursor: 'pointer' }}
+            >
+              {value || 'General Leave'}
+            </span>
+            {Number(row.is_paid) === 0 ? (
+              <span className="badge bg-warning-transparent text-warning border border-warning fs-11 px-1.5 py-0.5">
+                Non-Paid
+              </span>
+            ) : (
+              <span className="badge bg-success-transparent text-success border border-success fs-11 px-1.5 py-0.5">
+                Paid
+              </span>
+            )}
+          </div>
         ),
       },
       {
@@ -303,9 +315,20 @@ const TeacherMyLeaves = () => {
                     <div className="d-flex justify-content-between align-items-center mb-3">
                       <div>
                         <span className="text-muted fs-12 d-block">Leave Type:</span>
-                        <h6 className="fw-bold mb-0 text-dark">
-                          {viewModal.leave.leave_name || 'Leave'}
-                        </h6>
+                        <div className="d-flex align-items-center gap-2">
+                          <h6 className="fw-bold mb-0 text-dark">
+                            {viewModal.leave.leave_name || 'Leave'}
+                          </h6>
+                          {Number(viewModal.leave.is_paid) === 0 ? (
+                            <span className="badge bg-warning-transparent text-warning border border-warning fs-11 px-1.5 py-0.5">
+                              Non-Paid
+                            </span>
+                          ) : (
+                            <span className="badge bg-success-transparent text-success border border-success fs-11 px-1.5 py-0.5">
+                              Paid
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div>
                         {renderStatusBadge(viewModal.leave)}

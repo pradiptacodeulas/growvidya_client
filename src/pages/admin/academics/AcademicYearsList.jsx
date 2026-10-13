@@ -47,24 +47,7 @@ const AcademicYearsList = () => {
     );
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
-  const handleExportExcel = () => {
-    if (years.length === 0) return toast.info('No academic years to export');
-    let csv = 'Sl No.,Academic Year,Start Date,End Date,Current Session,Status\n';
-    years.forEach((y, idx) => {
-      csv += `"${idx + 1}","${y.academic_year || ''}","${y.start_date || ''}","${y.end_date || ''}","${Number(y.is_current) === 1 ? 'Yes' : 'No'}","${y.status === 1 ? 'Active' : 'Inactive'}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Academic_Years_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const confirmDelete = (year) => {
     if (Number(year?.is_current) === 1 || year?.is_current === true || year?.is_current === '1' || year?.isCurrent) {
@@ -229,34 +212,6 @@ const AcademicYearsList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
-          <TableActionMenu
-            trigger={
-              <span className="btn btn-light fw-medium d-inline-flex align-items-center">
-                <i className="ti ti-file-export me-2"></i>Export
-              </span>
-            }
-            items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
-              {
-                label: 'Export as Excel',
-                icon: 'ti ti-file-type-xls text-success',
-                onClick: handleExportExcel,
-              },
-            ]}
-          />
 
           <Link
             to="/admin/academics/academic-years/add"

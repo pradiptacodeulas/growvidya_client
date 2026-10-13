@@ -471,6 +471,68 @@ const Sidebar = ({
                       </NavLink>
                     </li>
 
+                {/* Academic */}
+                {hasAny(ACADEMIC_MODULES, 'view') && (
+                  <li className={`submenu ${openSubmenu.academic ? 'active' : ''}`}>
+                    <a
+                      href="#"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        toggleSubmenu('academic');
+                      }}
+                      className={openSubmenu.academic ? 'subdrop active' : ''}
+                    >
+                      <i className="ti ti-notebook"></i>
+                      <span>Academic</span>
+                      <span className="menu-arrow"></span>
+                    </a>
+                    <ul className={`sidebar-submenu-list ${openSubmenu.academic ? 'submenu-open' : ''}`}>
+                      {can('academic/year', 'view') && (
+                        <li><NavLink to="/admin/academics/years" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/years') || location.pathname.startsWith('/admin/academic/years') || location.pathname.startsWith('/admin/academic/year') ? 'active' : '')}><span>Academic Year</span></NavLink></li>
+                      )}
+                      {can('academic/shift', 'view') && (
+                        <li><NavLink to="/admin/academics/shifts" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/shifts') || location.pathname.startsWith('/admin/academic/shifts') || location.pathname.startsWith('/admin/academic/shift') ? 'active' : '')}><span>Shift</span></NavLink></li>
+                      )}
+                      {can('academic/classes', 'view') && (
+                        <li><NavLink to="/admin/academics/classes" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/classes') || location.pathname.startsWith('/admin/academic/classes') || location.pathname.startsWith('/admin/academic/class') ? 'active' : '')}><span>Class</span></NavLink></li>
+                      )}
+                      {can('academic/sections', 'view') && (
+                        <li><NavLink to="/admin/academics/sections" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/sections') || location.pathname.startsWith('/admin/academic/sections') || location.pathname.startsWith('/admin/academic/section') ? 'active' : '')}><span>Section</span></NavLink></li>
+                      )}
+                      {can('academic/subject', 'view') && (
+                        <li><NavLink to="/admin/academics/subjects" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/subjects') || location.pathname.startsWith('/admin/academic/subjects') || location.pathname.startsWith('/admin/academic/subject') ? 'active' : '')}><span>Subject</span></NavLink></li>
+                      )}
+                      {can('academic/days', 'view') && (
+                        <li><NavLink to="/admin/academics/days" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/days') || location.pathname.startsWith('/admin/academic/days') || location.pathname.startsWith('/admin/academic/day') ? 'active' : '')}><span>Days</span></NavLink></li>
+                      )}
+                      {can('academic/period', 'view') && (
+                        <li><NavLink to="/admin/academics/periods" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/periods') || location.pathname.startsWith('/admin/academic/periods') || location.pathname.startsWith('/admin/academic/period') ? 'active' : '')}><span>Period</span></NavLink></li>
+                      )}
+                      {can('academic/routine', 'view') && (
+                        <li><NavLink to="/admin/academics/routine" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/routine') || location.pathname.startsWith('/admin/academics/routines') ? 'active' : '')}><span>Routine</span></NavLink></li>
+                      )}
+                      {can('academic/house', 'view') && (
+                        <li><NavLink to="/admin/academics/houses" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/houses') || location.pathname.startsWith('/admin/academic/houses') || location.pathname.startsWith('/admin/academic/house') ? 'active' : '')}><span>House</span></NavLink></li>
+                      )}
+                      {can('academic/documentType', 'view') && (
+                        <li><NavLink to="/admin/academics/document-types" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/document-types') ? 'active' : '')}><span>Document Type</span></NavLink></li>
+                      )}
+                      {can('academic/syllabus', 'view') && (
+                        <li><NavLink to="/admin/academics/syllabus" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/syllabus') ? 'active' : '')}><span>Syllabus</span></NavLink></li>
+                      )}
+                      {can('academic/assignmenttype', 'view') && (
+                        <li><NavLink to="/admin/academics/assignment-types" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/assignment-types') ? 'active' : '')}><span>Assignment Type</span></NavLink></li>
+                      )}
+                      {can('academic/assignment', 'view') && (
+                        <li><NavLink to="/admin/academics/assignments" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/assignments') ? 'active' : '')}><span>Assignment</span></NavLink></li>
+                      )}
+                      {can('academic/material', 'view') && (
+                        <li><NavLink to="/admin/academics/study-material" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/study-material') || location.pathname.startsWith('/admin/academics/study-materials') ? 'active' : '')}><span>Study Material</span></NavLink></li>
+                      )}
+                    </ul>
+                  </li>
+                )}
+
                 {/* Ward */}
                 {hasAny(WARD_MODULES, 'view') && (
                   <li className={`submenu ${openSubmenu.ward ? 'active' : ''}`}>
@@ -539,68 +601,6 @@ const Sidebar = ({
                             <span>Users</span>
                           </NavLink>
                         </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {/* Academic */}
-                {hasAny(ACADEMIC_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.academic ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('academic');
-                      }}
-                      className={openSubmenu.academic ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-notebook"></i>
-                      <span>Academic</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.academic ? 'submenu-open' : ''}`}>
-                      {can('academic/shift', 'view') && (
-                        <li><NavLink to="/admin/academics/shifts" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/shifts') || location.pathname.startsWith('/admin/academic/shifts') || location.pathname.startsWith('/admin/academic/shift') ? 'active' : '')}><span>Shift</span></NavLink></li>
-                      )}
-                      {can('academic/classes', 'view') && (
-                        <li><NavLink to="/admin/academics/classes" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/classes') || location.pathname.startsWith('/admin/academic/classes') || location.pathname.startsWith('/admin/academic/class') ? 'active' : '')}><span>Class</span></NavLink></li>
-                      )}
-                      {can('academic/days', 'view') && (
-                        <li><NavLink to="/admin/academics/days" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/days') || location.pathname.startsWith('/admin/academic/days') || location.pathname.startsWith('/admin/academic/day') ? 'active' : '')}><span>Days</span></NavLink></li>
-                      )}
-                      {can('academic/sections', 'view') && (
-                        <li><NavLink to="/admin/academics/sections" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/sections') || location.pathname.startsWith('/admin/academic/sections') || location.pathname.startsWith('/admin/academic/section') ? 'active' : '')}><span>Section</span></NavLink></li>
-                      )}
-                      {can('academic/period', 'view') && (
-                        <li><NavLink to="/admin/academics/periods" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/periods') || location.pathname.startsWith('/admin/academic/periods') || location.pathname.startsWith('/admin/academic/period') ? 'active' : '')}><span>Period</span></NavLink></li>
-                      )}
-                      {can('academic/house', 'view') && (
-                        <li><NavLink to="/admin/academics/houses" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/houses') || location.pathname.startsWith('/admin/academic/houses') || location.pathname.startsWith('/admin/academic/house') ? 'active' : '')}><span>House</span></NavLink></li>
-                      )}
-                      {can('academic/year', 'view') && (
-                        <li><NavLink to="/admin/academics/years" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/years') || location.pathname.startsWith('/admin/academic/years') || location.pathname.startsWith('/admin/academic/year') ? 'active' : '')}><span>Academic Year</span></NavLink></li>
-                      )}
-                      {can('academic/documentType', 'view') && (
-                        <li><NavLink to="/admin/academics/document-types" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/document-types') ? 'active' : '')}><span>Document Type</span></NavLink></li>
-                      )}
-                      {can('academic/subject', 'view') && (
-                        <li><NavLink to="/admin/academics/subjects" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/subjects') || location.pathname.startsWith('/admin/academic/subjects') || location.pathname.startsWith('/admin/academic/subject') ? 'active' : '')}><span>Subject</span></NavLink></li>
-                      )}
-                      {can('academic/routine', 'view') && (
-                        <li><NavLink to="/admin/academics/routine" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/routine') || location.pathname.startsWith('/admin/academics/routines') ? 'active' : '')}><span>Routine</span></NavLink></li>
-                      )}
-                      {can('academic/syllabus', 'view') && (
-                        <li><NavLink to="/admin/academics/syllabus" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/syllabus') ? 'active' : '')}><span>Syllabus</span></NavLink></li>
-                      )}
-                      {can('academic/assignmenttype', 'view') && (
-                        <li><NavLink to="/admin/academics/assignment-types" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/assignment-types') ? 'active' : '')}><span>Assignment Type</span></NavLink></li>
-                      )}
-                      {can('academic/assignment', 'view') && (
-                        <li><NavLink to="/admin/academics/assignments" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/assignments') ? 'active' : '')}><span>Assignment</span></NavLink></li>
-                      )}
-                      {can('academic/material', 'view') && (
-                        <li><NavLink to="/admin/academics/study-material" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/study-material') || location.pathname.startsWith('/admin/academics/study-materials') ? 'active' : '')}><span>Study Material</span></NavLink></li>
                       )}
                     </ul>
                   </li>
@@ -1067,15 +1067,13 @@ const Sidebar = ({
                       <span className="menu-arrow"></span>
                     </a>
                     <ul className={`sidebar-submenu-list ${openSubmenu.fees ? 'submenu-open' : ''}`}>
-                      {can('feesmanagement/payments', 'view') && (
+                      {can('feesmanagement/components', 'view') && (
                         <li>
                           <NavLink
-                            to="/admin/fees/dashboard"
-                            className={({ isActive }) =>
-                              isActive || location.pathname === '/admin/fees/collect' || location.pathname === '/admin/fees' ? 'active' : ''
-                            }
+                            to="/admin/fees/components"
+                            className={({ isActive }) => (isActive ? 'active' : '')}
                           >
-                            <span>Fees Collection</span>
+                            <span>Fee Headings</span>
                           </NavLink>
                         </li>
                       )}
@@ -1086,16 +1084,6 @@ const Sidebar = ({
                             className={({ isActive }) => (isActive || location.pathname.includes('/fees/structures') ? 'active' : '')}
                           >
                             <span>Fee Groups & Structures</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('feesmanagement/components', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/fees/components"
-                            className={({ isActive }) => (isActive ? 'active' : '')}
-                          >
-                            <span>Fee Headings</span>
                           </NavLink>
                         </li>
                       )}
@@ -1116,6 +1104,18 @@ const Sidebar = ({
                             className={({ isActive }) => (isActive ? 'active' : '')}
                           >
                             <span>Invoices & Demand</span>
+                          </NavLink>
+                        </li>
+                      )}
+                      {can('feesmanagement/payments', 'view') && (
+                        <li>
+                          <NavLink
+                            to="/admin/fees/dashboard"
+                            className={({ isActive }) =>
+                              isActive || location.pathname === '/admin/fees/collect' || location.pathname === '/admin/fees' ? 'active' : ''
+                            }
+                          >
+                            <span>Fees Collection</span>
                           </NavLink>
                         </li>
                       )}

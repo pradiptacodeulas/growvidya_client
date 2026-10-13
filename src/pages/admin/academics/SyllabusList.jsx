@@ -347,30 +347,7 @@ const SyllabusList = () => {
     );
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
-  const handleExportCSV = () => {
-    if (syllabusList.length === 0) return toast.info('No syllabus to export');
-    let csv = 'Sl No.,Subject,Lesson,Status\n';
-    syllabusList.forEach((s, idx) => {
-      const statusText =
-        Number(s.status) === 3
-          ? 'Complete'
-          : Number(s.status) === 2
-          ? 'Progress'
-          : 'Pending';
-      csv += `"${idx + 1}","${s.subject_name || ''}","${(s.lession || '').replace(/"/g, '""')}","${statusText}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Syllabus_List_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const startIndex = (currentPage - 1) * perPage;
 
@@ -402,40 +379,6 @@ const SyllabusList = () => {
             >
               <i className="ti ti-refresh text-dark"></i>
             </button>
-          </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={handlePrint}
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              title="Print"
-            >
-              <i className="ti ti-printer text-dark"></i>
-            </button>
-          </div>
-          <div className="me-2 mb-2">
-            <TableActionMenu
-              trigger={
-                <button
-                  className="btn btn-light fw-medium d-inline-flex align-items-center"
-                  type="button"
-                >
-                  <i className="ti ti-file-export me-2"></i>Export
-                </button>
-              }
-              items={[
-                {
-                  label: 'Export as PDF',
-                  icon: 'ti ti-file-type-pdf text-danger',
-                  onClick: handlePrint,
-                },
-                {
-                  label: 'Export as Excel',
-                  icon: 'ti ti-file-type-xls text-success',
-                  onClick: handleExportCSV,
-                },
-              ]}
-            />
           </div>
           <div className="mb-2">
             <Link

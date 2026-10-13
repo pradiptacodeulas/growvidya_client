@@ -75,6 +75,11 @@ const adminFeesApi = {
     return res.data;
   },
 
+  updateStructureStatus: async (id, status) => {
+    const res = await apiClient.patch(`/admin/fees/structures/${id}/status`, { status });
+    return res.data;
+  },
+
   // 3. Student Fee Allocations
   getAllocations: async (params) => {
     const res = await apiClient.get('/admin/fees/allocations', { params });

@@ -142,7 +142,20 @@ const LeaveList = () => {
         accessorKey: 'leave_name',
         header: 'Leave Type',
         sortable: true,
-        cell: ({ value }) => <span className="text-dark fw-medium">{value || 'General Leave'}</span>,
+        cell: ({ value, row }) => (
+          <div className="d-flex align-items-center gap-2">
+            <span className="text-dark fw-medium">{value || 'General Leave'}</span>
+            {Number(row.is_paid) === 0 ? (
+              <span className="badge bg-warning-transparent text-warning border border-warning fs-11 px-1.5 py-0.5">
+                Non-Paid
+              </span>
+            ) : (
+              <span className="badge bg-success-transparent text-success border border-success fs-11 px-1.5 py-0.5">
+                Paid
+              </span>
+            )}
+          </div>
+        ),
       },
       {
         accessorKey: 'duration',

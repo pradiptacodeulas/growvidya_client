@@ -27,6 +27,7 @@ const AddLeaveAssign = () => {
       id: null,
       leave_name: '',
       need_document: '0',
+      is_paid: '1',
       no_leave: '1',
       sort_order: '1',
       status: '1',
@@ -87,6 +88,7 @@ const AddLeaveAssign = () => {
                 id: t.id,
                 leave_name: t.leave_name || '',
                 need_document: String(t.need_document || '0'),
+                is_paid: String(t.is_paid !== undefined ? t.is_paid : '1'),
                 no_leave: String(t.no_leave || '1'),
                 sort_order: String(t.sort_order || '1'),
                 status: String(t.status !== undefined ? t.status : '1'),
@@ -113,6 +115,7 @@ const AddLeaveAssign = () => {
         id: null,
         leave_name: '',
         need_document: '0',
+        is_paid: '1',
         no_leave: '1',
         sort_order: String(prev.length + 1),
         status: '1',
@@ -173,6 +176,7 @@ const AddLeaveAssign = () => {
           role: Number(role),
           leave_name: row.leave_name.trim(),
           need_document: Number(row.need_document),
+          is_paid: Number(row.is_paid !== undefined ? row.is_paid : 1),
           no_leave: Number(row.no_leave),
           sort_order: Number(row.sort_order),
           status: Number(row.status),
@@ -183,7 +187,10 @@ const AddLeaveAssign = () => {
         await createLeaveTypeApi({
           role: Number(role),
           branch_id: Number(selectedBranchId),
-          leaveRows,
+          leaveRows: leaveRows.map((r) => ({
+            ...r,
+            is_paid: Number(r.is_paid !== undefined ? r.is_paid : 1),
+          })),
         });
         toast.success('Leave assignment(s) created successfully!');
       }
@@ -309,6 +316,20 @@ const AddLeaveAssign = () => {
 
                       <div className="col-md-2">
                         <div className="mb-3">
+                          <label className="form-label fw-medium">Pay Type</label>
+                          <select
+                            className="form-select"
+                            value={row.is_paid}
+                            onChange={(e) => handleRowChange(idx, 'is_paid', e.target.value)}
+                          >
+                            <option value="1">Paid</option>
+                            <option value="0">Non-Paid</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      <div className="col-md-2">
+                        <div className="mb-3">
                           <label className="form-label fw-medium">Doc Required</label>
                           <select
                             className="form-select"
@@ -338,10 +359,10 @@ const AddLeaveAssign = () => {
                         </div>
                       </div>
 
-                      <div className="col-md-2">
+                      <div className="col-md-1">
                         <div className="mb-3">
                           <label className="form-label fw-medium">
-                            Sort Order <span className="text-danger">*</span>
+                            Order <span className="text-danger">*</span>
                           </label>
                           <input
                             type="number"
@@ -354,7 +375,7 @@ const AddLeaveAssign = () => {
                         </div>
                       </div>
 
-                      <div className="col-md-2">
+                      <div className={!isEditMode && leaveRows.length > 1 ? "col-md-1" : "col-md-2"}>
                         <div className="mb-3">
                           <label className="form-label fw-medium">Status</label>
                           <select

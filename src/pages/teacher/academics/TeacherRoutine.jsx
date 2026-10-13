@@ -202,15 +202,6 @@ const TeacherRoutine = () => {
             <i className="ti ti-refresh"></i>
           </button>
 
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="btn btn-outline-light bg-white btn-icon"
-            title="Print Timetable"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
           {/* View Mode Switcher Buttons */}
           <div className="btn-group" role="group" aria-label="Routine View Modes">
             <button

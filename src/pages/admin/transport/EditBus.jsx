@@ -7,6 +7,85 @@ import {
   updateVehicleApi,
 } from '../../../api/adminTransport.api';
 import { decodeParam } from '../../../utils/idHelper';
+import { resolveImageUrl } from '../../../utils/url.util';
+
+const MAX_IMAGE_SIZE_BYTES = 1 * 1024 * 1024; // 1 MB limit
+
+/**
+ * Compresses/resizes an image canvas-side if needed to ensure it is <= 1 MB
+ */
+const compressImageIfNeeded = async (file) => {
+  if (file.size <= MAX_IMAGE_SIZE_BYTES) {
+    return file;
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let width = img.width;
+        let height = img.height;
+        const maxDimension = 1200;
+        if (width > height && width > maxDimension) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Try JPEG with 0.8 quality
+        canvas.toBlob(
+          (blob) => {
+            if (blob && blob.size <= MAX_IMAGE_SIZE_BYTES) {
+              const compressedFile = new File([blob], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                type: 'image/jpeg',
+              });
+              resolve(compressedFile);
+            } else if (blob) {
+              // Try higher compression with 0.6 quality
+              canvas.toBlob(
+                (blob2) => {
+                  if (blob2 && blob2.size <= MAX_IMAGE_SIZE_BYTES) {
+                    const compressedFile2 = new File([blob2], file.name.replace(/\.[^.]+$/, '.jpg'), {
+                      type: 'image/jpeg',
+                    });
+                    resolve(compressedFile2);
+                  } else {
+                    reject(
+                      new Error(
+                        `Unable to compress image under 1 MB (result was ${(
+                          blob.size / (1024 * 1024)
+                        ).toFixed(2)} MB). Please choose a smaller image.`
+                      )
+                    );
+                  }
+                },
+                'image/jpeg',
+                0.6
+              );
+            } else {
+              reject(new Error('Failed to compress image.'));
+            }
+          },
+          'image/jpeg',
+          0.8
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image for compression.'));
+      img.src = e.target.result;
+    };
+    reader.onerror = () => reject(new Error('Failed to read image file.'));
+    reader.readAsDataURL(file);
+  });
+};
 
 const EditBus = () => {
   const navigate = useNavigate();
@@ -21,6 +100,13 @@ const EditBus = () => {
     color: '',
     status: '1',
   });
+
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const [existingImage, setExistingImage] = useState(null);
+  const [removeImage, setRemoveImage] = useState(false);
+  const [fileSizeInfo, setFileSizeInfo] = useState('');
+  const [compressing, setCompressing] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -39,6 +125,11 @@ const EditBus = () => {
           color: data.color || '',
           status: String(data.status !== undefined ? data.status : 1),
         });
+        if (data.image) {
+          setExistingImage(data.image);
+          setImagePreview(resolveImageUrl(data.image));
+          setRemoveImage(false);
+        }
       } else {
         toast.error('Bus details not found.');
         navigate('/admin/transport/bus');
@@ -58,6 +149,50 @@ const EditBus = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleImageChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      toast.warning('Please select a valid image file (JPG, PNG, WEBP, SVG).');
+      e.target.value = '';
+      return;
+    }
+
+    try {
+      setCompressing(true);
+      const readyFile = await compressImageIfNeeded(file);
+      const formattedSize =
+        readyFile.size < 1024 * 1024
+          ? `${(readyFile.size / 1024).toFixed(1)} KB`
+          : `${(readyFile.size / (1024 * 1024)).toFixed(2)} MB`;
+
+      if (readyFile.size > MAX_IMAGE_SIZE_BYTES) {
+        toast.error(`Image size is ${formattedSize}, which exceeds the 1 MB limit.`);
+        e.target.value = '';
+        return;
+      }
+      setImageFile(readyFile);
+      setImagePreview(URL.createObjectURL(readyFile));
+      setFileSizeInfo(formattedSize);
+      setRemoveImage(false);
+    } catch (err) {
+      toast.error(err.message || 'Image exceeds the 1 MB limit.');
+      e.target.value = '';
+    } finally {
+      setCompressing(false);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setImageFile(null);
+    setImagePreview(null);
+    setFileSizeInfo('');
+    setRemoveImage(true);
+    const input = document.getElementById('bus_image_input');
+    if (input) input.value = '';
   };
 
   const handleSubmit = async (e) => {
@@ -81,11 +216,24 @@ const EditBus = () => {
 
     try {
       setSubmitting(true);
+      const payload = new FormData();
+      payload.append('name', formData.name.trim());
+      payload.append('number_plate', formData.number_plate.trim());
+      payload.append('seat', formData.seat);
+      payload.append('color', formData.color.trim());
+      payload.append('status', formData.status);
+
+      if (imageFile) {
+        payload.append('image', imageFile);
+      } else if (removeImage) {
+        payload.append('remove_image', 'true');
+      }
+
       if (isEditing) {
-        await updateVehicleApi(id, formData);
+        await updateVehicleApi(id, payload);
         toast.success('Bus updated successfully!');
       } else {
-        await createVehicleApi(formData);
+        await createVehicleApi(payload);
         toast.success('Bus added successfully!');
       }
       navigate('/admin/transport/bus');
@@ -224,6 +372,61 @@ const EditBus = () => {
                           <option value="1">Active</option>
                           <option value="2">Inactive</option>
                         </select>
+                      </div>
+                    </div>
+
+                    <div className="col-md-4">
+                      <div className="mb-3">
+                        <div className="d-flex justify-content-between align-items-center mb-1">
+                          <label className="form-label mb-0">
+                            Bus Image <small className="text-muted">(Optional, Max 1 MB)</small>
+                          </label>
+                          {fileSizeInfo && (
+                            <span className="badge bg-light text-primary border fs-11">
+                              {fileSizeInfo}
+                            </span>
+                          )}
+                        </div>
+                        <input
+                          type="file"
+                          id="bus_image_input"
+                          className="form-control"
+                          accept="image/*"
+                          onChange={handleImageChange}
+                          disabled={compressing}
+                        />
+                        {compressing && (
+                          <div className="text-muted fs-11 mt-1">
+                            <span className="spinner-border spinner-border-sm me-1"></span>
+                            Optimizing image to fit under 1 MB...
+                          </div>
+                        )}
+                        {imagePreview && (
+                          <div className="d-flex align-items-center gap-2 mt-2 p-1.5 bg-light rounded border">
+                            <img
+                              src={imagePreview}
+                              alt="Bus Preview"
+                              className="rounded border"
+                              style={{ width: '48px', height: '48px', objectFit: 'cover' }}
+                            />
+                            <div className="flex-grow-1 overflow-hidden">
+                              <span className="fs-12 text-truncate d-block fw-medium">
+                                {imageFile ? imageFile.name : 'Current Image'}
+                              </span>
+                              <span className="fs-11 text-success">
+                                <i className="ti ti-check me-1"></i>Within 1 MB limit
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              className="btn btn-outline-danger btn-sm btn-icon"
+                              onClick={handleRemoveImage}
+                              title="Remove Image"
+                            >
+                              <i className="ti ti-trash"></i>
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>

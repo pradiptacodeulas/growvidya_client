@@ -113,25 +113,6 @@ const AdminDashboard = () => {
 
   return (
     <div className="content">
-      {/* Multi-Branch Organization Super Admin Banner */}
-      {isMultiBranchSuperAdmin && (
-        <div className="alert alert-primary d-flex align-items-center justify-content-between p-3 mb-3 border-0 shadow-sm rounded-3">
-          <div className="d-flex align-items-center">
-            <div className="avatar avatar-md bg-primary text-white rounded me-3 d-flex align-items-center justify-content-center" style={{ width: '40px', height: '40px' }}>
-              <i className="ti ti-building-community fs-4"></i>
-            </div>
-            <div>
-              <h6 className="mb-1 fw-bold text-dark">School Super Admin / Multi-Branch Organization</h6>
-              <p className="mb-0 text-muted small">
-                You are currently viewing the individual campus/branch dashboard. Consolidated organization KPIs, branch matrices, and storage analytics are in your Organization Dashboard.
-              </p>
-            </div>
-          </div>
-          <Link to="/admin/super-admin/dashboard" className="btn btn-primary btn-sm px-3 fw-bold text-nowrap ms-3">
-            <i className="ti ti-arrow-left me-1"></i> Open Organization Dashboard
-          </Link>
-        </div>
-      )}
 
       {/* Page Header */}
       <div className="d-md-flex d-block align-items-center justify-content-between mb-3">

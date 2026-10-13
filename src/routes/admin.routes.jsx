@@ -95,6 +95,7 @@ const ExamResultsList = lazy(() => import('../pages/admin/examinations/ExamResul
 const AddExamResult = lazy(() => import('../pages/admin/examinations/AddExamResult'));
 const FeesComponents = lazy(() => import('../pages/admin/fees/FeesComponents'));
 const FeesStructures = lazy(() => import('../pages/admin/fees/FeesStructures'));
+const CreateFeeStructure = lazy(() => import('../pages/admin/fees/CreateFeeStructure'));
 const FeesAllocations = lazy(() => import('../pages/admin/fees/FeesAllocations'));
 const FeesInvoices = lazy(() => import('../pages/admin/fees/FeesInvoices'));
 const FeesCollectionDashboard = lazy(() => import('../pages/admin/fees/FeesCollectionDashboard'));
@@ -703,7 +704,13 @@ export const adminRoutes = (
 
       <Route element={<ProtectedRoute module="feesmanagement/structures" action="view" />}>
         <Route path="fees/structures" element={<FeesStructures />} />
+        <Route path="fees/structures/create" element={<CreateFeeStructure />} />
+        <Route path="fees/structures/add" element={<CreateFeeStructure />} />
+        <Route path="fees/structures/edit/:id" element={<CreateFeeStructure />} />
         <Route path="feesmanagement/structures" element={<FeesStructures />} />
+        <Route path="feesmanagement/structures/create" element={<CreateFeeStructure />} />
+        <Route path="feesmanagement/structures/add" element={<CreateFeeStructure />} />
+        <Route path="feesmanagement/structures/edit/:id" element={<CreateFeeStructure />} />
       </Route>
 
       <Route element={<ProtectedRoute module="feesmanagement/allocations" action="view" />}>

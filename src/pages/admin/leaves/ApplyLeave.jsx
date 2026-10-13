@@ -426,7 +426,7 @@ const ApplyLeave = () => {
                         <option value="">select</option>
                         {leaveTypes.map((lt) => (
                           <option key={lt.id} value={lt.id}>
-                            {lt.leave_name}
+                            {lt.leave_name} {Number(lt.is_paid) === 0 ? '[Non-Paid]' : '[Paid]'}
                             {lt.no_leave ? ` (Allowed: ${lt.no_leave}${lt.remaining_leaves !== undefined ? `, Available: ${lt.remaining_leaves}` : ''})` : ''}
                           </option>
                         ))}

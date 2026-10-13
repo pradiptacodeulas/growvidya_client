@@ -8,6 +8,7 @@ import {
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
+import { resolveImageUrl } from '../../../utils/url.util';
 
 const HelpersList = () => {
   const [helpers, setHelpers] = useState([]);
@@ -91,6 +92,39 @@ const HelpersList = () => {
         cell: ({ value }) => <span className="text-dark">{value || '—'}</span>,
       },
       {
+        accessorKey: 'id_proof_type',
+        header: 'Govt ID Proof',
+        sortable: true,
+        cell: ({ row }) => {
+          if (!row.id_proof_type && !row.id_proof_number && !row.id_proof_doc) {
+            return <span className="text-muted">—</span>;
+          }
+          return (
+            <div className="d-flex align-items-center gap-1.5">
+              <div>
+                <span className="badge bg-light text-primary border px-2 py-0.5 fs-11 d-block mb-0.5">
+                  {row.id_proof_type || 'Govt ID'}
+                </span>
+                {row.id_proof_number && (
+                  <span className="text-muted fs-11">{row.id_proof_number}</span>
+                )}
+              </div>
+              {row.id_proof_doc && (
+                <a
+                  href={resolveImageUrl(row.id_proof_doc)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="btn btn-xs btn-outline-secondary px-1.5 py-0.5"
+                  title="View Government ID Document"
+                >
+                  <i className="ti ti-file-text fs-13"></i>
+                </a>
+              )}
+            </div>
+          );
+        },
+      },
+      {
         accessorKey: 'status',
         header: 'Status',
         width: '120px',
@@ -112,23 +146,35 @@ const HelpersList = () => {
         width: '90px',
         align: 'center',
         sortable: false,
-        cell: ({ row }) => (
-          <TableActionMenu
-            items={[
-              {
-                label: 'Edit',
-                icon: 'ti ti-edit-circle text-primary',
-                to: `/admin/transport/helper/edit/${encodeParam(row.id)}`,
-              },
-              {
-                label: 'Delete',
-                icon: 'ti ti-trash-x',
-                variant: 'danger',
-                onClick: () => setDeleteModal({ show: true, id: row.id, processing: false }),
-              },
-            ]}
-          />
-        ),
+        cell: ({ row }) => {
+          const extraItems = [];
+          if (row.id_proof_doc) {
+            extraItems.push({
+              label: 'View ID Proof Doc',
+              icon: 'ti ti-file-text text-secondary',
+              onClick: () => window.open(resolveImageUrl(row.id_proof_doc), '_blank'),
+            });
+          }
+
+          return (
+            <TableActionMenu
+              items={[
+                {
+                  label: 'Edit',
+                  icon: 'ti ti-edit-circle text-primary',
+                  to: `/admin/transport/helper/edit/${encodeParam(row.id)}`,
+                },
+                ...extraItems,
+                {
+                  label: 'Delete',
+                  icon: 'ti ti-trash-x',
+                  variant: 'danger',
+                  onClick: () => setDeleteModal({ show: true, id: row.id, processing: false }),
+                },
+              ]}
+            />
+          );
+        },
       },
     ],
     []

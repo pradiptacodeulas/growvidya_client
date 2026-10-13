@@ -315,8 +315,9 @@ const AddSalary = () => {
                         required
                       >
                         <option value="">Select</option>
-                        <option value="1">User</option>
+                        <option value="1">Staff</option>
                         <option value="2">Teacher</option>
+                        <option value="3">Driver</option>
                       </select>
                     </div>
                   </div>

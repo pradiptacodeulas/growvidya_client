@@ -36,24 +36,7 @@ const DaysList = () => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
-  const handleExportCSV = () => {
-    if (days.length === 0) return toast.info('No days to export');
-    let csv = 'Sl No.,Day Name,Campus / Branch,Status\n';
-    days.forEach((d, idx) => {
-      csv += `"${idx + 1}","${d.day_name || ''}","${d.branch_name || 'All Campuses'}","${d.status === 1 ? 'Active' : 'Inactive'}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Days_List_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const confirmDelete = (day) => {
     setDayToDelete(day);
@@ -183,34 +166,6 @@ const DaysList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
-          <TableActionMenu
-            trigger={
-              <span className="btn btn-light fw-medium d-inline-flex align-items-center">
-                <i className="ti ti-file-export me-2"></i>Export
-              </span>
-            }
-            items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
-              {
-                label: 'Export as Excel',
-                icon: 'ti ti-file-type-xls text-success',
-                onClick: handleExportCSV,
-              },
-            ]}
-          />
 
           <Link
             to="/admin/academics/days/add"

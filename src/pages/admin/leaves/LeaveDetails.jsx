@@ -165,8 +165,17 @@ const LeaveDetails = () => {
             <div className="col-md-2 col-6" style={{ fontSize: '16px', fontWeight: 500 }}>
               Leave Type :
             </div>
-            <div className="col-md-9 col-6 text-dark">
-              {leave.leave_name || 'General Leave'}
+            <div className="col-md-9 col-6 text-dark d-flex align-items-center gap-2">
+              <span>{leave.leave_name || 'General Leave'}</span>
+              {Number(leave.is_paid) === 0 ? (
+                <span className="badge bg-warning-transparent text-warning border border-warning fs-12 px-2 py-1">
+                  Non-Paid
+                </span>
+              ) : (
+                <span className="badge bg-success-transparent text-success border border-success fs-12 px-2 py-1">
+                  Paid
+                </span>
+              )}
             </div>
           </div>
 

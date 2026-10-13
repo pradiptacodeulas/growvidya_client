@@ -53,12 +53,16 @@ export const fetchVehicleByIdApi = async (id) => {
 };
 
 export const createVehicleApi = async (data) => {
-  const response = await apiClient.post('/admin/transport/vehicles', data);
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+  const response = await apiClient.post('/admin/transport/vehicles', data, config);
   return response.data;
 };
 
 export const updateVehicleApi = async (id, data) => {
-  const response = await apiClient.put(`/admin/transport/vehicles/${id}`, data);
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+  const response = await apiClient.put(`/admin/transport/vehicles/${id}`, data, config);
   return response.data;
 };
 
@@ -86,12 +90,16 @@ export const fetchDriverByIdApi = async (id) => {
 };
 
 export const createDriverApi = async (data) => {
-  const response = await apiClient.post('/admin/transport/drivers', data);
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+  const response = await apiClient.post('/admin/transport/drivers', data, config);
   return response.data;
 };
 
 export const updateDriverApi = async (id, data) => {
-  const response = await apiClient.put(`/admin/transport/drivers/${id}`, data);
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+  const response = await apiClient.put(`/admin/transport/drivers/${id}`, data, config);
   return response.data;
 };
 
@@ -124,12 +132,16 @@ export const fetchHelperByIdApi = async (id) => {
 };
 
 export const createHelperApi = async (data) => {
-  const response = await apiClient.post('/admin/transport/helpers', data);
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+  const response = await apiClient.post('/admin/transport/helpers', data, config);
   return response.data;
 };
 
 export const updateHelperApi = async (id, data) => {
-  const response = await apiClient.put(`/admin/transport/helpers/${id}`, data);
+  const isFormData = typeof FormData !== 'undefined' && data instanceof FormData;
+  const config = isFormData ? { headers: { 'Content-Type': 'multipart/form-data' } } : {};
+  const response = await apiClient.put(`/admin/transport/helpers/${id}`, data, config);
   return response.data;
 };
 

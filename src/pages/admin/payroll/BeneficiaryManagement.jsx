@@ -51,9 +51,6 @@ const BeneficiaryManagement = () => {
     }
   };
 
-  const handleExportPDF = () => {
-    window.print();
-  };
 
   const handleExportExcel = () => {
     if (!beneficiaries.length) {
@@ -73,7 +70,7 @@ const BeneficiaryManagement = () => {
     ];
     const rows = beneficiaries.map((b, idx) => [
       idx + 1,
-      b.type_name || 'User',
+      b.type_name || 'Staff',
       `"${(b.name || '').replace(/"/g, '""')}"`,
       Number(b.amount || 0).toFixed(2),
       `"${(b.bank_name || '').replace(/"/g, '""')}"`,
@@ -112,7 +109,7 @@ const BeneficiaryManagement = () => {
         align: 'center',
         cell: ({ value }) => (
           <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-medium">
-            {value || 'User'}
+            {value || 'Staff'}
           </span>
         ),
       },
@@ -230,15 +227,6 @@ const BeneficiaryManagement = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            onClick={() => window.print()}
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
           <TableActionMenu
             trigger={
               <span className="btn btn-light fw-medium d-inline-flex align-items-center">
@@ -246,11 +234,6 @@ const BeneficiaryManagement = () => {
               </span>
             }
             items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handleExportPDF,
-              },
               {
                 label: 'Export as Excel',
                 icon: 'ti ti-file-type-xls text-success',

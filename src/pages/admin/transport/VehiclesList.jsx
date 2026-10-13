@@ -9,6 +9,7 @@ import {
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
+import { resolveImageUrl } from '../../../utils/url.util';
 
 const VehiclesList = () => {
   const [vehicles, setVehicles] = useState([]);
@@ -67,14 +68,37 @@ const VehiclesList = () => {
         accessorKey: 'name',
         header: 'Bus Name',
         sortable: true,
-        cell: ({ value, row }) => (
-          <Link
-            to={`/admin/transport/bus/edit/${encodeParam(row.id)}`}
-            className="fw-semibold text-primary text-decoration-none"
-          >
-            {value}
-          </Link>
-        ),
+        cell: ({ value, row }) => {
+          const imgUrl = resolveImageUrl(row.image);
+          return (
+            <div className="d-flex align-items-center gap-2">
+              {imgUrl ? (
+                <img
+                  src={imgUrl}
+                  alt={value || 'Bus'}
+                  className="rounded border"
+                  style={{ width: '36px', height: '36px', objectFit: 'cover' }}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                  }}
+                />
+              ) : (
+                <div
+                  className="rounded bg-light border d-flex align-items-center justify-content-center text-muted flex-shrink-0"
+                  style={{ width: '36px', height: '36px' }}
+                >
+                  <i className="ti ti-bus fs-16"></i>
+                </div>
+              )}
+              <Link
+                to={`/admin/transport/bus/edit/${encodeParam(row.id)}`}
+                className="fw-semibold text-primary text-decoration-none"
+              >
+                {value}
+              </Link>
+            </div>
+          );
+        },
       },
       {
         accessorKey: 'number_plate',

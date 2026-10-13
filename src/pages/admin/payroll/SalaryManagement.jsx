@@ -85,7 +85,7 @@ const SalaryManagement = () => {
       const amountInWords = numberToWords(salary.net_salary)
         ? `${numberToWords(salary.net_salary)} Rupees Only`
         : 'Zero Only';
-      const designation = Number(salary.user_type) === 1 ? 'User' : 'Teacher';
+      const designation = salary.type_name || (Number(salary.user_type) === 2 ? 'Teacher' : Number(salary.user_type) === 3 ? 'Driver' : 'Staff');
       const basicSalary = Number(salary.basic_salary || 0).toFixed(2);
       const totalDeductions = Number(salary.total_deductions || 0).toFixed(2);
       const netSalary = Number(salary.net_salary || 0).toFixed(2);
@@ -188,9 +188,6 @@ const SalaryManagement = () => {
     }
   };
 
-  const handleExportPDF = () => {
-    window.print();
-  };
 
   const handleExportExcel = () => {
     if (!filteredData.length) {
@@ -200,6 +197,7 @@ const SalaryManagement = () => {
     const headers = [
       'Sl No.',
       'Name',
+      'Type',
       'Amount',
       'Total Deductions',
       'Net Salary',
@@ -210,6 +208,7 @@ const SalaryManagement = () => {
     const rows = filteredData.map((s, idx) => [
       idx + 1,
       `"${(s.employee_name || '').replace(/"/g, '""')}"`,
+      s.type_name || (Number(s.user_type) === 2 ? 'Teacher' : Number(s.user_type) === 3 ? 'Driver' : 'Staff'),
       Number(s.basic_salary || 0).toFixed(2),
       Number(s.total_deductions || 0).toFixed(2),
       Number(s.net_salary || 0).toFixed(2),
@@ -276,44 +275,21 @@ const SalaryManagement = () => {
               <i className="ti ti-refresh"></i>
             </button>
           </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              title="Print"
-            >
-              <i className="ti ti-printer"></i>
-            </button>
-          </div>
-          <div className="dropdown me-2 mb-2">
-            <a
-              href="javascript:void(0);"
-              className="dropdown-toggle btn btn-light fw-medium d-inline-flex align-items-center"
-              data-bs-toggle="dropdown"
-            >
-              <i className="ti ti-file-export me-2"></i>Export
-            </a>
-            <ul className="dropdown-menu dropdown-menu-end p-3">
-              <li>
-                <button
-                  type="button"
-                  onClick={handleExportPDF}
-                  className="dropdown-item rounded-1"
-                >
-                  <i className="ti ti-file-type-pdf me-2"></i>Export as PDF
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={handleExportExcel}
-                  className="dropdown-item rounded-1"
-                >
-                  <i className="ti ti-file-type-xls me-2"></i>Export as Excel
-                </button>
-              </li>
-            </ul>
+          <div className="me-2 mb-2">
+            <TableActionMenu
+              trigger={
+                <span className="btn btn-light fw-medium d-inline-flex align-items-center">
+                  <i className="ti ti-file-export me-2"></i>Export
+                </span>
+              }
+              items={[
+                {
+                  label: 'Export as Excel',
+                  icon: 'ti ti-file-type-xls text-success',
+                  onClick: handleExportExcel,
+                },
+              ]}
+            />
           </div>
           {!isTeacher && (
             <div className="mb-2">
@@ -445,8 +421,21 @@ const SalaryManagement = () => {
                           return (
                             <tr key={s.id || idx} className={isOdd ? 'odd' : 'even'}>
                               <td className="text-center sorting_1">{globalIdx + 1}</td>
-                              <td className="text-center fw-semibold text-dark">
-                                {s.employee_name || '—'}
+                              <td className="text-center">
+                                <div className="fw-semibold text-dark">{s.employee_name || '—'}</div>
+                                {s.type_name && (
+                                  <span
+                                    className={`badge ${
+                                      s.type_name === 'Teacher'
+                                        ? 'bg-info-transparent text-info border border-info-subtle'
+                                        : s.type_name === 'Driver'
+                                        ? 'bg-warning-transparent text-warning border border-warning-subtle'
+                                        : 'bg-primary-transparent text-primary border border-primary-subtle'
+                                    } px-2 py-0.5 fs-11 mt-1`}
+                                  >
+                                    {s.type_name}
+                                  </span>
+                                )}
                               </td>
                               <td className="text-center">
                                 {Number(s.basic_salary || 0).toFixed(2)}

@@ -47,24 +47,7 @@ const HousesList = () => {
     );
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
-  const handleExportCSV = () => {
-    if (houses.length === 0) return toast.info('No houses to export');
-    let csv = 'Sl No.,House Name,Sort Order,Status\n';
-    houses.forEach((h, idx) => {
-      csv += `"${idx + 1}","${h.house_name || ''}","${h.sort_order || ''}","${h.status === 1 ? 'Active' : 'Inactive'}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Houses_List_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const confirmDelete = (house) => {
     setHouseToDelete(house);
@@ -188,34 +171,6 @@ const HousesList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
-          <TableActionMenu
-            trigger={
-              <span className="btn btn-light fw-medium d-inline-flex align-items-center">
-                <i className="ti ti-file-export me-2"></i>Export
-              </span>
-            }
-            items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
-              {
-                label: 'Export as Excel',
-                icon: 'ti ti-file-type-xls text-success',
-                onClick: handleExportCSV,
-              },
-            ]}
-          />
 
           <Link
             to="/admin/academics/houses/add"

@@ -111,6 +111,7 @@ const EditBeneficiary = () => {
       ...prev,
       user_type: val,
       employee_id: '',
+      basic_salary: '',
       bank_name: '',
       account_name: '',
       account_no: '',
@@ -121,6 +122,7 @@ const EditBeneficiary = () => {
       const next = { ...prev };
       delete next.user_type;
       delete next.employee_id;
+      delete next.basic_salary;
       delete next.bank_name;
       delete next.account_name;
       delete next.account_no;
@@ -143,6 +145,7 @@ const EditBeneficiary = () => {
       setFormData((prev) => ({
         ...prev,
         employee_id: String(empId),
+        basic_salary: selectedEmp.basic_salary ? Number(selectedEmp.basic_salary).toFixed(2) : (prev.basic_salary || ''),
         bank_name: selectedEmp.bank_name || prev.bank_name || '',
         account_name: selectedEmp.account_name || selectedEmp.name || prev.account_name || '',
         account_no: selectedEmp.account_no || prev.account_no || '',
@@ -153,12 +156,14 @@ const EditBeneficiary = () => {
       setFormData((prev) => ({
         ...prev,
         employee_id: '',
+        basic_salary: '',
       }));
     }
 
     setErrors((prev) => {
       const next = { ...prev };
       delete next.employee_id;
+      if (selectedEmp?.basic_salary) delete next.basic_salary;
       if (selectedEmp?.bank_name) delete next.bank_name;
       if (selectedEmp?.account_name || selectedEmp?.name) delete next.account_name;
       if (selectedEmp?.account_no) delete next.account_no;
@@ -329,8 +334,9 @@ const EditBeneficiary = () => {
                           onChange={handleUserTypeChange}
                         >
                           <option value="">Select</option>
-                          <option value="1">User</option>
+                          <option value="1">Staff</option>
                           <option value="2">Teacher</option>
+                          <option value="3">Driver</option>
                         </select>
                         {errors.user_type && (
                           <div className="invalid-feedback">{errors.user_type}</div>

@@ -84,9 +84,7 @@ const AssignmentTypesList = () => {
     );
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
+
 
   const columns = useMemo(
     () => [
@@ -174,14 +172,6 @@ const AssignmentTypesList = () => {
             title="Refresh"
           >
             <i className="ti ti-refresh text-dark"></i>
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer text-dark"></i>
           </button>
 
           <Link

@@ -63,24 +63,7 @@ const PeriodsList = () => {
     );
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
-  const handleExportExcel = () => {
-    if (periods.length === 0) return toast.info('No periods to export');
-    let csv = 'Sl No.,Period Name,Shift,Class,Start Time,End Time,Status\n';
-    periods.forEach((p, idx) => {
-      csv += `"${idx + 1}","${p.period_name || ''}","${p.shift_name || ''}","${p.class_name || ''}","${formatTime12(p.start_time)}","${formatTime12(p.end_time)}","${p.status === 1 ? 'Active' : 'Inactive'}"\n`;
-    });
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Periods_List_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  };
 
   const confirmDelete = (period) => {
     setPeriodToDelete(period);
@@ -232,34 +215,6 @@ const PeriodsList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
-          <TableActionMenu
-            trigger={
-              <span className="btn btn-light fw-medium d-inline-flex align-items-center">
-                <i className="ti ti-file-export me-2"></i>Export
-              </span>
-            }
-            items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
-              {
-                label: 'Export as Excel',
-                icon: 'ti ti-file-type-xls text-success',
-                onClick: handleExportExcel,
-              },
-            ]}
-          />
 
           <Link
             to="/admin/academics/periods/add"
