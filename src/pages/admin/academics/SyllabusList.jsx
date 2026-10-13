@@ -79,6 +79,9 @@ const SyllabusList = () => {
   const [syllabusToDelete, setSyllabusToDelete] = useState(null);
   const [deleting, setDeleting] = useState(false);
 
+  // View Lesson modal state
+  const [viewLessonModal, setViewLessonModal] = useState(null);
+
   const searchTimerRef = useRef(null);
 
   const fetchSyllabusFromServer = useCallback(
@@ -633,14 +636,26 @@ const SyllabusList = () => {
                               </td>
                               <td className="fw-semibold text-dark">{slNo}</td>
                               <td className="fw-medium text-dark">{item.subject_name || '—'}</td>
-                              <td className="text-wrap" style={{ maxWidth: '600px' }}>
-                                {item.lession}
+                              <td style={{ maxWidth: '350px' }}>
+                                <span
+                                  className="d-inline-block text-truncate align-middle"
+                                  style={{ maxWidth: '350px', cursor: item.lession ? 'pointer' : 'default' }}
+                                  title={item.lession || ''}
+                                  onClick={() => item.lession && setViewLessonModal(item)}
+                                >
+                                  {item.lession || '—'}
+                                </span>
                               </td>
                               <td>{getStatusBadge(item.status)}</td>
                               <td className="text-center">
                                 <TableActionMenu
                                   placement={idx >= Math.max(0, syllabusList.length - 2) ? 'top-end' : 'bottom-end'}
                                   items={[
+                                    {
+                                      label: 'View',
+                                      icon: 'ti ti-eye text-info',
+                                      onClick: () => setViewLessonModal(item),
+                                    },
                                     {
                                       label: 'Edit',
                                       icon: 'ti ti-edit-circle text-primary',
@@ -780,6 +795,66 @@ const SyllabusList = () => {
                     )}
                   </button>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View Lesson Modal */}
+      {viewLessonModal && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content">
+              <div className="modal-header border-bottom">
+                <h5 className="modal-title fw-bold text-dark">
+                  <i className="ti ti-book me-2 text-primary"></i>
+                  Lesson Details
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setViewLessonModal(null)}
+                  aria-label="Close"
+                ></button>
+              </div>
+              <div className="modal-body">
+                <div className="row mb-3">
+                  <div className="col-md-4 mb-2">
+                    <span className="text-muted d-block fs-12">Subject</span>
+                    <strong className="text-dark fs-14">{viewLessonModal.subject_name || '—'}</strong>
+                  </div>
+                  <div className="col-md-4 mb-2">
+                    <span className="text-muted d-block fs-12">Class</span>
+                    <strong className="text-dark fs-14">{viewLessonModal.class_name ? `Class ${viewLessonModal.class_name}` : '—'}</strong>
+                  </div>
+                  <div className="col-md-4 mb-2">
+                    <span className="text-muted d-block fs-12">Status</span>
+                    <div className="mt-1">{getStatusBadge(viewLessonModal.status)}</div>
+                  </div>
+                </div>
+                <div className="mb-2">
+                  <span className="text-muted d-block fs-12 mb-1 fw-semibold">Lesson Content</span>
+                  <div
+                    className="p-3 bg-light rounded text-dark fs-14 border"
+                    style={{ whiteSpace: 'pre-wrap', maxHeight: '400px', overflowY: 'auto' }}
+                  >
+                    {viewLessonModal.lession || 'No lesson content provided.'}
+                  </div>
+                </div>
+              </div>
+              <div className="modal-footer border-top">
+                <button
+                  type="button"
+                  className="btn btn-secondary px-4"
+                  onClick={() => setViewLessonModal(null)}
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>

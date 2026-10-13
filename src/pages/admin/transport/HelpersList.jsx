@@ -12,7 +12,6 @@ import { encodeParam } from '../../../utils/idHelper';
 const HelpersList = () => {
   const [helpers, setHelpers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedRows, setSelectedRows] = useState([]);
 
   // Delete Modal
   const [deleteModal, setDeleteModal] = useState({
@@ -52,24 +51,6 @@ const HelpersList = () => {
       toast.error('Failed to delete helper.');
       setDeleteModal((prev) => ({ ...prev, processing: false }));
     }
-  };
-
-  const handleSelectAll = () => {
-    if (selectedRows.length === helpers.length) {
-      setSelectedRows([]);
-    } else {
-      setSelectedRows(helpers.map((h) => h.id));
-    }
-  };
-
-  const handleToggleRow = (id) => {
-    setSelectedRows((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const columns = useMemo(
@@ -180,15 +161,6 @@ const HelpersList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
           <Link
             to="/admin/transport/helper/add"
             className="btn btn-primary d-flex align-items-center"
@@ -205,10 +177,6 @@ const HelpersList = () => {
         columns={columns}
         data={helpers}
         loading={loading}
-        selectable={true}
-        selectedIds={selectedRows}
-        onSelectRow={handleToggleRow}
-        onSelectAll={handleSelectAll}
         searchPlaceholder="Search by name, email, or phone..."
         emptyMessage="No helpers registered in the system."
       />

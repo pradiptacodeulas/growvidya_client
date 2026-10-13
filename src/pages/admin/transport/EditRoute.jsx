@@ -37,10 +37,11 @@ const EditRoute = () => {
   // Load dropdown master data
   const loadMasterData = useCallback(async () => {
     try {
+      const params = isEditing ? {} : { status: 1 };
       const [busesRes, driversRes, helpersRes] = await Promise.all([
-        fetchVehiclesApi().catch(() => ({ data: { vehicles: [] } })),
-        fetchDriversApi().catch(() => ({ data: { drivers: [] } })),
-        fetchHelpersApi().catch(() => ({ data: { helpers: [] } })),
+        fetchVehiclesApi(params).catch(() => ({ data: { vehicles: [] } })),
+        fetchDriversApi(params).catch(() => ({ data: { drivers: [] } })),
+        fetchHelpersApi(params).catch(() => ({ data: { helpers: [] } })),
       ]);
       setBuses(busesRes?.data?.vehicles || busesRes?.vehicles || []);
       setDrivers(driversRes?.data?.drivers || driversRes?.drivers || []);
@@ -48,7 +49,7 @@ const EditRoute = () => {
     } catch (err) {
       console.error('Error loading route master dropdowns:', err);
     }
-  }, []);
+  }, [isEditing]);
 
   const loadRouteData = useCallback(async () => {
     if (!id) return;
@@ -93,14 +94,35 @@ const EditRoute = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  // Only active items (status = 1) should appear in Add Route dropdowns.
+  // In Edit mode, allow currently selected bus/driver/helper so existing saved selections remain visible.
+  const filteredBuses = useMemo(() => {
+    return buses.filter(
+      (b) => Number(b.status) === 1 || (isEditing && String(b.id) === String(formData.bus))
+    );
+  }, [buses, isEditing, formData.bus]);
+
+  const filteredDrivers = useMemo(() => {
+    return drivers.filter(
+      (d) => Number(d.status) === 1 || (isEditing && String(d.id) === String(formData.driver))
+    );
+  }, [drivers, isEditing, formData.driver]);
+
+  const filteredHelpers = useMemo(() => {
+    const selectedHelpers = Array.isArray(formData.helper) ? formData.helper.map(String) : [];
+    return helpersList.filter(
+      (h) => Number(h.status) === 1 || (isEditing && selectedHelpers.includes(String(h.id)))
+    );
+  }, [helpersList, isEditing, formData.helper]);
+
   const helperOptions = useMemo(() => {
-    return helpersList.map((h) => ({
+    return filteredHelpers.map((h) => ({
       value: String(h.id),
       label: h.helper_name || `${h.first_name || ''} ${h.last_name || ''}`.trim() || `Helper #${h.id}`,
       subtitle: h.phone ? `Phone: ${h.phone}` : null,
       badge: h.assigned_bus ? `Bus: ${h.assigned_bus}` : null,
     }));
-  }, [helpersList]);
+  }, [filteredHelpers]);
 
   const handleHelpersChange = (selectedValues) => {
     setFormData((prev) => ({ ...prev, helper: selectedValues }));
@@ -220,7 +242,7 @@ const EditRoute = () => {
                           required
                         >
                           <option value="">-- Select Bus --</option>
-                          {buses.map((b) => (
+                          {filteredBuses.map((b) => (
                             <option key={b.id} value={b.id}>
                               {b.name} ({b.number_plate || 'No Plate'})
                             </option>
@@ -243,7 +265,7 @@ const EditRoute = () => {
                           required
                         >
                           <option value="">-- Select Driver --</option>
-                          {drivers.map((d) => (
+                          {filteredDrivers.map((d) => (
                             <option key={d.id} value={d.id}>
                               {d.driver_name || `${d.first_name || ''} ${d.last_name || ''}`.trim()}
                             </option>
@@ -305,7 +327,7 @@ const EditRoute = () => {
                           required
                         >
                           <option value="1">Active</option>
-                          <option value="4">Inactive</option>
+                          <option value="2">Inactive</option>
                         </select>
                       </div>
                     </div>

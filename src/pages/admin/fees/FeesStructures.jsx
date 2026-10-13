@@ -475,21 +475,36 @@ const FeesStructures = () => {
     }
   };
 
-  const handleDelete = async (id, name) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete this published fee structure "${name}"? This will also remove all associated student fee allocations.`
-      )
-    )
-      return;
+  // Delete Confirmation Modal State
+  const [deleteModal, setDeleteModal] = useState({
+    show: false,
+    id: null,
+    name: '',
+    processing: false,
+  });
+
+  const handleDelete = (id, name) => {
+    setDeleteModal({
+      show: true,
+      id,
+      name,
+      processing: false,
+    });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteModal.id) return;
 
     try {
-      await adminFeesApi.deleteStructure(id);
+      setDeleteModal((prev) => ({ ...prev, processing: true }));
+      await adminFeesApi.deleteStructure(deleteModal.id);
       toast.success('Fee structure deleted successfully.');
+      setDeleteModal({ show: false, id: null, name: '', processing: false });
       setReloadTrigger((prev) => prev + 1);
     } catch (err) {
       console.error('Failed to delete structure:', err);
       toast.error(err.response?.data?.message || err.message || 'Failed to delete structure.');
+      setDeleteModal((prev) => ({ ...prev, processing: false }));
     }
   };
 
@@ -1458,6 +1473,63 @@ const FeesStructures = () => {
           </div>
         );
       })()}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModal.show && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow">
+              <div className="modal-header border-0 pb-0">
+                <button
+                  type="button"
+                  className="btn-close"
+                  onClick={() => setDeleteModal({ show: false, id: null, name: '', processing: false })}
+                  aria-label="Close"
+                  disabled={deleteModal.processing}
+                ></button>
+              </div>
+              <div className="modal-body text-center pt-0 pb-4 px-4">
+                <div className="text-danger mb-3">
+                  <i className="ti ti-trash-x fs-48"></i>
+                </div>
+                <h4 className="mb-2 text-dark fw-bold">Delete Fee Structure</h4>
+                <p className="text-muted mb-4">
+                  Are you sure you want to delete <strong className="text-dark">"{deleteModal.name}"</strong>? This will also remove all associated student fee allocations.
+                </p>
+                <div className="d-flex justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light px-4 border"
+                    onClick={() => setDeleteModal({ show: false, id: null, name: '', processing: false })}
+                    disabled={deleteModal.processing}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger px-4"
+                    onClick={handleConfirmDelete}
+                    disabled={deleteModal.processing}
+                  >
+                    {deleteModal.processing ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
+                        Deleting...
+                      </>
+                    ) : (
+                      'Delete'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

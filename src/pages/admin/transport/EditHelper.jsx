@@ -324,7 +324,7 @@ const EditHelper = () => {
                           required
                         >
                           <option value="1">Active</option>
-                          <option value="4">Inactive</option>
+                          <option value="2">Inactive</option>
                         </select>
                       </div>
                     </div>

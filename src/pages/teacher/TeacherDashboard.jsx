@@ -443,8 +443,8 @@ const TeacherDashboard = () => {
                             {syl.class_name ? `Class ${syl.class_name}` : 'Class -'}
                           </div>
                           <div className="border-bottom mb-3 pb-2" style={{ minHeight: '65px' }}>
-                            <h6 className="mb-2 text-dark text-truncate" title={syl.topic_name || syl.unit_name || syl.title || 'Lesson Plan'}>
-                              {syl.topic_name || syl.unit_name || syl.title || 'Lesson Plan'}
+                            <h6 className="mb-2 text-dark text-truncate" title={syl.lession || syl.topic_name || syl.unit_name || syl.title || 'Lesson Plan'}>
+                              {syl.lession || syl.topic_name || syl.unit_name || syl.title || 'Lesson Plan'}
                             </h6>
                             <div className="progress progress-xs mb-2">
                               <div

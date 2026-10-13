@@ -12,7 +12,6 @@ import { encodeParam } from '../../../utils/idHelper';
 const DriversList = () => {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedRows, setSelectedRows] = useState([]);
 
   // Delete Modal
   const [deleteModal, setDeleteModal] = useState({
@@ -52,24 +51,6 @@ const DriversList = () => {
       toast.error('Failed to delete driver.');
       setDeleteModal((prev) => ({ ...prev, processing: false }));
     }
-  };
-
-  const handleSelectAll = () => {
-    if (selectedRows.length === drivers.length) {
-      setSelectedRows([]);
-    } else {
-      setSelectedRows(drivers.map((d) => d.id));
-    }
-  };
-
-  const handleToggleRow = (id) => {
-    setSelectedRows((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const columns = useMemo(
@@ -188,14 +169,6 @@ const DriversList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
 
           <Link
             to="/admin/transport/driver/add"
@@ -213,10 +186,6 @@ const DriversList = () => {
         columns={columns}
         data={drivers}
         loading={loading}
-        selectable={true}
-        selectedIds={selectedRows}
-        onSelectRow={handleToggleRow}
-        onSelectAll={handleSelectAll}
         searchPlaceholder="Search by name, email, phone, or license..."
         emptyMessage="No drivers registered in the system."
       />

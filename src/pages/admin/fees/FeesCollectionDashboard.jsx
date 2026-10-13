@@ -602,7 +602,28 @@ const FeesCollectionDashboard = () => {
                         ₹{Number(pay.amount_paid).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                       </td>
                       <td>
-                        <span className="badge bg-success">Success</span>
+                        {(() => {
+                          const s = (pay.status || '').toLowerCase();
+                          if (s.includes('pending')) {
+                            return (
+                              <span className="badge bg-warning bg-opacity-10 text-warning border border-warning border-opacity-25 px-2 py-1 fw-bold fs-12">
+                                <i className="ti ti-clock me-1"></i>Pending Verification
+                              </span>
+                            );
+                          }
+                          if (s.includes('reject')) {
+                            return (
+                              <span className="badge bg-danger bg-opacity-10 text-danger border border-danger border-opacity-25 px-2 py-1 fw-bold fs-12">
+                                <i className="ti ti-circle-x me-1"></i>Rejected
+                              </span>
+                            );
+                          }
+                          return (
+                            <span className="badge bg-success bg-opacity-10 text-success border border-success border-opacity-25 px-2 py-1 fw-bold fs-12">
+                              <i className="ti ti-circle-check me-1"></i>Success
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td>
                         <Link

@@ -41,6 +41,43 @@ import femaleUserDefault from '../assets/female-user.png';
 export { maleUserDefault, femaleUserDefault };
 
 /**
+ * Helper to retrieve stored auth token for media/download authorization
+ */
+export const getAuthToken = () => {
+  if (typeof window === 'undefined') return null;
+  return (
+    localStorage.getItem('admin_token') ||
+    localStorage.getItem('token') ||
+    localStorage.getItem('teacher_token') ||
+    localStorage.getItem('student_token') ||
+    localStorage.getItem('parent_token') ||
+    null
+  );
+};
+
+/**
+ * Universal helper to resolve certificate border & template image URLs with auth token
+ */
+export const getBorderUrl = (borderPath) => {
+  if (!borderPath) return '';
+  const token = getAuthToken();
+
+  let url = '';
+  if (borderPath.startsWith('http://') || borderPath.startsWith('https://')) {
+    url = borderPath;
+  } else {
+    const cleanPath = borderPath.startsWith('/') ? borderPath.slice(1) : borderPath;
+    url = `${getServerBaseUrl()}/${cleanPath}`;
+  }
+
+  if (token && !url.includes('token=')) {
+    const separator = url.includes('?') ? '&' : '?';
+    return `${url}${separator}token=${encodeURIComponent(token)}`;
+  }
+  return url;
+};
+
+/**
  * Universal helper to resolve image & document attachment URLs
  */
 export const resolveImageUrl = (pic, fallback = null) => {
@@ -51,13 +88,32 @@ export const resolveImageUrl = (pic, fallback = null) => {
   if (clean.includes('female-user.png')) return femaleUserDefault;
   if (clean.includes('male-user.png')) return maleUserDefault;
   if (clean.startsWith('data:') || clean.startsWith('http://') || clean.startsWith('https://')) {
+    if (clean.includes('/template/') && !clean.includes('token=')) {
+      const token = getAuthToken();
+      if (token) {
+        const sep = clean.includes('?') ? '&' : '?';
+        return `${clean}${sep}token=${encodeURIComponent(token)}`;
+      }
+    }
     return clean;
   }
   const baseUrl = getServerBaseUrl();
-  if (clean.startsWith('/upload/')) return `${baseUrl}${clean}`;
-  if (clean.startsWith('upload/')) return `${baseUrl}/${clean}`;
-  if (clean.startsWith('/vidya_assets/')) return `${baseUrl}${clean.replace('/vidya_assets/', '/upload/')}`;
-  if (clean.startsWith('vidya_assets/')) return `${baseUrl}/${clean.replace('vidya_assets/', 'upload/')}`;
-  if (clean.startsWith('/')) return `${baseUrl}${clean}`;
-  return `${baseUrl}/upload/${clean}`;
+  let fullUrl = '';
+  if (clean.startsWith('/upload/')) fullUrl = `${baseUrl}${clean}`;
+  else if (clean.startsWith('upload/')) fullUrl = `${baseUrl}/${clean}`;
+  else if (clean.startsWith('/vidya_assets/')) fullUrl = `${baseUrl}${clean.replace('/vidya_assets/', '/upload/')}`;
+  else if (clean.startsWith('vidya_assets/')) fullUrl = `${baseUrl}/${clean.replace('vidya_assets/', 'upload/')}`;
+  else if (clean.startsWith('/')) fullUrl = `${baseUrl}${clean}`;
+  else fullUrl = `${baseUrl}/upload/${clean}`;
+
+  if (fullUrl.includes('/template/') && !fullUrl.includes('token=')) {
+    const token = getAuthToken();
+    if (token) {
+      const sep = fullUrl.includes('?') ? '&' : '?';
+      return `${fullUrl}${sep}token=${encodeURIComponent(token)}`;
+    }
+  }
+
+  return fullUrl;
 };
+

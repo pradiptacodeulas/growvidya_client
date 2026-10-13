@@ -10,24 +10,34 @@ import NoData from '../../../components/common/NoData';
 import { encodeParam } from '../../../utils/idHelper';
 
 const RECIPIENT_OPTIONS = [
-  { id: 1, label: 'Student', icon: 'ti-school' },
-  { id: 2, label: 'Parent', icon: 'ti-users' },
-  { id: 3, label: 'Teacher', icon: 'ti-user-check' },
-  { id: 4, label: 'Admin', icon: 'ti-shield-lock' },
-  { id: 5, label: 'Super Admin', icon: 'ti-crown' },
+  { id: 'student', label: 'Student', icon: 'ti-school' },
+  { id: 'parent', label: 'Parent', icon: 'ti-users' },
+  { id: 'teacher', label: 'Teacher', icon: 'ti-user-check' },
+  { id: 'staff', label: 'Staff', icon: 'ti-users-group' },
+  { id: 'admin', label: 'Admin', icon: 'ti-shield-lock' },
+  { id: 'super_admin', label: 'Super Admin', icon: 'ti-crown' },
 ];
 
 const RECIPIENT_NAMES = {
+  student: 'Student',
+  parent: 'Parent',
+  teacher: 'Teacher',
+  staff: 'Staff',
+  admin: 'Admin',
+  super_admin: 'Super Admin',
+  'super admin': 'Super Admin',
   1: 'Student',
   2: 'Parent',
   3: 'Teacher',
   4: 'Admin',
   5: 'Super Admin',
+  6: 'Staff',
   '1': 'Student',
   '2': 'Parent',
   '3': 'Teacher',
   '4': 'Admin',
   '5': 'Super Admin',
+  '6': 'Staff',
   Student: 'Student',
   Parent: 'Parent',
   Teacher: 'Teacher',
@@ -323,21 +333,40 @@ const NoticeList = () => {
     }
   };
 
+  // Format date and time helper
+  const formatDateTime = (dateStr) => {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return dateStr;
+    }
+  };
+
   // Export to Excel / CSV
   const handleExportExcel = () => {
     if (filteredData.length === 0) {
       toast.info('No notices available to export.');
       return;
     }
-    let csv = 'Sl No.,Title,Notice Date,Publish On,Message To,Details,Added On\n';
+    let csv = 'Sl No.,Title,Publish Date & Time,Message To,Details,Added On\n';
     filteredData.forEach((n, idx) => {
       const recipients = Array.isArray(n.message_to)
         ? n.message_to.map((r) => RECIPIENT_NAMES[r] || r).join('; ')
         : n.message_to || '';
       const cleanMsg = (n.message || '').replace(/"/g, '""').replace(/\r?\n/g, ' ');
-      csv += `"${idx + 1}","${(n.title || '').replace(/"/g, '""')}","${
-        n.notice_date ? n.notice_date.split('T')[0] : ''
-      }","${n.publish_on ? n.publish_on.split('T')[0] : ''}","${recipients}","${cleanMsg}","${formatDate(
+      csv += `"${idx + 1}","${(n.title || '').replace(/"/g, '""')}","${formatDateTime(
+        n.publish_on || n.notice_date || n.created_at
+      )}","${recipients}","${cleanMsg}","${formatDate(
         n.created_at || n.notice_date
       )}"\n`;
     });
@@ -439,13 +468,16 @@ const NoticeList = () => {
 
       const matchesExplicitDate =
         !filterDate ||
+        (n.publish_on && n.publish_on.startsWith(filterDate)) ||
         (n.notice_date && n.notice_date.startsWith(filterDate)) ||
         (n.created_at && n.created_at.startsWith(filterDate));
 
-      // Range check on notice_date or created_at
+      // Range check on publish_on, notice_date, or created_at
       const matchesDatePreset = !selectedRange
         ? true
-        : matchesRange(n.created_at) || matchesRange(n.notice_date);
+        : matchesRange(n.publish_on) ||
+          matchesRange(n.created_at) ||
+          matchesRange(n.notice_date);
 
       return (
         matchesSearch &&
@@ -866,8 +898,8 @@ const NoticeList = () => {
                   </h6>
                   <div className="d-flex flex-wrap align-items-center gap-2 mt-1">
                     <span className="text-muted small">
-                      <i className="fa-regular fa-calendar me-1"></i>Added on :{' '}
-                      {formatDate(notice.created_at || notice.notice_date)}
+                      <i className="fa-regular fa-clock me-1"></i>Publish :{' '}
+                      {formatDateTime(notice.publish_on || notice.notice_date || notice.created_at)}
                     </span>
                     {notice.target_type === 'class_section' ? (
                       <>
@@ -985,32 +1017,19 @@ const NoticeList = () => {
                   </p>
                 </div>
 
-                <div className="row g-3 mb-3">
-                  <div className="col-md-6">
-                    <div className="p-3 border rounded bg-white">
-                      <label className="form-label text-muted small fw-semibold mb-1">
-                        Notice Date
-                      </label>
-                      <p className="d-flex align-items-center mb-0 fw-medium text-dark">
-                        <i className="ti ti-calendar text-primary me-2 fs-16"></i>
-                        {viewModal.notice.notice_date
-                          ? formatDate(viewModal.notice.notice_date)
-                          : '—'}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="col-md-6">
-                    <div className="p-3 border rounded bg-white">
-                      <label className="form-label text-muted small fw-semibold mb-1">
-                        Publish On
-                      </label>
-                      <p className="d-flex align-items-center mb-0 fw-medium text-dark">
-                        <i className="ti ti-calendar-event text-info me-2 fs-16"></i>
-                        {viewModal.notice.publish_on
-                          ? formatDate(viewModal.notice.publish_on)
-                          : '—'}
-                      </p>
-                    </div>
+                <div className="mb-3">
+                  <div className="p-3 border rounded bg-white">
+                    <label className="form-label text-muted small fw-semibold mb-1">
+                      Publish Date &amp; Time
+                    </label>
+                    <p className="d-flex align-items-center mb-0 fw-medium text-dark">
+                      <i className="ti ti-calendar-event text-info me-2 fs-16"></i>
+                      {formatDateTime(
+                        viewModal.notice.publish_on ||
+                          viewModal.notice.notice_date ||
+                          viewModal.notice.created_at
+                      )}
+                    </p>
                   </div>
                 </div>
 

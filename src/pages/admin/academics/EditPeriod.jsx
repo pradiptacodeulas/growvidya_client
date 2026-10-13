@@ -20,8 +20,8 @@ const EditPeriod = () => {
   const [formData, setFormData] = useState({
     shift_id: '',
     period_name: '',
-    start_time: '08:00:00',
-    end_time: '08:30:00',
+    start_time: '',
+    end_time: '',
     status: '1',
   });
   const [loading, setLoading] = useState(true);
@@ -54,22 +54,23 @@ const EditPeriod = () => {
 
         if (periodData) {
           setFormData({
-            shift_id: periodData.shift_id ? String(periodData.shift_id) : (activeShifts[0]?.id ? String(activeShifts[0].id) : ''),
+            shift_id: periodData.shift_id ? String(periodData.shift_id) : '',
             period_name: periodData.period_name || '',
-            start_time: periodData.start_time ? String(periodData.start_time).slice(0, 8) : '08:00:00',
-            end_time: periodData.end_time ? String(periodData.end_time).slice(0, 8) : '08:30:00',
+            start_time: periodData.start_time ? String(periodData.start_time).slice(0, 8) : '',
+            end_time: periodData.end_time ? String(periodData.end_time).slice(0, 8) : '',
             status: periodData.status === 2 || periodData.status === 0 ? '2' : '1',
           });
         } else {
           toast.error('Period record not found.');
         }
       } else {
-        if (activeShifts.length > 0) {
-          setFormData((prev) => ({
-            ...prev,
-            shift_id: String(activeShifts[0].id),
-          }));
-        }
+        setFormData({
+          shift_id: '',
+          period_name: '',
+          start_time: '',
+          end_time: '',
+          status: '1',
+        });
       }
     } catch (err) {
       toast.error(err.message || 'Failed to load period details.');
@@ -80,6 +81,19 @@ const EditPeriod = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === 'shift_id') {
+      if (!isEdit) {
+        const selectedShift = shifts.find((s) => String(s.id) === String(value));
+        setFormData((prev) => ({
+          ...prev,
+          shift_id: value,
+          start_time: selectedShift?.start_time ? String(selectedShift.start_time).slice(0, 8) : '',
+          end_time: selectedShift?.end_time ? String(selectedShift.end_time).slice(0, 8) : '',
+        }));
+        return;
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -217,7 +231,7 @@ const EditPeriod = () => {
                             type="time"
                             step="1"
                             className="form-control"
-                            value={formData.start_time.slice(0, 5)}
+                            value={String(formData.start_time || '').slice(0, 5)}
                             name="start_time"
                             id="start_time"
                             onChange={(e) =>
@@ -245,7 +259,7 @@ const EditPeriod = () => {
                             type="time"
                             step="1"
                             className="form-control"
-                            value={formData.end_time.slice(0, 5)}
+                            value={String(formData.end_time || '').slice(0, 5)}
                             name="end_time"
                             id="end_time"
                             onChange={(e) =>

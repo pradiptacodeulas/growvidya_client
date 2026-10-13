@@ -1,4 +1,4 @@
-import { getServerBaseUrl } from '../../../utils/url.util';
+import { getServerBaseUrl, getBorderUrl } from '../../../utils/url.util';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -27,13 +27,6 @@ const ENTITIES_LIST = [
   { label: 'Date', key: 'date' },
   { label: 'Place', key: 'place' },
 ];
-
-const getBorderUrl = (borderPath) => {
-  if (!borderPath) return '';
-  if (borderPath.startsWith('http://') || borderPath.startsWith('https://')) return borderPath;
-  const cleanPath = borderPath.startsWith('/') ? borderPath.slice(1) : borderPath;
-  return `${getServerBaseUrl()}/${cleanPath}`;
-};
 
 const EditCertificateTemplate = () => {
   const { id: rawId } = useParams();
@@ -401,7 +394,7 @@ const EditCertificateTemplate = () => {
                           <div className="row g-3">
                             {borders.map((borderItem, idx) => {
                               const isSelected = String(formData.border) === String(borderItem.id);
-                              const borderUrl = getBorderUrl(borderItem.image);
+                              const borderUrl = getBorderUrl(borderItem.image_url || borderItem.image);
                               return (
                                 <div
                                   key={borderItem.id}

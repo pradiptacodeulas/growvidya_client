@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { fetchStudyMaterialByIdApi, fetchStudyMaterialsApi } from '../../../api/adminAcademic.api';
 import { fetchTeacherStudyMaterialByIdApi, fetchTeacherStudyMaterialsApi } from '../../../api/teacherAcademic.api';
@@ -36,6 +37,13 @@ const ViewStudyMaterial = () => {
 
   const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
   const basePath = isTeacher ? '/teacher' : '/admin';
+  const { teacher } = useSelector((state) => state.teacherAuth || {});
+  const currentTeacherId = teacher?.id || teacher?.teacher_id || teacher?.userId;
+
+  const canEdit =
+    !isTeacher ||
+    (material?.uploader_type === 'teacher' &&
+      Number(material?.uploaded_by) === Number(currentTeacherId));
 
   // Decode ID if base64 encoded
   const decodedId = (() => {
@@ -211,11 +219,13 @@ const ViewStudyMaterial = () => {
               <h4 className="text-dark mb-0 fs-16 fw-semibold">
                 Material Information: {material.title}
               </h4>
-              <div>
-                <Link to={editLink} className="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
-                  <i className="ti ti-edit-circle"></i> Edit
-                </Link>
-              </div>
+              {canEdit && (
+                <div>
+                  <Link to={editLink} className="btn btn-sm btn-primary d-inline-flex align-items-center gap-1">
+                    <i className="ti ti-edit-circle"></i> Edit
+                  </Link>
+                </div>
+              )}
             </div>
             <div className="card-body p-0">
               <div className="table-responsive">
@@ -282,6 +292,36 @@ const ViewStudyMaterial = () => {
                       <th className="bg-light fw-bold text-dark px-3 py-2.5">Subject</th>
                       <td className="px-3 py-2.5 text-dark fw-medium">
                         {material.subject_name || '-'}
+                      </td>
+                    </tr>
+
+                    {material.branch_name && (
+                      <tr>
+                        <th className="bg-light fw-bold text-dark px-3 py-2.5">Campus / Branch</th>
+                        <td className="px-3 py-2.5">
+                          <span className="badge bg-light text-primary border border-primary-subtle px-2.5 py-1 radius-4 fw-medium text-xs">
+                            <i className="ti ti-building-community me-1"></i>
+                            {material.branch_name}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+
+                    <tr>
+                      <th className="bg-light fw-bold text-dark px-3 py-2.5">Uploaded By</th>
+                      <td className="px-3 py-2.5">
+                        <span className="text-dark fw-medium">
+                          {material.uploaded_by_name || '-'}
+                        </span>
+                        {material.uploader_type ? (
+                          <span className="badge bg-secondary-subtle text-secondary border border-secondary-subtle px-2 py-0.5 radius-4 fw-medium text-xs ms-2">
+                            {material.uploader_type === 'teacher'
+                              ? 'Teacher'
+                              : material.uploader_type === 'super_admin'
+                              ? 'Super Admin'
+                              : 'Admin'}
+                          </span>
+                        ) : null}
                       </td>
                     </tr>
 

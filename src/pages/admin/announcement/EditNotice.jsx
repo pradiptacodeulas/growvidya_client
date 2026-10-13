@@ -8,37 +8,64 @@ import {
   searchAnnouncementUsersApi,
 } from '../../../api/adminAnnouncement.api';
 import { fetchClassesApi, fetchSectionsApi } from '../../../api/adminAcademic.api';
-import { fetchStaffRolesApi } from '../../../api/adminStaff.api';
 import RichTextEditor from '../../../components/common/RichTextEditor';
 import { decodeParam } from '../../../utils/idHelper';
 
 const RECIPIENT_OPTIONS = [
-  { id: 1, label: 'Student', icon: 'ti-school' },
-  { id: 2, label: 'Parent', icon: 'ti-users' },
-  { id: 3, label: 'Teacher', icon: 'ti-user-check' },
-  { id: 4, label: 'Admin', icon: 'ti-shield-lock' },
-  { id: 5, label: 'Super Admin', icon: 'ti-crown' },
+  { id: 'student', label: 'Student', icon: 'ti-school' },
+  { id: 'parent', label: 'Parent', icon: 'ti-users' },
+  { id: 'teacher', label: 'Teacher', icon: 'ti-user-check' },
+  { id: 'staff', label: 'Staff', icon: 'ti-users-group' },
+  { id: 'admin', label: 'Admin', icon: 'ti-shield-lock' },
+  { id: 'super_admin', label: 'Super Admin', icon: 'ti-crown' },
 ];
 
 const RECIPIENT_NAMES = {
+  student: 'Student',
+  parent: 'Parent',
+  teacher: 'Teacher',
+  staff: 'Staff',
+  admin: 'Admin',
+  super_admin: 'Super Admin',
+  'super admin': 'Super Admin',
+  // Backward compatibility mappings
   1: 'Student',
   2: 'Parent',
   3: 'Teacher',
   4: 'Admin',
   5: 'Super Admin',
-  student: 'Student',
-  parent: 'Parent',
-  teacher: 'Teacher',
-  admin: 'Admin',
-  'super admin': 'Super Admin',
+  6: 'Staff',
+  '1': 'Student',
+  '2': 'Parent',
+  '3': 'Teacher',
+  '4': 'Admin',
+  '5': 'Super Admin',
+  '6': 'Staff',
+  Student: 'Student',
+  Parent: 'Parent',
+  Teacher: 'Teacher',
+  Staff: 'Staff',
+  Admin: 'Admin',
+  'Super Admin': 'Super Admin',
 };
 
-const getTodayDateStr = () => {
-  const d = new Date();
+const getCurrentDateTimeLocal = (dateInput) => {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(d.getTime())) {
+    const fallback = new Date();
+    const year = fallback.getFullYear();
+    const month = String(fallback.getMonth() + 1).padStart(2, '0');
+    const day = String(fallback.getDate()).padStart(2, '0');
+    const hours = String(fallback.getHours()).padStart(2, '0');
+    const minutes = String(fallback.getMinutes()).padStart(2, '0');
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  }
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
 };
 
 const EditNotice = () => {
@@ -50,8 +77,7 @@ const EditNotice = () => {
   // Form State
   const [formData, setFormData] = useState({
     title: '',
-    notice_date: getTodayDateStr(),
-    publish_on: getTodayDateStr(),
+    publish_on: getCurrentDateTimeLocal(),
     message: '',
     status: 1,
     target_type: 'all', // 'all' | 'class_section' | 'specific_users'
@@ -59,60 +85,16 @@ const EditNotice = () => {
     target_sections: [],
     target_roles: ['student', 'parent', 'teacher'],
     target_user_ids: [],
-    message_to: [1, 2, 3, 4, 5],
+    message_to: ['student', 'parent', 'teacher', 'staff', 'admin', 'super_admin'],
   });
 
-  // Academic & Role data
+  // Academic data
   const [classList, setClassList] = useState([]);
   const [sectionList, setSectionList] = useState([]);
-  const [dynamicRoles, setDynamicRoles] = useState([]);
 
-  // Compute dynamic recipient options merging base roles with school's configured roles
-  const recipientOptions = useMemo(() => {
-    const base = [
-      { id: 1, label: 'Student', icon: 'ti-school' },
-      { id: 2, label: 'Parent', icon: 'ti-users' },
-      { id: 3, label: 'Teacher', icon: 'ti-user-check' },
-      { id: 4, label: 'Admin', icon: 'ti-shield-lock' },
-      { id: 5, label: 'Super Admin', icon: 'ti-crown' },
-    ];
-    if (!dynamicRoles || dynamicRoles.length === 0) return base;
-
-    const seenLabels = new Set(base.map((b) => b.label.toLowerCase()));
-    const extra = [];
-    dynamicRoles.forEach((r) => {
-      const name = r.role_name || r.name;
-      if (name && !seenLabels.has(name.toLowerCase())) {
-        seenLabels.add(name.toLowerCase());
-        extra.push({
-          id: r.id || name.toLowerCase(),
-          label: name,
-          icon: 'ti-user',
-        });
-      }
-    });
-    return [...base, ...extra];
-  }, [dynamicRoles]);
-
-  const recipientNames = useMemo(() => {
-    const map = {
-      1: 'Student',
-      2: 'Parent',
-      3: 'Teacher',
-      4: 'Admin',
-      5: 'Super Admin',
-      student: 'Student',
-      parent: 'Parent',
-      teacher: 'Teacher',
-      admin: 'Admin',
-      'super admin': 'Super Admin',
-    };
-    recipientOptions.forEach((opt) => {
-      map[opt.id] = opt.label;
-      map[opt.label.toLowerCase()] = opt.label;
-    });
-    return map;
-  }, [recipientOptions]);
+  // Use the standardized hardcoded recipient options
+  const recipientOptions = RECIPIENT_OPTIONS;
+  const recipientNames = RECIPIENT_NAMES;
 
   // Class Dropdown UI State
   const [classDropdownOpen, setClassDropdownOpen] = useState(false);
@@ -130,14 +112,13 @@ const EditNotice = () => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // 1. Fetch Classes, Sections, and Roles
+  // 1. Fetch Classes and Sections
   useEffect(() => {
     const loadAcademicData = async () => {
       try {
-        const [cRes, sRes, rRes] = await Promise.allSettled([
+        const [cRes, sRes] = await Promise.allSettled([
           fetchClassesApi(),
           fetchSectionsApi(),
-          fetchStaffRolesApi(),
         ]);
         if (cRes.status === 'fulfilled') {
           const raw = cRes.value?.data?.classes || cRes.value?.classes || cRes.value?.data || cRes.value;
@@ -147,12 +128,8 @@ const EditNotice = () => {
           const raw = sRes.value?.data?.sections || sRes.value?.sections || sRes.value?.data || sRes.value;
           setSectionList(Array.isArray(raw) ? raw : []);
         }
-        if (rRes.status === 'fulfilled') {
-          const raw = rRes.value?.data?.roles || rRes.value?.roles || rRes.value?.data || rRes.value;
-          setDynamicRoles(Array.isArray(raw) ? raw : []);
-        }
       } catch (err) {
-        console.error('Error loading academic and role data:', err);
+        console.error('Error loading academic data:', err);
       }
     };
     loadAcademicData();
@@ -168,14 +145,17 @@ const EditNotice = () => {
         const res = await fetchNoticeByIdApi(id);
         const notice = res?.data || res;
         if (notice) {
-          let parsedRecipients = [1, 2, 3, 4, 5];
+          let parsedRecipients = ['student', 'parent', 'teacher', 'staff', 'admin', 'super_admin'];
           if (Array.isArray(notice.message_to) && notice.message_to.length > 0) {
             parsedRecipients = notice.message_to.map((item) => {
-              if (typeof item === 'number') return item;
-              const found = recipientOptions.find(
-                (opt) => opt.label.toLowerCase() === String(item).toLowerCase()
-              );
-              return found ? found.id : Number(item) || item;
+              const str = String(item).toLowerCase().trim();
+              if (str === '1' || str === 'student') return 'student';
+              if (str === '2' || str === 'parent') return 'parent';
+              if (str === '3' || str === 'teacher') return 'teacher';
+              if (str === '4' || str === 'admin') return 'admin';
+              if (str === '5' || str === 'super admin' || str === 'super_admin') return 'super_admin';
+              if (str === '6' || str === 'staff') return 'staff';
+              return str;
             });
           }
 
@@ -189,8 +169,7 @@ const EditNotice = () => {
 
           setFormData({
             title: notice.title || '',
-            notice_date: notice.notice_date ? notice.notice_date.split('T')[0] : getTodayDateStr(),
-            publish_on: notice.publish_on ? notice.publish_on.split('T')[0] : getTodayDateStr(),
+            publish_on: getCurrentDateTimeLocal(notice.publish_on || notice.notice_date),
             message: notice.message || '',
             status: notice.status !== undefined ? Number(notice.status) : 1,
             target_type: notice.target_type || 'all',
@@ -433,8 +412,8 @@ const EditNotice = () => {
       return;
     }
 
-    if (!formData.notice_date) {
-      toast.error('Please select a notice date.');
+    if (!formData.publish_on) {
+      toast.error('Please select a publish date and time.');
       return;
     }
 
@@ -461,9 +440,10 @@ const EditNotice = () => {
 
     try {
       setSubmitting(true);
+      const datePart = formData.publish_on ? formData.publish_on.split('T')[0] : '';
       const payload = {
         title: formData.title.trim(),
-        notice_date: formData.notice_date,
+        notice_date: datePart,
         publish_on: formData.publish_on,
         message: formData.message,
         status: formData.status,
@@ -581,37 +561,21 @@ const EditNotice = () => {
                   />
                 </div>
 
-                {/* Dates Row */}
-                <div className="row">
-                  <div className="col-md-6">
-                    <div className="mb-3">
-                      <label className="form-label fw-semibold text-dark mb-1">
-                        Notice Date <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        name="notice_date"
-                        required
-                        value={formData.notice_date}
-                        onChange={handleChange}
-                      />
-                    </div>
-                  </div>
-                  <div className="col-md-6">
-                    <div className="mb-3">
-                      <label className="form-label fw-semibold text-dark mb-1">
-                        Publish Date <span className="text-danger">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        className="form-control"
-                        name="publish_on"
-                        required
-                        value={formData.publish_on}
-                        onChange={handleChange}
-                      />
-                    </div>
+                {/* Publish Date & Time */}
+                <div className="mb-3">
+                  <label className="form-label fw-semibold text-dark mb-1">
+                    Publish Date &amp; Time <span className="text-danger">*</span>
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="form-control"
+                    name="publish_on"
+                    required
+                    value={formData.publish_on}
+                    onChange={handleChange}
+                  />
+                  <div className="form-text text-muted fs-12">
+                    Specify the date and time when this notice should be officially published.
                   </div>
                 </div>
 
@@ -765,6 +729,12 @@ const EditNotice = () => {
                         );
                       })}
                     </div>
+                    {formData.message_to.includes('staff') && (
+                      <div className="mt-2 text-muted fs-12 d-flex align-items-center gap-1">
+                        <i className="ti ti-info-circle text-primary"></i>
+                        <span>Staff targets all registered staff members in your active school campus.</span>
+                      </div>
+                    )}
                   </div>
                 )}
 

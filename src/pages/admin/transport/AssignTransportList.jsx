@@ -125,6 +125,18 @@ const AssignTransportList = () => {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const assignableRoutes = useMemo(() => {
+    return routes.filter(
+      (r) => Number(r.status) === 1 || (isEditing && String(r.id) === String(formData.route))
+    );
+  }, [routes, isEditing, formData.route]);
+
+  const assignableVehicles = useMemo(() => {
+    return vehicles.filter(
+      (v) => Number(v.status) === 1 || (isEditing && String(v.id) === String(formData.vehicle_number))
+    );
+  }, [vehicles, isEditing, formData.vehicle_number]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.student_id || !formData.route) {
@@ -450,7 +462,7 @@ const AssignTransportList = () => {
                       required
                     >
                       <option value="">Select Route</option>
-                      {routes.map((r) => (
+                      {assignableRoutes.map((r) => (
                         <option key={r.id} value={r.id}>
                           {r.transport_route} (₹{Number(r.fare || 0).toFixed(2)})
                         </option>
@@ -467,7 +479,7 @@ const AssignTransportList = () => {
                       onChange={handleFormChange}
                     >
                       <option value="">Select Vehicle</option>
-                      {vehicles.map((v) => (
+                      {assignableVehicles.map((v) => (
                         <option key={v.id} value={v.id}>
                           {v.name} ({v.number_plate || 'No plate'})
                         </option>

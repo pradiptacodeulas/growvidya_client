@@ -102,9 +102,21 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             const main = list.find((b) => Number(b.is_main_branch) === 1) || list[0];
             const fallbackId = main ? String(main.id) : 'all';
             localStorage.setItem('active_branch_id', fallbackId);
+            if (main?.branch_name) {
+              localStorage.setItem('active_branch_name', main.branch_name);
+            } else {
+              localStorage.removeItem('active_branch_name');
+            }
             setActiveBranchId(fallbackId);
-            window.dispatchEvent(new CustomEvent('branch_changed', { detail: { branchId: fallbackId === 'all' ? null : Number(fallbackId) } }));
+            window.dispatchEvent(new CustomEvent('branch_changed', { detail: { branchId: fallbackId === 'all' ? null : Number(fallbackId), branchName: main?.branch_name || null } }));
+          } else {
+            const activeObj = list.find((b) => String(b.id) === String(currentActive));
+            if (activeObj?.branch_name) {
+              localStorage.setItem('active_branch_name', activeObj.branch_name);
+            }
           }
+        } else if (currentActive === 'all') {
+          localStorage.removeItem('active_branch_name');
         }
       } catch (err) {
         // quiet fallback
@@ -121,12 +133,17 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const handleSelectBranch = (branchId) => {
     if (!branchId || branchId === 'all') {
       localStorage.setItem('active_branch_id', 'all');
+      localStorage.removeItem('active_branch_name');
       setActiveBranchId('all');
-      window.dispatchEvent(new CustomEvent('branch_changed', { detail: { branchId: null } }));
+      window.dispatchEvent(new CustomEvent('branch_changed', { detail: { branchId: null, branchName: null } }));
     } else {
       localStorage.setItem('active_branch_id', String(branchId));
+      const activeObj = branches.find((b) => String(b.id) === String(branchId));
+      if (activeObj?.branch_name) {
+        localStorage.setItem('active_branch_name', activeObj.branch_name);
+      }
       setActiveBranchId(String(branchId));
-      window.dispatchEvent(new CustomEvent('branch_changed', { detail: { branchId: Number(branchId) } }));
+      window.dispatchEvent(new CustomEvent('branch_changed', { detail: { branchId: Number(branchId), branchName: activeObj?.branch_name || null } }));
     }
     window.location.reload();
   };

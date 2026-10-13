@@ -144,6 +144,14 @@ const StudyMaterialsList = () => {
       status: '',
       search: '',
     }, '');
+
+    const handleBranchChange = () => {
+      loadMasters();
+      loadMaterials(1, perPage, appliedFilters, tableSearch);
+    };
+
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, []);
 
   // Close dropdown on outside click
@@ -232,6 +240,13 @@ const StudyMaterialsList = () => {
       const combinedSearch = (searchVal && searchVal.trim()) || (filterObj.search && filterObj.search.trim()) || '';
       if (combinedSearch) {
         queryParams.search = combinedSearch;
+      }
+
+      if (!isTeacher) {
+        const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+        if (activeBranch && activeBranch !== 'all') {
+          queryParams.branch_id = activeBranch;
+        }
       }
 
       const fetchStudyMaterials = isTeacher ? fetchTeacherStudyMaterialsApi : fetchStudyMaterialsApi;
@@ -466,6 +481,7 @@ const StudyMaterialsList = () => {
       subject_id: '',
       attachment_url: '',
       attachment_name: '',
+      publish_date: new Date().toISOString().split('T')[0],
       allow_download: 1,
       status: 1,
     });
@@ -505,6 +521,7 @@ const StudyMaterialsList = () => {
       attachment_name: material.attachment_original_name || material.attachment_name || '',
       attachment_size: material.attachment_size || '',
       attachment_extension: material.attachment_extension || '',
+      publish_date: material.publish_date ? material.publish_date.split('T')[0] : new Date().toISOString().split('T')[0],
       allow_download: material.allow_download !== undefined ? Number(material.allow_download) : 1,
       status: material.status !== undefined ? Number(material.status) : 1,
     });
@@ -603,6 +620,7 @@ const StudyMaterialsList = () => {
         attachment_original_name: finalOriginalName,
         attachment_size: finalSize,
         attachment_extension: finalExtension,
+        publish_date: formData.publish_date || new Date().toISOString().split('T')[0],
         allow_download: Number(formData.allow_download) || 1,
         status: Number(formData.status) || 1,
       };
@@ -1062,6 +1080,7 @@ const StudyMaterialsList = () => {
                   <th className="text-center">Type</th>
                   <th className="text-center">Subject</th>
                   <th className="text-center">Class / Section</th>
+                  {!isTeacher && <th className="text-center">Campus / Branch</th>}
                   <th className="text-center">Uploaded By</th>
                   <th className="text-center">Attachment</th>
                   <th className="text-center" style={{ width: '100px' }}>
@@ -1075,7 +1094,7 @@ const StudyMaterialsList = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-5">
+                    <td colSpan={!isTeacher ? 10 : 9} className="text-center py-5">
                       <div className="spinner-border text-primary" role="status">
                         <span className="visually-hidden">Loading...</span>
                       </div>
@@ -1084,7 +1103,7 @@ const StudyMaterialsList = () => {
                   </tr>
                 ) : materials.length === 0 ? (
                   <tr>
-                    <td colSpan="9" className="text-center py-5 text-muted">
+                    <td colSpan={!isTeacher ? 10 : 9} className="text-center py-5 text-muted">
                       <i className="ti ti-folder-off fs-36 mb-2 d-block text-secondary opacity-50"></i>
                       <div className="fw-semibold">No study materials found</div>
                       <div className="text-xs">
@@ -1130,13 +1149,6 @@ const StudyMaterialsList = () => {
                               <i className="ti ti-bookmark me-1"></i>Topic: {material.chapter}
                             </div>
                           )}
-                          {material.description && (
-                            <div className="text-xs text-muted" style={{ maxWidth: '320px' }}>
-                              {material.description.length > 80
-                                ? material.description.substring(0, 80) + '...'
-                                : material.description}
-                            </div>
-                          )}
                         </td>
                         <td className="text-center">
                           <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1 radius-4 fw-medium text-xs">
@@ -1152,23 +1164,39 @@ const StudyMaterialsList = () => {
                             {material.section_name ? ` (${material.section_name})` : ''}
                           </span>
                         </td>
+                        {!isTeacher && (
+                          <td className="text-center">
+                            {material.branch_name ? (
+                              <span className="badge bg-light text-primary border border-primary-subtle px-2 py-1 text-xs">
+                                <i className="ti ti-building-community me-1"></i>
+                                {material.branch_name}
+                              </span>
+                            ) : (
+                              <span className="text-muted text-xs">-</span>
+                            )}
+                          </td>
+                        )}
                         <td className="text-center text-xs">
                           <div className="fw-medium text-dark">
-                            {isMyUpload ? 'You' : material.uploaded_by_name || 'Admin'}
+                            {isMyUpload ? 'You' : material.uploaded_by_name || '-'}
                           </div>
-                          <span
-                            className={`badge px-2 py-0-5 text-xxs mt-1 ${
-                              isMyUpload
-                                ? 'bg-success-subtle text-success border border-success-subtle'
-                                : 'bg-secondary-subtle text-secondary'
-                            }`}
-                          >
-                            {isMyUpload
-                              ? 'My Upload'
-                              : material.uploader_type === 'admin'
-                              ? 'Admin'
-                              : 'Teacher'}
-                          </span>
+                          {material.uploader_type ? (
+                            <span
+                              className={`badge px-2 py-0-5 text-xxs mt-1 ${
+                                isMyUpload
+                                  ? 'bg-success-subtle text-success border border-success-subtle'
+                                  : 'bg-secondary-subtle text-secondary'
+                              }`}
+                            >
+                              {isMyUpload
+                                ? 'My Upload'
+                                : material.uploader_type === 'teacher'
+                                ? 'Teacher'
+                                : material.uploader_type === 'super_admin'
+                                ? 'Super Admin'
+                                : 'Admin'}
+                            </span>
+                          ) : null}
                         </td>
                         <td className="text-center">
                           {material.attachment ? (
@@ -1378,10 +1406,28 @@ const StudyMaterialsList = () => {
                           {viewMaterial.chapter || 'N/A'}
                         </strong>
                       </div>
+                      {viewMaterial.branch_name && (
+                        <div className="col-md-6">
+                          <span className="text-muted small d-block">Campus / Branch</span>
+                          <strong className="text-dark fs-14">
+                            <i className="ti ti-building-community me-1 text-primary"></i>
+                            {viewMaterial.branch_name}
+                          </strong>
+                        </div>
+                      )}
                       <div className="col-md-6">
                         <span className="text-muted small d-block">Uploaded By</span>
                         <strong className="text-dark fs-14">
-                          {viewMaterial.uploaded_by_name} ({viewMaterial.uploader_type})
+                          {viewMaterial.uploaded_by_name || '-'}
+                          {viewMaterial.uploader_type
+                            ? ` (${
+                                viewMaterial.uploader_type === 'teacher'
+                                  ? 'Teacher'
+                                  : viewMaterial.uploader_type === 'super_admin'
+                                  ? 'Super Admin'
+                                  : 'Admin'
+                              })`
+                            : ''}
                         </strong>
                       </div>
                       <div className="col-md-6">

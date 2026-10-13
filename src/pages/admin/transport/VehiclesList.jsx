@@ -13,7 +13,6 @@ import { encodeParam } from '../../../utils/idHelper';
 const VehiclesList = () => {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedRows, setSelectedRows] = useState([]);
 
   // Delete Modal State
   const [deleteModal, setDeleteModal] = useState({
@@ -53,24 +52,6 @@ const VehiclesList = () => {
       toast.error('Failed to delete bus.');
       setDeleteModal((prev) => ({ ...prev, processing: false }));
     }
-  };
-
-  const handleSelectAll = () => {
-    if (selectedRows.length === vehicles.length) {
-      setSelectedRows([]);
-    } else {
-      setSelectedRows(vehicles.map((v) => v.id));
-    }
-  };
-
-  const handleToggleRow = (id) => {
-    setSelectedRows((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const columns = useMemo(
@@ -192,15 +173,6 @@ const VehiclesList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
-
           <Link
             to="/admin/transport/bus/add"
             className="btn btn-primary d-flex align-items-center"
@@ -217,10 +189,6 @@ const VehiclesList = () => {
         columns={columns}
         data={vehicles}
         loading={loading}
-        selectable={true}
-        selectedIds={selectedRows}
-        onSelectRow={handleToggleRow}
-        onSelectAll={handleSelectAll}
         searchPlaceholder="Search by bus name or number plate..."
         emptyMessage="No buses registered in the system."
       />

@@ -254,7 +254,19 @@ export const updateMaterialTypeApi = async (id, data) => await apiFetch(`/admin/
 export const deleteMaterialTypeApi = async (id) => await apiFetch(`/admin/academics/material-types/${id}`, { method: 'DELETE' });
 
 export const fetchStudyMaterialsApi = async (params = {}) => {
-  const query = new URLSearchParams(params).toString();
+  let queryParams = {};
+  if (typeof params === 'object' && params !== null) {
+    queryParams = { ...params };
+  } else if (params && params !== 'all') {
+    queryParams = { branch_id: params };
+  }
+  if (queryParams.branch_id === undefined && queryParams.branchId === undefined) {
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (activeBranch && activeBranch !== 'all') {
+      queryParams.branch_id = activeBranch;
+    }
+  }
+  const query = new URLSearchParams(queryParams).toString();
   return await apiFetch(`/admin/academics/study-materials${query ? `?${query}` : ''}`);
 };
 export const fetchStudyMaterialByIdApi = async (id) => await apiFetch(`/admin/academics/study-materials/${id}`);

@@ -14,15 +14,8 @@ import schoolLogo from '../../../assets/school-logo.png';
 import defaultAvatar from '../../../assets/male-user.png';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import NoData from '../../../components/common/NoData';
-import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
+import { getServerBaseUrl, resolveImageUrl, getBorderUrl } from '../../../utils/url.util';
 import { triggerPdfDownload } from '../../../utils/generateCertificatePdf';
-
-const getBorderUrl = (borderPath) => {
-  if (!borderPath) return '';
-  if (borderPath.startsWith('http://') || borderPath.startsWith('https://')) return borderPath;
-  const cleanPath = borderPath.startsWith('/') ? borderPath.slice(1) : borderPath;
-  return `${getServerBaseUrl()}/${cleanPath}`;
-};
 
 const getTodayDateStr = () => {
   const d = new Date();
@@ -161,8 +154,8 @@ const CertificateCreate = () => {
       return '';
     }
     const match = borders.find((b) => String(b.id) === String(borderId));
-    if (match?.image) {
-      return getBorderUrl(match.image);
+    if (match?.image_url || match?.image) {
+      return getBorderUrl(match.image_url || match.image);
     }
     if (typeof borderId === 'string' && (borderId.includes('/') || borderId.includes('\\') || borderId.startsWith('http'))) {
       return getBorderUrl(borderId);

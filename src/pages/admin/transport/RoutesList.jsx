@@ -17,8 +17,6 @@ const formatCurrency = (val) => {
 const RoutesList = () => {
   const [routes, setRoutes] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [selectedRows, setSelectedRows] = useState([]);
-
   // Delete Modal
   const [deleteModal, setDeleteModal] = useState({
     show: false,
@@ -57,24 +55,6 @@ const RoutesList = () => {
       toast.error('Failed to delete route.');
       setDeleteModal((prev) => ({ ...prev, processing: false }));
     }
-  };
-
-  const handleSelectAll = () => {
-    if (selectedRows.length === routes.length) {
-      setSelectedRows([]);
-    } else {
-      setSelectedRows(routes.map((r) => r.id));
-    }
-  };
-
-  const handleToggleRow = (id) => {
-    setSelectedRows((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-    );
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const columns = useMemo(
@@ -197,14 +177,6 @@ const RoutesList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
 
           <Link
             to="/admin/transport/routes/add"
@@ -222,10 +194,6 @@ const RoutesList = () => {
         columns={columns}
         data={routes}
         loading={loading}
-        selectable={true}
-        selectedIds={selectedRows}
-        onSelectRow={handleToggleRow}
-        onSelectAll={handleSelectAll}
         searchPlaceholder="Search routes, buses, or numbers..."
         emptyMessage="No transport routes registered."
       />

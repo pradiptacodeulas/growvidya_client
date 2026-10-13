@@ -9,6 +9,7 @@ import { resolveImageUrl } from '../../utils/url.util';
 import Avatar from './Avatar';
 import usePermission from '../../hooks/usePermission';
 import { useSubscription } from '../../context/SubscriptionContext';
+import { fetchBranchesApi } from '../../api/branch.api';
 import { toast } from 'react-toastify';
 
 const WARD_MODULES = ['ward/students', 'ward/parents'];
@@ -100,8 +101,64 @@ const Sidebar = ({
     }
   };
 
+  const [activeBranchName, setActiveBranchName] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    const activeBranchId = localStorage.getItem('active_branch_id');
+    if (!activeBranchId || activeBranchId === 'all') return '';
+    return localStorage.getItem('active_branch_name') || '';
+  });
+
+  useEffect(() => {
+    const resolveActiveBranch = async () => {
+      const activeBranchId = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+      if (!activeBranchId || activeBranchId === 'all') {
+        setActiveBranchName('');
+        return;
+      }
+
+      const cachedName = localStorage.getItem('active_branch_name');
+      if (cachedName) {
+        setActiveBranchName(cachedName);
+      }
+
+      // If super admin and cached name missing, fetch branches to resolve
+      if (isSuperAdmin && !cachedName) {
+        try {
+          const res = await fetchBranchesApi({ status: 1 });
+          const list = Array.isArray(res?.data) ? res.data : [];
+          const matched = list.find((b) => String(b.id) === String(activeBranchId));
+          if (matched?.branch_name) {
+            setActiveBranchName(matched.branch_name);
+            localStorage.setItem('active_branch_name', matched.branch_name);
+          }
+        } catch (_) {}
+      }
+    };
+
+    resolveActiveBranch();
+
+    const handleBranchChanged = (e) => {
+      const bId = e.detail?.branchId;
+      const newName = e.detail?.branchName || localStorage.getItem('active_branch_name') || '';
+      if (!bId || bId === 'all') {
+        setActiveBranchName('');
+      } else {
+        setActiveBranchName(newName);
+      }
+    };
+
+    window.addEventListener('branch_changed', handleBranchChanged);
+    window.addEventListener('branch_list_updated', resolveActiveBranch);
+    return () => {
+      window.removeEventListener('branch_changed', handleBranchChanged);
+      window.removeEventListener('branch_list_updated', resolveActiveBranch);
+    };
+  }, [isSuperAdmin]);
+
   const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogoDefault;
   const schoolName = user?.schoolName || user?.school_name || '';
+  const currentBranchName = activeBranchName || (!isSuperAdmin ? (user?.branchName || user?.branch_name) : '');
+  const displayName = currentBranchName || schoolName;
 
   const isMultiBranchSuperAdmin =
     String(user?.registrationType || user?.registration_type || '').toLowerCase() === 'multiple' &&
@@ -240,6 +297,7 @@ const Sidebar = ({
               <a
                 href="javascript:void(0);"
                 className="d-flex align-items-center border bg-white rounded p-2 text-decoration-none"
+                title={displayName !== schoolName && schoolName ? `${displayName} (${schoolName})` : displayName}
               >
                 <span
                   className="avatar avatar-md bg-transparent rounded flex-shrink-0 d-inline-flex align-items-center justify-content-center overflow-hidden"
@@ -247,7 +305,7 @@ const Sidebar = ({
                 >
                   <img
                     src={schoolLogoSrc}
-                    alt={schoolName}
+                    alt={displayName}
                     className="img-fluid rounded"
                     style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
                     onError={(e) => {
@@ -256,7 +314,7 @@ const Sidebar = ({
                     }}
                   />
                 </span>
-                <span className="text-dark ms-2 fw-semibold text-truncate">{schoolName}</span>
+                <span className="text-dark ms-2 fw-semibold text-truncate">{displayName}</span>
               </a>
             </li>
           </ul>

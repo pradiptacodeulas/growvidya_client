@@ -1,4 +1,4 @@
-import { getServerBaseUrl } from '../../../utils/url.util';
+import { getServerBaseUrl, getBorderUrl } from '../../../utils/url.util';
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -10,13 +10,6 @@ import {
 } from '../../../api/adminCertificate.api';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import NoData from '../../../components/common/NoData';
-
-const getBorderUrl = (borderPath) => {
-  if (!borderPath) return '';
-  if (borderPath.startsWith('http://') || borderPath.startsWith('https://')) return borderPath;
-  const cleanPath = borderPath.startsWith('/') ? borderPath.slice(1) : borderPath;
-  return `${getServerBaseUrl()}/${cleanPath}`;
-};
 
 const CertificateBorder = () => {
   const [borders, setBorders] = useState([]);
@@ -96,9 +89,9 @@ const CertificateBorder = () => {
       // Search filter
       if (search.trim()) {
         const term = search.toLowerCase();
-        const pathStr = (b.image || '').toLowerCase();
+        const titleStr = (b.title || `Border #${b.id}`).toLowerCase();
         const idStr = String(b.id || '');
-        if (!pathStr.includes(term) && !idStr.includes(term)) {
+        if (!titleStr.includes(term) && !idStr.includes(term)) {
           return false;
         }
       }
@@ -330,11 +323,10 @@ const CertificateBorder = () => {
 
   // Export handlers
   const handleExportExcel = () => {
-    const headers = ['Sl No.', 'Border ID', 'Image Path', 'Status', 'Created On'];
+    const headers = ['Sl No.', 'Border ID', 'Status', 'Created On'];
     const rows = filteredBorders.map((b, idx) => [
       idx + 1,
       b.id,
-      `"${b.image || ''}"`,
       b.status === 1 || String(b.status) === '1' ? 'Active' : 'Inactive',
       `"${b.created_on || ''}"`,
     ]);
@@ -552,11 +544,8 @@ const CertificateBorder = () => {
                     <th className="text-center align-middle" style={{ width: '80px' }}>
                       Sl No.
                     </th>
-                    <th className="text-center align-middle" style={{ width: '130px' }}>
+                    <th className="text-center align-middle" style={{ width: '180px' }}>
                       Border Preview
-                    </th>
-                    <th className="text-start align-middle" style={{ minWidth: '220px' }}>
-                      Image File Path
                     </th>
                     <th className="text-center align-middle" style={{ width: '130px' }}>
                       Status
@@ -572,14 +561,14 @@ const CertificateBorder = () => {
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan="7" className="text-center py-4 align-middle">
+                      <td colSpan="6" className="text-center py-4 align-middle">
                         <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
                         Loading certificate borders...
                       </td>
                     </tr>
                   ) : currentRecords.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="text-center py-4 align-middle">
+                      <td colSpan="6" className="text-center py-4 align-middle">
                         <NoData
                           title="No Certificate Borders Found"
                           message="Upload your custom certificate border frames to design templates."
@@ -602,8 +591,8 @@ const CertificateBorder = () => {
                       const slNo = (currentPage - 1) * pageSize + idx + 1;
                       const isOdd = idx % 2 === 0;
                       const isDropdownOpen = activeDropdownId === border.id;
-                      const borderUrl = getBorderUrl(border.image);
-                      const fileName = border.image ? border.image.split('/').pop() : `Border_${border.id}`;
+                      const borderUrl = getBorderUrl(border.image_url || border.image);
+                      const fileName = border.title || `Border #${border.id}`;
                       const formattedDate = border.created_on
                         ? new Date(border.created_on).toLocaleDateString('en-GB', {
                             day: '2-digit',
@@ -646,10 +635,6 @@ const CertificateBorder = () => {
                                 }}
                               />
                             </div>
-                          </td>
-                          <td className="text-start align-middle">
-                            <span className="fw-semibold text-dark d-block">{fileName}</span>
-                            <span className="text-muted small fs-12">{border.image}</span>
                           </td>
                           <td className="text-center align-middle">
                             {border.status === 1 || String(border.status) === '1' ? (
@@ -721,8 +706,8 @@ const CertificateBorder = () => {
               ) : (
                 <div className="row g-3">
                   {currentRecords.map((border, idx) => {
-                    const borderUrl = getBorderUrl(border.image);
-                    const fileName = border.image ? border.image.split('/').pop() : `Border_${border.id}`;
+                    const borderUrl = getBorderUrl(border.image_url || border.image);
+                    const fileName = border.title || `Border #${border.id}`;
                     return (
                       <div key={border.id || idx} className="col-12 col-sm-6 col-md-4 col-xl-3">
                         <div className="card border shadow-xs h-100 mb-0 position-relative overflow-hidden">
@@ -783,13 +768,7 @@ const CertificateBorder = () => {
                           </div>
 
                           <div className="card-body p-3">
-                            <h6 className="fs-14 fw-semibold text-truncate mb-1" title={fileName}>
-                              {fileName}
-                            </h6>
-                            <p className="text-muted fs-12 mb-2 text-truncate" title={border.image}>
-                              {border.image}
-                            </p>
-                            <div className="d-flex align-items-center justify-content-between pt-2 border-top">
+                            <div className="d-flex align-items-center justify-content-between">
                               <span className="text-muted fs-12">
                                 ID: #{border.id}
                               </span>
@@ -1127,14 +1106,11 @@ const CertificateBorder = () => {
               <div className="modal-body p-4 text-center bg-light">
                 <div className="border rounded p-2 bg-white d-inline-block shadow-sm">
                   <img
-                    src={getBorderUrl(previewModal.border.image)}
+                    src={getBorderUrl(previewModal.border.image_url || previewModal.border.image)}
                     alt="Border Preview"
                     className="img-fluid"
                     style={{ maxHeight: '550px', objectFit: 'contain' }}
                   />
-                </div>
-                <div className="mt-3 text-muted small">
-                  Path: <code>{previewModal.border.image}</code>
                 </div>
               </div>
               <div className="modal-footer px-4 py-3 bg-white border-top">
