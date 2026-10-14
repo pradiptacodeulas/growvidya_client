@@ -117,22 +117,6 @@ const SubjectsList = () => {
         ),
       },
       {
-        accessorKey: 'branch_name',
-        header: 'Campus / Branch',
-        sortable: true,
-        cell: ({ row }) => (
-          row.branch_name ? (
-            <span className="badge bg-primary-transparent text-primary fs-11">
-              <i className="ti ti-building me-1"></i>{row.branch_name}
-            </span>
-          ) : (
-            <span className="badge bg-secondary-transparent text-secondary fs-11">
-              <i className="ti ti-world me-1"></i>All Campuses
-            </span>
-          )
-        ),
-      },
-      {
         accessorKey: 'sort_order',
         header: 'Sort Order',
         width: '120px',
