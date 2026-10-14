@@ -42,10 +42,12 @@ const AddSalary = () => {
     };
   }, []);
 
-  const loadEmployees = useCallback(async (type) => {
+  const loadEmployees = useCallback(async (type, paymentDate) => {
     try {
       setLoading(true);
-      const res = await fetchEmployeesByTypeApi(type);
+      const res = await fetchEmployeesByTypeApi(type, {
+        payment_date: paymentDate,
+      });
       if (res?.data?.employees) {
         setEmployees(res.data.employees);
       } else if (res?.employees) {
@@ -69,11 +71,12 @@ const AddSalary = () => {
       employee_id: '',
       leave_id: '',
       basic_salary: '',
+      total_deductions: '0.00',
       net_salary: '',
     }));
     setNameSearch('');
     if (val) {
-      loadEmployees(val);
+      loadEmployees(val, formData.payment_date);
     } else {
       setEmployees([]);
     }
@@ -83,15 +86,22 @@ const AddSalary = () => {
     const selectedEmp = employees.find((emp) => String(emp.id) === String(empId));
 
     if (selectedEmp) {
+      if (selectedEmp.is_beneficiary_verified === false) {
+        toast.warning(
+          `${selectedEmp.name} is ineligible: ${(selectedEmp.beneficiary_issues || []).join(', ')}.`
+        );
+      }
       const basic = selectedEmp.basic_salary ? Number(selectedEmp.basic_salary).toFixed(2) : '0.00';
-      const deductions = Number(formData.total_deductions) || 0;
-      const net = Math.max(0, Number(basic) - deductions).toFixed(2);
+      const leaveDed = Number(selectedEmp.leave_deduction_amount || 0);
+      const deductions = leaveDed.toFixed(2);
+      const net = Math.max(0, Number(basic) - leaveDed).toFixed(2);
 
       setFormData((prev) => ({
         ...prev,
         employee_id: String(empId),
-        leave_id: selectedEmp.id,
+        leave_id: selectedEmp.primary_leave_id || '',
         basic_salary: basic,
+        total_deductions: deductions,
         net_salary: net,
       }));
     } else {
@@ -100,6 +110,7 @@ const AddSalary = () => {
         employee_id: '',
         leave_id: '',
         basic_salary: '',
+        total_deductions: '0.00',
         net_salary: '',
       }));
     }
@@ -131,12 +142,39 @@ const AddSalary = () => {
     }));
   };
 
-  const handleChange = (e) => {
+  const handleChange = async (e) => {
     const { name, value } = e.target;
+    const prevMonth = (formData.payment_date || '').slice(0, 7);
     setFormData((prev) => ({
       ...prev,
       [name]: value,
     }));
+
+    if (name === 'payment_date' && formData.user_type && value.slice(0, 7) !== prevMonth) {
+      try {
+        setLoading(true);
+        const res = await fetchEmployeesByTypeApi(formData.user_type, { payment_date: value });
+        const list = res?.data?.employees || res?.employees || [];
+        setEmployees(list);
+        if (formData.employee_id) {
+          const updatedEmp = list.find((emp) => String(emp.id) === String(formData.employee_id));
+          if (updatedEmp) {
+            const basic = Number(updatedEmp.basic_salary || formData.basic_salary || 0);
+            const leaveDed = Number(updatedEmp.leave_deduction_amount || 0);
+            setFormData((prev) => ({
+              ...prev,
+              leave_id: updatedEmp.primary_leave_id || '',
+              total_deductions: leaveDed.toFixed(2),
+              net_salary: Math.max(0, basic - leaveDed).toFixed(2),
+            }));
+          }
+        }
+      } catch (err) {
+        console.error('Error refreshing leave deductions for month:', err);
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   const handleImageChange = (e) => {
@@ -167,10 +205,11 @@ const AddSalary = () => {
     return employees.filter((emp) => (emp.name || '').toLowerCase().includes(q));
   }, [employees, nameSearch]);
 
-  const selectedEmployeeName = useMemo(() => {
-    const emp = employees.find((e) => String(e.id) === String(formData.employee_id));
-    return emp ? emp.name : '';
+  const selectedEmployeeObj = useMemo(() => {
+    return employees.find((e) => String(e.id) === String(formData.employee_id)) || null;
   }, [employees, formData.employee_id]);
+
+  const selectedEmployeeName = selectedEmployeeObj ? selectedEmployeeObj.name : '';
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -180,6 +219,12 @@ const AddSalary = () => {
     }
     if (!formData.employee_id) {
       toast.error('Please select Employee Name.');
+      return;
+    }
+    if (selectedEmployeeObj && selectedEmployeeObj.is_beneficiary_verified === false) {
+      toast.error(
+        `Cannot process salary: ${(selectedEmployeeObj.beneficiary_issues || []).join(', ')}. Please verify beneficiary & bank details first.`
+      );
       return;
     }
     if (!formData.basic_salary || isNaN(formData.basic_salary) || Number(formData.basic_salary) <= 0) {
@@ -417,9 +462,16 @@ const AddSalary = () => {
                                   }}
                                 >
                                   <span>{emp.name}</span>
-                                  {String(formData.employee_id) === String(emp.id) && (
-                                    <i className="ti ti-check text-primary fs-14"></i>
-                                  )}
+                                  <span className="d-inline-flex align-items-center gap-1">
+                                    {emp.is_beneficiary_verified ? (
+                                      <span className="badge bg-success-subtle text-success fs-10">Verified</span>
+                                    ) : (
+                                      <span className="badge bg-danger-subtle text-danger fs-10">Ineligible</span>
+                                    )}
+                                    {String(formData.employee_id) === String(emp.id) && (
+                                      <i className="ti ti-check text-primary fs-14"></i>
+                                    )}
+                                  </span>
                                 </div>
                               ))
                             )}
@@ -534,6 +586,64 @@ const AddSalary = () => {
                     </div>
                   </div>
                 </div>
+
+                {selectedEmployeeObj && (
+                  <div className="row mt-2 mb-3">
+                    <div className="col-12">
+                      <div
+                        className={`p-3 rounded-2 border ${
+                          selectedEmployeeObj.is_beneficiary_verified
+                            ? 'bg-light border-success-subtle'
+                            : 'bg-danger-subtle border-danger'
+                        }`}
+                      >
+                        <div className="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                          <div>
+                            <span className="fw-bold text-dark me-2">{selectedEmployeeObj.name}</span>
+                            {selectedEmployeeObj.is_beneficiary_verified ? (
+                              <span className="badge bg-success text-white">
+                                <i className="ti ti-circle-check me-1"></i>Beneficiary Verified ({selectedEmployeeObj.bank_name} • A/C: {selectedEmployeeObj.account_no} • IFSC: {selectedEmployeeObj.ifsc_code})
+                              </span>
+                            ) : (
+                              <span className="badge bg-danger text-white">
+                                <i className="ti ti-alert-triangle me-1"></i>
+                                Ineligible: {(selectedEmployeeObj.beneficiary_issues || []).join(', ')}
+                              </span>
+                            )}
+                          </div>
+                          {!selectedEmployeeObj.is_beneficiary_verified && (
+                            <Link
+                              to="/admin/payroll/beneficiaries/add"
+                              className="btn btn-sm btn-outline-danger"
+                            >
+                              Add / Verify Beneficiary
+                            </Link>
+                          )}
+                        </div>
+                        <div className="d-flex flex-wrap gap-4 mt-2 pt-2 border-top small text-muted">
+                          <div>
+                            <strong>Salary Period:</strong> {selectedEmployeeObj.salary_month} ({selectedEmployeeObj.days_in_month} days)
+                          </div>
+                          <div>
+                            <strong>Paid Leave:</strong> {Number(selectedEmployeeObj.paid_leave_days || 0)} day(s)
+                          </div>
+                          <div>
+                            <strong>Unpaid Leave:</strong>{' '}
+                            <span className={Number(selectedEmployeeObj.unpaid_leave_days || 0) > 0 ? 'text-danger fw-bold' : 'text-dark'}>
+                              {Number(selectedEmployeeObj.unpaid_leave_days || 0)} day(s)
+                            </span>
+                          </div>
+                          <div>
+                            <strong>Leave-Based Deduction:</strong>{' '}
+                            <span className="text-danger fw-bold">
+                              ₹{Number(selectedEmployeeObj.leave_deduction_amount || 0).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="text-end mb-2 p-3">
@@ -547,7 +657,7 @@ const AddSalary = () => {
                 <button
                   type="submit"
                   className="btn btn-primary"
-                  disabled={submitting}
+                  disabled={submitting || (selectedEmployeeObj && !selectedEmployeeObj.is_beneficiary_verified)}
                 >
                   {submitting ? 'Submitting...' : 'Submit'}
                 </button>

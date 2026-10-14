@@ -437,11 +437,6 @@ const StudentList = () => {
                           to: `/admin/students/edit/${encodeParam(student.id)}`,
                         },
                         {
-                          label: 'Promote Student',
-                          icon: 'ti ti-arrow-ramp-right-2',
-                          onClick: () => toast.info('Promote student feature'),
-                        },
-                        {
                           label: 'Delete',
                           icon: 'ti ti-trash-x',
                           variant: 'danger',

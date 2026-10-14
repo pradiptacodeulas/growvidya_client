@@ -594,9 +594,9 @@ export const adminRoutes = (
       <Route path="payroll/beneficiarysalary/add" element={<EditBeneficiary />} />
       <Route path="payroll/beneficiarysalary/edit/:id" element={<EditBeneficiary />} />
       <Route path="payroll/salary" element={<SalaryManagement />} />
-      <Route path="payroll/salary/add" element={<AddSalary />} />
+      <Route path="payroll/salary/add" element={<Navigate to="/admin/payroll/salary" replace />} />
       <Route path="payroll/salaries" element={<SalaryManagement />} />
-      <Route path="payroll/salaries/add" element={<AddSalary />} />
+      <Route path="payroll/salaries/add" element={<Navigate to="/admin/payroll/salary" replace />} />
 
       {/* Roles & Permissions Routes */}
       <Route path="permissions" element={<Navigate to="/admin/roles-permissions" replace />} />

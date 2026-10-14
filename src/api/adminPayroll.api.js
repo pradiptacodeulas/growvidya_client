@@ -25,10 +25,25 @@ export const deleteBeneficiaryApi = async (id) => {
   return response.data;
 };
 
-export const fetchEmployeesByTypeApi = async (userType) => {
+export const fetchEmployeesByTypeApi = async (userType, extraParams = {}) => {
   const response = await axiosInstance.get('/admin/payroll/employees', {
-    params: { user_type: userType },
+    params: { user_type: userType, ...extraParams },
   });
+  return response.data;
+};
+
+export const fetchBulkSalaryCandidatesApi = async (params = {}) => {
+  const response = await axiosInstance.get('/admin/payroll/salary/bulk-candidates', { params });
+  return response.data;
+};
+
+export const processBulkSalaryApi = async (data) => {
+  const response = await axiosInstance.post('/admin/payroll/salary/bulk', data);
+  return response.data;
+};
+
+export const retryFailedSalariesApi = async (data) => {
+  const response = await axiosInstance.post('/admin/payroll/salary/retry', data);
   return response.data;
 };
 
