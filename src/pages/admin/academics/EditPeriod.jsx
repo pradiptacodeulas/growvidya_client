@@ -29,6 +29,11 @@ const EditPeriod = () => {
 
   useEffect(() => {
     loadInitialData();
+    const handleBranchChange = () => {
+      loadInitialData();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, [rawId]);
 
   const loadInitialData = async () => {
@@ -53,11 +58,17 @@ const EditPeriod = () => {
         }
 
         if (periodData) {
+          const matchedShift = activeShifts.find(
+            (s) => String(s.id) === String(periodData.shift_id)
+          );
+          const resolvedStart = matchedShift?.start_time || periodData.start_time || '';
+          const resolvedEnd = matchedShift?.end_time || periodData.end_time || '';
+
           setFormData({
             shift_id: periodData.shift_id ? String(periodData.shift_id) : '',
             period_name: periodData.period_name || '',
-            start_time: periodData.start_time ? String(periodData.start_time).slice(0, 8) : '',
-            end_time: periodData.end_time ? String(periodData.end_time).slice(0, 8) : '',
+            start_time: resolvedStart ? String(resolvedStart).slice(0, 8) : '',
+            end_time: resolvedEnd ? String(resolvedEnd).slice(0, 8) : '',
             status: periodData.status === 2 || periodData.status === 0 ? '2' : '1',
           });
         } else {
@@ -82,16 +93,14 @@ const EditPeriod = () => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     if (name === 'shift_id') {
-      if (!isEdit) {
-        const selectedShift = shifts.find((s) => String(s.id) === String(value));
-        setFormData((prev) => ({
-          ...prev,
-          shift_id: value,
-          start_time: selectedShift?.start_time ? String(selectedShift.start_time).slice(0, 8) : '',
-          end_time: selectedShift?.end_time ? String(selectedShift.end_time).slice(0, 8) : '',
-        }));
-        return;
-      }
+      const selectedShift = shifts.find((s) => String(s.id) === String(value));
+      setFormData((prev) => ({
+        ...prev,
+        shift_id: value,
+        start_time: selectedShift?.start_time ? String(selectedShift.start_time).slice(0, 8) : '',
+        end_time: selectedShift?.end_time ? String(selectedShift.end_time).slice(0, 8) : '',
+      }));
+      return;
     }
 
     setFormData((prev) => ({
@@ -229,20 +238,14 @@ const EditPeriod = () => {
                         <div className="input-group">
                           <input
                             type="time"
-                            step="1"
-                            className="form-control"
+                            className="form-control bg-light"
                             value={String(formData.start_time || '').slice(0, 5)}
                             name="start_time"
                             id="start_time"
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                start_time: e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value,
-                              }))
-                            }
-                            required
+                            disabled
+                            readOnly
                           />
-                          <span className="input-group-text bg-white">
+                          <span className="input-group-text bg-light">
                             <i className="ti ti-clock"></i>
                           </span>
                         </div>
@@ -257,20 +260,14 @@ const EditPeriod = () => {
                         <div className="input-group">
                           <input
                             type="time"
-                            step="1"
-                            className="form-control"
+                            className="form-control bg-light"
                             value={String(formData.end_time || '').slice(0, 5)}
                             name="end_time"
                             id="end_time"
-                            onChange={(e) =>
-                              setFormData((prev) => ({
-                                ...prev,
-                                end_time: e.target.value.length === 5 ? `${e.target.value}:00` : e.target.value,
-                              }))
-                            }
-                            required
+                            disabled
+                            readOnly
                           />
-                          <span className="input-group-text bg-white">
+                          <span className="input-group-text bg-light">
                             <i className="ti ti-clock"></i>
                           </span>
                         </div>
