@@ -27,7 +27,8 @@ const TeacherDetails = () => {
 
   // Leave & Attendance Inner Tab: 'leave' or 'attendance'
   const [innerLeaveTab, setInnerLeaveTab] = useState('leave');
-  const [selectedAttYear, setSelectedAttYear] = useState('2024 / 2025');
+  const currentCalendarYear = new Date().getFullYear();
+  const [selectedAttYear, setSelectedAttYear] = useState(`${currentCalendarYear} / ${currentCalendarYear + 1}`);
 
   // Sidebar Sub-tab State: 'hostel' or 'transport'
   const [sidebarTab, setSidebarTab] = useState('hostel');
@@ -41,14 +42,22 @@ const TeacherDetails = () => {
       const res = await fetchTeacherByIdApi(id);
       const data = res?.data?.teacher || res?.data || null;
       if (!data) {
-        toast.error('Teacher record not found.');
+        toast.error('Teacher record not found in the selected campus/branch.');
         navigate('/admin/teachers');
         return;
       }
       setTeacher(data);
+      if (data.academic_year_start && data.academic_year_end) {
+        const sy = new Date(data.academic_year_start).getFullYear();
+        const ey = new Date(data.academic_year_end).getFullYear();
+        if (!Number.isNaN(sy) && !Number.isNaN(ey)) {
+          setSelectedAttYear(`${sy} / ${ey}`);
+        }
+      }
     } catch (err) {
       console.error('Failed to load teacher details:', err);
-      toast.error('Failed to load teacher details.');
+      toast.error(err.response?.data?.message || 'Teacher record not found in the selected campus/branch.');
+      navigate('/admin/teachers');
     } finally {
       setLoading(false);
     }
@@ -58,6 +67,11 @@ const TeacherDetails = () => {
     if (id) {
       loadTeacherDetails();
     }
+    const handleBranchChange = () => {
+      if (id) loadTeacherDetails();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, [id]);
 
   const getTeacherAvatarUrl = (t) => {
@@ -994,7 +1008,7 @@ const TeacherDetails = () => {
                                 <div key={cls.id} className="rounded p-3 mb-4 border bg-white shadow-sm">
                                   <div className="pb-3 border-bottom">
                                     <span className="text-primary badge bg-transparent-primary text-nowrap fs-12 fw-semibold">
-                                      {cls.period_name || '1st Period'}
+                                      {cls.period_name || 'N/A'}
                                     </span>
                                   </div>
                                   <span className="text-dark d-block py-2 fs-13 fw-medium">
@@ -1205,10 +1219,11 @@ const TeacherDetails = () => {
                           <h4 className="mb-3 fw-bold">Attendance</h4>
                           <div className="d-flex align-items-center flex-wrap">
                             <div className="d-flex align-items-center flex-wrap me-3">
-                              <p className="text-dark mb-3 me-2 fs-13">
-                                Last Updated on :{' '}
-                                {formatDate(teacher.attendance_summary?.last_updated || new Date())}
-                              </p>
+                              {teacher.attendance_summary?.last_updated && (
+                                <p className="text-dark mb-3 me-2 fs-13">
+                                  Last Updated on : {formatDate(teacher.attendance_summary.last_updated)}
+                                </p>
+                              )}
                               <button
                                 type="button"
                                 className="btn btn-primary btn-icon btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0 mb-3"
@@ -1218,40 +1233,10 @@ const TeacherDetails = () => {
                                 <i className="ti ti-refresh-dot"></i>
                               </button>
                             </div>
-                            <div className="dropdown mb-3">
-                              <button
-                                className="btn btn-outline-light border bg-white dropdown-toggle text-dark fs-13"
-                                data-bs-toggle="dropdown"
-                                type="button"
-                              >
+                            <div className="mb-3">
+                              <span className="btn btn-outline-light border bg-white text-dark fs-13 pe-none">
                                 <i className="ti ti-calendar-due me-2 text-primary"></i>Year : {selectedAttYear}
-                              </button>
-                              <ul className="dropdown-menu p-2 shadow-sm border">
-                                <li>
-                                  <button
-                                    className="dropdown-item rounded-1"
-                                    onClick={() => setSelectedAttYear('2024 / 2025')}
-                                  >
-                                    Year : 2024 / 2025
-                                  </button>
-                                </li>
-                                <li>
-                                  <button
-                                    className="dropdown-item rounded-1"
-                                    onClick={() => setSelectedAttYear('2023 / 2024')}
-                                  >
-                                    Year : 2023 / 2024
-                                  </button>
-                                </li>
-                                <li>
-                                  <button
-                                    className="dropdown-item rounded-1"
-                                    onClick={() => setSelectedAttYear('2022 / 2023')}
-                                  >
-                                    Year : 2022 / 2023
-                                  </button>
-                                </li>
-                              </ul>
+                              </span>
                             </div>
                           </div>
                         </div>

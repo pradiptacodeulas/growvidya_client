@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -9,6 +9,7 @@ import {
   fetchClassesApi,
 } from '../../../api/adminAcademic.api';
 import { decodeParam } from '../../../utils/idHelper';
+import MultiSelect from '../../../components/common/MultiSelect';
 
 const EditSubject = () => {
   const { id: rawId } = useParams();
@@ -19,6 +20,7 @@ const EditSubject = () => {
   const [classes, setClasses] = useState([]);
   const [formData, setFormData] = useState({
     class_id: '',
+    class_ids: [],
     subject_name: '',
     sort_order: '1',
     status: '1',
@@ -26,6 +28,15 @@ const EditSubject = () => {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const classOptions = useMemo(
+    () =>
+      classes.map((cls) => ({
+        value: String(cls.id),
+        label: cls.class_name || `Class ${cls.id}`,
+      })),
+    [classes]
+  );
 
   useEffect(() => {
     loadInitialData();
@@ -68,6 +79,7 @@ const EditSubject = () => {
         if (subjectData) {
           setFormData({
             class_id: subjectData.class_id ? String(subjectData.class_id) : '',
+            class_ids: subjectData.class_id ? [String(subjectData.class_id)] : [],
             subject_name: subjectData.subject_name || '',
             sort_order: subjectData.sort_order !== undefined && subjectData.sort_order !== null ? String(subjectData.sort_order) : '1',
             status: subjectData.status === 2 || subjectData.status === 0 ? '2' : '1',
@@ -76,11 +88,6 @@ const EditSubject = () => {
         } else {
           toast.error('Subject record not found.');
         }
-      } else if (classList.length > 0) {
-        setFormData((prev) => ({
-          ...prev,
-          class_id: prev.class_id || String(classList[0].id),
-        }));
       }
     } catch (err) {
       toast.error(err.message || 'Failed to load subject details.');
@@ -99,8 +106,14 @@ const EditSubject = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.class_id) {
-      return toast.warning('Please select a Class.');
+    if (isEdit) {
+      if (!formData.class_id) {
+        return toast.warning('Please select a Class.');
+      }
+    } else {
+      if (!formData.class_ids || formData.class_ids.length === 0) {
+        return toast.warning('Please select at least one Class.');
+      }
     }
     if (!formData.subject_name.trim()) {
       return toast.warning('Please enter Subject Name.');
@@ -109,23 +122,58 @@ const EditSubject = () => {
     try {
       setSaving(true);
       const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
-      const selectedClass = classes.find((c) => String(c.id) === String(formData.class_id));
-      const resolvedBranch = selectedClass?.branch_id || (activeBranch && activeBranch !== 'all' ? Number(activeBranch) : null) || (formData.branch_id ? Number(formData.branch_id) : null);
-
-      const payload = {
-        class_id: formData.class_id,
-        subject_name: formData.subject_name.trim(),
-        sort_order: Number(formData.sort_order) || 0,
-        status: Number(formData.status),
-        ...(resolvedBranch ? { branch_id: resolvedBranch } : {}),
-      };
 
       if (isEdit) {
+        const selectedClass = classes.find((c) => String(c.id) === String(formData.class_id));
+        const resolvedBranch = selectedClass?.branch_id || (activeBranch && activeBranch !== 'all' ? Number(activeBranch) : null) || (formData.branch_id ? Number(formData.branch_id) : null);
+
+        const payload = {
+          class_id: formData.class_id,
+          subject_name: formData.subject_name.trim(),
+          sort_order: Number(formData.sort_order) || 0,
+          status: Number(formData.status),
+          ...(resolvedBranch ? { branch_id: resolvedBranch } : {}),
+        };
+
         await updateSubjectApi(id, payload);
         toast.success('Subject updated successfully!');
       } else {
-        await createSubjectApi(payload);
-        toast.success('Subject created successfully!');
+        let createdCount = 0;
+        let lastError = null;
+
+        for (const clsId of formData.class_ids) {
+          const selectedClass = classes.find((c) => String(c.id) === String(clsId));
+          const resolvedBranch = selectedClass?.branch_id || (activeBranch && activeBranch !== 'all' ? Number(activeBranch) : null) || (formData.branch_id ? Number(formData.branch_id) : null);
+
+          const payload = {
+            class_id: clsId,
+            subject_name: formData.subject_name.trim(),
+            sort_order: Number(formData.sort_order) || 0,
+            status: Number(formData.status),
+            ...(resolvedBranch ? { branch_id: resolvedBranch } : {}),
+          };
+
+          try {
+            await createSubjectApi(payload);
+            createdCount++;
+          } catch (err) {
+            lastError = err;
+          }
+        }
+
+        if (createdCount === 0 && lastError) {
+          throw lastError;
+        }
+
+        if (lastError) {
+          toast.warning(`Subject created for ${createdCount} class(es), with some skipped: ${lastError.message}`);
+        } else {
+          toast.success(
+            formData.class_ids.length > 1
+              ? `Subject created for ${createdCount} classes successfully!`
+              : 'Subject created successfully!'
+          );
+        }
       }
       navigate('/admin/academics/subjects');
     } catch (err) {
@@ -180,21 +228,41 @@ const EditSubject = () => {
                         <label className="form-label">
                           Class Name <span className="text-danger">*</span>
                         </label>
-                        <select
-                          className="form-select"
-                          name="class_id"
-                          id="class_id"
-                          value={formData.class_id}
-                          onChange={handleChange}
-                          required
-                        >
-                          <option value="">Select Class</option>
-                          {classes.map((cls) => (
-                            <option key={cls.id} value={cls.id}>
-                              {cls.class_name || `Class ${cls.id}`} {cls.branch_name ? `(${cls.branch_name})` : ''}
-                            </option>
-                          ))}
-                        </select>
+                        {isEdit ? (
+                          <select
+                            className="form-select"
+                            name="class_id"
+                            id="class_id"
+                            value={formData.class_id}
+                            onChange={handleChange}
+                            required
+                          >
+                            <option value="">Select Class</option>
+                            {classes.map((cls) => (
+                              <option key={cls.id} value={cls.id}>
+                                {cls.class_name || `Class ${cls.id}`}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <MultiSelect
+                            id="class_id"
+                            options={classOptions}
+                            value={formData.class_ids}
+                            onChange={(selected) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                class_ids: selected,
+                              }))
+                            }
+                            placeholder="Select Classes"
+                            searchPlaceholder="Search classes..."
+                            disabled={loading || saving}
+                            isClearable={true}
+                            showSelectAll={true}
+                            maxDisplay={3}
+                          />
+                        )}
                       </div>
                     </div>
 

@@ -6,8 +6,8 @@ export const fetchTeachersApi = async (params = {}) => {
   return res.data;
 };
 
-export const fetchTeacherByIdApi = async (id) => {
-  const res = await apiClient.get(`/admin/teachers/${id}`);
+export const fetchTeacherByIdApi = async (id, params = {}) => {
+  const res = await apiClient.get(`/admin/teachers/${id}`, { params });
   return res.data;
 };
 
@@ -21,8 +21,8 @@ export const updateTeacherApi = async (id, data) => {
   return res.data;
 };
 
-export const fetchTeacherOptionsApi = async () => {
-  const res = await apiClient.get('/admin/teachers/meta/options');
+export const fetchTeacherOptionsApi = async (params = {}) => {
+  const res = await apiClient.get('/admin/teachers/meta/options', { params });
   const data = res.data;
   if (data?.options && typeof data.options === 'object') {
     Object.keys(data.options).forEach((k) => {
@@ -41,22 +41,35 @@ export const fetchTeacherOptionsApi = async () => {
   return data;
 };
 
-export const checkTeacherEmailApi = async (email, excludeId = null) => {
-  const res = await apiClient.post('/admin/teachers/check-email', { email, exclude_id: excludeId });
+export const checkTeacherEmailApi = async (email, excludeId = null, branchId = null) => {
+  const res = await apiClient.post('/admin/teachers/check-email', {
+    email,
+    exclude_id: excludeId,
+    ...(branchId ? { branch_id: branchId } : {}),
+  });
   return res.data;
 };
 
-export const checkTeacherPhoneApi = async (phone, excludeId = null) => {
-  const res = await apiClient.post('/admin/teachers/check-phone', { phone, exclude_id: excludeId });
+export const checkTeacherPhoneApi = async (phone, excludeId = null, branchId = null) => {
+  const res = await apiClient.post('/admin/teachers/check-phone', {
+    phone,
+    exclude_id: excludeId,
+    ...(branchId ? { branch_id: branchId } : {}),
+  });
   return res.data;
 };
 
-export const checkTeacherDuplicateApi = async ({ email, phone }, excludeId = null) => {
-  const res = await apiClient.post('/admin/teachers/check-duplicate', { email, phone, exclude_id: excludeId });
+export const checkTeacherDuplicateApi = async ({ email, phone, branch_id = null }, excludeId = null) => {
+  const res = await apiClient.post('/admin/teachers/check-duplicate', {
+    email,
+    phone,
+    exclude_id: excludeId,
+    ...(branch_id ? { branch_id } : {}),
+  });
   return res.data;
 };
 
-export const deleteTeacherApi = async (id) => {
-  const res = await apiClient.delete(`/admin/teachers/${id}`);
+export const deleteTeacherApi = async (id, params = {}) => {
+  const res = await apiClient.delete(`/admin/teachers/${id}`, { params });
   return res.data;
 };

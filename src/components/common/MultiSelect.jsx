@@ -330,7 +330,7 @@ const MultiSelect = ({
             {filteredOptions.length === 0 ? (
               <div className="text-center py-4 text-muted fs-13">
                 <i className="ti ti-search-off fs-20 d-block mb-1 text-secondary"></i>
-                {searchTerm ? 'No helpers matching search.' : 'No options available.'}
+                {searchTerm ? 'No matching options found.' : 'No options available.'}
               </div>
             ) : (
               filteredOptions.map((opt) => {
@@ -409,7 +409,7 @@ const MultiSelect = ({
           {/* Footer with helper tip */}
           {selectedValues.length > 0 && (
             <div className="px-3 py-1.5 bg-light-subtle border-top d-flex align-items-center justify-content-between fs-11 text-muted">
-              <span>{selectedValues.length} helper{selectedValues.length > 1 ? 's' : ''} assigned</span>
+              <span>{selectedValues.length} selected</span>
               <button
                 type="button"
                 className="btn btn-link btn-sm p-0 text-decoration-none text-primary fs-11"

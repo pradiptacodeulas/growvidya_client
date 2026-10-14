@@ -64,7 +64,7 @@ const TeacherList = () => {
     class_id: '',
     section_id: '',
     subject_id: '',
-    qualification: 'B.Ed',
+    qualification: '',
     gender: '1',
     status: 1,
   });
@@ -242,7 +242,7 @@ const TeacherList = () => {
       class_id: '',
       section_id: '',
       subject_id: '',
-      qualification: 'B.Ed',
+      qualification: '',
       gender: '1',
       status: 1,
     });
@@ -270,7 +270,7 @@ const TeacherList = () => {
       class_id: t.class ? String(t.class) : '',
       section_id: t.section ? String(t.section) : '',
       subject_id: t.subject ? String(t.subject) : '',
-      qualification: t.qualification || 'B.Ed',
+      qualification: t.qualification || '',
       gender: genderVal,
       status: t.status !== undefined ? t.status : 1,
     });
@@ -289,8 +289,13 @@ const TeacherList = () => {
     }
 
     try {
+      const selectedBranchId = localStorage.getItem('selected_branch_id');
       const payload = {
         ...formData,
+        branch_id:
+          selectedBranchId && selectedBranchId !== 'all' && selectedBranchId !== 'null'
+            ? Number(selectedBranchId)
+            : null,
       };
       if (imagePreview && imagePreview.startsWith('data:image')) {
         payload.picture = imagePreview;
@@ -1030,7 +1035,7 @@ const TeacherList = () => {
                   </div>
                   <div className="col-6">
                     <small className="text-muted d-block">Qualification</small>
-                    <p className="fw-semibold mb-0">{selectedTeacher.qualification || 'B.Ed'}</p>
+                    <p className="fw-semibold mb-0">{selectedTeacher.qualification || 'N/A'}</p>
                   </div>
                   <div className="col-6">
                     <small className="text-muted d-block">Gender</small>

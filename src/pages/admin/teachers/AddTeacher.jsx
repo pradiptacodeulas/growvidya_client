@@ -231,38 +231,101 @@ const AddTeacher = () => {
     });
   };
 
+  const getEffectiveBranchId = (overrideBranchId = undefined) => {
+    const candidate = overrideBranchId !== undefined ? overrideBranchId : personalInfo.branch_id;
+    if (candidate && candidate !== 'all' && candidate !== '0') return String(candidate);
+    const stored = localStorage.getItem('active_branch_id');
+    if (stored && stored !== 'all' && stored !== '0') return String(stored);
+    return '';
+  };
+
+  const loadOptionsForBranch = async (branchIdParam = '') => {
+    const cleanBranch = branchIdParam && branchIdParam !== 'all' && branchIdParam !== '0' ? branchIdParam : '';
+    const optRes = await fetchTeacherOptionsApi(cleanBranch ? { branch_id: cleanBranch } : {});
+    const opts = optRes?.data || {};
+
+    setAcademicYears(opts.academic_years || []);
+    setClasses(opts.classes || []);
+    setGenders(opts.genders || []);
+    setBloodGroups(opts.blood_groups || []);
+    setMaritalStatuses(opts.marital_statuses || []);
+    setContractTypes(opts.contract_types || []);
+    setWorkShifts(opts.work_shifts || []);
+    setTransportRoutes(opts.transport_routes || []);
+    setHostels(opts.hostels || []);
+    setDocumentTypes(opts.document_types || []);
+    setCountries(opts.countries || []);
+    return opts;
+  };
+
+  const handleFormBranchChange = async (newBranchId) => {
+    setPersonalInfo((prev) => ({
+      ...prev,
+      branch_id: newBranchId,
+      class: '',
+      section_student: '',
+    }));
+    setClassTeacherSections([]);
+    setClassAssignRows([{ id: Date.now(), class_id: '', subject_id: '', availableSubjects: [] }]);
+    setPayrollInfo((prev) => ({ ...prev, work_shift: '' }));
+    setTransportInfo((prev) => ({ ...prev, route: '' }));
+    setHostelInfo({ hostel_name: '', room_no: '' });
+    setHostelRooms([]);
+
+    try {
+      const opts = await loadOptionsForBranch(newBranchId);
+      if (!isEditMode && opts.academic_years?.length > 0) {
+        const cur = opts.academic_years.find((y) => y.is_current === 1) || opts.academic_years[0];
+        setPersonalInfo((prev) => ({ ...prev, branch_id: newBranchId, academic_year: String(cur.id) }));
+      }
+      if (personalInfo.email_address && personalInfo.email_address.includes('@')) {
+        handleEmailBlur(personalInfo.email_address, newBranchId);
+      }
+      if (personalInfo.primary_contact_number && String(personalInfo.primary_contact_number).trim()) {
+        handlePhoneBlur(personalInfo.primary_contact_number, newBranchId);
+      }
+    } catch (err) {
+      console.error('Error reloading branch options:', err);
+    }
+  };
+
   // Fetch initial master dropdowns
   useEffect(() => {
     const init = async () => {
       try {
         setLoading(true);
-        const optRes = await fetchTeacherOptionsApi();
-        const opts = optRes?.data || {};
+        const currentActiveBranch = localStorage.getItem('active_branch_id');
+        const initialBranch =
+          currentActiveBranch && currentActiveBranch !== 'all' && currentActiveBranch !== '0'
+            ? currentActiveBranch
+            : '';
 
-        setAcademicYears(opts.academic_years || []);
-        setClasses(opts.classes || []);
-        setGenders(opts.genders || []);
-        setBloodGroups(opts.blood_groups || []);
-        setMaritalStatuses(opts.marital_statuses || []);
-        setContractTypes(opts.contract_types || []);
-        setWorkShifts(opts.work_shifts || []);
-        setTransportRoutes(opts.transport_routes || []);
-        setHostels(opts.hostels || []);
-        setDocumentTypes(opts.document_types || []);
-        setCountries(opts.countries || []);
-
+        let loadedBranches = [];
         try {
           const bRes = await apiClient.get('/admin/branches');
           if (bRes?.data?.data) {
-            setBranches(Array.isArray(bRes.data.data) ? bRes.data.data : []);
+            loadedBranches = Array.isArray(bRes.data.data) ? bRes.data.data : [];
+            setBranches(loadedBranches);
           }
         } catch (bErr) {
           console.warn('Failed to load branches:', bErr);
         }
 
-        if (!isEditMode && opts.academic_years?.length > 0) {
-          const cur = opts.academic_years.find((y) => y.is_current === 1) || opts.academic_years[0];
-          setPersonalInfo((prev) => ({ ...prev, academic_year: String(cur.id) }));
+        const effectiveInitBranch =
+          initialBranch ||
+          (loadedBranches.length === 1 ? String(loadedBranches[0].id) : '');
+
+        const opts = await loadOptionsForBranch(effectiveInitBranch);
+
+        if (!isEditMode) {
+          const curAy = opts.academic_years?.length > 0
+            ? (opts.academic_years.find((y) => y.is_current === 1) || opts.academic_years[0])
+            : null;
+          setPersonalInfo((prev) => ({
+            ...prev,
+            branch_id: effectiveInitBranch || prev.branch_id || '',
+            academic_year: curAy ? String(curAy.id) : prev.academic_year,
+          }));
         }
 
         if (isEditMode && id) {
@@ -278,14 +341,40 @@ const AddTeacher = () => {
     init();
   }, [id, isEditMode]);
 
+  // Listen for navbar branch switcher changes
+  useEffect(() => {
+    const onNavbarBranchChange = async (e) => {
+      const switchedBranch = e?.detail !== undefined ? e.detail : localStorage.getItem('active_branch_id');
+      const cleanSwitched =
+        switchedBranch && switchedBranch !== 'all' && switchedBranch !== '0'
+          ? String(switchedBranch)
+          : '';
+
+      if (isEditMode && id) {
+        await loadTeacherForEdit(id);
+      } else {
+        await handleFormBranchChange(cleanSwitched);
+      }
+    };
+
+    window.addEventListener('branch_changed', onNavbarBranchChange);
+    return () => window.removeEventListener('branch_changed', onNavbarBranchChange);
+  }, [id, isEditMode]);
+
   // Load teacher details for edit mode
-  const loadTeacherForEdit = async (teacherId, opts = {}) => {
+  const loadTeacherForEdit = async (teacherId) => {
     try {
       const res = await fetchTeacherByIdApi(teacherId);
       const t = res?.data?.teacher || res?.data || null;
       if (!t) {
+        toast.error('Teacher not found in the selected branch.');
         navigate('/admin/teachers');
         return;
+      }
+
+      const teacherBranchStr = t.branch_id ? String(t.branch_id) : '';
+      if (teacherBranchStr) {
+        await loadOptionsForBranch(teacherBranchStr);
       }
 
       const rawGender = t.gender_id !== undefined ? t.gender_id : t.gender;
@@ -299,7 +388,7 @@ const AddTeacher = () => {
       }
 
       setPersonalInfo({
-        branch_id: t.branch_id ? String(t.branch_id) : '',
+        branch_id: teacherBranchStr,
         academic_year: t.academic_year ? String(t.academic_year) : '',
         teacher_id: t.teacher_id || '',
         first_name: t.first_name || '',
@@ -333,7 +422,9 @@ const AddTeacher = () => {
 
       if (t.class) {
         try {
-          const secRes = await apiClient.get(`/admin/academics/sections?classId=${t.class}`);
+          const secRes = await apiClient.get(
+            `/admin/academics/sections?classId=${t.class}${teacherBranchStr ? `&branch_id=${teacherBranchStr}` : ''}`
+          );
           setClassTeacherSections(secRes.data?.data || []);
         } catch {}
       }
@@ -404,7 +495,9 @@ const AddTeacher = () => {
       });
       if (h.hostel_name) {
         try {
-          const rRes = await apiClient.get(`/admin/academics/hostel-rooms?hostel_id=${h.hostel_name}`);
+          const rRes = await apiClient.get(
+            `/admin/academics/hostel-rooms?hostel_id=${h.hostel_name}${teacherBranchStr ? `&branch_id=${teacherBranchStr}` : ''}`
+          );
           setHostelRooms(rRes.data?.data || []);
         } catch {}
       }
@@ -448,7 +541,9 @@ const AddTeacher = () => {
             let availableSubjects = [];
             if (ca.class_id) {
               try {
-                const subRes = await apiClient.get(`/admin/academics/subjects?classId=${ca.class_id}`);
+                const subRes = await apiClient.get(
+                  `/admin/academics/subjects?classId=${ca.class_id}${teacherBranchStr ? `&branch_id=${teacherBranchStr}` : ''}`
+                );
                 availableSubjects = subRes.data?.data || [];
               } catch {}
             }
@@ -468,6 +563,8 @@ const AddTeacher = () => {
       }
     } catch (err) {
       console.error('Error loading teacher for edit:', err);
+      toast.error(err.response?.data?.message || 'Teacher record not found in the selected branch.');
+      navigate('/admin/teachers');
     }
   };
 
@@ -509,7 +606,10 @@ const AddTeacher = () => {
       return;
     }
     try {
-      const res = await apiClient.get(`/admin/academics/sections?classId=${classId}`);
+      const effBranch = getEffectiveBranchId();
+      const res = await apiClient.get(
+        `/admin/academics/sections?classId=${classId}${effBranch ? `&branch_id=${effBranch}` : ''}`
+      );
       setClassTeacherSections(res.data?.data || []);
     } catch {
       setClassTeacherSections([]);
@@ -517,14 +617,15 @@ const AddTeacher = () => {
   };
 
   // Live Email Check
-  const handleEmailBlur = async (email) => {
+  const handleEmailBlur = async (email, branchOverride = undefined) => {
     if (!email || !email.includes('@')) {
       return;
     }
     try {
-      const res = await checkTeacherEmailApi(email, isEditMode ? id : null);
+      const effBranch = getEffectiveBranchId(branchOverride);
+      const res = await checkTeacherEmailApi(email, isEditMode ? id : null, effBranch || null);
       if (res?.data?.exists) {
-        setErrors((prev) => ({ ...prev, email_address: 'Email address already registered.' }));
+        setErrors((prev) => ({ ...prev, email_address: 'Email address already registered in this branch.' }));
       } else {
         clearError('email_address');
       }
@@ -534,14 +635,15 @@ const AddTeacher = () => {
   };
 
   // Live Phone Check
-  const handlePhoneBlur = async (phone) => {
+  const handlePhoneBlur = async (phone, branchOverride = undefined) => {
     if (!phone || !String(phone).trim()) {
       return;
     }
     try {
-      const res = await checkTeacherPhoneApi(phone, isEditMode ? id : null);
+      const effBranch = getEffectiveBranchId(branchOverride);
+      const res = await checkTeacherPhoneApi(phone, isEditMode ? id : null, effBranch || null);
       if (res?.data?.exists) {
-        setErrors((prev) => ({ ...prev, primary_contact_number: 'Mobile number already registered.' }));
+        setErrors((prev) => ({ ...prev, primary_contact_number: 'Mobile number already registered in this branch.' }));
       } else {
         clearError('primary_contact_number');
       }
@@ -610,7 +712,9 @@ const AddTeacher = () => {
 
     if (classId) {
       try {
-        const res = await apiClient.get(`/admin/academics/subjects?classId=${classId}`);
+        const effBranch = getEffectiveBranchId();
+        const bQuery = effBranch ? `&branch_id=${effBranch}` : '';
+        const res = await apiClient.get(`/admin/academics/subjects?classId=${classId}${bQuery}`);
         updated[rowIndex].availableSubjects = res.data?.data || [];
       } catch {
         updated[rowIndex].availableSubjects = [];
@@ -629,8 +733,10 @@ const AddTeacher = () => {
       String(prevRow.class_id) !== String(classId)
     ) {
       try {
+        const effBranch = getEffectiveBranchId();
+        const bQuery = effBranch ? `&branch_id=${effBranch}` : '';
         const res = await apiClient.get(
-          `/admin/academics/routines?teacher_id=${id}&class_id=${prevRow.class_id}`
+          `/admin/academics/routines?teacher_id=${id}&class_id=${prevRow.class_id}${bQuery}`
         );
         const routines = res.data?.data || [];
         if (routines.length > 0) {
@@ -691,8 +797,10 @@ const AddTeacher = () => {
     // If editing and this row has an assigned class, check for active routine entries
     if (isEditMode && targetRow?.class_id) {
       try {
+        const effBranch = getEffectiveBranchId();
+        const bQuery = effBranch ? `&branch_id=${effBranch}` : '';
         const res = await apiClient.get(
-          `/admin/academics/routines?teacher_id=${id}&class_id=${targetRow.class_id}`
+          `/admin/academics/routines?teacher_id=${id}&class_id=${targetRow.class_id}${bQuery}`
         );
         const routines = res.data?.data || [];
         if (routines.length > 0) {
@@ -729,7 +837,9 @@ const AddTeacher = () => {
     setHostelRooms([]);
     if (!hostelId) return;
     try {
-      const res = await apiClient.get(`/admin/academics/hostel-rooms?hostel_id=${hostelId}`);
+      const effBranch = getEffectiveBranchId();
+      const bQuery = effBranch ? `&branch_id=${effBranch}` : '';
+      const res = await apiClient.get(`/admin/academics/hostel-rooms?hostel_id=${hostelId}${bQuery}`);
       setHostelRooms(res.data?.data || []);
     } catch {}
   };
@@ -920,6 +1030,8 @@ const AddTeacher = () => {
     try {
       setSubmitting(true);
 
+      const effBranch = getEffectiveBranchId();
+
       // Duplicate verification before submission
       try {
         const dupRes = await checkTeacherDuplicateApi(
@@ -927,7 +1039,8 @@ const AddTeacher = () => {
             email: String(personalInfo.email_address || '').trim(),
             phone: String(personalInfo.primary_contact_number || '').trim(),
           },
-          isEditMode ? id : null
+          isEditMode ? id : null,
+          effBranch || null
         );
 
         if (dupRes?.data?.isEmailDuplicate || dupRes?.data?.isPhoneDuplicate) {
@@ -960,7 +1073,7 @@ const AddTeacher = () => {
       }
 
       const payload = {
-        branch_id: personalInfo.branch_id ? Number(personalInfo.branch_id) : null,
+        branch_id: effBranch ? Number(effBranch) : null,
         picture: uploadedPicPath || personalInfo.picture || null,
         academic_year: personalInfo.academic_year || null,
         teacher_id: String(personalInfo.teacher_id || '').trim(),
@@ -1299,7 +1412,7 @@ const AddTeacher = () => {
                           className="form-select"
                           value={personalInfo.branch_id || ''}
                           onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, branch_id: e.target.value });
+                            handleFormBranchChange(e.target.value);
                           }}
                         >
                           <option value="">Default / Main Campus</option>
@@ -1739,42 +1852,6 @@ const AddTeacher = () => {
                             setPersonalInfo({ ...personalInfo, notes: e.target.value })
                           }
                         ></textarea>
-                      </div>
-
-                      <div className="col-12 mb-3">
-                        <label className="form-label me-3">Take Attendance ?</label>
-                        <div className="form-check form-check-inline">
-                          <input
-                            className="form-check-input"
-                            type="radio"
-                            id="att_yes"
-                            name="take_attendance"
-                            value="1"
-                            checked={personalInfo.take_attendance === '1'}
-                            onChange={(e) =>
-                              setPersonalInfo({ ...personalInfo, take_attendance: e.target.value })
-                            }
-                          />
-                          <label className="form-check-label" htmlFor="att_yes">
-                            Yes
-                          </label>
-                        </div>
-                        <div className="form-check form-check-inline">
-                          <input
-                            className="form-check-input"
-                            type="radio"
-                            id="att_no"
-                            name="take_attendance"
-                            value="2"
-                            checked={personalInfo.take_attendance === '2'}
-                            onChange={(e) =>
-                              setPersonalInfo({ ...personalInfo, take_attendance: e.target.value })
-                            }
-                          />
-                          <label className="form-check-label" htmlFor="att_no">
-                            No
-                          </label>
-                        </div>
                       </div>
                     </div>
                   </div>
