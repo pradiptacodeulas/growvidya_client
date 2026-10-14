@@ -196,12 +196,6 @@ const TeacherNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   >
                     <i className="ti ti-user-circle me-2 text-primary"></i>My Profile
                   </Link>
-                  <Link
-                    to="/teacher/profile"
-                    className="dropdown-item d-inline-flex align-items-center p-2"
-                  >
-                    <i className="ti ti-edit me-2 text-muted"></i>Edit Profile
-                  </Link>
                   <hr className="m-0" />
                   <a
                     className="dropdown-item d-inline-flex align-items-center p-2 text-danger"
