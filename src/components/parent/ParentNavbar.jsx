@@ -90,7 +90,7 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const parentName =
     parent?.name ||
     `${parent?.firstName || parent?.first_name || ''} ${parent?.lastName || parent?.last_name || ''}`.trim() ||
-    'Jiten Kulkarni';
+    'Parent';
   const parentImg = resolveImageUrl(parent?.picture);
 
   const activeChildName =
@@ -185,6 +185,17 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   <span className="fs-13 fw-semibold text-dark text-truncate" style={{ maxWidth: '130px' }}>
                     {activeChildName}
                   </span>
+                  {activeChild && (
+                    <span
+                      className={`badge ${
+                        Number(activeChild.student_status ?? activeChild.status) === 1
+                          ? 'badge-soft-success'
+                          : 'badge-soft-danger'
+                      } fs-10 px-1 py-0 d-none d-sm-inline`}
+                    >
+                      {Number(activeChild.student_status ?? activeChild.status) === 1 ? 'Active' : 'Inactive'}
+                    </span>
+                  )}
                   {activeChild?.class_name && (
                     <span className="badge bg-primary-subtle text-primary fs-10 px-1 py-0 d-none d-sm-inline">
                       {activeChild.class_name}
@@ -192,7 +203,7 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   )}
                   {switching && <span className="spinner-border spinner-border-sm ms-1"></span>}
                 </button>
-                <ul className="dropdown-menu dropdown-menu-end p-2 shadow-sm border" style={{ minWidth: '220px' }}>
+                <ul className="dropdown-menu dropdown-menu-end p-2 shadow-sm border" style={{ minWidth: '240px' }}>
                   <li className="dropdown-header fs-11 text-uppercase text-muted fw-bold pb-1">
                     Select Child Profile
                   </li>
@@ -201,6 +212,7 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                     const isSelected = activeChild?.id === child.id;
                     const cImg = resolveImageUrl(child.picture);
                     const cName = child.full_name || `${child.first_name || ''} ${child.last_name || ''}`.trim();
+                    const isChildActive = Number(child.student_status ?? child.status) === 1;
                     return (
                       <li key={`nav-child-${child.id || idx}-${idx}`}>
                         <button
@@ -222,7 +234,16 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                               }}
                             />
                             <div className="text-truncate">
-                              <span className="d-block fs-13 text-truncate">{cName}</span>
+                              <div className="d-flex align-items-center gap-1">
+                                <span className="d-block fs-13 text-truncate">{cName}</span>
+                                <span
+                                  className={`badge ${
+                                    isChildActive ? 'badge-soft-success' : 'badge-soft-danger'
+                                  } fs-10 px-1 py-0`}
+                                >
+                                  {isChildActive ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
                               <span className="d-block fs-11 text-muted">
                                 {child.class_name ? `Class ${child.class_name}` : 'Student'}
                               </span>

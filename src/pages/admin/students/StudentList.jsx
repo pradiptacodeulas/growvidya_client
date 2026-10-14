@@ -19,7 +19,7 @@ const StudentList = () => {
   const [search, setSearch] = useState('');
   const [classId, setClassId] = useState('');
   const [sectionId, setSectionId] = useState('');
-  const [status, setStatus] = useState('1');
+  const [status, setStatus] = useState('');
   const [admissionDate, setAdmissionDate] = useState('');
   
   const [pagination, setPagination] = useState({ page: 1, limit: 12, totalPages: 1, total: 0 });
@@ -144,7 +144,7 @@ const StudentList = () => {
     setSearch('');
     setClassId('');
     setSectionId('');
-    setStatus('1');
+    setStatus('');
     setAdmissionDate('');
     setFilteredSections([]);
   };
@@ -418,9 +418,17 @@ const StudentList = () => {
               <div className="card flex-fill">
                 <div className="card-header d-flex align-items-center justify-content-between">
                   <Link to={`/admin/students/${encodeParam(student.id)}`} className="link-primary fw-semibold">
-                    {student.admission_number || `ADM-${student.id}`}
+                    {student.admission_number}
                   </Link>
-                  <div className="d-flex align-items-center">
+                  <div className="d-flex align-items-center gap-2">
+                    <span
+                      className={`badge ${
+                        Number(student.status) === 1 ? 'badge-soft-success' : 'badge-soft-danger'
+                      } d-inline-flex align-items-center`}
+                    >
+                      <i className="ti ti-circle-filled fs-5 me-1"></i>
+                      {Number(student.status) === 1 ? 'Active' : 'Inactive'}
+                    </span>
                     <TableActionMenu
                       items={[
                         {

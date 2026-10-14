@@ -10,6 +10,16 @@ export const getAdminProfileApi = async () => {
   return response.data;
 };
 
+export const getAdminFullProfileApi = async () => {
+  const response = await apiClient.get('/admin/auth/profile');
+  return response.data;
+};
+
+export const updateAdminProfileApi = async (data) => {
+  const response = await apiClient.put('/admin/auth/profile', data);
+  return response.data;
+};
+
 export const adminLogoutApi = async () => {
   const response = await apiClient.post('/admin/auth/logout');
   return response.data;

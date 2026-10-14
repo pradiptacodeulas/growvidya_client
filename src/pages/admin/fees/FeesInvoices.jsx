@@ -8,8 +8,11 @@ import { getPaginationRange } from '../../../utils/pagination.util';
 import { encodeParam } from '../../../utils/idHelper';
 import NoData from '../../../components/common/NoData';
 
+const getLocalDateStr = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 const FeesInvoices = () => {
-  const todayStr = new Date().toISOString().split('T')[0];
+  const todayStr = getLocalDateStr();
   const [invoices, setInvoices] = useState([]);
   const [totalRecords, setTotalRecords] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
@@ -43,7 +46,7 @@ const FeesInvoices = () => {
     student_id: '',
     fee_structure_id: '',
     title: '',
-    issue_date: new Date().toISOString().split('T')[0],
+    issue_date: todayStr,
   });
 
   // Target Student dropdown state
@@ -58,7 +61,7 @@ const FeesInvoices = () => {
   const [bulkFormData, setBulkFormData] = useState({
     academic_year_id: '',
     title: `${new Date().toLocaleString('default', { month: 'long' })} ${new Date().getFullYear()} Monthly Fees`,
-    issue_date: new Date().toISOString().split('T')[0],
+    issue_date: todayStr,
     due_date: '',
   });
 
@@ -321,7 +324,7 @@ const FeesInvoices = () => {
       student_id: '',
       fee_structure_id: initialStruct ? String(initialStruct.id) : '',
       title: `${new Date().toLocaleString('default', { month: 'long' })} ${new Date().getFullYear()} Fees`,
-      issue_date: new Date().toISOString().split('T')[0],
+      issue_date: getLocalDateStr(),
     });
     setAlreadyInvoicedStudentIds([]);
     setInvoicedDetails(null);
@@ -463,7 +466,7 @@ const FeesInvoices = () => {
     setBulkFormData({
       academic_year_id: defaultYear,
       title: `${new Date().toLocaleString('default', { month: 'long' })} ${new Date().getFullYear()} Monthly Fees`,
-      issue_date: new Date().toISOString().split('T')[0],
+      issue_date: getLocalDateStr(),
       due_date: '',
     });
     setShowBulkGenModal(true);

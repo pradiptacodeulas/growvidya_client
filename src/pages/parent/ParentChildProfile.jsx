@@ -227,6 +227,18 @@ const ParentChildProfile = () => {
                   <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-12 fw-semibold px-2 py-1">
                     <i className="fa-solid fa-id-badge me-1"></i>Adm: {admNo}
                   </span>
+                  {currentChild && (
+                    <span
+                      className={`badge ${
+                        Number(currentChild.student_status ?? currentChild.status) === 1
+                          ? 'badge-soft-success'
+                          : 'badge-soft-danger'
+                      } fs-12 fw-semibold px-2 py-1 d-inline-flex align-items-center`}
+                    >
+                      <i className="ti ti-circle-filled fs-5 me-1"></i>
+                      {Number(currentChild.student_status ?? currentChild.status) === 1 ? 'Active' : 'Inactive'}
+                    </span>
+                  )}
                 </div>
                 <div className="d-flex align-items-center flex-wrap gap-3 fs-13 text-muted">
                   <span className="d-flex align-items-center">

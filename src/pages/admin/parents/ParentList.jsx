@@ -32,6 +32,7 @@ const ParentList = () => {
     name: '',
     classId: '',
     sectionId: '',
+    status: '',
   });
 
   // Modal States
@@ -54,6 +55,7 @@ const ParentList = () => {
     relation: 'Father',
     parent_type: 1,
     picture: '',
+    status: '1',
   });
 
   const handleImageChange = (e) => {
@@ -124,6 +126,7 @@ const ParentList = () => {
       if (activeFilters.name?.trim()) params.name = activeFilters.name.trim();
       if (activeFilters.classId) params.classId = activeFilters.classId;
       if (activeFilters.sectionId) params.sectionId = activeFilters.sectionId;
+      if (activeFilters.status) params.status = activeFilters.status;
 
       const res = await fetchParentsApi(params);
       if (res?.success && res.data) {
@@ -148,7 +151,7 @@ const ParentList = () => {
   };
 
   const handleResetFilters = () => {
-    const defaultFilters = { email: '', name: '', classId: '', sectionId: '' };
+    const defaultFilters = { email: '', name: '', classId: '', sectionId: '', status: '' };
     setFilters(defaultFilters);
     setSections([]);
     fetchParents(1, defaultFilters);
@@ -288,6 +291,7 @@ const ParentList = () => {
       relation: parent.relation || 'Father',
       parent_type: parent.parent_type || 1,
       picture: parent.picture || '',
+      status: String(Number(parent.status) === 2 ? 2 : 1),
     });
     setImageFile(null);
     setImagePreview(getParentAvatar(parent));
@@ -336,13 +340,15 @@ const ParentList = () => {
       relation: 'Father',
       parent_type: 1,
       picture: '',
+      status: '1',
     });
   };
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return '15 Jun 2026';
+    if (!dateStr) return 'N/A';
     try {
       const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return 'N/A';
       return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
     } catch {
       return dateStr;
@@ -450,7 +456,22 @@ const ParentList = () => {
               </select>
             </div>
           </div>
-          <div className="col-md-2 d-flex align-items-center mb-3 gap-2">
+          <div className="col-md-2">
+            <div className="mb-3">
+              <label className="form-label">Status</label>
+              <select
+                className="form-select"
+                name="status"
+                value={filters.status}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+              >
+                <option value="">All Status</option>
+                <option value="1">Active</option>
+                <option value="2">Inactive</option>
+              </select>
+            </div>
+          </div>
+          <div className="col-md-2 d-flex align-items-end mb-3 gap-2">
             <button type="submit" className="btn btn-outline-primary flex-fill">
               Search
             </button>
@@ -494,26 +515,36 @@ const ParentList = () => {
                   >
                     {p.relation || (p.parent_type === 2 ? 'Mother' : p.parent_type === 1 ? 'Father' : 'Guardian')}
                   </a>
-                  <TableActionMenu
-                    items={[
-                      {
-                        label: 'View Details',
-                        icon: 'ti ti-eye text-info',
-                        onClick: () => handleViewDetails(p.id),
-                      },
-                      {
-                        label: 'Edit',
-                        icon: 'ti ti-edit-circle text-primary',
-                        onClick: () => handleEditParent(p),
-                      },
-                      {
-                        label: 'Delete',
-                        icon: 'ti ti-trash-x',
-                        variant: 'danger',
-                        onClick: () => handleDeleteParent(p.id),
-                      },
-                    ]}
-                  />
+                  <div className="d-flex align-items-center">
+                    <span
+                      className={`badge ${
+                        Number(p.status) === 1 ? 'badge-soft-success' : 'badge-soft-danger'
+                      } d-inline-flex align-items-center me-1`}
+                    >
+                      <i className="ti ti-circle-filled fs-5 me-1"></i>
+                      {Number(p.status) === 1 ? 'Active' : 'Inactive'}
+                    </span>
+                    <TableActionMenu
+                      items={[
+                        {
+                          label: 'View Details',
+                          icon: 'ti ti-eye text-info',
+                          onClick: () => handleViewDetails(p.id),
+                        },
+                        {
+                          label: 'Edit',
+                          icon: 'ti ti-edit-circle text-primary',
+                          onClick: () => handleEditParent(p),
+                        },
+                        {
+                          label: 'Delete',
+                          icon: 'ti ti-trash-x',
+                          variant: 'danger',
+                          onClick: () => handleDeleteParent(p.id),
+                        },
+                      ]}
+                    />
+                  </div>
                 </div>
                 <div className="card-body">
                   <div className="bg-light-300 rounded-2 p-3 mb-3">
@@ -777,6 +808,19 @@ const ParentList = () => {
                         />
                         {formErrors.email && <div className="invalid-feedback">{formErrors.email}</div>}
                       </div>
+
+                      <div className="mb-3">
+                        <label className="form-label">Status</label>
+                        <select
+                          className="form-select"
+                          name="status"
+                          value={formData.status}
+                          onChange={(e) => setFormData({ ...formData, status: e.target.value })}
+                        >
+                          <option value="1">Active</option>
+                          <option value="2">Inactive</option>
+                        </select>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -843,9 +887,19 @@ const ParentList = () => {
                               />
                             </span>
                             <div className="parent-name ms-2">
-                              <h5 className="mb-1 text-dark fw-bold" id="parent_name">
-                                {selectedParentDetails.full_name}
-                              </h5>
+                              <div className="d-flex align-items-center gap-2 mb-1">
+                                <h5 className="mb-0 text-dark fw-bold" id="parent_name">
+                                  {selectedParentDetails.full_name}
+                                </h5>
+                                <span
+                                  className={`badge ${
+                                    Number(selectedParentDetails.status) === 1 ? 'badge-soft-success' : 'badge-soft-danger'
+                                  } d-inline-flex align-items-center`}
+                                >
+                                  <i className="ti ti-circle-filled fs-5 me-1"></i>
+                                  {Number(selectedParentDetails.status) === 1 ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
                               <p className="mb-0 text-muted">
                                 Added on{' '}
                                 <span id="parent_created_on">
@@ -887,8 +941,15 @@ const ParentList = () => {
                               >
                                 {child.admission_number || 'N/A'}
                               </Link>
-                              <span className="badge badge-soft-success badge-md mb-2">
-                                Active
+                              <span
+                                className={`badge ${
+                                  Number(child.student_status ?? child.status) === 1
+                                    ? 'badge-soft-success'
+                                    : 'badge-soft-danger'
+                                } badge-md mb-2 d-inline-flex align-items-center`}
+                              >
+                                <i className="ti ti-circle-filled fs-5 me-1"></i>
+                                {Number(child.student_status ?? child.status) === 1 ? 'Active' : 'Inactive'}
                               </span>
                             </div>
                             <div className="d-flex align-items-center justify-content-between flex-wrap">

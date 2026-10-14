@@ -18,11 +18,11 @@ const TeacherStudentList = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalStudents, setTotalStudents] = useState(0);
 
-  // Filter States (Active by default)
+  // Filter States (All non-deleted by default)
   const [name, setName] = useState('');
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
-  const [status, setStatus] = useState('1'); // 1 = Active
+  const [status, setStatus] = useState('');
   const [admissionDate, setAdmissionDate] = useState('');
 
   // Ref for Infinite Scroll Sentinel & search debouncing
@@ -96,7 +96,7 @@ const TeacherStudentList = () => {
         search: (activeName || '').trim(),
         classId: activeClass || '',
         sectionId: activeSection || '',
-        status: activeStatus !== undefined ? activeStatus : '1',
+        status: activeStatus !== undefined ? activeStatus : '',
         admissionDate: activeDate || '',
       };
 
@@ -313,9 +313,9 @@ const TeacherStudentList = () => {
                 value={status}
                 onChange={handleStatusChange}
               >
+                <option value="">All Status</option>
                 <option value="1">Active</option>
                 <option value="2">Inactive</option>
-                <option value="">All</option>
               </select>
             </div>
           </div>

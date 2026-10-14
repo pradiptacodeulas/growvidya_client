@@ -23,7 +23,7 @@ const TeacherSidebar = ({
   const messageUnreadCount = useSelector((state) => state.messageNotification?.unreadCount || 0);
 
   const schoolLogoSrc = resolveImageUrl(teacher?.schoolLogo || teacher?.school_logo || teacher?.school?.school_logo) || schoolLogoDefault;
-  const schoolName = teacher?.schoolName || teacher?.school_name || '';
+  const branchName = teacher?.branchName || teacher?.branch_name || '';
 
   // Helper to determine the active submenu key from current URL path
   const getActiveMenuFromPath = (path) => {
@@ -136,7 +136,7 @@ const TeacherSidebar = ({
                 >
                   <img
                     src={schoolLogoSrc}
-                    alt={schoolName}
+                    alt={branchName}
                     className="img-fluid rounded"
                     style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
                     onError={(e) => {
@@ -145,7 +145,7 @@ const TeacherSidebar = ({
                     }}
                   />
                 </span>
-                <span className="text-dark ms-2 fw-semibold text-truncate">{schoolName}</span>
+                <span className="text-dark ms-2 fw-semibold text-truncate">{branchName}</span>
               </a>
             </li>
           </ul>

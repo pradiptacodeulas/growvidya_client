@@ -86,14 +86,30 @@ const ParentDashboard = () => {
                     }}
                   />
                   <span
-                    className="position-absolute bottom-0 end-0 bg-success border border-2 border-white rounded-circle"
+                    className={`position-absolute bottom-0 end-0 ${
+                      Number(currentChild?.student_status ?? currentChild?.status) === 1 ? 'bg-success' : 'bg-danger'
+                    } border border-2 border-white rounded-circle`}
                     style={{ width: '14px', height: '14px' }}
                   ></span>
                 </div>
                 <div>
-                  <span className="badge bg-primary bg-opacity-25 text-white mb-1 fs-12 border border-primary border-opacity-30">
-                    <i className="ti ti-id me-1"></i>Adm No: {currentChild?.admission_number || 'N/A'}
-                  </span>
+                  <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
+                    <span className="badge bg-primary bg-opacity-25 text-white fs-12 border border-primary border-opacity-30">
+                      <i className="ti ti-id me-1"></i>Adm No: {currentChild?.admission_number || 'N/A'}
+                    </span>
+                    {currentChild && (
+                      <span
+                        className={`badge ${
+                          Number(currentChild.student_status ?? currentChild.status) === 1
+                            ? 'bg-success'
+                            : 'bg-danger'
+                        } text-white fs-12 d-inline-flex align-items-center`}
+                      >
+                        <i className="ti ti-circle-filled fs-5 me-1"></i>
+                        {Number(currentChild.student_status ?? currentChild.status) === 1 ? 'Active' : 'Inactive'}
+                      </span>
+                    )}
+                  </div>
                   <h3 className="fw-bold text-white mb-1 fs-22">
                     Welcome Back, {parent?.firstName || parent?.name || 'Parent'}!
                   </h3>
@@ -129,6 +145,7 @@ const ParentDashboard = () => {
                     Array.from(new Map(children.map((c) => [c.id, c])).values()).map((c, idx) => {
                       const isActive = activeChild?.id === c.id;
                       const cPhoto = resolveImageUrl(c.picture);
+                      const isChildActive = Number(c.student_status ?? c.status) === 1;
                       return (
                         <button
                           key={`dash-child-${c.id || idx}-${idx}`}
@@ -152,12 +169,19 @@ const ParentDashboard = () => {
                             }}
                           />
                           <span>{c.first_name || c.full_name}</span>
+                          <span
+                            className={`badge ${
+                              isChildActive ? 'bg-success' : 'bg-danger'
+                            } text-white fs-10 px-2 py-0 rounded-pill`}
+                          >
+                            {isChildActive ? 'Active' : 'Inactive'}
+                          </span>
                           {isActive && <i className="ti ti-circle-check fs-14 ms-1"></i>}
                         </button>
                       );
                     })
                   ) : (
-                    <span className="text-white-50 fs-12">1 Child Enrolled</span>
+                    <span className="text-white-50 fs-12">No Linked Children</span>
                   )}
                 </div>
               </div>

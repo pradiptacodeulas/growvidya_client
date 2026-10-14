@@ -293,7 +293,7 @@ const AddStudent = () => {
         admission_number: s.admission_number || '',
         admission_date: s.admission_date ? s.admission_date.slice(0, 10) : '',
         date_of_birth: s.date_of_birth ? s.date_of_birth.slice(0, 10) : '',
-        status: String(s.status ?? '1'),
+        status: String(Number(s.status) === 2 ? 2 : 1),
         first_name: s.first_name || '',
         last_name: s.last_name || '',
         class_student: classId,
@@ -1564,7 +1564,7 @@ const AddStudent = () => {
                           }
                         >
                           <option value="1">Active</option>
-                          <option value="0">Inactive</option>
+                          <option value="2">Inactive</option>
                         </select>
                       </div>
 

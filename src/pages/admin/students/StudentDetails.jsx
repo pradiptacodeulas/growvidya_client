@@ -282,13 +282,13 @@ const StudentDetails = () => {
                     style={{ borderRadius: '10px' }}
                   />
                   <div className="overflow-hidden">
-                    {student.status === 1 ? (
+                    {Number(student.status) === 1 ? (
                       <span className="badge badge-soft-success d-inline-flex align-items-center mb-1">
-                        Active
+                        <i className="ti ti-circle-filled fs-5 me-1"></i>Active
                       </span>
                     ) : (
                       <span className="badge badge-soft-danger d-inline-flex align-items-center mb-1">
-                        Inactive
+                        <i className="ti ti-circle-filled fs-5 me-1"></i>Inactive
                       </span>
                     )}
                     <h5 className="mb-1 text-truncate">{student.full_name}</h5>

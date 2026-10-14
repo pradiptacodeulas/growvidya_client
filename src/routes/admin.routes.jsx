@@ -135,6 +135,8 @@ const SuperAdminDashboard = lazy(() => import('../pages/admin/superAdmin/SuperAd
 const BranchDetailsView = lazy(() => import('../pages/admin/superAdmin/BranchDetailsView'));
 const Media = lazy(() => import('../pages/admin/media/Media'));
 const Message = lazy(() => import('../pages/admin/messages/Message'));
+const AdminProfile = lazy(() => import('../pages/admin/profile/AdminProfile'));
+const EditAdminProfile = lazy(() => import('../pages/admin/profile/EditAdminProfile'));
 
 const AdminIndexRedirect = () => {
   const { user, checkingAuth } = useSelector((state) => state.auth);
@@ -158,6 +160,8 @@ export const adminRoutes = (
     <Route path="/admin" element={<AdminLayout />}>
       <Route index element={<AdminIndexRedirect />} />
       <Route path="dashboard" element={<AdminDashboard />} />
+      <Route path="profile" element={<AdminProfile />} />
+      <Route path="profile/edit" element={<EditAdminProfile />} />
       <Route path="super-admin/dashboard" element={<SuperAdminDashboard />} />
       <Route path="super-admin/branches/:id" element={<BranchDetailsView />} />
       <Route path="super-admin" element={<Navigate to="/admin/super-admin/dashboard" replace />} />

@@ -486,6 +486,10 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                     </div>
                   </div>
                   <hr className="m-0" />
+                  <Link className="dropdown-item d-inline-flex align-items-center p-2" to="/admin/profile">
+                    <i className="ti ti-user-circle me-2"></i> My Profile
+                  </Link>
+                  <hr className="m-0" />
                   <a className="dropdown-item d-inline-flex align-items-center p-2 text-danger" href="#logout" onClick={handleLogout}>
                     <i className="ti ti-logout me-2"></i> Logout
                   </a>
