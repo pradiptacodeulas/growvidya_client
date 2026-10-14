@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import {
@@ -13,6 +13,21 @@ import NoData from '../../../components/common/NoData';
 const TeacherAssignmentSectionView = () => {
   const { teacher } = useSelector((state) => state.teacherAuth);
   const teacherId = teacher?.id || teacher?.teacherId;
+  const navigate = useNavigate();
+
+  const getEffectiveBranchId = useCallback(() => {
+    const tBranch = teacher?.branchId || teacher?.branch_id;
+    if (tBranch && Number(tBranch) > 0) return Number(tBranch);
+    try {
+      const raw = localStorage.getItem('teacher_user') || localStorage.getItem('teacher');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const bId = parsed?.branchId || parsed?.branch_id;
+        if (bId && Number(bId) > 0) return Number(bId);
+      }
+    } catch (e) {}
+    return null;
+  }, [teacher]);
 
   const { classId: rawClassId } = useParams();
   const classId = decodeParam(rawClassId);
@@ -24,29 +39,40 @@ const TeacherAssignmentSectionView = () => {
 
   useEffect(() => {
     loadClassAndSections();
-  }, [rawClassId, teacherId]);
+  }, [rawClassId, teacherId, teacher?.branch_id, teacher?.branchId]);
 
   const loadClassAndSections = async () => {
     try {
       setLoading(true);
+      const effectiveBranchId = getEffectiveBranchId();
+      const branchQuery = effectiveBranchId ? { branch_id: effectiveBranchId } : {};
+
       const [clsRes, secRes] = await Promise.all([
         fetchTeacherClassByIdApi(classId).catch(() => null),
-        fetchTeacherSectionsApi(classId).catch(() => ({ data: [] })),
+        fetchTeacherSectionsApi({ classId, ...branchQuery }).catch(() => ({ data: [] })),
       ]);
 
       let clsData = clsRes?.data || clsRes;
       if (!clsData) {
-        const allClasses = await fetchTeacherClassesApi({ teacher_id: teacherId, status: 1, activeOnly: true });
+        const allClasses = await fetchTeacherClassesApi({ teacher_id: teacherId, status: 1, activeOnly: true, ...branchQuery });
         const list = Array.isArray(allClasses?.data) ? allClasses.data : Array.isArray(allClasses) ? allClasses : [];
         clsData = list.find((c) => String(c.id) === String(classId));
+      }
+      if (!clsData || (effectiveBranchId && clsData.branch_id && Number(clsData.branch_id) !== Number(effectiveBranchId))) {
+        toast.error('Selected class does not belong to your authorized branch.');
+        navigate('/teacher/academics/assignments');
+        return;
       }
       setClassInfo(clsData);
 
       const secList = Array.isArray(secRes?.data) ? secRes.data : Array.isArray(secRes) ? secRes : [];
       const classSections = secList.filter(
-        (s) => String(s.class_id) === String(classId) && Number(s.status) === 1
+        (s) =>
+          String(s.class_id) === String(classId) &&
+          Number(s.status) === 1 &&
+          (!effectiveBranchId || !s.branch_id || Number(s.branch_id) === Number(effectiveBranchId))
       );
-      setSections(classSections.length > 0 ? classSections : secList.filter((s) => Number(s.status) === 1));
+      setSections(classSections);
     } catch (err) {
       console.error('Failed to load class sections:', err);
       toast.error('Failed to load class sections.');

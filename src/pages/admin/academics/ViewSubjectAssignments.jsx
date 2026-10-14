@@ -1,11 +1,13 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import {
   fetchClassByIdApi,
   fetchClassesApi,
   fetchSectionsApi,
   fetchSubjectsApi,
+  fetchSubjectByIdApi,
   fetchAssignmentsApi,
   fetchAssignmentQuestionsApi,
   publishAssignmentApi,
@@ -16,6 +18,7 @@ import {
   fetchTeacherClassesApi,
   fetchTeacherSectionsApi,
   fetchTeacherSubjectsApi,
+  fetchTeacherSubjectByIdApi,
   fetchTeacherAssignmentsApi,
   fetchTeacherAssignmentQuestionsApi,
   publishTeacherAssignmentApi,
@@ -42,6 +45,33 @@ const formatDate = (dateStr) => {
 const ViewSubjectAssignments = () => {
   const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
   const basePath = isTeacher ? '/teacher' : '/admin';
+  const navigate = useNavigate();
+
+  const { teacher } = useSelector((state) => state.teacherAuth || {});
+  const { user: adminUser } = useSelector((state) => state.auth || {});
+
+  const getEffectiveBranchId = useCallback(() => {
+    if (isTeacher) {
+      const tBranch = teacher?.branchId || teacher?.branch_id;
+      if (tBranch && Number(tBranch) > 0) return Number(tBranch);
+      try {
+        const raw = localStorage.getItem('teacher_user') || localStorage.getItem('teacher');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const bId = parsed?.branchId || parsed?.branch_id;
+          if (bId && Number(bId) > 0) return Number(bId);
+        }
+      } catch (e) {}
+      return null;
+    }
+    const activeBranch = localStorage.getItem('active_branch_id');
+    if (activeBranch && activeBranch !== 'all' && activeBranch !== 'null' && Number(activeBranch) > 0) {
+      return Number(activeBranch);
+    }
+    const aBranch = adminUser?.branchId || adminUser?.branch_id;
+    if (aBranch && Number(aBranch) > 0) return Number(aBranch);
+    return null;
+  }, [isTeacher, teacher, adminUser]);
 
   const {
     subjectId: rawSubId,
@@ -99,20 +129,26 @@ const ViewSubjectAssignments = () => {
 
     const fetchData = async () => {
       try {
+        const effectiveBranchId = getEffectiveBranchId();
+        const branchQuery = effectiveBranchId ? { branch_id: effectiveBranchId } : {};
+
         const fetchClassById = isTeacher ? fetchTeacherClassByIdApi : fetchClassByIdApi;
         const fetchSections = isTeacher ? fetchTeacherSectionsApi : fetchSectionsApi;
         const fetchSubjects = isTeacher ? fetchTeacherSubjectsApi : fetchSubjectsApi;
+        const fetchSubjectById = isTeacher ? fetchTeacherSubjectByIdApi : fetchSubjectByIdApi;
         const fetchAssignments = isTeacher ? fetchTeacherAssignmentsApi : fetchAssignmentsApi;
         const fetchClasses = isTeacher ? fetchTeacherClassesApi : fetchClassesApi;
 
-        const [clsRes, secRes, subRes, asgRes] = await Promise.all([
+        const [clsRes, secRes, subRes, subByIdRes, asgRes] = await Promise.all([
           fetchClassById(classId).catch(() => null),
-          fetchSections(classId).catch(() => ({ data: [] })),
-          fetchSubjects({ classId }).catch(() => ({ data: [] })),
+          fetchSections(isTeacher ? { classId, ...branchQuery } : classId).catch(() => ({ data: [] })),
+          fetchSubjects({ classId, ...branchQuery }).catch(() => ({ data: [] })),
+          fetchSubjectById(subjectId).catch(() => null),
           fetchAssignments({
             class_id: classId,
             section_id: sectionId,
             subject_id: subjectId,
+            ...branchQuery,
           }).catch(() => ({ data: [] })),
         ]);
 
@@ -121,7 +157,7 @@ const ViewSubjectAssignments = () => {
         // Class Info
         let clsData = clsRes?.data || clsRes;
         if (!clsData) {
-          const allClasses = await fetchClasses();
+          const allClasses = await fetchClasses(branchQuery);
           const list = Array.isArray(allClasses?.data) ? allClasses.data : Array.isArray(allClasses) ? allClasses : [];
           clsData = list.find((c) => String(c.id) === String(classId));
         }
@@ -134,8 +170,17 @@ const ViewSubjectAssignments = () => {
 
         // Subject Info
         const subList = Array.isArray(subRes?.data) ? subRes.data : Array.isArray(subRes) ? subRes : [];
-        const currentSub = subList.find((s) => String(s.id) === String(subjectId));
+        const singleSub = subByIdRes?.data || subByIdRes;
+        const currentSub =
+          (singleSub && singleSub.id ? singleSub : null) ||
+          subList.find((s) => String(s.id) === String(subjectId));
         setSubjectInfo(currentSub);
+
+        if (isTeacher && (!clsData || !currentSub || (sectionId && !currentSec))) {
+          toast.error('Selected class, section, or subject does not belong to your authorized branch.');
+          navigate('/teacher/academics/assignments');
+          return;
+        }
 
         // Assignments
         const rawAsgs = Array.isArray(asgRes?.data?.assignments)
@@ -145,7 +190,10 @@ const ViewSubjectAssignments = () => {
           : Array.isArray(asgRes)
           ? asgRes
           : [];
-        setAssignments(rawAsgs);
+        const filteredAsgs = effectiveBranchId
+          ? rawAsgs.filter((a) => !a.branch_id || Number(a.branch_id) === Number(effectiveBranchId))
+          : rawAsgs;
+        setAssignments(filteredAsgs);
       } catch (err) {
         if (!isCancelled) {
           console.error('Error loading subject assignments view:', err);
@@ -163,7 +211,7 @@ const ViewSubjectAssignments = () => {
     return () => {
       isCancelled = true;
     };
-  }, [classId, sectionId, subjectId, isTeacher, reloadTrigger]);
+  }, [classId, sectionId, subjectId, isTeacher, reloadTrigger, getEffectiveBranchId, navigate]);
 
   const handlePublish = async (asgId) => {
     if (!window.confirm('Are you sure you want to publish this assignment? Once published, it will be locked.')) {

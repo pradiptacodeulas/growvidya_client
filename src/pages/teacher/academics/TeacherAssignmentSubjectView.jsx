@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import {
@@ -14,6 +14,21 @@ import NoData from '../../../components/common/NoData';
 const TeacherAssignmentSubjectView = () => {
   const { teacher } = useSelector((state) => state.teacherAuth);
   const teacherId = teacher?.id || teacher?.teacherId;
+  const navigate = useNavigate();
+
+  const getEffectiveBranchId = useCallback(() => {
+    const tBranch = teacher?.branchId || teacher?.branch_id;
+    if (tBranch && Number(tBranch) > 0) return Number(tBranch);
+    try {
+      const raw = localStorage.getItem('teacher_user') || localStorage.getItem('teacher');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const bId = parsed?.branchId || parsed?.branch_id;
+        if (bId && Number(bId) > 0) return Number(bId);
+      }
+    } catch (e) {}
+    return null;
+  }, [teacher]);
 
   const { classId: rawClassId, sectionId: rawSectionId } = useParams();
   const classId = decodeParam(rawClassId);
@@ -30,28 +45,45 @@ const TeacherAssignmentSubjectView = () => {
 
   useEffect(() => {
     loadData();
-  }, [rawClassId, rawSectionId, teacherId]);
+  }, [rawClassId, rawSectionId, teacherId, teacher?.branch_id, teacher?.branchId]);
 
   const loadData = async () => {
     try {
       setLoading(true);
+      const effectiveBranchId = getEffectiveBranchId();
+      const branchQuery = effectiveBranchId ? { branch_id: effectiveBranchId } : {};
+
       const [clsRes, secRes, subRes, asgRes] = await Promise.all([
         fetchTeacherClassByIdApi(classId).catch(() => null),
-        fetchTeacherSectionsApi(classId).catch(() => ({ data: [] })),
-        fetchTeacherSubjectsApi({ classId }).catch(() => ({ data: [] })),
-        fetchTeacherAssignmentsApi({ class_id: classId, section_id: sectionId, status: 1 }).catch(() => ({ data: [] })),
+        fetchTeacherSectionsApi({ classId, ...branchQuery }).catch(() => ({ data: [] })),
+        fetchTeacherSubjectsApi({ classId, ...branchQuery }).catch(() => ({ data: [] })),
+        fetchTeacherAssignmentsApi({ class_id: classId, section_id: sectionId, status: 1, ...branchQuery }).catch(() => ({ data: [] })),
       ]);
 
-      let clsData = clsRes?.data || clsRes;
+      const clsData = clsRes?.data || clsRes;
+      if (!clsData || (effectiveBranchId && clsData.branch_id && Number(clsData.branch_id) !== Number(effectiveBranchId))) {
+        toast.error('Selected class does not belong to your authorized branch.');
+        navigate('/teacher/academics/assignments');
+        return;
+      }
       setClassInfo(clsData);
 
       const secList = Array.isArray(secRes?.data) ? secRes.data : Array.isArray(secRes) ? secRes : [];
       const currentSec = secList.find((s) => String(s.id) === String(sectionId));
+      if (!currentSec) {
+        toast.error('Selected section does not belong to this class or branch.');
+        navigate(`/teacher/academics/assignments/section/${encodedClassId}`);
+        return;
+      }
       setSectionInfo(currentSec);
 
       const subList = Array.isArray(subRes?.data) ? subRes.data : Array.isArray(subRes) ? subRes : [];
-      const activeSubjects = subList.filter((s) => Number(s.status) === 1);
-      setSubjects(activeSubjects.length > 0 ? activeSubjects : subList);
+      const activeSubjects = subList.filter(
+        (s) =>
+          Number(s.status) === 1 &&
+          (!effectiveBranchId || !s.branch_id || Number(s.branch_id) === Number(effectiveBranchId))
+      );
+      setSubjects(activeSubjects);
 
       const asgList = Array.isArray(asgRes?.data)
         ? asgRes.data
@@ -60,7 +92,13 @@ const TeacherAssignmentSubjectView = () => {
         : Array.isArray(asgRes)
         ? asgRes
         : [];
-      setAssignments(asgList.filter((a) => Number(a.status) === 1));
+      setAssignments(
+        asgList.filter(
+          (a) =>
+            Number(a.status) === 1 &&
+            (!effectiveBranchId || !a.branch_id || Number(a.branch_id) === Number(effectiveBranchId))
+        )
+      );
     } catch (err) {
       console.error('Failed to load assignment subjects:', err);
       toast.error('Failed to load assigned subjects.');

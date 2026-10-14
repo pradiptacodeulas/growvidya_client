@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import {
   fetchClassByIdApi,
@@ -46,6 +47,32 @@ const AddAssignmentForm = () => {
   const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
   const basePath = isTeacher ? '/teacher' : '/admin';
 
+  const { teacher } = useSelector((state) => state.teacherAuth || {});
+  const { user: adminUser } = useSelector((state) => state.auth || {});
+
+  const getEffectiveBranchId = useCallback(() => {
+    if (isTeacher) {
+      const tBranch = teacher?.branchId || teacher?.branch_id;
+      if (tBranch && Number(tBranch) > 0) return Number(tBranch);
+      try {
+        const raw = localStorage.getItem('teacher_user') || localStorage.getItem('teacher');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const bId = parsed?.branchId || parsed?.branch_id;
+          if (bId && Number(bId) > 0) return Number(bId);
+        }
+      } catch (e) {}
+      return null;
+    }
+    const activeBranch = localStorage.getItem('active_branch_id');
+    if (activeBranch && activeBranch !== 'all' && activeBranch !== 'null' && Number(activeBranch) > 0) {
+      return Number(activeBranch);
+    }
+    const aBranch = adminUser?.branchId || adminUser?.branch_id;
+    if (aBranch && Number(aBranch) > 0) return Number(aBranch);
+    return null;
+  }, [isTeacher, teacher, adminUser]);
+
   const { subjectId: rawSubId, classId: rawClassId, sectionId: rawSecId, id: rawId } = useParams();
   const navigate = useNavigate();
 
@@ -88,11 +115,13 @@ const AddAssignmentForm = () => {
 
   useEffect(() => {
     loadPrerequisites();
-  }, [rawSubId, rawClassId, rawSecId, rawId, isTeacher]);
+  }, [rawSubId, rawClassId, rawSecId, rawId, isTeacher, teacher?.branch_id, teacher?.branchId]);
 
   const loadPrerequisites = async () => {
     try {
       setLoading(true);
+      const effectiveBranchId = getEffectiveBranchId();
+      const branchQuery = effectiveBranchId ? { branch_id: effectiveBranchId } : {};
 
       const fetchAssignmentTypes = isTeacher ? fetchTeacherAssignmentTypesApi : fetchAssignmentTypesApi;
       const fetchClasses = isTeacher ? fetchTeacherClassesApi : fetchClassesApi;
@@ -117,23 +146,90 @@ const AddAssignmentForm = () => {
       let currentClsId = resolvedClsId || classId;
       let currentSecId = resolvedSecId || sectionId;
 
-      // 1. Fetch Types, Classes, Sections
+      // 1. If Edit Mode, fetch existing assignment details first so we know its class/section/subject & verify branch
+      if (isEdit && (resolvedAsgId || assignmentId)) {
+        const targetAsgId = resolvedAsgId || assignmentId;
+        try {
+          const asgRes = await fetchAssignmentById(targetAsgId);
+          const asgData = asgRes?.data || asgRes;
+          if (!asgData || !asgData.id) {
+            toast.error('Assignment not found or access denied for this branch.');
+            navigate(`${basePath}/academics/assignments`);
+            return;
+          }
+          if (effectiveBranchId && asgData.branch_id && Number(asgData.branch_id) !== Number(effectiveBranchId)) {
+            toast.error('Unauthorized: This assignment belongs to a different branch.');
+            navigate(`${basePath}/academics/assignments`);
+            return;
+          }
+
+          currentSubId = asgData.subject_id;
+          currentClsId = asgData.class_id;
+          currentSecId = asgData.section_id;
+          setSubjectId(currentSubId);
+          setClassId(currentClsId);
+          setSectionId(currentSecId);
+
+          setFormData({
+            title: asgData.title || '',
+            assignment_type_id: asgData.assignment_type_id ? String(asgData.assignment_type_id) : '',
+            assigned_date: asgData.assigned_date ? asgData.assigned_date.split('T')[0] : getTodayDate(),
+            due_date: asgData.due_date ? asgData.due_date.split('T')[0] : getFutureDate(7),
+          });
+
+          // Fetch questions
+          try {
+            const qRes = await fetchAssignmentQuestions(targetAsgId);
+            const qList = Array.isArray(qRes?.data) ? qRes.data : Array.isArray(qRes) ? qRes : [];
+            if (qList.length > 0) {
+              const mappedQuestions = qList.map((q) => {
+                const answers = Array.isArray(q.answers) ? q.answers : [];
+                let correctIdx = answers.findIndex((a) => Number(a.is_correct) === 1);
+                if (correctIdx === -1) correctIdx = 0;
+
+                return {
+                  question: q.question || '',
+                  correct_answer: correctIdx,
+                  options:
+                    answers.length > 0
+                      ? answers.map((a) => ({ text: a.answer || '' }))
+                      : [{ text: '' }, { text: '' }, { text: '' }, { text: '' }],
+                };
+              });
+              setQuestions(mappedQuestions);
+            }
+          } catch (qErr) {
+            console.warn('Could not load assignment questions:', qErr);
+          }
+        } catch (asgErr) {
+          console.warn('Could not load assignment details:', asgErr);
+          toast.error('Assignment not found or access denied.');
+          navigate(`${basePath}/academics/assignments`);
+          return;
+        }
+      }
+
+      // 2. Fetch Types, Classes, Sections scoped to branch
       const [typesRes, classesRes, sectionsRes] = await Promise.all([
-        fetchAssignmentTypes({ limit: 100, status: 1 }).catch((e) => {
+        fetchAssignmentTypes({ limit: 100, status: 1, ...branchQuery }).catch((e) => {
           console.warn('Could not fetch assignment types:', e);
           return { data: [] };
         }),
-        fetchClasses().catch((e) => {
+        fetchClasses(branchQuery).catch((e) => {
           console.warn('Could not fetch classes:', e);
           return { data: [] };
         }),
-        fetchSections(currentClsId).catch((e) => {
+        fetchSections(
+          isTeacher
+            ? { classId: currentClsId, ...branchQuery }
+            : currentClsId
+        ).catch((e) => {
           console.warn('Could not fetch sections:', e);
           return { data: [] };
         }),
       ]);
 
-      const typesList =
+      const rawTypesList =
         Array.isArray(typesRes?.data?.assignment_types)
           ? typesRes.data.assignment_types
           : Array.isArray(typesRes?.data?.assignmentTypes)
@@ -146,7 +242,11 @@ const AddAssignmentForm = () => {
           ? typesRes
           : [];
 
-      setAssignmentTypes(typesList);
+      const filteredTypes = effectiveBranchId
+        ? rawTypesList.filter((t) => !t.branch_id || Number(t.branch_id) === Number(effectiveBranchId))
+        : rawTypesList;
+
+      setAssignmentTypes(filteredTypes);
 
       const classesList = Array.isArray(classesRes?.data)
         ? classesRes.data
@@ -159,104 +259,65 @@ const AddAssignmentForm = () => {
         ? sectionsRes
         : [];
 
-      // 2. If Edit Mode, fetch existing assignment details
-      if (isEdit && (resolvedAsgId || assignmentId)) {
-        const targetAsgId = resolvedAsgId || assignmentId;
-        try {
-          const asgRes = await fetchAssignmentById(targetAsgId);
-          const asgData = asgRes?.data || asgRes;
-          if (asgData) {
-            currentSubId = asgData.subject_id;
-            currentClsId = asgData.class_id;
-            currentSecId = asgData.section_id;
-            setSubjectId(currentSubId);
-            setClassId(currentClsId);
-            setSectionId(currentSecId);
-
-            setFormData({
-              title: asgData.title || '',
-              assignment_type_id: asgData.assignment_type_id ? String(asgData.assignment_type_id) : '',
-              assigned_date: asgData.assigned_date ? asgData.assigned_date.split('T')[0] : getTodayDate(),
-              due_date: asgData.due_date ? asgData.due_date.split('T')[0] : getFutureDate(7),
-            });
-
-            // Fetch questions
-            try {
-              const qRes = await fetchAssignmentQuestions(targetAsgId);
-              const qList = Array.isArray(qRes?.data) ? qRes.data : Array.isArray(qRes) ? qRes : [];
-              if (qList.length > 0) {
-                const mappedQuestions = qList.map((q) => {
-                  const answers = Array.isArray(q.answers) ? q.answers : [];
-                  let correctIdx = answers.findIndex((a) => Number(a.is_correct) === 1);
-                  if (correctIdx === -1) correctIdx = 0;
-
-                  return {
-                    question: q.question || '',
-                    correct_answer: correctIdx,
-                    options:
-                      answers.length > 0
-                        ? answers.map((a) => ({ text: a.answer || '' }))
-                        : [{ text: '' }, { text: '' }, { text: '' }, { text: '' }],
-                  };
-                });
-                setQuestions(mappedQuestions);
-              }
-            } catch (qErr) {
-              console.warn('Could not load assignment questions:', qErr);
-            }
-          }
-        } catch (asgErr) {
-          console.warn('Could not load assignment details:', asgErr);
-        }
-      }
-
-      // 3. Fetch Subject details
+      // 3. Fetch Subject details and verify branch ownership
+      let resolvedSubject = null;
       if (currentSubId) {
         try {
           const singleSubRes = await fetchSubjectById(currentSubId).catch(() => null);
           const singleSubData = singleSubRes?.data || singleSubRes;
           if (singleSubData && singleSubData.id) {
-            setSubjectInfo(singleSubData);
+            resolvedSubject = singleSubData;
           } else if (currentClsId) {
-            const subRes = await fetchSubjects({ classId: currentClsId }).catch(() => ({ data: [] }));
+            const subRes = await fetchSubjects({ classId: currentClsId, ...branchQuery }).catch(() => ({ data: [] }));
             const subjectsList = Array.isArray(subRes?.data) ? subRes.data : Array.isArray(subRes) ? subRes : [];
             const currentSub = subjectsList.find((s) => String(s.id) === String(currentSubId));
-            if (currentSub) setSubjectInfo(currentSub);
+            if (currentSub) resolvedSubject = currentSub;
           }
         } catch (subErr) {
           console.warn('Could not load subject info:', subErr);
         }
       }
+      setSubjectInfo(resolvedSubject);
 
-      // 4. Set Class & Section Info
+      // 4. Set Class & Section Info using role-appropriate APIs
+      let resolvedClass = null;
       if (currentClsId) {
         const currentCls = classesList.find((c) => String(c.id) === String(currentClsId));
         if (currentCls) {
-          setClassInfo(currentCls);
+          resolvedClass = currentCls;
         } else {
           try {
-            const clsRes = await fetchClassByIdApi(currentClsId).catch(() => null);
+            const clsRes = await fetchClassById(currentClsId).catch(() => null);
             const clsData = clsRes?.data || clsRes;
-            if (clsData && clsData.id) setClassInfo(clsData);
+            if (clsData && clsData.id) resolvedClass = clsData;
           } catch (clsErr) {
             console.warn('Could not load class info:', clsErr);
           }
         }
       }
+      setClassInfo(resolvedClass);
 
+      let resolvedSection = null;
       if (currentSecId) {
         const currentSec = sectionsList.find((s) => String(s.id) === String(currentSecId));
         if (currentSec) {
-          setSectionInfo(currentSec);
+          resolvedSection = currentSec;
         } else {
           try {
-            const secRes = await fetchSectionByIdApi(currentSecId).catch(() => null);
+            const secRes = await fetchSectionById(currentSecId).catch(() => null);
             const secData = secRes?.data || secRes;
-            if (secData && secData.id) setSectionInfo(secData);
+            if (secData && secData.id) resolvedSection = secData;
           } catch (secErr) {
             console.warn('Could not load section info:', secErr);
           }
         }
+      }
+      setSectionInfo(resolvedSection);
+
+      if (isTeacher && (!resolvedClass || !resolvedSubject || (currentSecId && !resolvedSection))) {
+        toast.error('Selected class, section, or subject does not belong to your authorized branch.');
+        navigate('/teacher/academics/assignments');
+        return;
       }
 
     } catch (err) {
@@ -391,12 +452,14 @@ const AddAssignmentForm = () => {
     try {
       setSubmitting(true);
 
+      const effectiveBranchId = getEffectiveBranchId();
       const payload = {
-        title: formData.title,
+        title: formData.title.trim(),
         assignment_type_id: formData.assignment_type_id,
         class_id: classId,
         section_id: sectionId,
         subject_id: subjectId,
+        ...(effectiveBranchId ? { branch_id: Number(effectiveBranchId) } : {}),
         assigned_date: formData.assigned_date,
         due_date: formData.due_date,
         is_published: 0,

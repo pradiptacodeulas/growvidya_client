@@ -1,9 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
-import { fetchTeacherClassesApi } from '../../../api/teacherAcademic.api';
-import { fetchShiftsApi } from '../../../api/adminAcademic.api';
+import { fetchTeacherClassesApi, fetchTeacherShiftsApi } from '../../../api/teacherAcademic.api';
 import { encodeParam } from '../../../utils/idHelper';
 import NoData from '../../../components/common/NoData';
 
@@ -11,20 +10,37 @@ const TeacherAssignments = () => {
   const { teacher } = useSelector((state) => state.teacherAuth);
   const teacherId = teacher?.id || teacher?.teacherId;
 
+  const getEffectiveBranchId = useCallback(() => {
+    const tBranch = teacher?.branchId || teacher?.branch_id;
+    if (tBranch && Number(tBranch) > 0) return Number(tBranch);
+    try {
+      const raw = localStorage.getItem('teacher_user') || localStorage.getItem('teacher');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const bId = parsed?.branchId || parsed?.branch_id;
+        if (bId && Number(bId) > 0) return Number(bId);
+      }
+    } catch (e) {}
+    return null;
+  }, [teacher]);
+
   const [shifts, setShifts] = useState([]);
   const [classes, setClasses] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchShiftsAndClasses();
-  }, [teacherId]);
+  }, [teacherId, teacher?.branch_id, teacher?.branchId]);
 
   const fetchShiftsAndClasses = async () => {
     try {
       setLoading(true);
+      const effectiveBranchId = getEffectiveBranchId();
+      const branchQuery = effectiveBranchId ? { branch_id: effectiveBranchId } : {};
+
       const [shiftsRes, classesRes] = await Promise.all([
-        fetchShiftsApi().catch(() => ({ data: [] })),
-        fetchTeacherClassesApi().catch(() => ({ data: [] })),
+        fetchTeacherShiftsApi({ status: 1, ...branchQuery }).catch(() => ({ data: [] })),
+        fetchTeacherClassesApi(branchQuery).catch(() => ({ data: [] })),
       ]);
 
       const shiftList = Array.isArray(shiftsRes?.data)
@@ -38,8 +54,15 @@ const TeacherAssignments = () => {
         ? classesRes
         : [];
 
-      setShifts(shiftList.filter((s) => Number(s.status) === 1));
-      setClasses(classList.filter((c) => Number(c.status) === 1));
+      const activeShifts = shiftList.filter(
+        (s) => Number(s.status) === 1 && (!effectiveBranchId || !s.branch_id || Number(s.branch_id) === Number(effectiveBranchId))
+      );
+      const activeClasses = classList.filter(
+        (c) => Number(c.status) === 1 && (!effectiveBranchId || !c.branch_id || Number(c.branch_id) === Number(effectiveBranchId))
+      );
+
+      setShifts(activeShifts);
+      setClasses(activeClasses);
     } catch (err) {
       console.error('Failed to load class assignment shifts:', err);
       toast.error('Failed to load class assignments.');

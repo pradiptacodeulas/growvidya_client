@@ -24,9 +24,28 @@ export const fetchTeacherClassesApi = async (params = {}) => {
 export const fetchTeacherClassByIdApi = async (id) =>
   await apiFetch(`/teacher/academics/classes/${id}`);
 
+// Shifts
+export const fetchTeacherShiftsApi = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return await apiFetch(`/teacher/academics/shifts${query ? `?${query}` : ''}`);
+};
+
 // Sections
-export const fetchTeacherSectionsApi = async (classId = null) => {
-  const res = await apiFetch(`/teacher/academics/sections${classId ? `?classId=${classId}` : ''}`);
+export const fetchTeacherSectionsApi = async (paramsOrClassId = null) => {
+  let queryString = '';
+  if (typeof paramsOrClassId === 'object' && paramsOrClassId !== null) {
+    const q = new URLSearchParams();
+    if (paramsOrClassId.classId || paramsOrClassId.class_id) {
+      q.append('classId', paramsOrClassId.classId || paramsOrClassId.class_id);
+    }
+    if (paramsOrClassId.branch_id || paramsOrClassId.branchId) {
+      q.append('branch_id', paramsOrClassId.branch_id || paramsOrClassId.branchId);
+    }
+    queryString = q.toString() ? `?${q.toString()}` : '';
+  } else if (paramsOrClassId) {
+    queryString = `?classId=${paramsOrClassId}`;
+  }
+  const res = await apiFetch(`/teacher/academics/sections${queryString}`);
   if (Array.isArray(res)) return sortSectionsDesc(res);
   if (Array.isArray(res?.data)) res.data = sortSectionsDesc(res.data);
   if (Array.isArray(res?.data?.sections)) res.data.sections = sortSectionsDesc(res.data.sections);
@@ -43,6 +62,7 @@ export const fetchTeacherSubjectsApi = async (params = {}) => {
   if (typeof params === 'object' && params !== null) {
     const q = new URLSearchParams();
     if (params.classId || params.class_id) q.append('classId', params.classId || params.class_id);
+    if (params.branch_id || params.branchId) q.append('branch_id', params.branch_id || params.branchId);
     queryString = q.toString() ? `?${q.toString()}` : '';
   } else if (params) {
     queryString = `?classId=${params}`;
@@ -121,8 +141,10 @@ export const publishTeacherAssignmentApi = async (id) =>
 export const fetchTeacherAssignmentQuestionsApi = async (id) =>
   await apiFetch(`/teacher/academics/assignments/${id}/questions`);
 
-export const fetchTeacherAssignmentTypesApi = async () =>
-  await apiFetch('/teacher/academics/assignment-types');
+export const fetchTeacherAssignmentTypesApi = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return await apiFetch(`/teacher/academics/assignment-types${query ? `?${query}` : ''}`);
+};
 
 // Study Materials
 export const fetchTeacherStudyMaterialsApi = async (params = {}) => {
@@ -165,6 +187,7 @@ export const fetchTeacherAcademicYearsApi = async () =>
   await apiFetch('/teacher/academics/years');
 
 export default {
+  fetchTeacherShiftsApi,
   fetchTeacherClassesApi,
   fetchTeacherClassByIdApi,
   fetchTeacherSectionsApi,
