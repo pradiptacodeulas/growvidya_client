@@ -52,6 +52,15 @@ const StudyMaterialsList = () => {
 
   const { teacher } = useSelector((state) => state.teacherAuth || {});
   const currentTeacherId = teacher?.id || teacher?.teacher_id || teacher?.userId;
+  const teacherBranchId = teacher?.branch_id || teacher?.branchId || null;
+
+  const getEffectiveBranchId = () => {
+    if (isTeacher) {
+      return teacherBranchId || undefined;
+    }
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    return activeBranch && activeBranch !== 'all' ? activeBranch : undefined;
+  };
 
   const [materials, setMaterials] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -152,7 +161,7 @@ const StudyMaterialsList = () => {
 
     window.addEventListener('branch_changed', handleBranchChange);
     return () => window.removeEventListener('branch_changed', handleBranchChange);
-  }, []);
+  }, [teacherBranchId]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -173,12 +182,15 @@ const StudyMaterialsList = () => {
       const fetchSections = isTeacher ? fetchTeacherSectionsApi : fetchSectionsApi;
       const fetchSubjects = isTeacher ? fetchTeacherSubjectsApi : fetchSubjectsApi;
 
+      const branchParam = getEffectiveBranchId();
+      const mtParams = branchParam ? { limit: 100, branch_id: branchParam } : { limit: 100 };
+
       const [ayRes, mtRes, clsRes, secRes, subRes] = await Promise.all([
         fetchAcademicYears().catch(() => ({ data: [] })),
-        fetchMaterialTypes({ limit: 100 }).catch(() => ({ data: [] })),
-        fetchClasses().catch(() => ({ data: [] })),
+        fetchMaterialTypes(mtParams).catch(() => ({ data: [] })),
+        fetchClasses(branchParam ? { branch_id: branchParam } : {}).catch(() => ({ data: [] })),
         fetchSections().catch(() => ({ data: [] })),
-        fetchSubjects().catch(() => ({ data: [] })),
+        fetchSubjects(branchParam ? { branch_id: branchParam } : {}).catch(() => ({ data: [] })),
       ]);
 
       const ayList = Array.isArray(ayRes?.data) ? ayRes.data : Array.isArray(ayRes) ? ayRes : [];
@@ -242,11 +254,9 @@ const StudyMaterialsList = () => {
         queryParams.search = combinedSearch;
       }
 
-      if (!isTeacher) {
-        const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
-        if (activeBranch && activeBranch !== 'all') {
-          queryParams.branch_id = activeBranch;
-        }
+      const effectiveBranch = getEffectiveBranchId();
+      if (effectiveBranch) {
+        queryParams.branch_id = effectiveBranch;
       }
 
       const fetchStudyMaterials = isTeacher ? fetchTeacherStudyMaterialsApi : fetchStudyMaterialsApi;
@@ -376,7 +386,7 @@ const StudyMaterialsList = () => {
     setCurrentPage(1);
   };
 
-  // Fallback cascaded sections and subjects for main filter
+  // Cascaded sections and subjects for main filter
   const displayedSections = filterSections.length > 0 ? filterSections : sections.filter(
     (s) => (s.status === undefined || s.status === null || Number(s.status) === 1) &&
       (!filters.class_id || String(s.class_id) === String(filters.class_id))
@@ -400,14 +410,14 @@ const StudyMaterialsList = () => {
     }
     try {
       const toggleStatusApi = isTeacher ? toggleTeacherStudyMaterialStatusApi : toggleStudyMaterialStatusApi;
-      await toggleStatusApi(id);
-      const nextStatus = Number(currentStatus) === 1 ? 2 : 1;
+      const res = await toggleStatusApi(id);
+      const nextStatus = res?.data?.status !== undefined ? Number(res.data.status) : (Number(currentStatus) === 1 ? 2 : 1);
       setMaterials((prev) =>
         prev.map((m) => (m.id === id ? { ...m, status: nextStatus } : m))
       );
       toast.success('Status updated successfully.');
     } catch (err) {
-      toast.error('Failed to toggle status.');
+      toast.error(err.message || 'Failed to toggle status.');
     }
   };
 
@@ -439,7 +449,7 @@ const StudyMaterialsList = () => {
       toast.success('Study material deleted successfully.');
       loadMaterials(currentPage, perPage, appliedFilters, tableSearch);
     } catch (err) {
-      toast.error('Failed to delete study material.');
+      toast.error(err.message || 'Failed to delete study material.');
     } finally {
       setShowDeleteModal(false);
       setDeletingId(null);
@@ -591,22 +601,16 @@ const StudyMaterialsList = () => {
       let finalExtension = editingMaterial ? (formData.attachment_extension || null) : null;
 
       if (modalFile) {
-        try {
-          const uploadRes = await uploadFileApi(modalFile, 'study_material');
-          if (uploadRes?.data?.file_path) {
-            finalAttachment = uploadRes.data.file_path;
-            finalOriginalName = uploadRes.data.file_name || modalFile.name;
-            finalSize = uploadRes.data.size || modalFile.size;
-            finalExtension = (uploadRes.data.file_name || modalFile.name).split('.').pop() || 'pdf';
-          }
-        } catch (uploadErr) {
-          console.warn('File upload fallback:', uploadErr);
-          finalOriginalName = modalFile.name;
-          finalSize = modalFile.size;
-          finalExtension = modalFile.name.split('.').pop() || 'pdf';
+        const uploadRes = await uploadFileApi(modalFile, 'study_material');
+        if (uploadRes?.data?.file_path) {
+          finalAttachment = uploadRes.data.file_path;
+          finalOriginalName = uploadRes.data.file_name || modalFile.name;
+          finalSize = uploadRes.data.size || modalFile.size;
+          finalExtension = (uploadRes.data.file_name || modalFile.name).split('.').pop() || 'pdf';
         }
       }
 
+      const effectiveBranch = getEffectiveBranchId();
       const payload = {
         title: formData.title.trim(),
         chapter: formData.chapter.trim(),
@@ -623,6 +627,7 @@ const StudyMaterialsList = () => {
         publish_date: formData.publish_date || new Date().toISOString().split('T')[0],
         allow_download: Number(formData.allow_download) || 1,
         status: Number(formData.status) || 1,
+        ...(effectiveBranch ? { branch_id: Number(effectiveBranch) } : {}),
       };
 
       if (editingMaterial) {
@@ -647,55 +652,51 @@ const StudyMaterialsList = () => {
   // Material Types Management
   const handleSaveMaterialType = async (e) => {
     e.preventDefault();
-    if (!newTypeName.trim()) return;
+    if (!newTypeName.trim()) {
+      toast.error('Material type name is required.');
+      return;
+    }
 
     try {
+      const effectiveBranch = getEffectiveBranchId();
       if (editingTypeId) {
         const updateMaterialType = isTeacher ? updateTeacherMaterialTypeApi : updateMaterialTypeApi;
         await updateMaterialType(editingTypeId, {
           material_type_name: newTypeName.trim(),
           description: newTypeDesc.trim(),
-        }).catch(() => null);
+          ...(effectiveBranch ? { branch_id: Number(effectiveBranch) } : {}),
+        });
 
-        setMaterialTypes((prev) =>
-          prev.map((t) =>
-            t.id === editingTypeId
-              ? { ...t, material_type_name: newTypeName.trim(), description: newTypeDesc.trim() }
-              : t
-          )
-        );
+        await loadMasters();
         toast.success('Material type updated.');
         setEditingTypeId(null);
       } else {
         const createMaterialType = isTeacher ? createTeacherMaterialTypeApi : createMaterialTypeApi;
-        const res = await createMaterialType({
+        await createMaterialType({
           material_type_name: newTypeName.trim(),
           description: newTypeDesc.trim(),
           status: 1,
-        }).catch(() => ({ data: { id: Date.now() } }));
+          ...(effectiveBranch ? { branch_id: Number(effectiveBranch) } : {}),
+        });
 
-        const newId = res?.data?.id || Date.now();
-        setMaterialTypes((prev) => [
-          ...prev,
-          { id: newId, material_type_name: newTypeName.trim(), description: newTypeDesc.trim(), status: 1 },
-        ]);
+        await loadMasters();
         toast.success('Material type added.');
       }
       setNewTypeName('');
       setNewTypeDesc('');
     } catch (err) {
-      toast.error('Failed to save material type.');
+      toast.error(err.message || 'Failed to save material type.');
     }
   };
 
   const handleDeleteMaterialType = async (id) => {
     try {
       const deleteMaterialType = isTeacher ? deleteTeacherMaterialTypeApi : deleteMaterialTypeApi;
-      await deleteMaterialType(id).catch(() => null);
+      await deleteMaterialType(id);
       setMaterialTypes((prev) => prev.filter((t) => t.id !== id));
       toast.success('Material type removed.');
     } catch (err) {
-      toast.error('Failed to remove material type.');
+      toast.error(err.message || 'Failed to remove material type.');
     }
   };
 
@@ -712,8 +713,13 @@ const StudyMaterialsList = () => {
         ? `${material.title.replace(/[^a-zA-Z0-9_\-\. ]/g, '_')}.${material.attachment_extension || 'pdf'}`
         : 'study_material.pdf');
 
-    const token = localStorage.getItem('admin_token') || localStorage.getItem('token') || '';
-    const apiDownloadUrl = `${getApiBaseUrl()}/admin/academics/study-materials/download/${material.id}`;
+    const token = isTeacher
+      ? localStorage.getItem('teacher_token') || ''
+      : localStorage.getItem('admin_token') || localStorage.getItem('token') || '';
+    const downloadPath = isTeacher
+      ? `/teacher/academics/study-materials/download/${material.id}`
+      : `/admin/academics/study-materials/download/${material.id}`;
+    const apiDownloadUrl = `${getApiBaseUrl()}${downloadPath}`;
     const staticUrl = resolveImageUrl(material.attachment);
 
     try {
@@ -1465,9 +1471,11 @@ const StudyMaterialsList = () => {
                           <strong className="d-block text-dark">
                             {viewMaterial.attachment_original_name || 'document.pdf'}
                           </strong>
-                          <span className="text-muted small">
-                            Size: {formatFileSize(viewMaterial.attachment_size || 24000)}
-                          </span>
+                          {viewMaterial.attachment_size ? (
+                            <span className="text-muted small">
+                              Size: {formatFileSize(viewMaterial.attachment_size)}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
                       <button
@@ -1511,7 +1519,7 @@ const StudyMaterialsList = () => {
                   onClick={() => setShowAddEditModal(false)}
                 ></button>
               </div>
-              <form onSubmit={handleSaveMaterial}>
+              <form onSubmit={handleModalSubmit}>
                 <div className="modal-body p-4">
                   <div className="row g-3">
                     <div className="col-md-12">
@@ -1535,19 +1543,12 @@ const StudyMaterialsList = () => {
                         value={formData.academic_year_id}
                         onChange={(e) => setFormData({ ...formData, academic_year_id: e.target.value })}
                       >
-                        {academicYears.length > 0 ? (
-                          academicYears.map((ay) => (
-                            <option key={ay.id} value={ay.id}>
-                              {ay.academic_year || ay.year}
-                            </option>
-                          ))
-                        ) : (
-                          <>
-                            <option value="1">2025</option>
-                            <option value="2">2026</option>
-                            <option value="3">2027</option>
-                          </>
-                        )}
+                        <option value="">-- Select Academic Year --</option>
+                        {academicYears.map((ay) => (
+                          <option key={ay.id} value={ay.id}>
+                            {ay.academic_year || ay.year}
+                          </option>
+                        ))}
                       </select>
                     </div>
 

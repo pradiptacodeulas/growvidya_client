@@ -60,7 +60,28 @@ export const apiFetch = async (endpoint, options = {}) => {
 
   let activeBranchId = null;
   if (typeof window !== 'undefined') {
-    activeBranchId = localStorage.getItem('active_branch_id') || 'all';
+    const currentPath = window.location.pathname || '';
+    const cleanEndpoint = String(endpoint || '').replace(/^\/api/, '');
+    const isTeacherCtx =
+      currentPath.startsWith('/teacher') ||
+      cleanEndpoint.startsWith('/teacher') ||
+      cleanEndpoint.startsWith('/v1/teacher');
+
+    if (isTeacherCtx) {
+      try {
+        const rawTeacher =
+          localStorage.getItem('teacher_user') ||
+          localStorage.getItem('teacher') ||
+          localStorage.getItem('teacher_data');
+        if (rawTeacher) {
+          const parsedTeacher = JSON.parse(rawTeacher);
+          const tBranch = parsedTeacher?.branch_id || parsedTeacher?.branchId;
+          if (tBranch) activeBranchId = String(tBranch);
+        }
+      } catch (e) {}
+    } else {
+      activeBranchId = localStorage.getItem('active_branch_id') || 'all';
+    }
   }
 
   const headers = {

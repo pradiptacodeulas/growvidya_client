@@ -71,10 +71,19 @@ const EditStudyMaterial = () => {
   const basePath = isTeacher ? '/teacher' : '/admin';
   const { teacher } = useSelector((state) => state.teacherAuth || {});
   const currentTeacherId = teacher?.id || teacher?.teacher_id || teacher?.userId;
+  const teacherBranchId = teacher?.branch_id || teacher?.branchId || null;
+
+  const getEffectiveBranchId = () => {
+    if (isTeacher) {
+      return teacherBranchId || undefined;
+    }
+    const activeBranch = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    return activeBranch && activeBranch !== 'all' ? activeBranch : undefined;
+  };
 
   useEffect(() => {
     loadPrerequisites();
-  }, [id, isTeacher]);
+  }, [id, isTeacher, teacherBranchId]);
 
   const loadPrerequisites = async () => {
     try {
@@ -87,12 +96,15 @@ const EditStudyMaterial = () => {
       const fetchSubjects = isTeacher ? fetchTeacherSubjectsApi : fetchSubjectsApi;
       const fetchStudyMaterialById = isTeacher ? fetchTeacherStudyMaterialByIdApi : fetchStudyMaterialByIdApi;
 
+      const branchParam = getEffectiveBranchId();
+      const mtParams = branchParam ? { limit: 100, branch_id: branchParam } : { limit: 100 };
+
       const [ayRes, mtRes, clsRes, secRes, subRes] = await Promise.all([
         fetchAcademicYears().catch(() => ({ data: [] })),
-        fetchMaterialTypes({ limit: 100 }).catch(() => ({ data: [] })),
-        fetchClasses().catch(() => ({ data: [] })),
+        fetchMaterialTypes(mtParams).catch(() => ({ data: [] })),
+        fetchClasses(branchParam ? { branch_id: branchParam } : {}).catch(() => ({ data: [] })),
         fetchSections().catch(() => ({ data: [] })),
-        fetchSubjects().catch(() => ({ data: [] })),
+        fetchSubjects(branchParam ? { branch_id: branchParam } : {}).catch(() => ({ data: [] })),
       ]);
 
       const ayList = Array.isArray(ayRes?.data) ? ayRes.data : Array.isArray(ayRes) ? ayRes : [];
@@ -122,44 +134,61 @@ const EditStudyMaterial = () => {
             loaded = matRes.data;
           }
         } catch (e) {
-          // ignore
+          loaded = null;
         }
 
-        if (loaded) {
-          if (
-            isTeacher &&
-            (loaded.uploader_type !== 'teacher' ||
-              Number(loaded.uploaded_by) !== Number(currentTeacherId))
-          ) {
-            toast.error('You can only edit study materials uploaded by yourself.');
-            navigate('/teacher/academics/study-materials');
-            return;
-          }
-
-          const currentYr =
-            ayList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
-            ayList[0];
-          const initialClassId = String(loaded.class_id || clsList[0]?.id || '');
-          setFormData({
-            academic_year_id: String(loaded.academic_year_id || currentYr?.id || ''),
-            class_id: initialClassId,
-            section_id: String(loaded.section_id || ''),
-            subject_id: String(loaded.subject_id || ''),
-            material_type_id: String(loaded.material_type_id || mtList[0]?.id || ''),
-            title: loaded.title || '',
-            chapter: loaded.chapter || '',
-            description: loaded.description || '',
-            publish_date: loaded.publish_date ? loaded.publish_date.split('T')[0] : new Date().toISOString().split('T')[0],
-            expiry_date: loaded.expiry_date ? loaded.expiry_date.split('T')[0] : '',
-            allow_download: loaded.allow_download !== undefined ? Number(loaded.allow_download) : 1,
-            display_order: loaded.display_order || 0,
-            status: loaded.status !== undefined ? Number(loaded.status) : 1,
-            attachment_original_name: loaded.attachment_original_name || '',
-            current_attachment_url: loaded.attachment || '',
-          });
-
-          filterDropdownsByClass(initialClassId, secList, subList);
+        if (!loaded) {
+          toast.error('Study material not found in the selected branch.');
+          navigate(`${basePath}/academics/study-materials`);
+          return;
         }
+
+        if (
+          isTeacher &&
+          (loaded.uploader_type !== 'teacher' ||
+            Number(loaded.uploaded_by) !== Number(currentTeacherId))
+        ) {
+          toast.error('You can only edit study materials uploaded by yourself.');
+          navigate('/teacher/academics/study-materials');
+          return;
+        }
+
+        if (
+          isTeacher &&
+          teacherBranchId &&
+          loaded.branch_id &&
+          Number(loaded.branch_id) !== Number(teacherBranchId)
+        ) {
+          toast.error('Access denied: This study material belongs to another branch.');
+          navigate('/teacher/academics/study-materials');
+          return;
+        }
+
+        const currentYr =
+          ayList.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
+          ayList[0];
+        const initialClassId = String(loaded.class_id || clsList[0]?.id || '');
+        setFormData({
+          academic_year_id: String(loaded.academic_year_id || currentYr?.id || ''),
+          class_id: initialClassId,
+          section_id: String(loaded.section_id || ''),
+          subject_id: String(loaded.subject_id || ''),
+          material_type_id: String(loaded.material_type_id || mtList[0]?.id || ''),
+          title: loaded.title || '',
+          chapter: loaded.chapter || '',
+          description: loaded.description || '',
+          publish_date: loaded.publish_date ? loaded.publish_date.split('T')[0] : new Date().toISOString().split('T')[0],
+          expiry_date: loaded.expiry_date ? loaded.expiry_date.split('T')[0] : '',
+          allow_download: loaded.allow_download !== undefined ? Number(loaded.allow_download) : 1,
+          display_order: loaded.display_order || 0,
+          status: loaded.status !== undefined ? Number(loaded.status) : 1,
+          attachment_original_name: loaded.attachment_original_name || '',
+          attachment_size: loaded.attachment_size || null,
+          attachment_extension: loaded.attachment_extension || null,
+          current_attachment_url: loaded.attachment || '',
+        });
+
+        filterDropdownsByClass(initialClassId, secList, subList);
       } else {
         const defaultClassId = String(clsList[0]?.id || '');
         const currentYr =
@@ -207,9 +236,10 @@ const EditStudyMaterial = () => {
       try {
         const fetchSections = isTeacher ? fetchTeacherSectionsApi : fetchSectionsApi;
         const fetchSubjects = isTeacher ? fetchTeacherSubjectsApi : fetchSubjectsApi;
+        const branchParam = getEffectiveBranchId();
         const [secRes, subRes] = await Promise.all([
           fetchSections(newClassId).catch(() => ({ data: [] })),
-          fetchSubjects({ classId: newClassId }).catch(() => ({ data: [] })),
+          fetchSubjects({ classId: newClassId, ...(branchParam ? { branch_id: branchParam } : {}) }).catch(() => ({ data: [] })),
         ]);
         const secList = Array.isArray(secRes?.data) ? secRes.data : Array.isArray(secRes) ? secRes : [];
         const subList = Array.isArray(subRes?.data) ? subRes.data : Array.isArray(subRes) ? subRes : [];
@@ -274,23 +304,16 @@ const EditStudyMaterial = () => {
 
       // If user selected a new file to upload
       if (selectedFile) {
-        try {
-          const uploadRes = await uploadFileApi(selectedFile, 'study_material');
-          if (uploadRes?.data?.file_path) {
-            finalAttachment = uploadRes.data.file_path;
-            finalOriginalName = uploadRes.data.file_name || selectedFile.name;
-            finalSize = uploadRes.data.size || selectedFile.size;
-            finalExtension = (uploadRes.data.file_name || selectedFile.name).split('.').pop() || 'pdf';
-          }
-        } catch (uploadErr) {
-          console.warn('File upload failed or fallback to direct path:', uploadErr);
-          // Fallback to recording original filename if server saved directly
-          finalOriginalName = selectedFile.name;
-          finalSize = selectedFile.size;
-          finalExtension = selectedFile.name.split('.').pop() || 'pdf';
+        const uploadRes = await uploadFileApi(selectedFile, 'study_material');
+        if (uploadRes?.data?.file_path) {
+          finalAttachment = uploadRes.data.file_path;
+          finalOriginalName = uploadRes.data.file_name || selectedFile.name;
+          finalSize = uploadRes.data.size || selectedFile.size;
+          finalExtension = (uploadRes.data.file_name || selectedFile.name).split('.').pop() || 'pdf';
         }
       }
 
+      const effectiveBranch = getEffectiveBranchId();
       const payload = {
         academic_year_id: formData.academic_year_id,
         class_id: formData.class_id,
@@ -309,6 +332,7 @@ const EditStudyMaterial = () => {
         attachment_original_name: finalOriginalName,
         attachment_size: finalSize,
         attachment_extension: finalExtension,
+        ...(effectiveBranch ? { branch_id: Number(effectiveBranch) } : {}),
       };
 
       if (isEdit) {

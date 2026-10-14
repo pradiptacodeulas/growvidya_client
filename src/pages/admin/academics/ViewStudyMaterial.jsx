@@ -39,6 +39,7 @@ const ViewStudyMaterial = () => {
   const basePath = isTeacher ? '/teacher' : '/admin';
   const { teacher } = useSelector((state) => state.teacherAuth || {});
   const currentTeacherId = teacher?.id || teacher?.teacher_id || teacher?.userId;
+  const teacherBranchId = teacher?.branch_id || teacher?.branchId || null;
 
   const canEdit =
     !isTeacher ||
@@ -62,7 +63,7 @@ const ViewStudyMaterial = () => {
     } else {
       setLoading(false);
     }
-  }, [id, isTeacher]);
+  }, [id, isTeacher, teacherBranchId]);
 
   const loadMaterial = async () => {
     try {
@@ -70,6 +71,16 @@ const ViewStudyMaterial = () => {
       const fetchStudyMaterialById = isTeacher ? fetchTeacherStudyMaterialByIdApi : fetchStudyMaterialByIdApi;
       const res = await fetchStudyMaterialById(decodedId).catch(() => null);
       if (res?.data) {
+        if (
+          isTeacher &&
+          teacherBranchId &&
+          res.data.branch_id &&
+          Number(res.data.branch_id) !== Number(teacherBranchId)
+        ) {
+          toast.error('Access denied: This study material belongs to another branch.');
+          setMaterial(null);
+          return;
+        }
         setMaterial(res.data);
       } else {
         setMaterial(null);
@@ -94,8 +105,13 @@ const ViewStudyMaterial = () => {
         ? `${material.title.replace(/[^a-zA-Z0-9_\-\. ]/g, '_')}.${material.attachment_extension || 'pdf'}`
         : 'study_material.pdf');
 
-    const token = localStorage.getItem('admin_token') || localStorage.getItem('token') || '';
-    const apiDownloadUrl = `${getApiBaseUrl()}/admin/academics/study-materials/download/${material.id}`;
+    const token = isTeacher
+      ? localStorage.getItem('teacher_token') || ''
+      : localStorage.getItem('admin_token') || localStorage.getItem('token') || '';
+    const downloadPath = isTeacher
+      ? `/teacher/academics/study-materials/download/${material.id}`
+      : `/admin/academics/study-materials/download/${material.id}`;
+    const apiDownloadUrl = `${getApiBaseUrl()}${downloadPath}`;
     const staticUrl = resolveImageUrl(material.attachment);
 
     try {
