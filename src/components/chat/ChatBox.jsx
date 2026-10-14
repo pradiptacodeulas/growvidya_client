@@ -855,13 +855,13 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                 <i className="ti ti-message-dots text-primary fs-20"></i>
                 {title}
               </h5>
-              <div className="d-flex align-items-center gap-1.5">
+              <div className="d-flex align-items-center gap-2">
                 <span className="badge bg-white text-secondary border px-2 py-1 fs-11 fw-normal">
                   {contacts.length} Contacts
                 </span>
                 {totalUnreadCount > 0 && (
                   <span
-                    className="badge rounded-pill bg-primary text-white px-2 py-0.5 fs-10 fw-bold d-inline-flex align-items-center gap-1 shadow-xs"
+                    className="badge rounded-pill bg-primary text-white px-2 py-1 fs-10 fw-bold d-inline-flex align-items-center gap-1 shadow-xs"
                     title={`${totalUnreadCount} total unread message${totalUnreadCount > 1 ? 's' : ''}`}
                   >
                     <span className="bg-white rounded-circle d-inline-block" style={{ width: 5, height: 5 }}></span>
@@ -970,7 +970,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                     <button
                       key={`${contact.role}_${contact.id}`}
                       type="button"
-                      className={`list-group-item list-group-item-action border-0 mb-1 w-100 text-start d-flex align-items-center gap-2.5 chat-contact-btn ${
+                      className={`list-group-item list-group-item-action border-0 mb-1 w-100 text-start d-flex align-items-center gap-3 chat-contact-btn ${
                         isSelected ? 'active-contact' : 'bg-transparent'
                       }`}
                       style={{
@@ -1023,7 +1023,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                         {/* Role & Secondary Meta */}
                         <div className="d-flex align-items-center gap-1 mb-1 overflow-hidden" style={{ minWidth: 0 }}>
                           <span
-                            className="badge d-inline-flex align-items-center gap-1 py-0.5 px-1.5 fs-10 fw-normal flex-shrink-0"
+                            className="badge d-inline-flex align-items-center gap-1 py-1 px-2 fs-10 fw-normal flex-shrink-0"
                             style={{
                               backgroundColor: roleBadge.bg,
                               color: roleBadge.text,
@@ -1156,7 +1156,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                         const BIcon = b.icon;
                         return (
                           <span
-                            className="badge d-inline-flex align-items-center gap-1 py-0.5 px-1.5 fs-10 fw-medium"
+                            className="badge d-inline-flex align-items-center gap-1 py-1 px-2 fs-10 fw-medium"
                             style={{
                               backgroundColor: b.bg,
                               color: b.text,
@@ -1170,7 +1170,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                         );
                       })()}
                     </div>
-                    <div className="fs-11 text-muted d-flex align-items-center gap-2 mt-0.5">
+                    <div className="fs-11 text-muted d-flex align-items-center gap-2 mt-1">
                       {isTyping ? (
                         <span className="text-primary fw-medium d-inline-flex align-items-center gap-1">
                           <span className="spinner-grow spinner-grow-sm text-primary" style={{ width: '6px', height: '6px' }} />
@@ -1202,7 +1202,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
               {/* Chat Message Scroll Area */}
               <div
                 ref={chatScrollContainerRef}
-                className="flex-grow-1 px-3 py-2 overflow-auto d-flex flex-column"
+                className="flex-grow-1 px-3 py-3 overflow-auto d-flex flex-column"
                 style={{
                   backgroundColor: '#f8fafc',
                   scrollbarWidth: 'thin',
@@ -1210,10 +1210,10 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
               >
                 {/* Load Older Messages Button */}
                 {hasMoreMessages && !loadingMessages && (
-                  <div className="text-center my-1.5">
+                  <div className="text-center my-2">
                     <button
                       type="button"
-                      className="btn btn-sm btn-white border shadow-xs fs-11 text-muted d-inline-flex align-items-center gap-1.5 px-3 py-1 bg-white"
+                      className="btn btn-sm btn-white border shadow-xs fs-11 text-muted d-inline-flex align-items-center gap-2 px-3 py-1 bg-white"
                       style={{ borderRadius: '15px' }}
                       onClick={loadOlderMessages}
                       disabled={loadingOlder}
@@ -1278,7 +1278,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                         <button
                           key={i}
                           type="button"
-                          className="btn btn-sm btn-white border bg-white shadow-xs starter-chip fs-11 text-dark px-2.5 py-1"
+                          className="btn btn-sm btn-white border bg-white shadow-xs starter-chip fs-11 text-dark px-3 py-1"
                           style={{ borderRadius: '16px' }}
                           onClick={() => setMessageInput(starter)}
                         >
@@ -1291,9 +1291,9 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                   groupedMessages.map((item, idx) => {
                     if (item.type === 'date') {
                       return (
-                        <div key={`date_${idx}`} className="text-center my-2 position-relative">
+                        <div key={`date_${idx}`} className="text-center my-3 position-relative">
                           <span
-                            className="badge bg-white text-secondary border px-2.5 py-0.5 shadow-xs"
+                            className="badge bg-white text-secondary border px-3 py-1 shadow-xs"
                             style={{
                               borderRadius: '16px',
                               fontSize: '10.5px',
@@ -1317,6 +1317,18 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                         String(msg.sender_role).toLowerCase() === String(currentUserRole).toLowerCase() &&
                         Number(msg.reciver) === Number(selectedContact.id));
 
+                    const nextItem = groupedMessages[idx + 1];
+                    const nextIsSameSender =
+                      nextItem &&
+                      nextItem.type === 'message' &&
+                      Boolean(
+                        (Number(nextItem.data.sender) === Number(currentUserId) &&
+                          String(nextItem.data.sender_role).toLowerCase() === String(currentUserRole).toLowerCase()) ||
+                          (nextItem.data.sender_role &&
+                            String(nextItem.data.sender_role).toLowerCase() === String(currentUserRole).toLowerCase() &&
+                            Number(nextItem.data.reciver) === Number(selectedContact.id))
+                      ) === isOutgoing;
+
                     const isDeleted = Number(msg.status) === 0;
                     const hasAttachment = !isDeleted && Boolean(msg.file);
                     const isImage =
@@ -1335,14 +1347,17 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                     return (
                       <div
                         key={msg.id || idx}
-                        className={`d-flex mb-1.5 chat-msg-row ${isOutgoing ? 'justify-content-end' : 'justify-content-start'}`}
+                        className={`d-flex chat-msg-row ${isOutgoing ? 'justify-content-end' : 'justify-content-start'}`}
+                        style={{
+                          marginBottom: nextIsSameSender ? '8px' : '14px',
+                        }}
                       >
                         {!isOutgoing && (
-                          <div className="me-1.5 flex-shrink-0 align-self-end mb-0.5">
+                          <div className="me-2 flex-shrink-0 align-self-end mb-1">
                             <Avatar
                               src={selectedContact.picture}
                               name={selectedContact.name}
-                              size={24}
+                              size={26}
                               rounded={true}
                             />
                           </div>
@@ -1382,10 +1397,10 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                             <div
                               className="position-relative"
                               style={{
-                                padding: '6px 10px',
+                                padding: '8px 12px',
                                 borderRadius: isOutgoing
-                                  ? '14px 14px 2px 14px'
-                                  : '14px 14px 14px 2px',
+                                  ? '14px 14px 3px 14px'
+                                  : '14px 14px 14px 3px',
                                 background: isDeleted
                                   ? isOutgoing
                                     ? '#f1f5f9'
@@ -1401,8 +1416,8 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                                 boxShadow: isDeleted
                                   ? 'none'
                                   : isOutgoing
-                                  ? '0 1px 2px rgba(37, 99, 235, 0.2)'
-                                  : '0 1px 2px rgba(15, 23, 42, 0.05)',
+                                  ? '0 2px 5px rgba(37, 99, 235, 0.18)'
+                                  : '0 1px 3px rgba(15, 23, 42, 0.06)',
                                 border: isDeleted
                                   ? '1px dashed #cbd5e1'
                                   : isOutgoing
@@ -1448,7 +1463,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       download
-                                      className="d-flex align-items-center gap-1.5 px-2 py-1 rounded-2 text-decoration-none"
+                                      className="d-flex align-items-center gap-2 px-2 py-1 rounded-2 text-decoration-none"
                                       style={{
                                         backgroundColor: isOutgoing ? 'rgba(255, 255, 255, 0.16)' : '#f8fafc',
                                         border: isOutgoing ? '1px solid rgba(255, 255, 255, 0.25)' : '1px solid #e2e8f0',
@@ -1482,10 +1497,10 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                               <div className="d-flex flex-wrap align-items-end justify-content-between gap-2" style={{ minWidth: '55px' }}>
                                 {isDeleted ? (
                                   <span
-                                    className="d-inline-flex align-items-center gap-1.5"
+                                    className="d-inline-flex align-items-center gap-1"
                                     style={{
                                       fontSize: '13px',
-                                      lineHeight: '1.4',
+                                      lineHeight: '1.45',
                                       fontStyle: 'italic',
                                       color: '#64748b',
                                       userSelect: 'none',
@@ -1498,8 +1513,8 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                                   msg.message && (
                                     <span
                                       style={{
-                                        fontSize: '13px',
-                                        lineHeight: '1.4',
+                                        fontSize: '13.5px',
+                                        lineHeight: '1.45',
                                         whiteSpace: 'pre-wrap',
                                         wordBreak: 'break-word',
                                         flex: '1 1 auto',
@@ -1511,19 +1526,19 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                                 )}
 
                                 <span
-                                  className="d-inline-flex align-items-center gap-0.5 ms-auto"
+                                  className="d-inline-flex align-items-center gap-1 ms-auto"
                                   style={{
-                                    fontSize: '9.5px',
+                                    fontSize: '10px',
                                     lineHeight: '1',
                                     color: isDeleted
                                       ? '#94a3b8'
                                       : isOutgoing
-                                      ? 'rgba(255, 255, 255, 0.75)'
+                                      ? 'rgba(255, 255, 255, 0.78)'
                                       : '#94a3b8',
                                     whiteSpace: 'nowrap',
                                     userSelect: 'none',
                                     marginBottom: '1px',
-                                    paddingLeft: '4px',
+                                    paddingLeft: '6px',
                                   }}
                                 >
                                   <span>{formatMessageTime(msg.time)}</span>
@@ -1535,7 +1550,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                                       {msg.seen === 1 ? (
                                         <CheckCheck size={12} style={{ color: '#bae6fd', strokeWidth: 2.2 }} />
                                       ) : (
-                                        <Check size={12} style={{ color: 'rgba(255, 255, 255, 0.75)', strokeWidth: 2 }} />
+                                        <Check size={12} style={{ color: 'rgba(255, 255, 255, 0.78)', strokeWidth: 2 }} />
                                       )}
                                     </span>
                                   )}
@@ -1551,19 +1566,19 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
 
                 {/* In-stream Typing Indicator */}
                 {isTyping && (
-                  <div className="d-flex align-items-end mb-1.5 justify-content-start">
-                    <div className="me-1.5 flex-shrink-0 align-self-end mb-0.5">
+                  <div className="d-flex align-items-end mb-2 justify-content-start">
+                    <div className="me-2 flex-shrink-0 align-self-end mb-1">
                       <Avatar
                         src={selectedContact.picture}
                         name={selectedContact.name}
-                        size={24}
+                        size={26}
                         rounded={true}
                       />
                     </div>
                     <div
-                      className="bg-white border px-2.5 py-1 shadow-xs d-flex align-items-center gap-1"
+                      className="bg-white border px-3 py-2 shadow-xs d-flex align-items-center gap-1"
                       style={{
-                        borderRadius: '14px 14px 14px 2px',
+                        borderRadius: '14px 14px 14px 3px',
                         borderColor: '#e2e8f0',
                       }}
                     >
@@ -1622,7 +1637,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                 className="p-3 px-3 px-md-4 bg-white border-top position-relative"
                 style={{ borderColor: '#f1f5f9' }}
               >
-                <div className="d-flex align-items-center gap-2.5">
+                <div className="d-flex align-items-center gap-2">
                   {/* File Attachment Button */}
                   <input
                     type="file"
@@ -1657,7 +1672,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                   <div className="position-relative flex-grow-1">
                     <input
                       type="text"
-                      className="form-control border-0 py-2 ps-3.5 pe-4"
+                      className="form-control border-0 py-2 ps-3 pe-4"
                       placeholder={`Type a message to ${selectedContact.name}...`}
                       value={messageInput}
                       onChange={handleInputChange}
@@ -1735,13 +1750,13 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
                 Select a conversation from the left to view messages, send replies, share attachments, and see active presence.
               </p>
               <div className="d-flex align-items-center gap-2 flex-wrap justify-content-center">
-                <span className="badge bg-white text-secondary border px-3 py-1.5 shadow-xs fs-11 d-inline-flex align-items-center gap-1.5">
+                <span className="badge bg-white text-secondary border px-3 py-1 shadow-xs fs-11 d-inline-flex align-items-center gap-1">
                   <Sparkles size={13} className="text-primary" /> Real-time sync
                 </span>
-                <span className="badge bg-white text-secondary border px-3 py-1.5 shadow-xs fs-11 d-inline-flex align-items-center gap-1.5">
+                <span className="badge bg-white text-secondary border px-3 py-1 shadow-xs fs-11 d-inline-flex align-items-center gap-1">
                   <Paperclip size={13} className="text-primary" /> File sharing
                 </span>
-                <span className="badge bg-white text-secondary border px-3 py-1.5 shadow-xs fs-11 d-inline-flex align-items-center gap-1.5">
+                <span className="badge bg-white text-secondary border px-3 py-1 shadow-xs fs-11 d-inline-flex align-items-center gap-1">
                   <Shield size={13} className="text-primary" /> Secure portal
                 </span>
               </div>
