@@ -360,7 +360,7 @@ const FeesInvoices = () => {
     }
     try {
       setLoadingStudents(true);
-      const params = { classId, limit: 500, status: 1 };
+      const params = { classId, status: 1 };
       if (sectionId) params.sectionId = sectionId;
       const res = await fetchStudentsApi(params);
       const list = Array.isArray(res?.data?.students)
@@ -464,7 +464,7 @@ const FeesInvoices = () => {
       academic_year_id: defaultYear,
       title: `${new Date().toLocaleString('default', { month: 'long' })} ${new Date().getFullYear()} Monthly Fees`,
       issue_date: new Date().toISOString().split('T')[0],
-      due_date: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      due_date: '',
     });
     setShowBulkGenModal(true);
   };
@@ -494,10 +494,10 @@ const FeesInvoices = () => {
         try {
           const res = await adminFeesApi.generateInvoices({
             fee_structure_id: st.id,
-            academic_year_id: bulkFormData.academic_year_id || 1,
+            academic_year_id: bulkFormData.academic_year_id || st.academic_year_id || undefined,
             title: bulkFormData.title,
             issue_date: bulkFormData.issue_date,
-            due_date: bulkFormData.due_date,
+            due_date: bulkFormData.due_date || undefined,
           });
           count += res?.data?.count || 1;
         } catch (err) {
