@@ -21,40 +21,72 @@ const EditAcademicYear = () => {
     end_date: '',
     status: '1',
     is_current: false,
+    branch_id: null,
   });
+  const [hasOtherCurrent, setHasOtherCurrent] = useState(true);
+  const [isLockedCurrent, setIsLockedCurrent] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     loadInitialData();
+    const handleBranchChange = () => {
+      loadInitialData();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, [rawId]);
 
   const loadInitialData = async () => {
     try {
       setLoading(true);
+      const allRes = await fetchAcademicYearsApi().catch(() => ({ data: [] }));
+      const list = Array.isArray(allRes?.data) ? allRes.data : Array.isArray(allRes) ? allRes : [];
+
       if (isEdit) {
         let yearData = null;
         try {
           const res = await fetchAcademicYearByIdApi(id);
           yearData = res?.data || res;
         } catch (e) {
-          // Fallback to fetch all years and find matching id
-          const allRes = await fetchAcademicYearsApi();
-          const list = Array.isArray(allRes?.data) ? allRes.data : Array.isArray(allRes) ? allRes : [];
           yearData = list.find((y) => String(y.id) === String(id));
         }
 
         if (yearData) {
+          const otherCurrentExists = list.some(
+            (y) => String(y.id) !== String(id) && Number(y.is_current) === 1
+          );
+          const isCurr = Number(yearData.is_current) === 1 || !otherCurrentExists;
+          setHasOtherCurrent(otherCurrentExists);
+          setIsLockedCurrent(isCurr);
+
+          const cleanTitle =
+            yearData.raw_academic_year ||
+            String(yearData.academic_year || '').replace(/\s*\(current\)\s*$/i, '');
+
           setFormData({
-            academic_year: yearData.academic_year || '',
+            academic_year: cleanTitle,
             start_date: yearData.start_date ? String(yearData.start_date).split('T')[0] : '',
             end_date: yearData.end_date ? String(yearData.end_date).split('T')[0] : '',
             status: yearData.status === 2 || yearData.status === 0 ? '2' : '1',
-            is_current: Number(yearData.is_current) === 1,
+            is_current: isCurr,
+            branch_id: yearData.branch_id || null,
           });
         } else {
           toast.error('Academic year record not found.');
         }
+      } else {
+        const anyCurrentExists = list.some((y) => Number(y.is_current) === 1);
+        setHasOtherCurrent(anyCurrentExists);
+        setIsLockedCurrent(!anyCurrentExists);
+        setFormData({
+          academic_year: '',
+          start_date: '',
+          end_date: '',
+          status: '1',
+          is_current: !anyCurrentExists,
+          branch_id: null,
+        });
       }
     } catch (err) {
       toast.error(err.message || 'Failed to load academic year details.');
@@ -65,6 +97,15 @@ const EditAcademicYear = () => {
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
+    if (name === 'is_current' && type === 'checkbox' && !checked) {
+      if (isLockedCurrent || !hasOtherCurrent) {
+        toast.warning(
+          'At least one academic year must remain marked as current. Please select another academic year as current to replace this one.'
+        );
+        return;
+      }
+    }
+
     setFormData((prev) => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
@@ -82,15 +123,26 @@ const EditAcademicYear = () => {
     if (!formData.end_date) {
       return toast.warning('Please select End Date.');
     }
+    if (!formData.is_current && (isLockedCurrent || !hasOtherCurrent)) {
+      return toast.warning('At least one academic year must remain marked as current.');
+    }
 
     try {
       setSaving(true);
+      const selectedBranchId = localStorage.getItem('selected_branch_id');
+      const resolvedBranchId =
+        formData.branch_id ||
+        (selectedBranchId && selectedBranchId !== 'all' && selectedBranchId !== 'null'
+          ? Number(selectedBranchId)
+          : undefined);
+
       const payload = {
-        academic_year: formData.academic_year.trim(),
+        academic_year: formData.academic_year.replace(/\s*\(current\)\s*$/i, '').trim(),
         start_date: formData.start_date,
         end_date: formData.end_date,
         status: Number(formData.status),
         is_current: formData.is_current ? 1 : 0,
+        ...(resolvedBranchId !== undefined ? { branch_id: resolvedBranchId } : {}),
       };
 
       if (isEdit) {

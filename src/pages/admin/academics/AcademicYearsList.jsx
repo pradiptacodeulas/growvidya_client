@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import adminAcademicApi, { deleteAcademicYearApi } from '../../../api/adminAcademic.api';
+import adminAcademicApi, { deleteAcademicYearApi, updateAcademicYearApi } from '../../../api/adminAcademic.api';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
@@ -10,6 +10,7 @@ const AcademicYearsList = () => {
   const [years, setYears] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedIds, setSelectedIds] = useState([]);
+  const [updatingCurrentId, setUpdatingCurrentId] = useState(null);
 
   // Delete modal state
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -18,6 +19,11 @@ const AcademicYearsList = () => {
 
   useEffect(() => {
     fetchYears();
+    const handleBranchChange = () => {
+      fetchYears();
+    };
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, []);
 
   const fetchYears = async () => {
@@ -30,6 +36,43 @@ const AcademicYearsList = () => {
       toast.error('Failed to load academic years.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleToggleCurrent = async (row) => {
+    const isCurr =
+      Number(row?.is_current) === 1 ||
+      row?.is_current === true ||
+      row?.is_current === '1' ||
+      row?.isCurrent;
+
+    if (isCurr) {
+      toast.warning(
+        'At least one academic year must remain marked as current. Please select another academic year to set as current.'
+      );
+      return;
+    }
+
+    try {
+      setUpdatingCurrentId(row.id);
+      const cleanYearName =
+        row.raw_academic_year ||
+        String(row.academic_year || '').replace(/\s*\(current\)\s*$/i, '').trim();
+
+      await updateAcademicYearApi(row.id, {
+        academic_year: cleanYearName,
+        start_date: row.start_date ? String(row.start_date).split('T')[0] : '',
+        end_date: row.end_date ? String(row.end_date).split('T')[0] : '',
+        status: row.status === 2 || row.status === 0 ? 2 : 1,
+        is_current: 1,
+        ...(row.branch_id ? { branch_id: row.branch_id } : {}),
+      });
+      toast.success(`"${cleanYearName}" is now set as the current academic year.`);
+      await fetchYears();
+    } catch (err) {
+      toast.error(err.message || 'Failed to update current academic year.');
+    } finally {
+      setUpdatingCurrentId(null);
     }
   };
 
@@ -46,8 +89,6 @@ const AcademicYearsList = () => {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
-
-
 
   const confirmDelete = (year) => {
     if (Number(year?.is_current) === 1 || year?.is_current === true || year?.is_current === '1' || year?.isCurrent) {
@@ -117,16 +158,32 @@ const AcademicYearsList = () => {
       {
         accessorKey: 'is_current',
         header: 'Current Session',
-        width: '150px',
+        width: '160px',
         align: 'center',
         sortable: true,
-        cell: ({ value }) => {
+        cell: ({ value, row }) => {
           const isCurr = Number(value) === 1;
+          const isUpdating = updatingCurrentId === row.id;
           return (
-            <span className={isCurr ? 'badge-soft-info' : 'badge-soft-secondary'}>
-              <i className={`ti ${isCurr ? 'ti-check' : 'ti-minus'} fs-12 me-1`}></i>
-              {isCurr ? 'Yes' : 'No'}
-            </span>
+            <div className="d-inline-flex align-items-center justify-content-center gap-2">
+              <input
+                type="checkbox"
+                className="form-check-input mt-0"
+                style={{ cursor: 'pointer' }}
+                checked={isCurr}
+                disabled={isUpdating}
+                title={
+                  isCurr
+                    ? 'Current academic year (select another academic year to change)'
+                    : 'Set as current academic year'
+                }
+                onChange={() => handleToggleCurrent(row)}
+              />
+              <span className={isCurr ? 'badge-soft-info' : 'badge-soft-secondary'}>
+                <i className={`ti ${isCurr ? 'ti-check' : 'ti-minus'} fs-12 me-1`}></i>
+                {isCurr ? 'Yes' : 'No'}
+              </span>
+            </div>
           );
         },
       },
@@ -182,7 +239,7 @@ const AcademicYearsList = () => {
         },
       },
     ],
-    []
+    [updatingCurrentId, years]
   );
 
   return (

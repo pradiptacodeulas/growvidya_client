@@ -114,9 +114,14 @@ const AcademicMasterList = () => {
   const handleAddYear = async (e) => {
     e.preventDefault();
     if (!newYear.academic_year.trim()) return toast.warning('Please enter Academic Year title.');
+    const hasCurrentYear = years.some((y) => Number(y.is_current) === 1);
+    const effectiveIsCurrent = !hasCurrentYear ? 1 : Number(newYear.is_current) === 1 ? 1 : 0;
     try {
       await adminAcademicApi.fetchAcademicYearsApi(); // ensures load
-      await adminAcademicApi.createAcademicYearApi(newYear);
+      await adminAcademicApi.createAcademicYearApi({
+        ...newYear,
+        is_current: effectiveIsCurrent,
+      });
       toast.success('Academic Year added successfully!');
       setNewYear({ academic_year: '', start_date: '', end_date: '', is_current: 0 });
       fetchData();
