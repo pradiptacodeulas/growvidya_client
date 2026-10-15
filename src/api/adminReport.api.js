@@ -10,7 +10,12 @@ import {
  * Fetches dropdown options (academic years, shifts, classes, sections) for report filters
  */
 export const getClassReportOptionsApi = async (params = {}) => {
-  const response = await apiClient.get('/admin/reports/class-report/options', { params });
+  const activeBranchId = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+  const finalParams = {
+    ...(activeBranchId && activeBranchId !== 'all' ? { branch_id: Number(activeBranchId) } : {}),
+    ...params,
+  };
+  const response = await apiClient.get('/admin/reports/class-report/options', { params: finalParams });
   if (response?.data?.data) {
     if (Array.isArray(response.data.data.academicYears)) {
       response.data.data.academicYears = sortAcademicYearsDesc(response.data.data.academicYears);

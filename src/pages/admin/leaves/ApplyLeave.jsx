@@ -52,50 +52,97 @@ const ApplyLeave = () => {
 
   const [bookedLeaves, setBookedLeaves] = useState([]);
 
-  // Find currently selected leave type object to check if document is mandatory
+  // Find currently selected leave type object to check if document is mandatory and check quota
   const selectedLeaveType = leaveTypes.find(
     (lt) => String(lt.id) === String(form.leave_id)
   );
   const isDocumentRequired = Number(selectedLeaveType?.need_document) === 1;
 
-  // Load staff & leave types when role changes
+  // Load staff list when role changes (Admin)
   useEffect(() => {
-    const loadRoleData = async () => {
+    const loadRoleStaff = async () => {
       try {
         if (isTeacher) {
-          const typesRes = await fetchTeacherLeaveTypesApi().catch(() => null);
-          const types = typesRes?.data?.types || [];
-          setLeaveTypes(types);
           setForm((prev) => ({
             ...prev,
             staff_id: 'me',
-            leave_id: types.length > 0 ? String(types[0].id) : '',
           }));
         } else {
-          const [staffRes, typesRes] = await Promise.all([
-            fetchStaffByRoleApi(role),
-            fetchLeaveTypesApi({ role }),
-          ]);
-
-          const staffs = staffRes?.data?.staff || [];
-          const types = typesRes?.data?.types || [];
-
+          const staffRes = await fetchStaffByRoleApi(role);
+          const rawStaffs = staffRes?.data?.staff || [];
+          const staffs = rawStaffs.filter((st) => {
+            if (st?.status === undefined || st?.status === null) return true;
+            const statusNum = Number(st.status);
+            return statusNum === 1 && statusNum !== 4 && statusNum !== 2 && statusNum !== 0;
+          });
           setStaffList(staffs);
-          setLeaveTypes(types);
-
           setForm((prev) => ({
             ...prev,
             staff_id: staffs.length > 0 ? String(staffs[0].id) : '',
-            leave_id: types.length > 0 ? String(types[0].id) : '',
           }));
         }
       } catch (err) {
-        console.error('Error loading role staff/types:', err);
+        console.error('Error loading role staff:', err);
+        setStaffList([]);
       }
     };
 
-    loadRoleData();
+    loadRoleStaff();
   }, [role, isTeacher]);
+
+  // Load leave types & remaining balances for the selected staff member / logged-in teacher
+  useEffect(() => {
+    const loadLeaveTypesWithQuota = async () => {
+      try {
+        let types = [];
+        if (isTeacher) {
+          const typesRes = await fetchTeacherLeaveTypesApi().catch(() => null);
+          types = typesRes?.data?.types || typesRes?.types || (Array.isArray(typesRes) ? typesRes : []);
+        } else if (form.staff_id) {
+          const typesRes = await fetchLeaveTypesApi({
+            role,
+            staff_id: form.staff_id,
+            active_only: 1,
+          }).catch(() => null);
+          types = typesRes?.data?.types || typesRes?.types || [];
+        } else {
+          const typesRes = await fetchLeaveTypesApi({ role, active_only: 1 }).catch(() => null);
+          types = typesRes?.data?.types || typesRes?.types || [];
+        }
+
+        setLeaveTypes(types);
+
+        setForm((prev) => {
+          const isTypeAvailable = (t) => {
+            const maxQ = Number(t?.no_leave || 0);
+            const rem =
+              t?.remaining_leaves !== undefined
+                ? Number(t.remaining_leaves)
+                : maxQ;
+            return !t?.is_exhausted && (maxQ <= 0 || rem > 0);
+          };
+
+          const currentStillValid = types.find(
+            (t) => String(t.id) === String(prev.leave_id) && isTypeAvailable(t)
+          );
+          if (currentStillValid) {
+            return prev;
+          }
+
+          const firstAvailable = types.find((t) => isTypeAvailable(t));
+          return {
+            ...prev,
+            leave_id: firstAvailable ? String(firstAvailable.id) : '',
+          };
+        });
+      } catch (err) {
+        console.error('Error loading leave types with balance:', err);
+        setLeaveTypes([]);
+      }
+    };
+
+    loadLeaveTypesWithQuota();
+  }, [role, form.staff_id, isTeacher]);
 
   // Load existing active leaves for the selected staff member to validate against duplicate applications
   useEffect(() => {
@@ -210,6 +257,36 @@ const ApplyLeave = () => {
     if (!form.leave_id) newErrors.leave_id = 'Please select a leave type.';
     if (!form.duration) newErrors.duration = 'Please select leave duration.';
 
+    let requestedDays = 1;
+    if (form.duration === '2') {
+      requestedDays = 0.5;
+    } else if (form.duration === '3' && form.startDate && form.endDate && form.startDate <= form.endDate) {
+      requestedDays = getDatesInRange(form.startDate, form.endDate).length;
+    }
+
+    // Validate leave limit and remaining balance
+    if (selectedLeaveType && Number(selectedLeaveType.no_leave) > 0) {
+      const maxQuota = Number(selectedLeaveType.no_leave);
+      const usedLeaves =
+        selectedLeaveType.used_leaves !== undefined
+          ? Number(selectedLeaveType.used_leaves)
+          : Number(selectedLeaveType.approved_leaves || 0);
+      const remainingLeaves =
+        selectedLeaveType.remaining_leaves !== undefined
+          ? Number(selectedLeaveType.remaining_leaves)
+          : Math.max(0, maxQuota - usedLeaves);
+
+      if (selectedLeaveType.is_exhausted || remainingLeaves <= 0 || usedLeaves >= maxQuota) {
+        const limitMsg = `Cannot apply for ${selectedLeaveType.leave_name}: Allowed limit of ${maxQuota} day(s) has already been used (Remaining balance: 0).`;
+        newErrors.leave_id = limitMsg;
+        toast.error(limitMsg);
+      } else if (requestedDays > remainingLeaves) {
+        const excessMsg = `Requested duration (${requestedDays} day(s)) exceeds the remaining balance of ${remainingLeaves} day(s) for ${selectedLeaveType.leave_name} (Allowed: ${maxQuota}, Used: ${usedLeaves}, Remaining: ${remainingLeaves}).`;
+        newErrors.leave_id = excessMsg;
+        toast.error(excessMsg);
+      }
+    }
+
     if (form.duration === '1' || form.duration === '2') {
       if (!form.singleDate) {
         newErrors.singleDate = 'Date is required.';
@@ -308,7 +385,7 @@ const ApplyLeave = () => {
       }
     } catch (err) {
       console.error('Error submitting leave application:', err);
-      toast.error(err?.response?.data?.message || 'Failed to submit leave application.');
+      toast.error(err?.response?.data?.message || err?.message || 'Failed to submit leave application.');
     } finally {
       setSubmitting(false);
     }
@@ -390,11 +467,17 @@ const ApplyLeave = () => {
                             required
                           >
                             <option value="">select</option>
-                            {staffList.map((st) => (
-                              <option key={st.id} value={st.id}>
-                                {st.name} {st.code ? `(${st.code})` : ''}
-                              </option>
-                            ))}
+                            {staffList
+                              .filter((st) => {
+                                if (st?.status === undefined || st?.status === null) return true;
+                                const statusNum = Number(st.status);
+                                return statusNum === 1 && statusNum !== 4 && statusNum !== 2 && statusNum !== 0;
+                              })
+                              .map((st) => (
+                                <option key={st.id} value={st.id}>
+                                  {st.name} {st.code ? `(${st.code})` : ''}
+                                </option>
+                              ))}
                           </select>
                           {errors.staff_id && (
                             <div className="invalid-feedback d-block text-danger fs-12 mt-1">
@@ -424,13 +507,52 @@ const ApplyLeave = () => {
                         required
                       >
                         <option value="">select</option>
-                        {leaveTypes.map((lt) => (
-                          <option key={lt.id} value={lt.id}>
-                            {lt.leave_name} {Number(lt.is_paid) === 0 ? '[Non-Paid]' : '[Paid]'}
-                            {lt.no_leave ? ` (Allowed: ${lt.no_leave}${lt.remaining_leaves !== undefined ? `, Available: ${lt.remaining_leaves}` : ''})` : ''}
-                          </option>
-                        ))}
+                        {leaveTypes.map((lt) => {
+                          const maxQ = Number(lt.no_leave || 0);
+                          const usedL =
+                            lt.used_leaves !== undefined
+                              ? Number(lt.used_leaves)
+                              : Number(lt.approved_leaves || 0);
+                          const remL =
+                            lt.remaining_leaves !== undefined
+                              ? Number(lt.remaining_leaves)
+                              : Math.max(0, maxQ - usedL);
+                          const isExhausted = Boolean(lt.is_exhausted) || (maxQ > 0 && remL <= 0);
+
+                          return (
+                            <option key={lt.id} value={lt.id} disabled={isExhausted}>
+                              {lt.leave_name} {Number(lt.is_paid) === 0 ? '[Non-Paid]' : '[Paid]'}
+                              {maxQ > 0 ? ` (Allowed: ${maxQ}, Used: ${usedL}, Remaining: ${remL})` : ''}
+                              {isExhausted ? ' — Limit Reached' : ''}
+                            </option>
+                          );
+                        })}
                       </select>
+                      {selectedLeaveType && Number(selectedLeaveType.no_leave) > 0 && (
+                        <div className="mt-1 d-flex flex-wrap gap-2 fs-11">
+                          <span className="text-muted">
+                            Allowed: <strong className="text-dark">{selectedLeaveType.no_leave}</strong>
+                          </span>
+                          <span className="text-muted">
+                            Used:{' '}
+                            <strong className="text-dark">
+                              {selectedLeaveType.used_leaves ?? selectedLeaveType.approved_leaves ?? 0}
+                            </strong>
+                          </span>
+                          <span
+                            className={
+                              Number(selectedLeaveType.remaining_leaves ?? selectedLeaveType.no_leave) > 0
+                                ? 'text-success'
+                                : 'text-danger'
+                            }
+                          >
+                            Remaining:{' '}
+                            <strong>
+                              {selectedLeaveType.remaining_leaves ?? selectedLeaveType.no_leave}
+                            </strong>
+                          </span>
+                        </div>
+                      )}
                       {errors.leave_id && (
                         <div className="invalid-feedback d-block text-danger fs-12 mt-1">
                           {errors.leave_id}

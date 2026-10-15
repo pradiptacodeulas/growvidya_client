@@ -152,12 +152,18 @@ export const fetchStaffByRoleApi = async (role, params = {}) => {
     }
   }
   const response = await apiClient.get(`/admin/leaves/staff/${role}`, { params: queryParams });
+  const isStaffActive = (st) => {
+    if (!st) return false;
+    if (st.status === undefined || st.status === null) return true;
+    const statusNum = Number(st.status);
+    return statusNum === 1 && statusNum !== 4 && statusNum !== 2 && statusNum !== 0;
+  };
   if (Array.isArray(response?.data?.staff)) {
-    response.data.staff = sortDropdownDesc(response.data.staff);
+    response.data.staff = sortDropdownDesc(response.data.staff.filter(isStaffActive));
   } else if (Array.isArray(response?.data?.data)) {
-    response.data.data = sortDropdownDesc(response.data.data);
+    response.data.data = sortDropdownDesc(response.data.data.filter(isStaffActive));
   } else if (Array.isArray(response?.data)) {
-    response.data = sortDropdownDesc(response.data);
+    response.data = sortDropdownDesc(response.data.filter(isStaffActive));
   }
   return response.data;
 };

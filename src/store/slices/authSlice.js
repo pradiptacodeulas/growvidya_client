@@ -70,7 +70,18 @@ export const checkAdminAuth = createAsyncThunk(
 
       const response = await getAdminProfileApi();
       const resData = response.data?.data || response.data || {};
-      return resData.user || resData;
+      const user = resData.user || resData;
+      if (typeof window !== 'undefined' && user) {
+        const userBranchId = user.branch_id || user.branchId;
+        const isSuperAdmin = Boolean(user.isSuperAdmin) || Number(user.admin_type ?? user.adminType) === 1;
+        const existingBranch = localStorage.getItem('active_branch_id');
+        if (!isSuperAdmin && userBranchId) {
+          localStorage.setItem('active_branch_id', String(userBranchId));
+        } else if (!existingBranch) {
+          localStorage.setItem('active_branch_id', userBranchId ? String(userBranchId) : 'all');
+        }
+      }
+      return user;
     } catch (error) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('admin_token');

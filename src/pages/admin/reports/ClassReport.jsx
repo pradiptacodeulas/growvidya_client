@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { getClassReportOptionsApi, getClassReportApi } from '../../../api/adminReport.api';
 import defaultAvatar from '../../../assets/male-user.png';
@@ -7,6 +8,8 @@ import NoData from '../../../components/common/NoData';
 import { encodeParam } from '../../../utils/idHelper';
 
 const ClassReport = () => {
+  const { user } = useSelector((state) => state.auth || {});
+
   // Filter options from backend
   const [options, setOptions] = useState({
     academicYears: [],
@@ -54,25 +57,49 @@ const ClassReport = () => {
     return () => {
       window.removeEventListener('branch_changed', handleBranchChange);
     };
-  }, []);
+  }, [user?.schoolId, user?.school_id, user?.branchId, user?.branch_id]);
 
   const fetchOptions = async () => {
     try {
       setOptionsLoading(true);
       const activeBranchId = typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
-      const branchParams = activeBranchId && activeBranchId !== 'all' ? { branch_id: Number(activeBranchId) } : {};
+      const resolvedSchoolId = user?.schoolId || user?.school_id || null;
+      const resolvedBranchId =
+        activeBranchId && activeBranchId !== 'all'
+          ? Number(activeBranchId)
+          : user?.branchId || user?.branch_id || null;
+
+      const branchParams = {
+        ...(resolvedBranchId ? { branch_id: Number(resolvedBranchId) } : {}),
+        ...(resolvedSchoolId ? { school_id: Number(resolvedSchoolId) } : {}),
+      };
       const res = await getClassReportOptionsApi(branchParams);
       if (res && res.data) {
-        setOptions(res.data);
+        const filteredAcademicYears = (res.data.academicYears || []).filter((y) => {
+          if (resolvedSchoolId && y.school_id != null && Number(y.school_id) !== Number(resolvedSchoolId)) {
+            return false;
+          }
+          if (resolvedBranchId && y.branch_id != null && Number(y.branch_id) !== Number(resolvedBranchId)) {
+            return false;
+          }
+          return true;
+        });
+
+        const updatedOptions = {
+          ...res.data,
+          academicYears: filteredAcademicYears,
+        };
+        setOptions(updatedOptions);
+
         // Default to active / current academic year by checking is_current
-        const currentYear = res.data.academicYears.find(
+        const currentYear = filteredAcademicYears.find(
           (y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent
         );
         let defaultYear = '';
         if (currentYear) {
           defaultYear = String(currentYear.id);
-        } else if (res.data.academicYears.length > 0) {
-          defaultYear = String(res.data.academicYears[0].id);
+        } else if (filteredAcademicYears.length > 0) {
+          defaultYear = String(filteredAcademicYears[0].id);
         }
 
         let defaultShift = '';

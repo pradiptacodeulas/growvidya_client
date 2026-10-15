@@ -71,42 +71,74 @@ const SalaryManagement = () => {
   // Helper to get normalized unique key for candidate
   const getCandidateKey = useCallback((c) => `${String(c.user_type)}_${String(c.id)}`, []);
 
+  const resolveActiveBranchFilter = useCallback(() => {
+    const isSuper =
+      Boolean(currentUser?.isSuperAdmin) ||
+      Number(currentUser?.admin_type ?? currentUser?.adminType) === 1;
+    const userAssignedBranch = currentUser?.branch_id || currentUser?.branchId || null;
+    if (!isSuper && userAssignedBranch) {
+      return Number(userAssignedBranch);
+    }
+    const storedBranch =
+      typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') : null;
+    if (storedBranch && storedBranch !== 'all') {
+      return Number(storedBranch) || null;
+    }
+    return null;
+  }, [currentUser]);
+
+  const isEmployeeActive = useCallback((record) => {
+    if (!record) return false;
+    const empStatus =
+      record.employee_status !== undefined && record.employee_status !== null
+        ? record.employee_status
+        : record.status;
+    if (empStatus === undefined || empStatus === null) return true;
+    const statusNum = Number(empStatus);
+    return statusNum === 1 && statusNum !== 4 && statusNum !== 2 && statusNum !== 0;
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      const activeBranch = resolveActiveBranchFilter();
+      const params = activeBranch ? { branch_id: activeBranch } : {};
       const fetchFn = isTeacher ? fetchTeacherSalariesApi : fetchSalariesApi;
-      const res = await fetchFn().catch(() => null);
+      const res = await fetchFn(params).catch(() => null);
       if (res?.data?.salary_date_setting) {
         setSalaryDateSetting(res.data.salary_date_setting);
       }
-      if (res?.data?.salaries) {
-        setSalaries(res.data.salaries);
-      } else if (res?.salaries) {
-        setSalaries(res.salaries);
+      let rawSalaries = [];
+      if (Array.isArray(res?.data?.salaries)) {
+        rawSalaries = res.data.salaries;
+      } else if (Array.isArray(res?.salaries)) {
+        rawSalaries = res.salaries;
       } else if (Array.isArray(res?.data)) {
-        setSalaries(res.data);
-      } else {
-        setSalaries([]);
+        rawSalaries = res.data;
       }
+      setSalaries(rawSalaries.filter(isEmployeeActive));
     } catch (err) {
       console.error('Error loading salaries:', err);
     } finally {
       setLoading(false);
     }
-  }, [isTeacher]);
+  }, [isTeacher, resolveActiveBranchFilter, isEmployeeActive]);
 
   const loadBulkCandidates = useCallback(
     async (monthOverride, typeOverride) => {
       if (isTeacher) return;
       const targetMonth = monthOverride !== undefined ? monthOverride : bulkMonth;
       const targetType = typeOverride !== undefined ? typeOverride : bulkUserType;
+      const activeBranch = resolveActiveBranchFilter();
       try {
         setLoadingCandidates(true);
         const res = await fetchBulkSalaryCandidatesApi({
           salary_month: targetMonth,
           user_type: targetType || undefined,
+          ...(activeBranch ? { branch_id: activeBranch } : {}),
         });
-        const list = res?.data?.candidates || res?.candidates || [];
+        const rawList = res?.data?.candidates || res?.candidates || [];
+        const list = (Array.isArray(rawList) ? rawList : []).filter(isEmployeeActive);
         const setting = res?.data?.salary_date_setting || res?.salary_date_setting || null;
         const confDate = res?.data?.configured_salary_date || setting?.configured_salary_date || null;
         if (setting) {
@@ -131,7 +163,7 @@ const SalaryManagement = () => {
         setLoadingCandidates(false);
       }
     },
-    [isTeacher, bulkMonth, bulkUserType]
+    [isTeacher, bulkMonth, bulkUserType, resolveActiveBranchFilter, isEmployeeActive]
   );
 
   useEffect(() => {
@@ -281,6 +313,9 @@ const SalaryManagement = () => {
   // Filtered candidates in Bulk Salary step 1
   const filteredCandidates = useMemo(() => {
     return candidates.filter((c) => {
+      if (!isEmployeeActive(c)) {
+        return false;
+      }
       if (bulkEligibilityFilter === 'eligible' && (!c.is_beneficiary_verified || c.is_already_paid)) {
         return false;
       }
@@ -296,11 +331,13 @@ const SalaryManagement = () => {
         const matchCode = (c.employee_code || '').toLowerCase().includes(q);
         const matchType = (c.type_name || '').toLowerCase().includes(q);
         const matchBank = (c.bank_name || '').toLowerCase().includes(q);
-        return matchName || matchCode || matchType || matchBank;
+        const matchCampus = (c.campus_name || '').toLowerCase().includes(q);
+        const matchBranchId = String(c.branch_id || '').toLowerCase().includes(q);
+        return matchName || matchCode || matchType || matchBank || matchCampus || matchBranchId;
       }
       return true;
     });
-  }, [candidates, bulkEligibilityFilter, bulkSearch]);
+  }, [candidates, bulkEligibilityFilter, bulkSearch, isEmployeeActive]);
 
   // Eligible selectable candidates in current filtered view
   const selectableFilteredCandidates = useMemo(
@@ -444,6 +481,8 @@ const SalaryManagement = () => {
       const payloadEmployees = selectedCandidatesList.map((c) => {
         const nums = computeCandidateNumbers(c);
         return {
+          school_id: c.school_id || currentUser?.schoolId || currentUser?.school_id,
+          branch_id: c.branch_id || currentUser?.branchId || currentUser?.branch_id || undefined,
           user_type: c.user_type,
           employee_id: c.id,
           name: c.name,
@@ -509,6 +548,8 @@ const SalaryManagement = () => {
       const basicSalary = Number(salary.basic_salary || 0).toFixed(2);
       const totalDeductions = Number(salary.total_deductions || 0).toFixed(2);
       const netSalary = Number(salary.net_salary || 0).toFixed(2);
+      const resolvedSchoolId = salary.school_id || currentUser?.schoolId || currentUser?.school_id || '—';
+      const resolvedBranchId = salary.branch_id || currentUser?.branchId || currentUser?.branch_id || '—';
 
       const element = document.createElement('div');
       element.style.padding = '30px';
@@ -536,6 +577,10 @@ const SalaryManagement = () => {
             <tr>
               <td style="border: 1px solid #000; padding: 7px 10px; width: 50%; font-size: 13px;"><strong>Employee Name:</strong> ${salary.employee_name || '—'}</td>
               <td style="border: 1px solid #000; padding: 7px 10px; width: 50%; font-size: 13px;"><strong>Employee ID:</strong> ${salary.employee_id || '—'}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #000; padding: 7px 10px; font-size: 13px;"><strong>School ID:</strong> ${resolvedSchoolId}</td>
+              <td style="border: 1px solid #000; padding: 7px 10px; font-size: 13px;"><strong>Branch ID:</strong> ${resolvedBranchId}${salary.campus_name ? ` (${salary.campus_name})` : ''}</td>
             </tr>
             <tr>
               <td style="border: 1px solid #000; padding: 7px 10px; font-size: 13px;"><strong>Designation:</strong> ${designation}</td>
@@ -620,6 +665,9 @@ const SalaryManagement = () => {
     }
     const headers = [
       'Sl No.',
+      'School ID',
+      'Branch ID',
+      'Branch Name',
       'Name',
       'Type',
       'Bank Name',
@@ -633,6 +681,9 @@ const SalaryManagement = () => {
     ];
     const rows = filteredData.map((s, idx) => [
       idx + 1,
+      s.school_id ?? (currentUser?.schoolId || currentUser?.school_id || ''),
+      s.branch_id ?? (currentUser?.branchId || currentUser?.branch_id || ''),
+      `"${(s.campus_name || '').replace(/"/g, '""')}"`,
       `"${(s.employee_name || '').replace(/"/g, '""')}"`,
       s.type_name || (Number(s.user_type) === 2 ? 'Teacher' : Number(s.user_type) === 3 ? 'Driver' : 'Staff'),
       `"${(s.bank_name || '').replace(/"/g, '""')}"`,
@@ -697,6 +748,9 @@ const SalaryManagement = () => {
 
   const filteredData = useMemo(() => {
     return salaries.filter((s) => {
+      if (!isEmployeeActive(s)) {
+        return false;
+      }
       if (statusFilter && String(s.payment_status || 1) !== String(statusFilter)) {
         return false;
       }
@@ -709,11 +763,22 @@ const SalaryManagement = () => {
         const tx = (s.transaction_id || '').toLowerCase();
         const date = (s.payment_date || '').toLowerCase();
         const bank = (s.bank_name || '').toLowerCase();
-        return name.includes(q) || tx.includes(q) || date.includes(q) || bank.includes(q);
+        const campus = (s.campus_name || '').toLowerCase();
+        const bId = String(s.branch_id || '').toLowerCase();
+        const sId = String(s.school_id || '').toLowerCase();
+        return (
+          name.includes(q) ||
+          tx.includes(q) ||
+          date.includes(q) ||
+          bank.includes(q) ||
+          campus.includes(q) ||
+          bId.includes(q) ||
+          sId.includes(q)
+        );
       }
       return true;
     });
-  }, [salaries, statusFilter, typeFilter, tableSearch]);
+  }, [salaries, statusFilter, typeFilter, tableSearch, isEmployeeActive]);
 
   const totalPages = Math.ceil(filteredData.length / pageSize) || 1;
   const paginatedData = useMemo(() => {
@@ -1077,6 +1142,7 @@ const SalaryManagement = () => {
                           />
                         </th>
                         <th>Employee</th>
+                        <th className="text-center">School / Branch</th>
                         <th>Beneficiary / Bank Details</th>
                         <th>Leave Records ({bulkMonth})</th>
                         <th style={{ width: '145px' }} className="text-end">Base Salary (₹)</th>
@@ -1089,14 +1155,14 @@ const SalaryManagement = () => {
                     <tbody>
                       {loadingCandidates ? (
                         <tr>
-                          <td colSpan="9" className="text-center py-4">
+                          <td colSpan="10" className="text-center py-4">
                             <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
                             <span className="text-muted">Checking employee beneficiary/bank records and leave deductions...</span>
                           </td>
                         </tr>
                       ) : filteredCandidates.length === 0 ? (
                         <tr>
-                          <td colSpan="9" className="text-center py-4 text-muted">
+                          <td colSpan="10" className="text-center py-4 text-muted">
                             No employees found matching the selected criteria.
                           </td>
                         </tr>
@@ -1106,6 +1172,8 @@ const SalaryManagement = () => {
                           const isSelected = selectedCandidateKeys.includes(key);
                           const isSelectable = Boolean(c.is_beneficiary_verified) && !c.is_already_paid;
                           const nums = computeCandidateNumbers(c);
+                          const rowSchoolId = c.school_id ?? currentUser?.schoolId ?? currentUser?.school_id ?? '—';
+                          const rowBranchId = c.branch_id ?? currentUser?.branchId ?? currentUser?.branch_id ?? '—';
 
                           return (
                             <tr
@@ -1155,6 +1223,21 @@ const SalaryManagement = () => {
                                   </span>
                                   {c.employee_code && (
                                     <small className="text-muted fs-11">#{c.employee_code}</small>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="text-center">
+                                <div className="d-flex flex-column align-items-center gap-1">
+                                  <div className="d-flex align-items-center gap-1 flex-wrap justify-content-center">
+                                    <span className="badge bg-light text-dark border fs-11">
+                                      School ID: {rowSchoolId}
+                                    </span>
+                                    <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-11">
+                                      Branch ID: {rowBranchId}
+                                    </span>
+                                  </div>
+                                  {c.campus_name && (
+                                    <small className="text-muted fs-11">{c.campus_name}</small>
                                   )}
                                 </div>
                               </td>
@@ -1379,6 +1462,7 @@ const SalaryManagement = () => {
                       <tr>
                         <th>#</th>
                         <th>Employee</th>
+                        <th className="text-center">School / Branch</th>
                         <th>Verified Bank Account</th>
                         <th className="text-center">Unpaid Leave</th>
                         <th className="text-end">Base Salary</th>
@@ -1401,6 +1485,19 @@ const SalaryManagement = () => {
                               <small className="text-muted">
                                 {c.type_name} {c.employee_code ? `• #${c.employee_code}` : ''}
                               </small>
+                            </td>
+                            <td className="text-center">
+                              <div className="small">
+                                <span className="badge bg-light text-dark border me-1">
+                                  School ID: {c.school_id ?? currentUser?.schoolId ?? currentUser?.school_id ?? '—'}
+                                </span>
+                                <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
+                                  Branch ID: {c.branch_id ?? currentUser?.branchId ?? currentUser?.branch_id ?? '—'}
+                                </span>
+                              </div>
+                              {c.campus_name && (
+                                <div className="fs-11 text-muted mt-0.5">{c.campus_name}</div>
+                              )}
                             </td>
                             <td>
                               <div className="small">
@@ -1451,7 +1548,7 @@ const SalaryManagement = () => {
                     </tbody>
                     <tfoot className="table-light fw-bold">
                       <tr>
-                        <td colSpan="4" className="text-end">
+                        <td colSpan="5" className="text-end">
                           Total ({bulkTotals.count} Employees):
                         </td>
                         <td className="text-end">₹{bulkTotals.totalBase.toFixed(2)}</td>
@@ -1526,6 +1623,7 @@ const SalaryManagement = () => {
                     <thead className="table-light">
                       <tr>
                         <th>Employee</th>
+                        <th className="text-center">School / Branch</th>
                         <th className="text-end">Base Salary</th>
                         <th className="text-end">Total Deductions</th>
                         <th className="text-end">Net Salary</th>
@@ -1538,6 +1636,14 @@ const SalaryManagement = () => {
                       {(bulkResult.results || []).map((r, idx) => (
                         <tr key={idx}>
                           <td className="fw-semibold">{r.name || `Employee #${r.employee_id}`}</td>
+                          <td className="text-center">
+                            <span className="badge bg-light text-dark border me-1">
+                              School ID: {r.school_id ?? currentUser?.schoolId ?? currentUser?.school_id ?? '—'}
+                            </span>
+                            <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
+                              Branch ID: {r.branch_id ?? '—'}
+                            </span>
+                          </td>
                           <td className="text-end">
                             {r.basic_salary !== undefined ? `₹${Number(r.basic_salary).toFixed(2)}` : '—'}
                           </td>
@@ -1726,6 +1832,12 @@ const SalaryManagement = () => {
                         <th className="text-center sorting sorting_asc" style={{ width: '72.359px' }}>
                           Sl No.
                         </th>
+                        <th className="text-center sorting">
+                          School ID
+                        </th>
+                        <th className="text-center sorting">
+                          Branch ID
+                        </th>
                         <th className="text-center sorting" style={{ width: '198.188px' }}>
                           Name
                         </th>
@@ -1755,7 +1867,7 @@ const SalaryManagement = () => {
                     <tbody>
                       {loading ? (
                         <tr>
-                          <td colSpan={isTeacher ? 9 : 10} className="text-center py-4">
+                          <td colSpan={isTeacher ? 11 : 12} className="text-center py-4">
                             <div
                               className="spinner-border spinner-border-sm text-primary me-2"
                               role="status"
@@ -1765,7 +1877,7 @@ const SalaryManagement = () => {
                         </tr>
                       ) : paginatedData.length === 0 ? (
                         <tr>
-                          <td colSpan={isTeacher ? 9 : 10} className="text-center py-4">
+                          <td colSpan={isTeacher ? 11 : 12} className="text-center py-4">
                             <NoData title="No Salary Records Found" message="No salary records found." />
                           </td>
                         </tr>
@@ -1777,6 +1889,8 @@ const SalaryManagement = () => {
                           const statusNum = Number(s.payment_status || 1);
                           const isPaid = statusNum === 1;
                           const isFailed = statusNum === 3;
+                          const rowSchoolId = s.school_id ?? currentUser?.schoolId ?? currentUser?.school_id ?? '—';
+                          const rowBranchId = s.branch_id ?? currentUser?.branchId ?? currentUser?.branch_id ?? '—';
 
                           const actionItems = [
                             {
@@ -1809,6 +1923,21 @@ const SalaryManagement = () => {
                                 </td>
                               )}
                               <td className="text-center sorting_1">{globalIdx + 1}</td>
+                              <td className="text-center">
+                                <span className="badge bg-light text-dark border px-2 py-1">
+                                  {rowSchoolId}
+                                </span>
+                              </td>
+                              <td className="text-center">
+                                <div>
+                                  <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
+                                    {rowBranchId}
+                                  </span>
+                                </div>
+                                {s.campus_name && (
+                                  <small className="text-muted d-block fs-11 mt-0.5">{s.campus_name}</small>
+                                )}
+                              </td>
                               <td className="text-center">
                                 <div className="fw-semibold text-dark">{s.employee_name || '—'}</div>
                                 {s.type_name && (

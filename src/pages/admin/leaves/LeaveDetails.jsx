@@ -190,6 +190,11 @@ const LeaveDetails = () => {
               <span className="badge bg-light text-success border border-success me-2">
                 Approved: <strong>{leave.approved_days ?? 0}</strong> Days
               </span>
+              {Number(leave.pending_days || 0) > 0 && (
+                <span className="badge bg-light text-warning border border-warning me-2">
+                  Pending: <strong>{leave.pending_days}</strong> Days
+                </span>
+              )}
               <span
                 className={`badge ${
                   (leave.remaining_quota ?? 0) > 0

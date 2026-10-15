@@ -10,6 +10,7 @@ const AddSalary = () => {
   const [formData, setFormData] = useState({
     user_type: '',
     employee_id: '',
+    branch_id: '',
     leave_id: '',
     basic_salary: '',
     total_deductions: '0.00',
@@ -48,32 +49,6 @@ const AddSalary = () => {
     }
   }, []);
 
-  useEffect(() => {
-    loadConfiguredSalaryDate();
-    const handleBranchOrSalaryDateChange = () => {
-      loadConfiguredSalaryDate();
-    };
-    window.addEventListener('branch_changed', handleBranchOrSalaryDateChange);
-    window.addEventListener('salary_date_updated', handleBranchOrSalaryDateChange);
-    return () => {
-      window.removeEventListener('branch_changed', handleBranchOrSalaryDateChange);
-      window.removeEventListener('salary_date_updated', handleBranchOrSalaryDateChange);
-    };
-  }, [loadConfiguredSalaryDate]);
-
-  // Close dropdown on click outside
-  useEffect(() => {
-    const handleOutsideClick = (e) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
-        setIsNameDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleOutsideClick);
-    return () => {
-      document.removeEventListener('mousedown', handleOutsideClick);
-    };
-  }, []);
-
   const loadEmployees = useCallback(async (type, paymentDate) => {
     try {
       setLoading(true);
@@ -99,12 +74,42 @@ const AddSalary = () => {
     }
   }, []);
 
+  useEffect(() => {
+    loadConfiguredSalaryDate();
+    const handleBranchOrSalaryDateChange = () => {
+      loadConfiguredSalaryDate();
+      if (formData.user_type) {
+        loadEmployees(formData.user_type, formData.payment_date);
+      }
+    };
+    window.addEventListener('branch_changed', handleBranchOrSalaryDateChange);
+    window.addEventListener('salary_date_updated', handleBranchOrSalaryDateChange);
+    return () => {
+      window.removeEventListener('branch_changed', handleBranchOrSalaryDateChange);
+      window.removeEventListener('salary_date_updated', handleBranchOrSalaryDateChange);
+    };
+  }, [loadConfiguredSalaryDate, loadEmployees, formData.user_type, formData.payment_date]);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setIsNameDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+    };
+  }, []);
+
   const handleUserTypeChange = (e) => {
     const val = e.target.value;
     setFormData((prev) => ({
       ...prev,
       user_type: val,
       employee_id: '',
+      branch_id: '',
       leave_id: '',
       basic_salary: '',
       total_deductions: '0.00',
@@ -150,6 +155,7 @@ const AddSalary = () => {
       setFormData((prev) => ({
         ...prev,
         employee_id: String(empId),
+        branch_id: selectedEmp.branch_id ? String(selectedEmp.branch_id) : '',
         leave_id: selectedEmp.primary_leave_id || '',
         basic_salary: basicNum.toFixed(2),
         total_deductions: calc.salaryDeduction.toFixed(2),
@@ -159,6 +165,7 @@ const AddSalary = () => {
       setFormData((prev) => ({
         ...prev,
         employee_id: '',
+        branch_id: '',
         leave_id: '',
         basic_salary: '',
         total_deductions: '0.00',
