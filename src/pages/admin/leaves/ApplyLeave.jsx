@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   fetchLeaveTypesApi,
@@ -24,11 +24,16 @@ const getTodayDateString = () => {
 
 const ApplyLeave = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef(null);
   const todayStr = getTodayDateString();
 
-  const isTeacher = typeof window !== 'undefined' && window.location.pathname.startsWith('/teacher');
+  const isTeacher = location.pathname.startsWith('/teacher');
   const basePath = isTeacher ? '/teacher' : '/admin';
+  const initialDuration = ['1', '2', '3'].includes(searchParams.get('duration'))
+    ? searchParams.get('duration')
+    : '1';
 
   const [role, setRole] = useState(isTeacher ? '1' : '1'); // 1 = Teacher, 2 = User
   const [staffList, setStaffList] = useState([]);
@@ -37,7 +42,7 @@ const ApplyLeave = () => {
   const [form, setForm] = useState({
     staff_id: '',
     leave_id: '',
-    duration: '1', // '1'=Full Day, '2'=Half Day, '3'=Multiple
+    duration: initialDuration, // '1'=Full Day, '2'=Half Day, '3'=Multiple
     singleDate: todayStr,
     startDate: todayStr,
     endDate: todayStr,
@@ -783,7 +788,7 @@ const ApplyLeave = () => {
               <div className="text-end mb-2 p-3 border-top">
                 <button
                   type="button"
-                  onClick={() => navigate('/admin/leaves')}
+                  onClick={() => navigate(isTeacher ? '/teacher/leaves/my-leaves' : '/admin/leaves')}
                   className="btn btn-light me-3"
                   disabled={submitting}
                 >

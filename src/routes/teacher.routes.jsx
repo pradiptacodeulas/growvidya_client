@@ -29,6 +29,7 @@ const AddExamResult = lazy(() => import('../pages/admin/examinations/AddExamResu
 const TeacherProfile = lazy(() => import('../pages/teacher/TeacherProfile'));
 const SalaryManagement = lazy(() => import('../pages/admin/payroll/SalaryManagement'));
 const TeacherMyLeaves = lazy(() => import('../pages/teacher/leaves/TeacherMyLeaves'));
+const TeacherLeaveDetails = lazy(() => import('../pages/teacher/leaves/TeacherLeaveDetails'));
 const ApplyLeave = lazy(() => import('../pages/admin/leaves/ApplyLeave'));
 const TeacherMyTransport = lazy(() => import('../pages/teacher/transport/TeacherMyTransport'));
 const TeacherMyHostel = lazy(() => import('../pages/teacher/hostel/TeacherMyHostel'));
@@ -92,6 +93,8 @@ export const teacherRoutes = (
       <Route path="payroll/salary" element={<SalaryManagement />} />
       <Route path="leaves" element={<Navigate to="/teacher/leaves/my-leaves" replace />} />
       <Route path="leaves/my-leaves" element={<TeacherMyLeaves />} />
+      <Route path="leaves/my-leaves/:id" element={<TeacherLeaveDetails />} />
+      <Route path="leaves/details/:id" element={<TeacherLeaveDetails />} />
       <Route path="leaves/apply" element={<ApplyLeave />} />
       <Route path="leaves/add" element={<ApplyLeave />} />
       <Route path="leaves/form" element={<ApplyLeave />} />

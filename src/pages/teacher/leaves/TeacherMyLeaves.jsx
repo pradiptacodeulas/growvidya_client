@@ -1,18 +1,15 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { fetchTeacherMyLeavesApi, fetchTeacherLeaveByIdApi } from '../../../api/teacherLeave.api';
-import { getServerBaseUrl } from '../../../utils/url.util';
+import { fetchTeacherMyLeavesApi } from '../../../api/teacherLeave.api';
+import { encodeParam } from '../../../utils/idHelper';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
-
-const SERVER_BASE_URL = getServerBaseUrl();
 
 const TeacherMyLeaves = () => {
   const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [viewModal, setViewModal] = useState({ show: false, leave: null, loading: false });
 
   const loadLeaves = useCallback(async () => {
     try {
@@ -50,30 +47,15 @@ const TeacherMyLeaves = () => {
     );
   };
 
-  const handleViewStatus = async (leave) => {
-    setViewModal({ show: true, leave: leave, loading: true });
-    try {
-      const res = await fetchTeacherLeaveByIdApi(leave.id);
-      if (res?.data?.leave) {
-        setViewModal({ show: true, leave: res.data.leave, loading: false });
-      } else {
-        setViewModal((prev) => ({ ...prev, loading: false }));
-      }
-    } catch (err) {
-      setViewModal((prev) => ({ ...prev, loading: false }));
-    }
-  };
-
   const renderStatusBadge = (row) => {
     if (Number(row.duration) === 3) {
       return (
-        <span
-          onClick={() => handleViewStatus(row)}
-          className="text-primary text-decoration-underline fw-medium cursor-pointer"
-          style={{ cursor: 'pointer' }}
+        <Link
+          to={`/teacher/leaves/details/${encodeParam(row.id)}`}
+          className="text-primary text-decoration-underline fw-medium"
         >
           View Status
-        </span>
+        </Link>
       );
     }
     const status = Number(row.leave_status);
@@ -139,13 +121,12 @@ const TeacherMyLeaves = () => {
         sortable: true,
         cell: ({ value, row }) => (
           <div className="d-flex align-items-center gap-2">
-            <span
-              onClick={() => handleViewStatus(row)}
-              className="fw-semibold text-primary cursor-pointer text-decoration-none"
-              style={{ cursor: 'pointer' }}
+            <Link
+              to={`/teacher/leaves/details/${encodeParam(row.id)}`}
+              className="fw-semibold text-primary text-decoration-none"
             >
               {value || 'General Leave'}
-            </span>
+            </Link>
             {Number(row.is_paid) === 0 ? (
               <span className="badge bg-warning-transparent text-warning border border-warning fs-11 px-1.5 py-0.5">
                 Non-Paid
@@ -198,7 +179,7 @@ const TeacherMyLeaves = () => {
               {
                 label: 'View Details',
                 icon: 'ti ti-eye text-info',
-                onClick: () => handleViewStatus(row),
+                to: `/teacher/leaves/details/${encodeParam(row.id)}`,
               },
             ]}
           />
@@ -287,107 +268,6 @@ const TeacherMyLeaves = () => {
         searchPlaceholder="Search by leave type or date..."
         emptyMessage="No leave requests submitted yet."
       />
-
-      {/* View Status Modal */}
-      {viewModal.show && (
-        <div
-          className="modal fade show d-block"
-          tabIndex="-1"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0 shadow">
-              <div className="modal-header">
-                <h5 className="modal-title fw-bold">Leave Application Details</h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setViewModal({ show: false, leave: null, loading: false })}
-                ></button>
-              </div>
-              <div className="modal-body p-4">
-                {viewModal.loading ? (
-                  <div className="text-center py-4">
-                    <div className="spinner-border text-primary" role="status"></div>
-                  </div>
-                ) : viewModal.leave ? (
-                  <div>
-                    <div className="d-flex justify-content-between align-items-center mb-3">
-                      <div>
-                        <span className="text-muted fs-12 d-block">Leave Type:</span>
-                        <div className="d-flex align-items-center gap-2">
-                          <h6 className="fw-bold mb-0 text-dark">
-                            {viewModal.leave.leave_name || 'Leave'}
-                          </h6>
-                          {Number(viewModal.leave.is_paid) === 0 ? (
-                            <span className="badge bg-warning-transparent text-warning border border-warning fs-11 px-1.5 py-0.5">
-                              Non-Paid
-                            </span>
-                          ) : (
-                            <span className="badge bg-success-transparent text-success border border-success fs-11 px-1.5 py-0.5">
-                              Paid
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        {renderStatusBadge(viewModal.leave)}
-                      </div>
-                    </div>
-
-                    <div className="row g-2 mb-3">
-                      <div className="col-6">
-                        <span className="text-muted fs-12 d-block">Duration:</span>
-                        <strong className="text-dark">
-                          {viewModal.leave.duration_label ||
-                            (Number(viewModal.leave.duration) === 3
-                              ? 'Multiple Days'
-                              : Number(viewModal.leave.duration) === 2
-                              ? 'Half Day'
-                              : 'Full Day')}
-                        </strong>
-                      </div>
-                      <div className="col-6">
-                        <span className="text-muted fs-12 d-block">Date:</span>
-                        <strong className="text-dark">
-                          {viewModal.leave.leave_date
-                            ? viewModal.leave.leave_date.split('T')[0]
-                            : '—'}
-                        </strong>
-                      </div>
-                    </div>
-
-                    <div className="mb-3">
-                      <span className="text-muted fs-12 d-block mb-1">Reason:</span>
-                      <p className="bg-light p-2 rounded text-dark fs-13 mb-0">
-                        {viewModal.leave.reason || 'No reason specified.'}
-                      </p>
-                    </div>
-
-                    {viewModal.leave.admin_remark && (
-                      <div className="mb-3">
-                        <span className="text-muted fs-12 d-block mb-1">Admin Remark:</span>
-                        <p className="bg-warning-subtle text-dark p-2 rounded fs-13 mb-0">
-                          {viewModal.leave.admin_remark}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : null}
-              </div>
-              <div className="modal-footer">
-                <button
-                  type="button"
-                  className="btn btn-light"
-                  onClick={() => setViewModal({ show: false, leave: null, loading: false })}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
