@@ -394,7 +394,7 @@ const SalaryManagement = () => {
       const baseSalary = hasCustomBase
         ? Math.max(0, Number(adj.basic_salary) || 0)
         : Number(c.basic_salary || 0);
-      const unpaidLeaveDays = Number(c.unpaid_leave_days || 0);
+      const unpaidLeaveDays = Math.max(0, Math.min(FIXED_SALARY_DAYS, Number(c.unpaid_leave_days || 0)));
       const rawPerDaySalary = baseSalary > 0 ? baseSalary / FIXED_SALARY_DAYS : 0;
       const perDaySalary = Number(rawPerDaySalary.toFixed(2));
       const leaveDeduction =
@@ -818,7 +818,7 @@ const SalaryManagement = () => {
   };
 
   return (
-    <div className="content">
+    <div className="content" style={{ height: 'auto', minHeight: 'auto', maxHeight: 'none', overflowY: 'visible' }}>
       {/* Page Header */}
       <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
         <div className="my-auto mb-2">
@@ -1125,9 +1125,9 @@ const SalaryManagement = () => {
                   </div>
                 </div>
 
-                <div className="table-responsive border rounded-2" style={{ maxHeight: '460px', overflowY: 'auto' }}>
+                <div className="table-responsive border rounded-2">
                   <table className="table table-hover align-middle mb-0">
-                    <thead className="table-light" style={{ position: 'sticky', top: 0, zIndex: 5 }}>
+                    <thead className="table-light">
                       <tr>
                         <th style={{ width: '48px' }} className="text-center">
                           <input
@@ -1317,7 +1317,7 @@ const SalaryManagement = () => {
                                     })}
                                   </div>
                                 ) : (
-                                  <small className="text-muted fs-11">No leaves in {bulkMonth}</small>
+                                  <small className="text-muted fs-11">No approved leaves in {bulkMonth}</small>
                                 )}
                               </td>
                               <td className="text-end" onClick={(e) => e.stopPropagation()}>

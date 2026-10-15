@@ -1464,22 +1464,6 @@ const TeacherDetails = () => {
                                         return (
                                           <td key={mNum}>
                                             <span
-                                              className="attendance-range bg-dark"
-                                              style={{
-                                                margin: '0 auto',
-                                                width: '8px',
-                                                height: '15px',
-                                                borderRadius: '5px',
-                                                display: 'block',
-                                              }}
-                                              title="Halfday"
-                                            ></span>
-                                          </td>
-                                        );
-                                      } else if (statusVal === 3) {
-                                        return (
-                                          <td key={mNum}>
-                                            <span
                                               className="attendance-range bg-warning"
                                               style={{
                                                 margin: '0 auto',
@@ -1489,6 +1473,22 @@ const TeacherDetails = () => {
                                                 display: 'block',
                                               }}
                                               title="Late"
+                                            ></span>
+                                          </td>
+                                        );
+                                      } else if (statusVal === 3) {
+                                        return (
+                                          <td key={mNum}>
+                                            <span
+                                              className="attendance-range bg-dark"
+                                              style={{
+                                                margin: '0 auto',
+                                                width: '8px',
+                                                height: '15px',
+                                                borderRadius: '5px',
+                                                display: 'block',
+                                              }}
+                                              title="Halfday"
                                             ></span>
                                           </td>
                                         );
