@@ -634,26 +634,6 @@ const EditStudyMaterial = () => {
                     </div>
                   </div>
 
-                  {/* Allow Download */}
-                  <div className="col-md-4">
-                    <div className="mb-3">
-                      <label className="form-label fw-medium text-dark">
-                        Allow Download? <span className="text-danger">*</span>
-                      </label>
-                      <select
-                        className="form-select"
-                        name="allow_download"
-                        id="allow_download"
-                        required
-                        value={formData.allow_download}
-                        onChange={handleInputChange}
-                      >
-                        <option value={1}>Yes (Students can download file)</option>
-                        <option value={0}>No (Students can only preview online)</option>
-                      </select>
-                    </div>
-                  </div>
-
                   {/* Display Order */}
                   <div className="col-md-4">
                     <div className="mb-3">
