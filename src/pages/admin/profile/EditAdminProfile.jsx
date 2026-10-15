@@ -29,8 +29,12 @@ const EditAdminProfile = () => {
   const [countries, setCountries] = useState([]);
   const [states, setStates] = useState([]);
   const [cities, setCities] = useState([]);
+  const [loadingStates, setLoadingStates] = useState(false);
+  const [loadingCities, setLoadingCities] = useState(false);
   const [bloodGroups, setBloodGroups] = useState([]);
   const [genders, setGenders] = useState([]);
+  const stateRequestRef = useRef(0);
+  const cityRequestRef = useRef(0);
 
   // Picture upload state
   const [pictureFile, setPictureFile] = useState(null);
@@ -78,11 +82,25 @@ const EditAdminProfile = () => {
           getAdminFullProfileApi(),
         ]);
 
-        if (optRes?.data) {
-          setCountries(optRes.data.countries || []);
-          setBloodGroups(Array.isArray(optRes.data.bloodGroups) ? optRes.data.bloodGroups : []);
-          setGenders(Array.isArray(optRes.data.genders) ? optRes.data.genders : []);
-        }
+        const countryList = Array.isArray(optRes?.data?.countries)
+          ? optRes.data.countries
+          : Array.isArray(optRes?.countries)
+          ? optRes.countries
+          : [];
+        const bloodGroupList = Array.isArray(optRes?.data?.bloodGroups)
+          ? optRes.data.bloodGroups
+          : Array.isArray(optRes?.bloodGroups)
+          ? optRes.bloodGroups
+          : [];
+        const genderList = Array.isArray(optRes?.data?.genders)
+          ? optRes.data.genders
+          : Array.isArray(optRes?.genders)
+          ? optRes.genders
+          : [];
+
+        setCountries(countryList);
+        setBloodGroups(bloodGroupList);
+        setGenders(genderList);
 
         const u = profRes?.data?.profile || profRes?.profile || profRes?.data || null;
         if (!u) {
@@ -90,6 +108,65 @@ const EditAdminProfile = () => {
           navigate('/admin/profile');
           return;
         }
+
+        const initialCountryId = u.country_id ? String(u.country_id) : '';
+        let initialStateId = u.state_id ? String(u.state_id) : '';
+        let initialCityId = u.city ? String(u.city) : '';
+        let loadedStates = [];
+        let loadedCities = [];
+
+        if (initialCountryId) {
+          try {
+            const sRes = await fetchStaffStatesApi(initialCountryId);
+            const rawStates = Array.isArray(sRes?.data?.states)
+              ? sRes.data.states
+              : Array.isArray(sRes?.states)
+              ? sRes.states
+              : [];
+            loadedStates = rawStates.filter(
+              (s) => String(s.country_id) === String(initialCountryId)
+            );
+          } catch {
+            loadedStates = [];
+          }
+
+          const stateBelongsToCountry = loadedStates.some(
+            (s) => String(s.id) === String(initialStateId)
+          );
+          if (!stateBelongsToCountry) {
+            initialStateId = '';
+            initialCityId = '';
+          }
+        } else {
+          initialStateId = '';
+          initialCityId = '';
+        }
+
+        if (initialStateId) {
+          try {
+            const cRes = await fetchStaffCitiesApi(initialStateId);
+            const rawCities = Array.isArray(cRes?.data?.cities)
+              ? cRes.data.cities
+              : Array.isArray(cRes?.cities)
+              ? cRes.cities
+              : [];
+            loadedCities = rawCities.filter(
+              (c) => String(c.state_id) === String(initialStateId)
+            );
+          } catch {
+            loadedCities = [];
+          }
+
+          const cityBelongsToState = loadedCities.some(
+            (c) => String(c.id) === String(initialCityId)
+          );
+          if (!cityBelongsToState) {
+            initialCityId = '';
+          }
+        }
+
+        setStates(loadedStates);
+        setCities(loadedCities);
 
         setPersonalInfo({
           id: u.id || '',
@@ -99,12 +176,12 @@ const EditAdminProfile = () => {
           phone: u.phone || '',
           gender: u.gender !== undefined && u.gender !== null ? String(u.gender) : '',
           blood_group: u.blood_group ? String(u.blood_group) : '',
-          country_id: u.country_id ? String(u.country_id) : '',
-          state_id: u.state_id ? String(u.state_id) : '',
-          city: u.city ? String(u.city) : '',
-          role_name: Number(u.admin_type) === 1 ? 'Super Admin' : (u.role_name || 'Administrator'),
+          country_id: initialCountryId,
+          state_id: initialStateId,
+          city: initialCityId,
+          role_name: u.role_name || (Number(u.admin_type) === 1 ? 'Super Admin' : ''),
           admin_type: u.admin_type,
-          branch_name: u.branch_name || 'Main Campus',
+          branch_name: u.branch_name || '',
           school_name: u.school_name || '',
           picture: u.picture || '',
         });
@@ -118,17 +195,6 @@ const EditAdminProfile = () => {
           } else {
             setPicturePreview(`${SERVER_BASE_URL}/upload/${cleanPic}`);
           }
-        }
-
-        if (u.country_id) {
-          fetchStaffStatesApi(u.country_id)
-            .then((sRes) => setStates(sRes?.data?.states || []))
-            .catch(() => {});
-        }
-        if (u.state_id) {
-          fetchStaffCitiesApi(u.state_id)
-            .then((cRes) => setCities(cRes?.data?.cities || []))
-            .catch(() => {});
         }
 
         if (u.bank_details) {
@@ -162,30 +228,70 @@ const EditAdminProfile = () => {
 
   const handleCountryChange = async (e) => {
     const countryId = e.target.value;
+    const reqId = ++stateRequestRef.current;
+    cityRequestRef.current++;
+
+    // Reset selected State and City when Country changes
     setPersonalInfo((prev) => ({ ...prev, country_id: countryId, state_id: '', city: '' }));
     setStates([]);
     setCities([]);
+    setLoadingCities(false);
+
     if (countryId) {
       try {
+        setLoadingStates(true);
         const res = await fetchStaffStatesApi(countryId);
-        setStates(res?.data?.states || []);
+        if (stateRequestRef.current !== reqId) return;
+        const rawStates = Array.isArray(res?.data?.states)
+          ? res.data.states
+          : Array.isArray(res?.states)
+          ? res.states
+          : [];
+        setStates(rawStates.filter((s) => String(s.country_id) === String(countryId)));
       } catch {
-        setStates([]);
+        if (stateRequestRef.current === reqId) {
+          setStates([]);
+        }
+      } finally {
+        if (stateRequestRef.current === reqId) {
+          setLoadingStates(false);
+        }
       }
+    } else {
+      setLoadingStates(false);
     }
   };
 
   const handleStateChange = async (e) => {
     const stateId = e.target.value;
+    const reqId = ++cityRequestRef.current;
+
+    // Reset selected City when State changes
     setPersonalInfo((prev) => ({ ...prev, state_id: stateId, city: '' }));
     setCities([]);
+
     if (stateId) {
       try {
+        setLoadingCities(true);
         const res = await fetchStaffCitiesApi(stateId);
-        setCities(res?.data?.cities || []);
+        if (cityRequestRef.current !== reqId) return;
+        const rawCities = Array.isArray(res?.data?.cities)
+          ? res.data.cities
+          : Array.isArray(res?.cities)
+          ? res.cities
+          : [];
+        setCities(rawCities.filter((c) => String(c.state_id) === String(stateId)));
       } catch {
-        setCities([]);
+        if (cityRequestRef.current === reqId) {
+          setCities([]);
+        }
+      } finally {
+        if (cityRequestRef.current === reqId) {
+          setLoadingCities(false);
+        }
       }
+    } else {
+      setLoadingCities(false);
     }
   };
 
@@ -288,7 +394,7 @@ const EditAdminProfile = () => {
         blood_group: personalInfo.blood_group ? Number(personalInfo.blood_group) : null,
         country_id: personalInfo.country_id ? Number(personalInfo.country_id) : null,
         state_id: personalInfo.state_id ? Number(personalInfo.state_id) : null,
-        city: personalInfo.city || null,
+        city: personalInfo.city ? Number(personalInfo.city) : null,
         picture: uploadedPicPath,
         account_name: String(bankInfo.account_name || '').trim(),
         account_number: String(bankInfo.account_number || '').trim(),
@@ -540,19 +646,11 @@ const EditAdminProfile = () => {
                         className="form-select"
                       >
                         <option value="">Select Gender</option>
-                        {genders.length > 0 ? (
-                          genders.map((g) => (
-                            <option key={g.id} value={g.id}>
-                              {g.gender || g.name}
-                            </option>
-                          ))
-                        ) : (
-                          <>
-                            <option value="1">Male</option>
-                            <option value="2">Female</option>
-                            <option value="3">Others</option>
-                          </>
-                        )}
+                        {genders.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.gender || g.name}
+                          </option>
+                        ))}
                       </select>
                     </div>
 
@@ -597,9 +695,11 @@ const EditAdminProfile = () => {
                         value={personalInfo.state_id}
                         onChange={handleStateChange}
                         className="form-select"
-                        disabled={!personalInfo.country_id}
+                        disabled={!personalInfo.country_id || loadingStates}
                       >
-                        <option value="">Select State</option>
+                        <option value="">
+                          {loadingStates ? 'Loading States...' : 'Select State'}
+                        </option>
                         {states.map((s) => (
                           <option key={s.id} value={s.id}>
                             {s.name || s.state}
@@ -610,30 +710,22 @@ const EditAdminProfile = () => {
 
                     <div className="col-md-4">
                       <label className="form-label fw-medium">City</label>
-                      {cities.length > 0 ? (
-                        <select
-                          name="city"
-                          value={personalInfo.city}
-                          onChange={handlePersonalChange}
-                          className="form-select"
-                        >
-                          <option value="">Select City</option>
-                          {cities.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <input
-                          type="text"
-                          name="city"
-                          value={personalInfo.city}
-                          onChange={handlePersonalChange}
-                          className="form-control"
-                          placeholder="Enter city"
-                        />
-                      )}
+                      <select
+                        name="city"
+                        value={personalInfo.city}
+                        onChange={handlePersonalChange}
+                        className="form-select"
+                        disabled={!personalInfo.state_id || loadingCities}
+                      >
+                        <option value="">
+                          {loadingCities ? 'Loading Cities...' : 'Select City'}
+                        </option>
+                        {cities.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
                     <div className="col-md-6">
