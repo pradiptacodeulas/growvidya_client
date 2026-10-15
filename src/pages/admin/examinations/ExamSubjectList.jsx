@@ -37,13 +37,15 @@ const ExamSubjectList = () => {
   const fetchInitialExamsAndClasses = async () => {
     try {
       const activeBranchId = localStorage.getItem('active_branch_id');
-      const params = { status: 1 };
+      const examParams = {};
+      const classParams = {};
       if (activeBranchId && activeBranchId !== 'all') {
-        params.branch_id = activeBranchId;
+        examParams.branch_id = activeBranchId;
+        classParams.branch_id = activeBranchId;
       }
       const [exRes, clsRes] = await Promise.all([
-        adminExaminationApi.getAllExams(params),
-        adminAcademicApi.getAllClasses(params),
+        adminExaminationApi.getAllExams(examParams),
+        adminAcademicApi.getAllClasses(classParams),
       ]);
 
       const examsList = Array.isArray(exRes?.data?.exams)
@@ -66,14 +68,26 @@ const ExamSubjectList = () => {
       setExams(sortedExams);
       setClasses(sortedClasses);
 
-      const targetExam = selectedExamId || (sortedExams.length > 0 ? sortedExams[0].id : '');
-      const targetClass = selectedClassId || (sortedClasses.length > 0 ? sortedClasses[0].id : '');
+      const examStillValid = sortedExams.some((e) => String(e.id) === String(selectedExamId));
+      const classStillValid = sortedClasses.some((c) => String(c.id) === String(selectedClassId));
 
-      if (targetExam) setSelectedExamId(targetExam);
-      if (targetClass) setSelectedClassId(targetClass);
+      const targetExam = examStillValid ? selectedExamId : (sortedExams.length > 0 ? sortedExams[0].id : '');
+      const targetClass = classStillValid ? selectedClassId : (sortedClasses.length > 0 ? sortedClasses[0].id : '');
+
+      setSelectedExamId(targetExam);
+      setSelectedClassId(targetClass);
 
       if (targetExam && targetClass) {
         fetchExamSubjectMatrix(targetExam, targetClass);
+      } else {
+        setMatrixData({
+          subjects: [],
+          examTypes: [],
+          configuredMarks: [],
+          examSubjectMasterId: null,
+          status: null,
+          hasConfig: false,
+        });
       }
     } catch (err) {
       toast.error('Failed to load initial exam or class filters');

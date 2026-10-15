@@ -51,6 +51,8 @@ const SalaryDate = () => {
     return () => document.removeEventListener('click', handleOutsideClick);
   }, []);
 
+  const [activeSalaryDate, setActiveSalaryDate] = useState(null);
+
   // Fetch Salary Dates
   const fetchSalaryDates = async () => {
     try {
@@ -62,6 +64,7 @@ const SalaryDate = () => {
       });
       if (res && res.data) {
         setSalaryDates(res.data.salaryDates || []);
+        setActiveSalaryDate(res.data.activeSalaryDate || null);
         setTotal(res.data.pagination?.total || 0);
       }
     } catch (err) {
@@ -74,6 +77,9 @@ const SalaryDate = () => {
 
   useEffect(() => {
     fetchSalaryDates();
+    const handleBranchChange = () => fetchSalaryDates();
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, [page, limit, search]);
 
   // Open Add Modal
@@ -114,7 +120,8 @@ const SalaryDate = () => {
         toast.success('Salary date added successfully.');
       }
       setShowModal(false);
-      fetchSalaryDates();
+      await fetchSalaryDates();
+      window.dispatchEvent(new Event('salary_date_updated'));
     } catch (err) {
       console.error('Error saving salary date:', err);
       toast.error(err.response?.data?.message || 'Failed to save salary date.');
@@ -137,7 +144,8 @@ const SalaryDate = () => {
       await deleteSalaryDateApi(deleteTarget.id);
       toast.success('Salary date deleted successfully.');
       setShowDeleteModal(false);
-      fetchSalaryDates();
+      await fetchSalaryDates();
+      window.dispatchEvent(new Event('salary_date_updated'));
     } catch (err) {
       console.error('Error deleting salary date:', err);
       toast.error(err.response?.data?.message || 'Failed to delete salary date.');
@@ -281,8 +289,24 @@ const SalaryDate = () => {
 
       {/* Salary Date Card */}
       <div className="card shadow-sm border-0">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0">
-          <h4 className="mb-3 text-dark fw-bold fs-16">Salary Date</h4>
+        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-2">
+          <div>
+            <h4 className="mb-1 text-dark fw-bold fs-16">Salary Date Configuration</h4>
+            <small className="text-muted">
+              The active salary payment date configured here is automatically used by the system when managing salary payments.
+            </small>
+          </div>
+          {activeSalaryDate && (
+            <div className="d-flex align-items-center gap-2 mt-2 mt-sm-0">
+              <span className="badge bg-success-subtle text-success border border-success-subtle px-3 py-2">
+                <i className="ti ti-calendar-check me-1"></i>
+                Active Payment Date: <strong>{activeSalaryDate.configured_salary_date}</strong> (Day {activeSalaryDate.salary_day} of month)
+              </span>
+              <Link to="/admin/payroll/salary" className="btn btn-sm btn-outline-primary">
+                <i className="ti ti-receipt-rupee me-1"></i>Manage Salary Payments
+              </Link>
+            </div>
+          )}
         </div>
 
         <div className="card-body p-0 py-3">

@@ -10,12 +10,17 @@ import { encodeParam } from '../../../utils/idHelper';
 const BeneficiaryManagement = () => {
   const [beneficiaries, setBeneficiaries] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [userTypeFilter, setUserTypeFilter] = useState('');
   const [deleteModal, setDeleteModal] = useState({ show: false, id: null, processing: false });
 
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetchBeneficiariesApi().catch(() => null);
+      const params = {};
+      if (userTypeFilter) {
+        params.user_type = userTypeFilter;
+      }
+      const res = await fetchBeneficiariesApi(params).catch(() => null);
       if (res?.data?.beneficiaries) {
         setBeneficiaries(res.data.beneficiaries);
       } else if (res?.beneficiaries) {
@@ -30,10 +35,13 @@ const BeneficiaryManagement = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [userTypeFilter]);
 
   useEffect(() => {
     loadData();
+    const handleBranchChange = () => loadData();
+    window.addEventListener('branch_changed', handleBranchChange);
+    return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, [loadData]);
 
   const handleDeleteBeneficiary = async () => {
@@ -51,7 +59,6 @@ const BeneficiaryManagement = () => {
     }
   };
 
-
   const handleExportExcel = () => {
     if (!beneficiaries.length) {
       toast.info('No data to export.');
@@ -60,6 +67,7 @@ const BeneficiaryManagement = () => {
     const headers = [
       'Sl No.',
       'Type',
+      'Employee Code',
       'Name',
       'Amount',
       'Bank Name',
@@ -70,7 +78,8 @@ const BeneficiaryManagement = () => {
     ];
     const rows = beneficiaries.map((b, idx) => [
       idx + 1,
-      b.type_name || 'Staff',
+      b.type_name || (Number(b.user_type) === 2 ? 'Teacher' : Number(b.user_type) === 3 ? 'Driver' : 'Staff'),
+      `"${(b.employee_code || '').replace(/"/g, '""')}"`,
       `"${(b.name || '').replace(/"/g, '""')}"`,
       Number(b.amount || 0).toFixed(2),
       `"${(b.bank_name || '').replace(/"/g, '""')}"`,
@@ -105,25 +114,38 @@ const BeneficiaryManagement = () => {
         accessorKey: 'type_name',
         header: 'Type',
         sortable: true,
-        width: '100px',
+        width: '110px',
         align: 'center',
-        cell: ({ value }) => (
-          <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-medium">
-            {value || 'Staff'}
-          </span>
-        ),
+        cell: ({ value, row }) => {
+          const typeLabel =
+            value || (Number(row.user_type) === 2 ? 'Teacher' : Number(row.user_type) === 3 ? 'Driver' : 'Staff');
+          return (
+            <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-medium">
+              {typeLabel}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'name',
         header: 'Name',
         sortable: true,
         cell: ({ value, row }) => (
-          <Link
-            to={`/admin/payroll/beneficiaries/edit/${encodeParam(row.id)}`}
-            className="fw-semibold text-primary text-decoration-none"
-          >
-            {value || '—'}
-          </Link>
+          <div>
+            <Link
+              to={`/admin/payroll/beneficiaries/edit/${encodeParam(row.id)}`}
+              className="fw-semibold text-primary text-decoration-none d-block"
+            >
+              {value || '—'}
+            </Link>
+            {(row.employee_code || row.phone) && (
+              <small className="text-muted fs-11">
+                {row.employee_code ? `#${row.employee_code}` : ''}
+                {row.employee_code && row.phone ? ' • ' : ''}
+                {row.phone || ''}
+              </small>
+            )}
+          </div>
         ),
       },
       {
@@ -219,6 +241,17 @@ const BeneficiaryManagement = () => {
           </nav>
         </div>
         <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <select
+            className="form-select form-select-sm w-auto"
+            value={userTypeFilter}
+            onChange={(e) => setUserTypeFilter(e.target.value)}
+            title="Filter by Beneficiary Type"
+          >
+            <option value="">All Beneficiary Types</option>
+            <option value="1">Staff</option>
+            <option value="2">Teacher</option>
+            <option value="3">Driver</option>
+          </select>
           <button
             type="button"
             onClick={loadData}
@@ -253,12 +286,12 @@ const BeneficiaryManagement = () => {
 
       {/* Main DataTable */}
       <DataTable
-        title="Beneficiaries & Bank Accounts"
-        subtitle="Manage payee accounts, salary disbursements, and institutional bank transfers."
+        title="Registered Beneficiaries (beneficiary_master)"
+        subtitle="Displays only beneficiaries registered in beneficiary_master with details fetched from Staff (user_master), Teacher (teacher_master), and Driver (operator_master)."
         columns={columns}
         data={beneficiaries}
         loading={loading}
-        searchPlaceholder="Search beneficiaries by name, bank, or account..."
+        searchPlaceholder="Search registered beneficiaries by name, bank, or account..."
         emptyMessage="No beneficiary accounts registered."
       />
 

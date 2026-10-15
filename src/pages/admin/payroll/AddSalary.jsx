@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchEmployeesByTypeApi, createSalaryApi } from '../../../api/adminPayroll.api';
+import { getSalaryDatesApi } from '../../../api/adminMiscSetting.api';
 
 const AddSalary = () => {
   const navigate = useNavigate();
@@ -19,6 +20,7 @@ const AddSalary = () => {
     payment_status: 1,
   });
 
+  const [configuredSalaryDate, setConfiguredSalaryDate] = useState(null);
   const [slipPreview, setSlipPreview] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -28,6 +30,36 @@ const AddSalary = () => {
   const [isNameDropdownOpen, setIsNameDropdownOpen] = useState(false);
   const [nameSearch, setNameSearch] = useState('');
   const dropdownRef = useRef(null);
+
+  const loadConfiguredSalaryDate = useCallback(async () => {
+    try {
+      const res = await getSalaryDatesApi({ limit: 5 }).catch(() => null);
+      const activeSetting = res?.data?.activeSalaryDate || null;
+      const confDate = res?.data?.configured_salary_date || activeSetting?.configured_salary_date || null;
+      if (confDate) {
+        setConfiguredSalaryDate(confDate);
+        setFormData((prev) => ({
+          ...prev,
+          payment_date: confDate,
+        }));
+      }
+    } catch (err) {
+      console.error('Error loading configured salary date:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConfiguredSalaryDate();
+    const handleBranchOrSalaryDateChange = () => {
+      loadConfiguredSalaryDate();
+    };
+    window.addEventListener('branch_changed', handleBranchOrSalaryDateChange);
+    window.addEventListener('salary_date_updated', handleBranchOrSalaryDateChange);
+    return () => {
+      window.removeEventListener('branch_changed', handleBranchOrSalaryDateChange);
+      window.removeEventListener('salary_date_updated', handleBranchOrSalaryDateChange);
+    };
+  }, [loadConfiguredSalaryDate]);
 
   // Close dropdown on click outside
   useEffect(() => {
@@ -47,7 +79,11 @@ const AddSalary = () => {
       setLoading(true);
       const res = await fetchEmployeesByTypeApi(type, {
         payment_date: paymentDate,
+        only_beneficiaries: 1,
       });
+      if (res?.data?.configured_salary_date) {
+        setConfiguredSalaryDate(res.data.configured_salary_date);
+      }
       if (res?.data?.employees) {
         setEmployees(res.data.employees);
       } else if (res?.employees) {
@@ -56,7 +92,7 @@ const AddSalary = () => {
         setEmployees([]);
       }
     } catch (err) {
-      console.error('Error fetching employees:', err);
+      console.error('Error fetching registered beneficiaries:', err);
       setEmployees([]);
     } finally {
       setLoading(false);
@@ -82,6 +118,23 @@ const AddSalary = () => {
     }
   };
 
+  const FIXED_SALARY_DAYS = 30;
+
+  const calculateSalaryFrom30DayBasis = (monthlySalaryVal, unpaidDaysVal) => {
+    const monthlySalary = Math.max(0, Number(monthlySalaryVal) || 0);
+    const unpaidLeaveDays = Math.max(0, Number(unpaidDaysVal) || 0);
+    const perDaySalary = monthlySalary > 0 ? monthlySalary / FIXED_SALARY_DAYS : 0;
+    const salaryDeduction = Number(Math.min(monthlySalary, perDaySalary * unpaidLeaveDays).toFixed(2));
+    const finalPayableSalary = Number(Math.max(0, monthlySalary - salaryDeduction).toFixed(2));
+    return {
+      monthlySalary,
+      perDaySalary: Number(perDaySalary.toFixed(2)),
+      unpaidLeaveDays,
+      salaryDeduction,
+      finalPayableSalary,
+    };
+  };
+
   const handleSelectEmployee = (empId) => {
     const selectedEmp = employees.find((emp) => String(emp.id) === String(empId));
 
@@ -91,18 +144,16 @@ const AddSalary = () => {
           `${selectedEmp.name} is ineligible: ${(selectedEmp.beneficiary_issues || []).join(', ')}.`
         );
       }
-      const basic = selectedEmp.basic_salary ? Number(selectedEmp.basic_salary).toFixed(2) : '0.00';
-      const leaveDed = Number(selectedEmp.leave_deduction_amount || 0);
-      const deductions = leaveDed.toFixed(2);
-      const net = Math.max(0, Number(basic) - leaveDed).toFixed(2);
+      const basicNum = Number(selectedEmp.basic_salary || 0);
+      const calc = calculateSalaryFrom30DayBasis(basicNum, selectedEmp.unpaid_leave_days);
 
       setFormData((prev) => ({
         ...prev,
         employee_id: String(empId),
         leave_id: selectedEmp.primary_leave_id || '',
-        basic_salary: basic,
-        total_deductions: deductions,
-        net_salary: net,
+        basic_salary: basicNum.toFixed(2),
+        total_deductions: calc.salaryDeduction.toFixed(2),
+        net_salary: calc.finalPayableSalary.toFixed(2),
       }));
     } else {
       setFormData((prev) => ({
@@ -119,13 +170,15 @@ const AddSalary = () => {
   const handleAmountChange = (e) => {
     const val = e.target.value;
     const basic = Number(val) || 0;
-    const deductions = Number(formData.total_deductions) || 0;
-    const net = Math.max(0, basic - deductions).toFixed(2);
+    const selectedEmp = employees.find((emp) => String(emp.id) === String(formData.employee_id));
+    const unpaidDays = Number(selectedEmp?.unpaid_leave_days || 0);
+    const calc = calculateSalaryFrom30DayBasis(basic, unpaidDays);
 
     setFormData((prev) => ({
       ...prev,
       basic_salary: val,
-      net_salary: net,
+      total_deductions: calc.salaryDeduction.toFixed(2),
+      net_salary: calc.finalPayableSalary.toFixed(2),
     }));
   };
 
@@ -153,19 +206,22 @@ const AddSalary = () => {
     if (name === 'payment_date' && formData.user_type && value.slice(0, 7) !== prevMonth) {
       try {
         setLoading(true);
-        const res = await fetchEmployeesByTypeApi(formData.user_type, { payment_date: value });
+        const res = await fetchEmployeesByTypeApi(formData.user_type, {
+          payment_date: value,
+          only_beneficiaries: 1,
+        });
         const list = res?.data?.employees || res?.employees || [];
         setEmployees(list);
         if (formData.employee_id) {
           const updatedEmp = list.find((emp) => String(emp.id) === String(formData.employee_id));
           if (updatedEmp) {
-            const basic = Number(updatedEmp.basic_salary || formData.basic_salary || 0);
-            const leaveDed = Number(updatedEmp.leave_deduction_amount || 0);
+            const basic = Number(formData.basic_salary || updatedEmp.basic_salary || 0);
+            const calc = calculateSalaryFrom30DayBasis(basic, updatedEmp.unpaid_leave_days);
             setFormData((prev) => ({
               ...prev,
               leave_id: updatedEmp.primary_leave_id || '',
-              total_deductions: leaveDed.toFixed(2),
-              net_salary: Math.max(0, basic - leaveDed).toFixed(2),
+              total_deductions: calc.salaryDeduction.toFixed(2),
+              net_salary: calc.finalPayableSalary.toFixed(2),
             }));
           }
         }
@@ -571,8 +627,15 @@ const AddSalary = () => {
                   {/* Payment Date */}
                   <div className="col-md-3">
                     <div className="mb-3">
-                      <label className="form-label">
-                        Payment Date <span className="text-danger">*</span>
+                      <label className="form-label d-flex align-items-center justify-content-between">
+                        <span>
+                          Payment Date <span className="text-danger">*</span>
+                        </span>
+                        {configuredSalaryDate && (
+                          <span className="badge bg-info-subtle text-info fs-10">
+                            Admin Set: {configuredSalaryDate}
+                          </span>
+                        )}
                       </label>
                       <input
                         type="date"
@@ -583,6 +646,12 @@ const AddSalary = () => {
                         onChange={handleChange}
                         required
                       />
+                      <small className="text-muted fs-11 d-block mt-1">
+                        Uses configured date from{' '}
+                        <Link to="/admin/settings/salary-date" className="text-primary text-decoration-none">
+                          Salary Date Settings
+                        </Link>
+                      </small>
                     </div>
                   </div>
                 </div>
@@ -620,26 +689,46 @@ const AddSalary = () => {
                             </Link>
                           )}
                         </div>
-                        <div className="d-flex flex-wrap gap-4 mt-2 pt-2 border-top small text-muted">
-                          <div>
-                            <strong>Salary Period:</strong> {selectedEmployeeObj.salary_month} ({selectedEmployeeObj.days_in_month} days)
-                          </div>
-                          <div>
-                            <strong>Paid Leave:</strong> {Number(selectedEmployeeObj.paid_leave_days || 0)} day(s)
-                          </div>
-                          <div>
-                            <strong>Unpaid Leave:</strong>{' '}
-                            <span className={Number(selectedEmployeeObj.unpaid_leave_days || 0) > 0 ? 'text-danger fw-bold' : 'text-dark'}>
-                              {Number(selectedEmployeeObj.unpaid_leave_days || 0)} day(s)
-                            </span>
-                          </div>
-                          <div>
-                            <strong>Leave-Based Deduction:</strong>{' '}
-                            <span className="text-danger fw-bold">
-                              ₹{Number(selectedEmployeeObj.leave_deduction_amount || 0).toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
+                        {(() => {
+                          const liveCalc = calculateSalaryFrom30DayBasis(
+                            formData.basic_salary || selectedEmployeeObj.basic_salary,
+                            selectedEmployeeObj.unpaid_leave_days
+                          );
+                          return (
+                            <div className="d-flex flex-wrap gap-4 mt-2 pt-2 border-top small text-muted">
+                              <div>
+                                <strong>Salary Period:</strong> {selectedEmployeeObj.salary_month} (30 days basis)
+                              </div>
+                              <div>
+                                <strong>Per-Day Salary:</strong>{' '}
+                                <span className="text-dark fw-semibold">
+                                  ₹{liveCalc.perDaySalary.toFixed(2)}/day
+                                </span>
+                              </div>
+                              <div>
+                                <strong>Paid Leave:</strong> {Number(selectedEmployeeObj.paid_leave_days || 0)} day(s)
+                              </div>
+                              <div>
+                                <strong>Unpaid Leave:</strong>{' '}
+                                <span className={liveCalc.unpaidLeaveDays > 0 ? 'text-danger fw-bold' : 'text-dark'}>
+                                  {liveCalc.unpaidLeaveDays} day(s)
+                                </span>
+                              </div>
+                              <div>
+                                <strong>Leave Deduction:</strong>{' '}
+                                <span className="text-danger fw-bold">
+                                  ₹{liveCalc.salaryDeduction.toFixed(2)}
+                                </span>
+                              </div>
+                              <div>
+                                <strong>Final Payable Salary:</strong>{' '}
+                                <span className="text-success fw-bold">
+                                  ₹{Number(formData.net_salary || liveCalc.finalPayableSalary).toFixed(2)}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

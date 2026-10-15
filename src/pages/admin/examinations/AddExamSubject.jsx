@@ -42,13 +42,15 @@ const AddExamSubject = () => {
   const fetchExamsAndClasses = async () => {
     try {
       const activeBranchId = localStorage.getItem('active_branch_id');
-      const params = { status: 1 };
+      const examParams = {};
+      const classParams = {};
       if (activeBranchId && activeBranchId !== 'all') {
-        params.branch_id = activeBranchId;
+        examParams.branch_id = activeBranchId;
+        classParams.branch_id = activeBranchId;
       }
       const [exRes, clsRes] = await Promise.all([
-        adminExaminationApi.getAllExams(params),
-        adminAcademicApi.getAllClasses(params),
+        adminExaminationApi.getAllExams(examParams),
+        adminAcademicApi.getAllClasses(classParams),
       ]);
 
       const examsList = Array.isArray(exRes?.data?.exams)

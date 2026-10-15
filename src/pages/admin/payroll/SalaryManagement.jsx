@@ -10,6 +10,11 @@ import {
   processBulkSalaryApi,
   retryFailedSalariesApi,
 } from '../../../api/adminPayroll.api';
+import {
+  getSalaryDatesApi,
+  createSalaryDateApi,
+  updateSalaryDateApi,
+} from '../../../api/adminMiscSetting.api';
 import { fetchTeacherSalariesApi } from '../../../api/teacherPayroll.api';
 import { numberToWords } from '../../../utils/numberToWords';
 import { resolveImageUrl } from '../../../utils/url.util';
@@ -41,6 +46,12 @@ const SalaryManagement = () => {
   const [selectedHistoryIds, setSelectedHistoryIds] = useState([]);
   const [retrying, setRetrying] = useState(false);
 
+  // Admin-configured salary payment date state (from settings_salary_date table)
+  const [salaryDateSetting, setSalaryDateSetting] = useState(null);
+  const [showSalaryDateModal, setShowSalaryDateModal] = useState(false);
+  const [salaryDateForm, setSalaryDateForm] = useState({ salary_date: '', status: 1 });
+  const [savingSalaryDate, setSavingSalaryDate] = useState(false);
+
   // Bulk Salary Payment Workspace state (Bulk-only mode: always active for Admin)
   const [bulkStep, setBulkStep] = useState('select'); // 'select' | 'review' | 'result'
   const [bulkMonth, setBulkMonth] = useState(() => new Date().toISOString().slice(0, 7));
@@ -65,6 +76,9 @@ const SalaryManagement = () => {
       setLoading(true);
       const fetchFn = isTeacher ? fetchTeacherSalariesApi : fetchSalariesApi;
       const res = await fetchFn().catch(() => null);
+      if (res?.data?.salary_date_setting) {
+        setSalaryDateSetting(res.data.salary_date_setting);
+      }
       if (res?.data?.salaries) {
         setSalaries(res.data.salaries);
       } else if (res?.salaries) {
@@ -93,6 +107,14 @@ const SalaryManagement = () => {
           user_type: targetType || undefined,
         });
         const list = res?.data?.candidates || res?.candidates || [];
+        const setting = res?.data?.salary_date_setting || res?.salary_date_setting || null;
+        const confDate = res?.data?.configured_salary_date || setting?.configured_salary_date || null;
+        if (setting) {
+          setSalaryDateSetting(setting);
+        }
+        if (confDate) {
+          setBulkPaymentDate(confDate);
+        }
         setCandidates(list);
         // Keep only selected keys that are still eligible & not already paid
         setSelectedCandidateKeys((prev) =>
@@ -103,7 +125,7 @@ const SalaryManagement = () => {
         );
       } catch (err) {
         console.error('Error loading bulk salary candidates:', err);
-        toast.error(err?.response?.data?.message || 'Failed to load employees for bulk salary.');
+        toast.error(err?.response?.data?.message || 'Failed to load registered beneficiaries for salary payment.');
         setCandidates([]);
       } finally {
         setLoadingCandidates(false);
@@ -114,14 +136,18 @@ const SalaryManagement = () => {
 
   useEffect(() => {
     loadData();
-    const handleBranchChange = () => {
+    const handleRefresh = () => {
       loadData();
       if (!isTeacher) {
         loadBulkCandidates();
       }
     };
-    window.addEventListener('branch_changed', handleBranchChange);
-    return () => window.removeEventListener('branch_changed', handleBranchChange);
+    window.addEventListener('branch_changed', handleRefresh);
+    window.addEventListener('salary_date_updated', handleRefresh);
+    return () => {
+      window.removeEventListener('branch_changed', handleRefresh);
+      window.removeEventListener('salary_date_updated', handleRefresh);
+    };
   }, [loadData, isTeacher, loadBulkCandidates]);
 
   useEffect(() => {
@@ -129,6 +155,72 @@ const SalaryManagement = () => {
       loadBulkCandidates(bulkMonth, bulkUserType);
     }
   }, [bulkMonth, bulkUserType, isTeacher, loadBulkCandidates]);
+
+  const handleOpenSalaryDateModal = async () => {
+    try {
+      const res = await getSalaryDatesApi({ limit: 5, salary_month: bulkMonth }).catch(() => null);
+      const active = res?.data?.activeSalaryDate || salaryDateSetting;
+      if (active) {
+        setSalaryDateSetting(active);
+        setSalaryDateForm({
+          salary_date: active.configured_salary_date || active.salary_date || bulkPaymentDate,
+          status: Number(active.status) === 2 ? 2 : 1,
+        });
+      } else {
+        setSalaryDateForm({
+          salary_date: bulkPaymentDate || new Date().toISOString().split('T')[0],
+          status: 1,
+        });
+      }
+    } catch {
+      setSalaryDateForm({
+        salary_date: salaryDateSetting?.configured_salary_date || bulkPaymentDate || new Date().toISOString().split('T')[0],
+        status: 1,
+      });
+    }
+    setShowSalaryDateModal(true);
+  };
+
+  const handleSaveSalaryDateSetting = async (e) => {
+    e.preventDefault();
+    if (!salaryDateForm.salary_date) {
+      toast.warning('Please select a salary payment date.');
+      return;
+    }
+    try {
+      setSavingSalaryDate(true);
+      let res;
+      if (salaryDateSetting?.id) {
+        res = await updateSalaryDateApi(salaryDateSetting.id, {
+          salary_date: salaryDateForm.salary_date,
+          status: Number(salaryDateForm.status) || 1,
+        });
+      } else {
+        res = await createSalaryDateApi({
+          salary_date: salaryDateForm.salary_date,
+          status: Number(salaryDateForm.status) || 1,
+        });
+      }
+      const updatedActive = res?.data?.activeSalaryDate || null;
+      const newDate = res?.data?.configured_salary_date || salaryDateForm.salary_date;
+      if (updatedActive) {
+        setSalaryDateSetting(updatedActive);
+      }
+      setBulkPaymentDate(newDate);
+      if (newDate && newDate.slice(0, 7) !== bulkMonth) {
+        setBulkMonth(newDate.slice(0, 7));
+      }
+      setShowSalaryDateModal(false);
+      toast.success('Salary payment date configured in settings_salary_date.');
+      window.dispatchEvent(new Event('salary_date_updated'));
+      await loadBulkCandidates(newDate ? newDate.slice(0, 7) : bulkMonth, bulkUserType);
+    } catch (err) {
+      console.error('Error saving salary date setting:', err);
+      toast.error(err?.response?.data?.message || 'Failed to save salary date configuration.');
+    } finally {
+      setSavingSalaryDate(false);
+    }
+  };
 
   const handleStatusChange = async (id, newStatus) => {
     if (isTeacher) return;
@@ -160,7 +252,10 @@ const SalaryManagement = () => {
       setRetrying(true);
       const res = await retryFailedSalariesApi({
         salary_ids: validIds,
-        payment_date: new Date().toISOString().split('T')[0],
+        payment_date:
+          salaryDateSetting?.configured_salary_date ||
+          bulkPaymentDate ||
+          new Date().toISOString().split('T')[0],
       });
       const summary = res?.data?.summary || res?.summary || {};
       const results = res?.data?.results || res?.results || [];
@@ -249,21 +344,26 @@ const SalaryManagement = () => {
     }));
   };
 
-  // Compute live salary values for a candidate including leave deduction + custom additional deduction
+  // Compute live salary values for a candidate using fixed 30-day month basis:
+  // Per-Day Salary = Monthly Salary / 30
+  // Salary Deduction = Per-Day Salary * Unpaid Leave Days
+  // Final Payable Salary = Monthly Salary - Salary Deduction (- Additional Deductions)
   const computeCandidateNumbers = useCallback(
     (c) => {
+      const FIXED_SALARY_DAYS = 30;
       const key = getCandidateKey(c);
       const adj = customAdjustments[key] || {};
       const hasCustomBase = adj.basic_salary !== undefined && adj.basic_salary !== '';
       const baseSalary = hasCustomBase
         ? Math.max(0, Number(adj.basic_salary) || 0)
         : Number(c.basic_salary || 0);
-      const daysInMonth = Number(c.days_in_month || 30);
       const unpaidLeaveDays = Number(c.unpaid_leave_days || 0);
-      const perDaySalary = daysInMonth > 0 ? Number((baseSalary / daysInMonth).toFixed(2)) : 0;
-      const leaveDeduction = hasCustomBase
-        ? Number(Math.min(baseSalary, unpaidLeaveDays * (daysInMonth > 0 ? baseSalary / daysInMonth : 0)).toFixed(2))
-        : Number(c.leave_deduction_amount || 0);
+      const rawPerDaySalary = baseSalary > 0 ? baseSalary / FIXED_SALARY_DAYS : 0;
+      const perDaySalary = Number(rawPerDaySalary.toFixed(2));
+      const leaveDeduction =
+        baseSalary > 0 && unpaidLeaveDays > 0
+          ? Number(Math.min(baseSalary, rawPerDaySalary * unpaidLeaveDays).toFixed(2))
+          : 0;
       const additionalDeduction = Math.max(0, Number(adj.additional_deductions || 0));
       const totalDeductions = Number(Math.min(baseSalary, leaveDeduction + additionalDeduction).toFixed(2));
       const finalPayable = Number(Math.max(0, baseSalary - totalDeductions).toFixed(2));
@@ -797,9 +897,6 @@ const SalaryManagement = () => {
                 <i className="ti ti-users-group text-primary me-2 fs-20"></i>
                 Bulk Salary Payment & Leave Deduction Calculator
               </h4>
-              <small className="text-muted">
-                Select multiple eligible employees (with beneficiary or bank account details) to process salaries in a single bulk operation. Unpaid leave deductions are calculated automatically.
-              </small>
             </div>
             <div className="d-flex align-items-center gap-2">
               <span
@@ -843,13 +940,24 @@ const SalaryManagement = () => {
                         const m = e.target.value;
                         setBulkMonth(m);
                         if (m && !bulkPaymentDate.startsWith(m)) {
-                          setBulkPaymentDate(`${m}-01`);
+                          const dayNum = salaryDateSetting?.salary_day || 1;
+                          const [yr, mo] = m.split('-').map(Number);
+                          const maxD = new Date(yr, mo, 0).getDate();
+                          const clamped = String(Math.min(dayNum, maxD)).padStart(2, '0');
+                          setBulkPaymentDate(`${m}-${clamped}`);
                         }
                       }}
                     />
                   </div>
                   <div className="col-md-2">
-                    <label className="form-label fw-semibold small mb-1">Payment Date</label>
+                    <label className="form-label fw-semibold small mb-1 d-flex align-items-center justify-content-between">
+                      <span>Payment Date</span>
+                      {salaryDateSetting?.salary_day && (
+                        <span className="badge bg-info-subtle text-info border border-info-subtle" style={{ fontSize: '10px' }}>
+                          Day {salaryDateSetting.salary_day}
+                        </span>
+                      )}
+                    </label>
                     <input
                       type="date"
                       className="form-control form-control-sm"
@@ -864,16 +972,16 @@ const SalaryManagement = () => {
                     />
                   </div>
                   <div className="col-md-2">
-                    <label className="form-label fw-semibold small mb-1">Employee Role</label>
+                    <label className="form-label fw-semibold small mb-1">Beneficiary Type</label>
                     <select
                       className="form-select form-select-sm"
                       value={bulkUserType}
                       onChange={(e) => setBulkUserType(e.target.value)}
                     >
-                      <option value="">All Roles (Teacher / Staff / Driver)</option>
-                      <option value="2">Teacher</option>
-                      <option value="1">Staff</option>
-                      <option value="3">Driver</option>
+                      <option value="">All Registered Types</option>
+                      <option value="1">1 - Staff (user_master)</option>
+                      <option value="2">2 - Teacher (teacher_master)</option>
+                      <option value="3">3 - Driver (operator_master)</option>
                     </select>
                   </div>
                   <div className="col-md-2">
@@ -883,12 +991,12 @@ const SalaryManagement = () => {
                       value={bulkEligibilityFilter}
                       onChange={(e) => setBulkEligibilityFilter(e.target.value)}
                     >
-                      <option value="all">All Employees ({candidates.length})</option>
+                      <option value="all">All Beneficiaries ({candidates.length})</option>
                       <option value="eligible">
                         Eligible & Unpaid ({candidates.filter((c) => c.is_beneficiary_verified && !c.is_already_paid).length})
                       </option>
                       <option value="ineligible">
-                        Missing Bank/Beneficiary ({candidates.filter((c) => !c.is_beneficiary_verified).length})
+                        Missing Bank ({candidates.filter((c) => !c.is_beneficiary_verified).length})
                       </option>
                       <option value="paid">
                         Already Paid ({candidates.filter((c) => c.is_already_paid).length})
@@ -907,7 +1015,7 @@ const SalaryManagement = () => {
                     </select>
                   </div>
                   <div className="col-md-2">
-                    <label className="form-label fw-semibold small mb-1">Search Employee</label>
+                    <label className="form-label fw-semibold small mb-1">Search Beneficiary</label>
                     <input
                       type="search"
                       className="form-control form-control-sm"
@@ -1106,18 +1214,24 @@ const SalaryManagement = () => {
                                 </div>
                                 {Array.isArray(c.leave_breakdown) && c.leave_breakdown.length > 0 ? (
                                   <div className="mt-1">
-                                    {c.leave_breakdown.map((lb, lIdx) => (
-                                      <div key={lIdx} className="fs-11 text-muted">
-                                        • {lb.leave_name}: {lb.total_days}d{' '}
-                                        {lb.unpaid_days > 0 ? (
-                                          <span className="text-danger">
-                                            ({lb.unpaid_days}d unpaid = -₹{Number(lb.deduction_amount).toFixed(2)})
-                                          </span>
-                                        ) : (
-                                          <span className="text-success">(Paid)</span>
-                                        )}
-                                      </div>
-                                    ))}
+                                    {c.leave_breakdown.map((lb, lIdx) => {
+                                      const lbDeduction =
+                                        nums.baseSalary > 0 && Number(lb.unpaid_days || 0) > 0
+                                          ? (nums.baseSalary / 30) * Number(lb.unpaid_days)
+                                          : Number(lb.deduction_amount || 0);
+                                      return (
+                                        <div key={lIdx} className="fs-11 text-muted">
+                                          • {lb.leave_name}: {lb.total_days}d{' '}
+                                          {lb.unpaid_days > 0 ? (
+                                            <span className="text-danger">
+                                              ({lb.unpaid_days}d unpaid = -₹{Number(lbDeduction).toFixed(2)})
+                                            </span>
+                                          ) : (
+                                            <span className="text-success">(Paid)</span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
                                   </div>
                                 ) : (
                                   <small className="text-muted fs-11">No leaves in {bulkMonth}</small>
@@ -1136,11 +1250,6 @@ const SalaryManagement = () => {
                                     handleAdjustmentChange(key, 'basic_salary', e.target.value)
                                   }
                                 />
-                                {nums.perDaySalary > 0 && (
-                                  <div className="fs-10 text-muted mt-0.5">
-                                    ₹{nums.perDaySalary.toFixed(2)}/day ({c.days_in_month}d)
-                                  </div>
-                                )}
                               </td>
                               <td className="text-end text-danger fw-medium">
                                 {nums.leaveDeduction > 0 ? `-₹${nums.leaveDeduction.toFixed(2)}` : '₹0.00'}
