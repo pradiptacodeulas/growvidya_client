@@ -191,8 +191,10 @@ const AddExamAttendance = () => {
         return;
       }
 
-      const activeYear = yearId || selectedYearId;
-      const activeBranchId = localStorage.getItem('active_branch_id');
+      const activeYear = yearId !== undefined ? yearId : selectedYearId;
+      const activeBranchId = isTeacher
+        ? (teacher?.branch_id || teacher?.branchId || null)
+        : localStorage.getItem('active_branch_id');
       const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       // Load scheduled subjects specifically for this exam, class, and academic year
       const schedRes = await adminExaminationApi.getExamSchedules({
@@ -250,7 +252,8 @@ const AddExamAttendance = () => {
           activeExam,
           classId,
           targetSubject,
-          targetSubObj?.schedule_id
+          targetSubObj?.schedule_id,
+          activeYear
         );
       }
     } catch (err) {
@@ -318,7 +321,7 @@ const AddExamAttendance = () => {
     }
   };
 
-  const fetchStudentsList = async (examId, classId, subjectId, scheduleId = '') => {
+  const fetchStudentsList = async (examId, classId, subjectId, scheduleId = '', yearId = undefined) => {
     if (!examId || !classId || !subjectId) {
       toast.warning('Please select Exam, Class, and Subject.');
       return;
@@ -327,13 +330,16 @@ const AddExamAttendance = () => {
     try {
       setLoading(true);
       setHasSearched(true);
-      const activeBranchId = localStorage.getItem('active_branch_id');
+      const effectiveYearId = yearId !== undefined ? yearId : selectedYearId;
+      const activeBranchId = isTeacher
+        ? (teacher?.branch_id || teacher?.branchId || null)
+        : localStorage.getItem('active_branch_id');
       const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const res = await adminExaminationApi.getStudentsForExamAttendance({
         exam_id: examId,
         class_id: classId,
         subject_id: subjectId,
-        academic_year_id: selectedYearId || undefined,
+        academic_year_id: effectiveYearId || undefined,
         exam_schedule_id: scheduleId || currentScheduleId || queryScheduleId || undefined,
         roster: 1,
         ...branchParam,

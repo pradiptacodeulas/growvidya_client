@@ -5,6 +5,7 @@ import ParentLayout from '../layouts/ParentLayout';
 
 const ParentDashboard = lazy(() => import('../pages/parent/ParentDashboard'));
 const ParentChildProfile = lazy(() => import('../pages/parent/ParentChildProfile'));
+const ParentSyllabus = lazy(() => import('../pages/parent/ParentSyllabus'));
 const ParentStudyMaterial = lazy(() => import('../pages/parent/ParentStudyMaterial'));
 const ParentFees = lazy(() => import('../pages/parent/ParentFees'));
 const ParentAttendance = lazy(() => import('../pages/parent/ParentAttendance'));
@@ -15,6 +16,7 @@ const ParentTransport = lazy(() => import('../pages/parent/ParentTransport'));
 const ParentHostel = lazy(() => import('../pages/parent/ParentHostel'));
 const ParentMedical = lazy(() => import('../pages/parent/ParentMedical'));
 const ParentDocuments = lazy(() => import('../pages/parent/ParentDocuments'));
+const ParentNotices = lazy(() => import('../pages/parent/ParentNotices'));
 const ParentProfile = lazy(() => import('../pages/parent/ParentProfile'));
 const ParentMessages = lazy(() => import('../pages/parent/ParentMessages'));
 
@@ -25,6 +27,7 @@ export const parentRoutes = (
       <Route path="dashboard" element={<ParentDashboard />} />
       <Route path="profile/child" element={<ParentChildProfile />} />
       <Route path="child-profile" element={<ParentChildProfile />} />
+      <Route path="syllabus" element={<ParentSyllabus />} />
       <Route path="studymaterial" element={<ParentStudyMaterial />} />
       <Route path="study-material" element={<ParentStudyMaterial />} />
       <Route path="fees" element={<ParentFees />} />
@@ -41,6 +44,8 @@ export const parentRoutes = (
       <Route path="medical" element={<ParentMedical />} />
       <Route path="documents" element={<ParentDocuments />} />
       <Route path="document" element={<ParentDocuments />} />
+      <Route path="notices" element={<ParentNotices />} />
+      <Route path="notice-board" element={<ParentNotices />} />
       <Route path="profile" element={<ParentProfile />} />
       <Route path="edit-profile" element={<ParentProfile />} />
       <Route path="profile-settings" element={<ParentProfile />} />

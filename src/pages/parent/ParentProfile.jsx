@@ -6,7 +6,7 @@ import apiClient from '../../api/axios.config';
 import { getParentProfileApi, updateParentProfileApi } from '../../api/parentAuth.api';
 import { uploadFileApi } from '../../api/upload.api';
 import { updateParentState } from '../../store/slices/parentAuthSlice';
-import { resolveImageUrl, maleUserDefault } from '../../utils/url.util';
+import Avatar from '../../components/common/Avatar';
 
 const ParentProfile = () => {
   const dispatch = useDispatch();
@@ -340,29 +340,14 @@ const ParentProfile = () => {
             <div className="card shadow-sm border-0 mb-0">
               <div className="card-body text-center p-3">
                 <div className="position-relative d-inline-block mb-2" style={{ width: '90px', height: '90px' }}>
-                  <div
-                    style={{
-                      width: '90px',
-                      height: '90px',
-                      borderRadius: '50%',
-                      overflow: 'hidden',
-                      border: '2px solid #e2e8f0',
-                      backgroundColor: '#f8fafc',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <img
-                      src={resolveImageUrl(formData.picture, maleUserDefault)}
-                      alt={fullName}
-                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = maleUserDefault;
-                      }}
-                    />
-                  </div>
+                  <Avatar
+                    src={formData.picture}
+                    name={fullName}
+                    size={90}
+                    rounded={true}
+                    className="rounded-circle"
+                    style={{ border: '2px solid #e2e8f0' }}
+                  />
 
                   <label
                     htmlFor="parent_photo_upload"

@@ -83,7 +83,9 @@ const ExamAttendance = () => {
   const fetchInitialData = async () => {
     try {
       setInitialLoading(true);
-      const activeBranchId = localStorage.getItem('active_branch_id');
+      const activeBranchId = isTeacher
+        ? (teacher?.branch_id || teacher?.branchId || null)
+        : localStorage.getItem('active_branch_id');
       const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const fetchClasses = isTeacher ? fetchTeacherClassesApi : adminAcademicApi.getAllClasses;
       const [exRes, clsRes, yrRes] = await Promise.all([
@@ -180,7 +182,13 @@ const ExamAttendance = () => {
       : exams;
 
     const isCurrentValid = matchedExams.some((ex) => String(ex.id) === String(selectedExam));
-    const nextExam = isCurrentValid ? selectedExam : (matchedExams.length > 0 ? String(matchedExams[0].id) : '');
+    const nextExam = isCurrentValid
+      ? selectedExam
+      : matchedExams.length > 0
+      ? String(matchedExams[0].id)
+      : !yearId && exams.length > 0
+      ? String(exams[0].id)
+      : '';
     setSelectedExam(nextExam);
 
     if (nextExam && selectedClass) {
@@ -200,7 +208,9 @@ const ExamAttendance = () => {
       return;
     }
     try {
-      const activeBranchId = localStorage.getItem('active_branch_id');
+      const activeBranchId = isTeacher
+        ? (teacher?.branch_id || teacher?.branchId || null)
+        : localStorage.getItem('active_branch_id');
       const branchParam = activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {};
       const res = await adminAcademicApi.fetchSectionsApi({ class_id: classId, status: 1, ...branchParam });
       const secList = Array.isArray(res?.data)
@@ -223,6 +233,10 @@ const ExamAttendance = () => {
     setSelectedSection('');
     if (classId) {
       await fetchSectionsForClass(classId);
+      if (selectedExam) {
+        setCurrentPage(1);
+        fetchAttendance(selectedExam, classId, '', selectedYear, 1, pageSize, searchTerm);
+      }
     } else {
       setSections([]);
     }
@@ -232,7 +246,7 @@ const ExamAttendance = () => {
     examId = selectedExam,
     classId = selectedClass,
     sectionId = selectedSection,
-    yearId = selectedYear,
+    yearId = undefined,
     page = currentPage,
     limit = pageSize,
     search = searchTerm
@@ -249,12 +263,15 @@ const ExamAttendance = () => {
       const targetLimit = Number(limit) || 10;
       setCurrentPage(targetPage);
 
-      const activeBranchId = localStorage.getItem('active_branch_id');
+      const effectiveYear = yearId !== undefined ? yearId : selectedYear;
+      const activeBranchId = isTeacher
+        ? (teacher?.branch_id || teacher?.branchId || null)
+        : localStorage.getItem('active_branch_id');
       const params = {
         exam_id: examId,
         class_id: classId,
         section_id: sectionId || undefined,
-        academic_year_id: yearId || selectedYear || undefined,
+        academic_year_id: effectiveYear || undefined,
         page: targetPage,
         limit: targetLimit,
         ...(activeBranchId && activeBranchId !== 'all' ? { branch_id: activeBranchId } : {}),

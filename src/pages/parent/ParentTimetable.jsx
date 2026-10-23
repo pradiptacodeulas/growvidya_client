@@ -4,7 +4,6 @@ import { Link } from 'react-router-dom';
 import { fetchChildTimetableApi } from '../../api/parentChild.api';
 import Avatar from '../../components/common/Avatar';
 import NoData from '../../components/common/NoData';
-import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
 
 // Format time string HH:MM:SS to HH:MM AM/PM
@@ -112,20 +111,13 @@ const ParentTimetable = () => {
         <div className="card-body p-3 p-md-4">
           <div className="d-md-flex align-items-center justify-content-between">
             <div className="d-flex align-items-center mb-3 mb-md-0">
-              <div
-                className="avatar avatar-xxl rounded-circle border border-2 border-primary border-opacity-25 flex-shrink-0 me-3 shadow-2xs"
-                style={{ width: '60px', height: '60px', overflow: 'hidden' }}
-              >
-                <img
-                  src={photo || maleUserDefault}
-                  alt={fullName}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = maleUserDefault;
-                  }}
-                />
-              </div>
+              <Avatar
+                src={photo}
+                name={fullName}
+                size={60}
+                rounded={true}
+                className="rounded-circle border border-2 border-primary border-opacity-25 flex-shrink-0 me-3 shadow-2xs"
+              />
               <div>
                 <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
                   <h4 className="fw-bold text-dark mb-0 fs-18">{fullName}</h4>

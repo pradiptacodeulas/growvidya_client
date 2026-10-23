@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { fetchParentDashboardApi } from '../../api/parentDashboard.api';
 import { switchStudent } from '../../store/slices/parentAuthSlice';
-import { resolveImageUrl, maleUserDefault } from '../../utils/url.util';
+import Avatar from '../../components/common/Avatar';
 import NoData from '../../components/common/NoData';
 
 const ParentDashboard = () => {
@@ -57,7 +57,6 @@ const ParentDashboard = () => {
 
   const currentChild = dashboardData.activeChild || activeChild;
   const childName = currentChild?.full_name || `${currentChild?.first_name || ''} ${currentChild?.last_name || ''}`.trim() || 'Student';
-  const childImg = resolveImageUrl(currentChild?.picture);
 
   return (
     <div className="content">
@@ -75,15 +74,12 @@ const ParentDashboard = () => {
             <div className="col-lg-7 mb-3 mb-lg-0">
               <div className="d-flex align-items-center">
                 <div className="position-relative me-3 flex-shrink-0">
-                  <img
-                    src={childImg || maleUserDefault}
-                    alt={childName}
+                  <Avatar
+                    src={currentChild?.picture}
+                    name={childName}
+                    size={76}
+                    rounded={true}
                     className="rounded-circle border border-3 border-white border-opacity-25 shadow"
-                    style={{ width: '76px', height: '76px', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = maleUserDefault;
-                    }}
                   />
                   <span
                     className={`position-absolute bottom-0 end-0 ${
@@ -144,7 +140,6 @@ const ParentDashboard = () => {
                   {children && children.length > 0 ? (
                     Array.from(new Map(children.map((c) => [c.id, c])).values()).map((c, idx) => {
                       const isActive = activeChild?.id === c.id;
-                      const cPhoto = resolveImageUrl(c.picture);
                       const isChildActive = Number(c.student_status ?? c.status) === 1;
                       return (
                         <button
@@ -158,15 +153,12 @@ const ParentDashboard = () => {
                           onClick={() => handleChildSwitch(c.id)}
                           disabled={switching}
                         >
-                          <img
-                            src={cPhoto || maleUserDefault}
+                          <Avatar
+                            src={c.picture}
+                            name={c.first_name || c.full_name}
+                            size={22}
+                            rounded={true}
                             className="rounded-circle"
-                            style={{ width: '22px', height: '22px', objectFit: 'cover' }}
-                            alt={c.first_name}
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = maleUserDefault;
-                            }}
                           />
                           <span>{c.first_name || c.full_name}</span>
                           <span
@@ -420,10 +412,13 @@ const ParentDashboard = () => {
         {/* School Announcements / Notices */}
         <div className="col-lg-6">
           <div className="card shadow-sm border-0 h-100">
-            <div className="card-header bg-transparent border-bottom py-3">
+            <div className="card-header bg-transparent border-bottom d-flex align-items-center justify-content-between py-3">
               <h5 className="card-title mb-0 fs-16 fw-bold text-dark">
-                <i className="ti ti-bell me-2 text-primary"></i>School Notices & Announcements
+                <i className="ti ti-bell me-2 text-primary"></i>School Notices &amp; Announcements
               </h5>
+              <Link to="/parent/notices" className="btn btn-sm btn-outline-primary rounded-pill px-3 py-0 fs-12">
+                View All
+              </Link>
             </div>
             <div className="card-body p-3">
               {dashboardData.notices && dashboardData.notices.length > 0 ? (
@@ -431,13 +426,21 @@ const ParentDashboard = () => {
                   {dashboardData.notices.map((notice, idx) => (
                     <div key={notice.id || idx} className="list-group-item px-0 py-2">
                       <div className="d-flex justify-content-between align-items-start">
-                        <h6 className="mb-1 fw-bold fs-13 text-dark">{notice.title}</h6>
+                        <h6
+                          className="mb-1 fw-bold fs-13 text-dark"
+                          style={{ lineHeight: '1.6', paddingTop: '2px' }}
+                        >
+                          {notice.title}
+                        </h6>
                         <span className="badge bg-light text-muted border fs-10">
                           {notice.created_at ? new Date(notice.created_at).toLocaleDateString() : ''}
                         </span>
                       </div>
-                      <p className="mb-0 fs-12 text-muted text-truncate" style={{ maxWidth: '480px' }}>
-                        {notice.message || notice.description || ''}
+                      <p
+                        className="mb-0 fs-12 text-muted text-truncate"
+                        style={{ maxWidth: '480px', lineHeight: '1.6', paddingTop: '2px', paddingBottom: '2px' }}
+                      >
+                        {String(notice.message || notice.description || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim()}
                       </p>
                     </div>
                   ))}

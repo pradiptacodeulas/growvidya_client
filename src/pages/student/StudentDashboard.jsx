@@ -335,15 +335,13 @@ const StudentDashboard = () => {
           ) : (
             <div className="row g-3">
               {notices.slice(0, 3).map((notice) => {
-                const isClassTargeted = notice.target_type === 'class_section';
-                const classLabel = isClassTargeted
-                  ? (notice.target_class_names?.length > 0 ? notice.target_class_names.join(', ') : 'Class Notice')
-                  : 'School-Wide';
                 const stripHtml = (html) => {
                   if (!html) return '';
-                  const tmp = document.createElement('DIV');
-                  tmp.innerHTML = html;
-                  return tmp.textContent || tmp.innerText || '';
+                  return String(html)
+                    .replace(/<[^>]*>/g, ' ')
+                    .replace(/&nbsp;/gi, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
                 };
                 const rawExcerpt = stripHtml(notice.message);
                 const excerpt =
@@ -354,34 +352,35 @@ const StudentDashboard = () => {
                 return (
                   <div key={notice.id} className="col-12 col-md-4">
                     <div
-                      className="card h-100 border rounded-3 p-3 shadow-xs d-flex flex-column"
+                      className="card h-100 border rounded-3 p-3 shadow-xs d-flex flex-column mb-0"
                       style={{
                         backgroundColor: '#f8fafc',
-                        borderLeft: '4px solid #2460e7 !important',
+                        borderLeft: '4px solid #2460e7',
                         transition: 'transform 0.2s ease, box-shadow 0.2s ease',
                       }}
                     >
                       <div className="d-flex align-items-center justify-content-between mb-2">
-                        <span
-                          className={`badge px-2 py-0.5 fs-10 rounded-pill ${
-                            isClassTargeted
-                              ? 'bg-primary-subtle text-primary border border-primary-subtle'
-                              : 'bg-success-subtle text-success border border-success-subtle'
-                          }`}
-                        >
-                          {classLabel}
-                        </span>
                         <span className="text-muted fs-11">
+                          <i className="ti ti-calendar me-1 text-primary"></i>
                           {notice.publish_on || notice.notice_date || ''}
                         </span>
                       </div>
                       <h6
                         className="fw-bold text-dark mb-1 fs-14 text-truncate"
                         title={notice.title}
+                        style={{ lineHeight: '1.6', paddingTop: '3px', paddingBottom: '2px' }}
                       >
                         {notice.title}
                       </h6>
-                      <p className="text-muted fs-12 mb-3 flex-grow-1" style={{ lineHeight: '1.4' }}>
+                      <p
+                        className="text-muted fs-12 mb-3 flex-grow-1"
+                        style={{
+                          lineHeight: '1.6',
+                          paddingTop: '2px',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'break-word',
+                        }}
+                      >
                         {excerpt}
                       </p>
                       <div className="pt-2 border-top mt-auto d-flex justify-content-end">
@@ -417,48 +416,39 @@ const StudentDashboard = () => {
           >
             <div className="modal-content rounded-4 border-0 shadow-lg">
               <div className="modal-header border-bottom px-4 py-3 bg-light rounded-top-4">
-                <div className="d-flex align-items-center gap-2 overflow-hidden">
-                  <span className="badge bg-primary text-white p-2 rounded-circle">
+                <div className="d-flex align-items-center gap-2 overflow-hidden flex-grow-1 me-2" style={{ minWidth: 0 }}>
+                  <span className="badge bg-primary text-white p-2 rounded-circle flex-shrink-0">
                     <i className="ti ti-speakerphone fs-16"></i>
                   </span>
-                  <div>
-                    <h5 className="modal-title fw-bold text-dark fs-18 text-truncate">
+                  <div className="overflow-hidden" style={{ minWidth: 0 }}>
+                    <h5
+                      className="modal-title fw-bold text-dark fs-18 text-truncate mb-0"
+                      style={{ lineHeight: '1.6', paddingTop: '3px', paddingBottom: '2px' }}
+                    >
                       {selectedNotice.title}
                     </h5>
-                    <small className="text-muted fs-12">
-                      Notice Date: {selectedNotice.notice_date || selectedNotice.publish_on || ''}
+                    <small className="text-muted fs-12 d-block">
+                      {selectedNotice.notice_date || selectedNotice.publish_on || ''}
                     </small>
                   </div>
                 </div>
                 <button
                   type="button"
-                  className="btn-close"
+                  className="btn-close flex-shrink-0"
                   onClick={() => setSelectedNotice(null)}
                   aria-label="Close"
                 ></button>
               </div>
 
               <div className="modal-body p-4" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                <div className="d-flex flex-wrap align-items-center gap-2 mb-3">
-                  <span className="badge bg-primary-subtle text-primary border px-2.5 py-1 fs-12 rounded-pill">
-                    <i className="ti ti-tag me-1"></i>
-                    {selectedNotice.target_type === 'class_section'
-                      ? (selectedNotice.target_class_names?.length > 0
-                          ? `Class: ${selectedNotice.target_class_names.join(', ')}`
-                          : 'Class Notice')
-                      : 'School-Wide Notice'}
-                  </span>
-                  {selectedNotice.publish_on && (
-                    <span className="badge bg-light text-muted border px-2.5 py-1 fs-12 rounded-pill">
-                      <i className="ti ti-calendar-event me-1"></i>
-                      Publish Date: {selectedNotice.publish_on}
-                    </span>
-                  )}
-                </div>
-
                 <div
-                  className="notice-html-content p-3 bg-light rounded-3 border fs-14"
-                  style={{ minHeight: '120px', lineHeight: '1.6' }}
+                  className="notice-html-content p-3 bg-light rounded-3 border fs-14 text-dark"
+                  style={{
+                    minHeight: '100px',
+                    lineHeight: '1.6',
+                    wordBreak: 'break-word',
+                    overflowWrap: 'break-word',
+                  }}
                   dangerouslySetInnerHTML={{
                     __html: selectedNotice.message || '<p class="text-muted mb-0">No details provided.</p>',
                   }}

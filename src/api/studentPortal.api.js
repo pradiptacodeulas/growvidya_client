@@ -33,6 +33,11 @@ export const fetchStudentExamResultsApi = async () => {
 };
 
 
+export const fetchStudentSyllabusApi = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return apiClient.get(`/student/portal/syllabus${query ? `?${query}` : ''}`);
+};
+
 export const fetchStudentStudyMaterialsApi = async () => {
   return apiClient.get('/student/portal/study-materials');
 };

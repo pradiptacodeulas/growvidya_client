@@ -136,11 +136,7 @@ const StaffList = () => {
     );
   };
 
-  const handleDeleteClick = (id, name, adminType) => {
-    if (Number(adminType) === 1) {
-      toast.warning('Super Admin accounts are system protected and cannot be deleted.');
-      return;
-    }
+  const handleDeleteClick = (id, name) => {
     setDeleteModal({ show: true, id, name });
   };
 
@@ -349,17 +345,11 @@ const StaffList = () => {
         accessorKey: 'role_name',
         header: 'Role',
         sortable: true,
-        cell: ({ row, value }) => {
-          const isSuperAdmin = Number(row?.admin_type) === 1 || String(value || '').toLowerCase().trim() === 'super admin';
-          const roleText = isSuperAdmin ? 'Super Admin' : (value || '--');
-          
-          return (
-            <span className={`badge ${isSuperAdmin ? 'badge-soft-warning' : 'bg-light text-dark border'} px-2.5 py-1.5 fw-medium`}>
-              {isSuperAdmin && <i className="ti ti-lock me-1"></i>}
-              {roleText}
-            </span>
-          );
-        },
+        cell: ({ value }) => (
+          <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-medium">
+            {value || '--'}
+          </span>
+        ),
       },
       {
         accessorKey: 'branch_name',
@@ -412,7 +402,6 @@ const StaffList = () => {
         align: 'center',
         sortable: false,
         cell: ({ row }) => {
-          const isSuperAdmin = Number(row?.admin_type) === 1 || String(row?.role_name || '').toLowerCase().trim() === 'super admin';
           const menuItems = [
             {
               label: 'View',
@@ -424,17 +413,14 @@ const StaffList = () => {
               icon: 'ti ti-edit-circle text-primary',
               to: `/admin/users/edit/${encodeParam(row.id)}`,
             },
-          ];
-
-          if (!isSuperAdmin) {
-            menuItems.push({
+            {
               label: 'Delete',
               icon: 'ti ti-trash-x',
               variant: 'danger',
               onClick: () =>
-                handleDeleteClick(row.id, `${row.first_name} ${row.last_name || ''}`, row.admin_type),
-            });
-          }
+                handleDeleteClick(row.id, `${row.first_name} ${row.last_name || ''}`),
+            },
+          ];
 
           return <TableActionMenu items={menuItems} />;
         },

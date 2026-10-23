@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
 import { fetchChildProfileApi } from '../../api/parentChild.api';
-import maleUserDefault from '../../assets/male-user.png';
-import { resolveImageUrl } from '../../utils/url.util';
+import Avatar from '../../components/common/Avatar';
 
 const ParentChildProfile = () => {
   const { activeChild } = useSelector((state) => state.parentAuth);
@@ -37,7 +36,6 @@ const ParentChildProfile = () => {
     currentChild?.full_name ||
     `${currentChild?.first_name || ''} ${currentChild?.last_name || ''}`.trim() ||
     'Student';
-  const photo = resolveImageUrl(currentChild?.picture);
 
   const formatDate = (dateVal) => {
     if (!dateVal) return 'N/A';
@@ -80,20 +78,13 @@ const ParentChildProfile = () => {
         <div className="card-body p-3 p-md-4">
           <div className="d-md-flex align-items-center justify-content-between">
             <div className="d-flex align-items-center mb-3 mb-md-0">
-              <div
-                className="avatar avatar-xxl rounded-circle border border-2 border-primary border-opacity-25 flex-shrink-0 me-3 shadow-2xs position-relative"
-                style={{ width: '64px', height: '64px', overflow: 'hidden' }}
-              >
-                <img
-                  src={photo || maleUserDefault}
-                  alt={fullName}
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onError={(e) => {
-                    e.currentTarget.onerror = null;
-                    e.currentTarget.src = maleUserDefault;
-                  }}
-                />
-              </div>
+              <Avatar
+                src={currentChild?.picture}
+                name={fullName}
+                size={64}
+                rounded={true}
+                className="rounded-circle border border-2 border-primary border-opacity-25 flex-shrink-0 me-3 shadow-2xs"
+              />
               <div>
                 <div className="d-flex align-items-center gap-2 mb-1 flex-wrap">
                   <h4 className="fw-bold text-dark mb-0 fs-18">{fullName}</h4>

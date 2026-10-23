@@ -39,6 +39,10 @@ export const fetchChildExamResultsApi = async (studentId) => {
 };
 
 
+export const fetchChildSyllabusApi = async (studentId, params = {}) => {
+  return apiClient.get(withStudent('/parent/child/syllabus', studentId, params));
+};
+
 export const fetchChildStudyMaterialsApi = async (studentId) => {
   return apiClient.get(withStudent('/parent/child/study-materials', studentId));
 };
@@ -69,6 +73,10 @@ export const fetchChildActivitiesApi = async (studentId) => {
 
 export const fetchChildDocumentsApi = async (studentId) => {
   return apiClient.get(withStudent('/parent/child/documents', studentId));
+};
+
+export const fetchParentNoticesApi = async (studentId) => {
+  return apiClient.get(withStudent('/parent/child/notices', studentId));
 };
 
 export const fetchParentAcademicYearsApi = async () => {

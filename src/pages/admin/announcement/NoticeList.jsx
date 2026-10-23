@@ -888,7 +888,10 @@ const NoticeList = () => {
                   <i className="ti ti-notification fs-16"></i>
                 </span>
                 <div>
-                  <h6 className="mb-1 fw-semibold">
+                  <h6
+                    className="mb-1 fw-semibold"
+                    style={{ lineHeight: '1.6', paddingTop: '2px', paddingBottom: '1px' }}
+                  >
                     <a
                       href="javascript:void(0);"
                       onClick={() => handleOpenView(notice)}
@@ -992,7 +995,10 @@ const NoticeList = () => {
                   <span className="avatar avatar-sm bg-soft-primary text-primary me-2 rounded-circle d-flex align-items-center justify-content-center">
                     <i className="ti ti-bell fs-16"></i>
                   </span>
-                  <h4 className="modal-title fs-18 fw-semibold mb-0">
+                  <h4
+                    className="modal-title fs-18 fw-semibold mb-0"
+                    style={{ lineHeight: '1.6', paddingTop: '2px', paddingBottom: '2px' }}
+                  >
                     {viewModal.notice.title}
                   </h4>
                 </div>
@@ -1008,14 +1014,13 @@ const NoticeList = () => {
                 </button>
               </div>
               <div className="modal-body p-4">
-                <div className="mb-4 p-3 bg-light rounded border">
-                  <p
-                    className="mb-0 text-dark"
-                    style={{ whiteSpace: 'pre-wrap', lineHeight: '1.7' }}
-                  >
-                    {viewModal.notice.message || 'No additional message details.'}
-                  </p>
-                </div>
+                <div
+                  className="mb-4 p-3 bg-light rounded border text-dark"
+                  style={{ lineHeight: '1.7' }}
+                  dangerouslySetInnerHTML={{
+                    __html: viewModal.notice.message || '<p class="text-muted mb-0">No additional message details.</p>',
+                  }}
+                />
 
                 <div className="mb-3">
                   <div className="p-3 border rounded bg-white">

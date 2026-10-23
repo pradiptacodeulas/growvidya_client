@@ -85,7 +85,7 @@ const StudentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             {/* Notifications Dropdown (Notices & Messages) */}
             <NavbarNotificationDropdown
               messagesPath="/student/messages"
-              noticesPath="/student/dashboard"
+              noticesPath="/student/notices"
               notices={[]}
             />
 
@@ -150,18 +150,10 @@ const StudentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
 
                   <Link
                     className="dropdown-item d-inline-flex align-items-center p-2 text-dark fs-13"
-                    to="/student/dashboard"
+                    to="/student/profile"
                     onClick={() => setDropdownOpen(false)}
                   >
-                    <i className="ti ti-dashboard me-2 text-muted"></i>Dashboard
-                  </Link>
-
-                  <Link
-                    className="dropdown-item d-inline-flex align-items-center p-2 text-dark fs-13"
-                    to="/student/assignments"
-                    onClick={() => setDropdownOpen(false)}
-                  >
-                    <i className="ti ti-school me-2 text-muted"></i>Assignments
+                    <i className="ti ti-user-circle me-2 text-muted"></i>My Profile
                   </Link>
 
                   <Link

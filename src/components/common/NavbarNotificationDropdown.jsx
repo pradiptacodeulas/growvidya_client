@@ -342,12 +342,18 @@ const NavbarNotificationDropdown = ({
                           <i className="ti ti-note fs-14"></i>
                         </span>
                         <div className="overflow-hidden flex-fill">
-                          <p className="mb-1 fs-13 fw-semibold text-dark text-truncate">
+                          <p
+                            className="mb-1 fs-13 fw-semibold text-dark text-truncate"
+                            style={{ lineHeight: '1.6', paddingTop: '2px', paddingBottom: '1px' }}
+                          >
                             {notice.title}
                           </p>
                           {notice.message && (
-                            <p className="mb-1 fs-12 text-muted text-truncate">
-                              {notice.message}
+                            <p
+                              className="mb-1 fs-12 text-muted text-truncate"
+                              style={{ lineHeight: '1.6', paddingTop: '2px', paddingBottom: '1px' }}
+                            >
+                              {String(notice.message).replace(/<[^>]*>/g, ' ').replace(/&nbsp;/gi, ' ').replace(/\s+/g, ' ').trim()}
                             </p>
                           )}
                           <span className="fs-11 text-muted d-block">

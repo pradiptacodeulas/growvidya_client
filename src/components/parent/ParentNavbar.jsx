@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { logoutParent, switchStudent } from '../../store/slices/parentAuthSlice';
-import { fetchParentAcademicYearsApi } from '../../api/parentChild.api';
-import maleUserDefault from '../../assets/male-user.png';
-import { resolveImageUrl } from '../../utils/url.util';
+import { fetchParentAcademicYearsApi, fetchParentNoticesApi } from '../../api/parentChild.api';
 import NavbarNotificationDropdown from '../common/NavbarNotificationDropdown';
+import Avatar from '../common/Avatar';
 
 const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
@@ -13,8 +12,8 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const { parent, activeChild, children } = useSelector((state) => state.parentAuth);
 
   const [darkMode, setDarkMode] = useState(false);
-  const [academicYears, setAcademicYears] = useState([]);
   const [selectedYear, setSelectedYear] = useState('');
+  const [notifications, setNotifications] = useState([]);
   const [switching, setSwitching] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [hasUnread, setHasUnread] = useState(true);
@@ -45,7 +44,6 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
           : [];
 
         if (years.length > 0) {
-          setAcademicYears(years);
           const activeYear =
             years.find((y) => Number(y.is_current) === 1 || String(y.is_current) === '1' || y.isCurrent) ||
             years[0];
@@ -60,6 +58,30 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
 
     loadAcademicYears();
   }, []);
+
+  useEffect(() => {
+    const loadNotices = async () => {
+      try {
+        const res = await fetchParentNoticesApi(activeChild?.id);
+        const list = Array.isArray(res?.data?.data)
+          ? res.data.data
+          : Array.isArray(res?.data?.notices)
+          ? res.data.notices
+          : Array.isArray(res?.data)
+          ? res.data
+          : [];
+        setNotifications(list);
+      } catch (err) {
+        console.error('Failed to load notices for parent navbar:', err);
+      }
+    };
+
+    loadNotices();
+    window.addEventListener('growvidya:new_notice', loadNotices);
+    return () => {
+      window.removeEventListener('growvidya:new_notice', loadNotices);
+    };
+  }, [activeChild?.id]);
 
   const handleLogout = (e) => {
     e.preventDefault();
@@ -91,13 +113,11 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
     parent?.name ||
     `${parent?.firstName || parent?.first_name || ''} ${parent?.lastName || parent?.last_name || ''}`.trim() ||
     'Parent';
-  const parentImg = resolveImageUrl(parent?.picture);
 
   const activeChildName =
     activeChild?.full_name ||
     `${activeChild?.first_name || ''} ${activeChild?.last_name || ''}`.trim() ||
     'Student';
-  const activeChildImg = resolveImageUrl(activeChild?.picture);
 
   return (
     <div className="header">
@@ -130,37 +150,15 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
           <div className="me-auto"></div>
 
           <div className="d-flex align-items-center">
-            {/* Academic Year Dropdown */}
-            <div className="dropdown me-2">
-              <a
-                href="#"
-                onClick={(e) => e.preventDefault()}
-                className="btn btn-outline-light fw-normal bg-white d-flex align-items-center p-2 shadow-none text-dark"
-                data-bs-toggle="dropdown"
-                aria-expanded="false"
-              >
+            {/* Current Academic Year Badge */}
+            {selectedYear && (
+              <div className="me-2 d-none d-sm-flex align-items-center bg-white border rounded px-2 py-1 text-dark fw-medium fs-13 shadow-none">
                 <i className="ti ti-calendar-due me-1 text-primary"></i>
-                Academic Year : {selectedYear}
-              </a>
-              <div className="dropdown-menu dropdown-menu-right shadow-sm">
-                {academicYears.length > 0 ? (
-                  academicYears.map((yr) => (
-                    <a
-                      key={yr.id || yr.academic_year}
-                      href="javascript:void(0);"
-                      className={`dropdown-item d-flex align-items-center ${
-                        selectedYear === (yr.academic_year || yr.name) ? 'active' : ''
-                      }`}
-                      onClick={() => setSelectedYear(yr.academic_year || yr.name)}
-                    >
-                      Academic Year : {yr.academic_year || yr.name}
-                    </a>
-                  ))
-                ) : (
-                  <span className="dropdown-item text-muted disabled">No Academic Years</span>
-                )}
+                <span>
+                  Academic Year : <strong className="text-primary">{selectedYear}</strong>
+                </span>
               </div>
-            </div>
+            )}
 
             {/* Active Child Switcher Pill */}
             {children && children.length > 0 && (
@@ -172,15 +170,12 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   aria-expanded="false"
                   disabled={switching}
                 >
-                  <img
-                    src={activeChildImg || maleUserDefault}
-                    alt={activeChildName}
+                  <Avatar
+                    src={activeChild?.picture}
+                    name={activeChildName}
+                    size={22}
+                    rounded={true}
                     className="rounded-circle"
-                    style={{ width: '22px', height: '22px', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = maleUserDefault;
-                    }}
                   />
                   <span className="fs-13 fw-semibold text-dark text-truncate" style={{ maxWidth: '130px' }}>
                     {activeChildName}
@@ -210,7 +205,6 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   {/* Deduplicated unique children list */}
                   {Array.from(new Map(children.map((c) => [c.id, c])).values()).map((child, idx) => {
                     const isSelected = activeChild?.id === child.id;
-                    const cImg = resolveImageUrl(child.picture);
                     const cName = child.full_name || `${child.first_name || ''} ${child.last_name || ''}`.trim();
                     const isChildActive = Number(child.student_status ?? child.status) === 1;
                     return (
@@ -223,15 +217,12 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                           onClick={() => handleChildSwitch(child.id)}
                         >
                           <div className="d-flex align-items-center gap-2 overflow-hidden">
-                            <img
-                              src={cImg || maleUserDefault}
-                              alt={cName}
+                            <Avatar
+                              src={child.picture}
+                              name={cName}
+                              size={28}
+                              rounded={true}
                               className="rounded-circle flex-shrink-0"
-                              style={{ width: '28px', height: '28px', objectFit: 'cover' }}
-                              onError={(e) => {
-                                e.currentTarget.onerror = null;
-                                e.currentTarget.src = maleUserDefault;
-                              }}
                             />
                             <div className="text-truncate">
                               <div className="d-flex align-items-center gap-1">
@@ -278,19 +269,8 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             {/* Notifications Dropdown (Notices & Messages) */}
             <NavbarNotificationDropdown
               messagesPath="/parent/messages"
-              noticesPath="/parent/dashboard"
-              notices={[
-                {
-                  id: 1,
-                  title: 'Monthly attendance and routine report updated.',
-                  publish_on: 'Recent',
-                },
-                {
-                  id: 2,
-                  title: 'Upcoming exam results and marksheets available.',
-                  publish_on: 'Recent',
-                },
-              ]}
+              noticesPath="/parent/notices"
+              notices={notifications}
             />
 
             {/* Fullscreen Button */}
@@ -318,34 +298,25 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                 data-bs-toggle="dropdown"
                 aria-expanded="false"
               >
-                <span className="avatar avatar-md rounded overflow-hidden">
-                  <img
-                    src={parentImg || maleUserDefault}
-                    alt={parentName}
-                    className="img-fluid rounded"
-                    style={{ width: '38px', height: '38px', objectFit: 'cover' }}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = maleUserDefault;
-                    }}
-                  />
-                </span>
+                <Avatar
+                  src={parent?.picture}
+                  name={parentName}
+                  size={36}
+                  rounded={true}
+                  className="avatar-md rounded-circle"
+                />
               </a>
 
               <div className="dropdown-menu dropdown-menu-end shadow-sm border p-0" style={{ minWidth: '220px' }}>
                 <div className="d-block">
                   <div className="d-flex align-items-center p-2">
-                    <span className="avatar avatar-md me-2 online avatar-rounded overflow-hidden">
-                      <img
-                        src={parentImg || maleUserDefault}
-                        alt={parentName}
-                        style={{ width: '38px', height: '38px', objectFit: 'cover' }}
-                        onError={(e) => {
-                          e.currentTarget.onerror = null;
-                          e.currentTarget.src = maleUserDefault;
-                        }}
-                      />
-                    </span>
+                    <Avatar
+                      src={parent?.picture}
+                      name={parentName}
+                      size={40}
+                      rounded={true}
+                      className="avatar-md me-2 online avatar-rounded"
+                    />
                     <div className="overflow-hidden">
                       <h6 className="mb-0 fw-bold text-dark text-truncate">{parentName}</h6>
                       <span className="text-muted fs-11 text-truncate d-block">{parent?.email || 'Parent Account'}</span>

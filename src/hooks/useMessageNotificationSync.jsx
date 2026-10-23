@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
 import {
   fetchUnreadSummaryThunk,
   addIncomingMessage,
@@ -12,7 +11,6 @@ import {
   subscribeToWebPush,
   getNotificationPermission,
 } from '../services/webPush.service';
-import { toast } from '../utils/customToast';
 import { playNotificationChime } from '../utils/notificationAudio';
 
 /**
@@ -21,7 +19,6 @@ import { playNotificationChime } from '../utils/notificationAudio';
  */
 export const useMessageNotificationSync = () => {
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -72,43 +69,6 @@ export const useMessageNotificationSync = () => {
       // Play soft audio chime
       playNotificationChime();
 
-      // Show interactive in-app toast notification
-      const senderName =
-        incomingMsg.sender_name ||
-        (senderRole ? senderRole.charAt(0).toUpperCase() + senderRole.slice(1) : 'New Message');
-      const rawText = incomingMsg.message || (incomingMsg.file ? '📎 Sent an attachment' : 'Sent you a message');
-      const previewText = rawText.length > 70 ? rawText.substring(0, 67) + '...' : rawText;
-
-      toast.info(
-        <div
-          style={{ cursor: 'pointer', minWidth: '220px' }}
-          onClick={() => {
-            const currentPath = window.location.pathname || '';
-            let basePath = '/admin/message';
-            if (currentPath.startsWith('/teacher')) basePath = '/teacher/messages';
-            else if (currentPath.startsWith('/student')) basePath = '/student/messages';
-            else if (currentPath.startsWith('/parent')) basePath = '/parent/messages';
-            navigate(`${basePath}?contactId=${senderId}&contactRole=${senderRole}`);
-          }}
-        >
-          <div className="d-flex align-items-center justify-content-between mb-1 gap-2">
-            <span className="fw-bold fs-13 text-dark text-truncate">{senderName}</span>
-            <span className="badge bg-primary text-white fs-10 text-capitalize flex-shrink-0">
-              {senderRole}
-            </span>
-          </div>
-          <div className="fs-12 text-muted text-truncate" style={{ maxWidth: '240px' }}>
-            {previewText}
-          </div>
-        </div>,
-        {
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-        }
-      );
-
       // Dispatch window event in case other listeners want to respond
       try {
         window.dispatchEvent(
@@ -147,38 +107,6 @@ export const useMessageNotificationSync = () => {
     const handleNewNotice = (notice) => {
       if (!notice) return;
       playNotificationChime();
-
-      toast.info(
-        <div
-          style={{ cursor: 'pointer', minWidth: '220px' }}
-          onClick={() => {
-            const currentPath = window.location.pathname || '';
-            let targetPath = '/admin/announcement/notice';
-            if (currentPath.startsWith('/teacher')) targetPath = '/teacher/announcements/notices';
-            else if (currentPath.startsWith('/student')) targetPath = '/student/notices';
-            else if (currentPath.startsWith('/parent')) targetPath = '/parent/notices';
-            navigate(targetPath);
-          }}
-        >
-          <div className="d-flex align-items-center justify-content-between mb-1 gap-2">
-            <span className="fw-bold fs-13 text-dark text-truncate">
-              📢 {notice.title || 'New Notice'}
-            </span>
-            <span className="badge bg-warning text-dark fs-10 flex-shrink-0">
-              Notice
-            </span>
-          </div>
-          <div className="fs-12 text-muted text-truncate" style={{ maxWidth: '240px' }}>
-            Click to view notice details
-          </div>
-        </div>,
-        {
-          autoClose: 6000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-        }
-      );
 
       try {
         window.dispatchEvent(

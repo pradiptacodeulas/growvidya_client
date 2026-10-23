@@ -143,6 +143,16 @@ const ParentSidebar = ({
                 </li>
                 <li>
                   <NavLink
+                    to="/parent/syllabus"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                    onClick={onCloseMobileMenu}
+                  >
+                    <i className="ti ti-book-2"></i>
+                    <span>Syllabus</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
                     to="/parent/studymaterial"
                     className={({ isActive }) => (isActive ? 'active' : '')}
                     onClick={onCloseMobileMenu}
@@ -239,6 +249,16 @@ const ParentSidebar = ({
                   >
                     <i className="ti ti-file-certificate"></i>
                     <span>Documents</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
+                    to="/parent/notices"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                    onClick={onCloseMobileMenu}
+                  >
+                    <i className="ti ti-speakerphone"></i>
+                    <span>Notice Board</span>
                   </NavLink>
                 </li>
                 <li>

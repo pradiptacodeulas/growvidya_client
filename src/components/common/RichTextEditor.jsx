@@ -20,6 +20,13 @@ const RichTextEditor = ({ value, onChange, placeholder = 'Write details here...'
     }
   };
 
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+    document.execCommand('insertText', false, text);
+    handleInput();
+  };
+
   const exec = (command, val = null) => {
     document.execCommand(command, false, val);
     if (editorRef.current) {
@@ -208,6 +215,7 @@ const RichTextEditor = ({ value, onChange, placeholder = 'Write details here...'
         ref={editorRef}
         contentEditable
         onInput={handleInput}
+        onPaste={handlePaste}
         className="p-3 text-dark"
         style={{
           minHeight: '200px',

@@ -22,6 +22,8 @@ const StudentSidebar = ({
   const messageUnreadCount = useSelector((state) => state.messageNotification?.unreadCount || 0);
 
   const isAcademicActive =
+    location.pathname.startsWith('/student/syllabus') ||
+    location.pathname.startsWith('/student/my-syllabus') ||
     location.pathname.startsWith('/student/assignments') ||
     location.pathname.startsWith('/studentacademic/assignment');
 
@@ -125,10 +127,8 @@ const StudentSidebar = ({
           {/* Student Profile Widget */}
           <ul>
             <li className="text-center">
-              <Link
-                to="/student/profile"
-                className="d-flex align-items-center border bg-white rounded p-2 mb-4 text-decoration-none student-sidebar-profile"
-                onClick={onCloseMobileMenu}
+              <div
+                className="d-flex align-items-center border bg-white rounded p-2 mb-4 student-sidebar-profile"
                 title={`${studentName} (Adm: ${admissionNo})`}
               >
                 <img
@@ -149,7 +149,7 @@ const StudentSidebar = ({
                   <span className="text-dark fw-bold d-block text-truncate fs-13" style={{ color: '#1e293b' }}>{studentName}</span>
                   <small className="text-muted d-block fs-11">Adm: {admissionNo}</small>
                 </div>
-              </Link>
+              </div>
             </li>
           </ul>
 
@@ -178,6 +178,15 @@ const StudentSidebar = ({
                     <i className="ti ti-school"></i><span>Academic</span><span className="menu-arrow"></span>
                   </a>
                   <ul style={{ display: openSubmenu.academic ? 'block' : 'none' }}>
+                    <li>
+                      <NavLink
+                        to="/student/syllabus"
+                        className={({ isActive }) => (isActive ? 'active' : '')}
+                        onClick={onCloseMobileMenu}
+                      >
+                        My Syllabus
+                      </NavLink>
+                    </li>
                     <li>
                       <NavLink
                         to="/student/assignments"

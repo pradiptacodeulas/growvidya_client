@@ -9,6 +9,7 @@ const StudentProfile = lazy(() => import('../pages/student/StudentProfile'));
 const StudentTimetable = lazy(() => import('../pages/student/StudentTimetable'));
 const StudentAttendance = lazy(() => import('../pages/student/StudentAttendance'));
 const StudentExamResults = lazy(() => import('../pages/student/StudentExamResults'));
+const StudentSyllabus = lazy(() => import('../pages/student/StudentSyllabus'));
 const StudentStudyMaterial = lazy(() => import('../pages/student/StudentStudyMaterial'));
 const StudentActivities = lazy(() => import('../pages/student/StudentActivities'));
 const StudentFees = lazy(() => import('../pages/student/StudentFees'));
@@ -38,6 +39,8 @@ export const studentRoutes = (
       <Route path="results" element={<StudentExamResults />} />
       <Route path="exam-results" element={<StudentExamResults />} />
       <Route path="result" element={<StudentExamResults />} />
+      <Route path="syllabus" element={<StudentSyllabus />} />
+      <Route path="my-syllabus" element={<StudentSyllabus />} />
       <Route path="study-materials" element={<StudentStudyMaterial />} />
       <Route path="studymaterial" element={<StudentStudyMaterial />} />
       <Route path="activities" element={<StudentActivities />} />
