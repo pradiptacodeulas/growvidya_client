@@ -484,7 +484,7 @@ const SuperAdminDashboard = () => {
           <div className="card flex-fill border-0 shadow-sm">
             <div className="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
               <div className="d-flex align-items-center">
-                <i className="ti ti-crown text-warning fs-3 me-2"></i>
+                <i className="ti ti-crown text-warning fs-20 me-2"></i>
                 <h5 className="card-title mb-0 fw-bold">Organization Subscription</h5>
               </div>
               <span className={`badge ${subscription.status === 'active' ? 'bg-success' : subscription.status === 'trial' ? 'bg-info' : 'bg-secondary'}`}>
@@ -503,7 +503,7 @@ const SuperAdminDashboard = () => {
                   </span>
                 </div>
                 <div className="text-end">
-                  <span className="badge bg-warning text-dark fs-6 px-3 py-2">
+                  <span className="badge bg-warning text-dark fs-14 fw-semibold px-3 py-2">
                     {subscription.daysLeft} Days Left
                   </span>
                 </div>

@@ -227,16 +227,9 @@ const FeesPaymentsList = () => {
         sortable: true,
         cell: ({ row }) => (
           <div>
-            <div className="d-flex align-items-center flex-wrap gap-1">
-              <span className="fw-semibold text-dark">
-                {row.first_name} {row.last_name || ''}
-              </span>
-              {row.branch_name && (
-                <span className="badge bg-primary-transparent text-primary fs-11" title={`Campus: ${row.branch_name}`}>
-                  <i className="ti ti-building me-1"></i>{row.branch_name}
-                </span>
-              )}
-            </div>
+            <span className="fw-semibold text-dark d-block">
+              {row.first_name} {row.last_name || ''}
+            </span>
             <small className="text-muted d-block fs-12">
               Adm: {row.admission_number || 'N/A'}
             </small>
@@ -385,14 +378,6 @@ const FeesPaymentsList = () => {
             title="Refresh"
           >
             <i className="ti ti-refresh"></i>
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
           </button>
 
           <Link

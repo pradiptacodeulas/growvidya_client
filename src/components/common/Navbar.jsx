@@ -9,6 +9,7 @@ import usePermission from '../../hooks/usePermission';
 import { useSubscription } from '../../context/SubscriptionContext';
 import NoData from './NoData';
 import NavbarNotificationDropdown from './NavbarNotificationDropdown';
+import Avatar from './Avatar';
 
 const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
@@ -470,18 +471,26 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             {/* User Profile Avatar & Dropdown */}
             <div className="dropdown ms-1">
               <a href="#" onClick={(e) => e.preventDefault()} className="dropdown-toggle d-flex align-items-center" data-bs-toggle="dropdown">
-                <span className="avatar avatar-md rounded bg-primary text-white d-flex align-items-center justify-content-center fw-bold">
-                  {user?.firstName ? user.firstName[0].toUpperCase() : 'A'}
-                </span>
+                <Avatar
+                  src={user?.picture || user?.profile_image || user?.avatar}
+                  name={user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'}
+                  size={36}
+                  rounded={true}
+                  className="avatar-md rounded-circle"
+                />
               </a>
               <div className="dropdown-menu dropdown-menu-end shadow-sm">
                 <div className="d-block">
                   <div className="d-flex align-items-center p-3">
-                    <span className="avatar avatar-md me-2 online avatar-rounded bg-primary text-white d-flex align-items-center justify-content-center fw-bold">
-                      {user?.firstName ? user.firstName[0].toUpperCase() : 'A'}
-                    </span>
+                    <Avatar
+                      src={user?.picture || user?.profile_image || user?.avatar}
+                      name={user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'Admin'}
+                      size={40}
+                      rounded={true}
+                      className="avatar-md me-2 online avatar-rounded"
+                    />
                     <div>
-                      <h6 className="mb-0 fw-bold">{user?.firstName ? `${user.firstName} ${user.lastName}` : 'admin admin'}</h6>
+                      <h6 className="mb-0 fw-bold">{user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : 'admin admin'}</h6>
                       <p className="text-primary mb-0 fs-12">{user?.roleName || 'Administrator'}</p>
                     </div>
                   </div>

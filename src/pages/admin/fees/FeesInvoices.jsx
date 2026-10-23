@@ -868,11 +868,6 @@ const FeesInvoices = () => {
                             <td className="text-nowrap">
                               <span className="fw-semibold text-dark d-block">
                                 {inv.first_name} {inv.last_name || ''}
-                                {inv.branch_name && (
-                                  <span className="badge bg-primary-transparent text-primary ms-1 fs-11" title={`Campus: ${inv.branch_name}`}>
-                                    <i className="ti ti-building me-1"></i>{inv.branch_name}
-                                  </span>
-                                )}
                               </span>
                               <small className="text-muted d-block fs-12">
                                 Adm: {inv.admission_number || 'N/A'}

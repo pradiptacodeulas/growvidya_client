@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getServerBaseUrl } from '../../utils/url.util';
 
 const getAvatarColors = (name) => {
@@ -69,18 +69,23 @@ const Avatar = ({
   style = {},
 }) => {
   const [imgError, setImgError] = useState(false);
+  useEffect(() => {
+    setImgError(false);
+  }, [src]);
+
   const resolvedUrl = resolveImageUrl(src);
   const colors = getAvatarColors(name);
   const initials = getInitials(name);
   const calculatedFontSize = fontSize || (size <= 28 ? '10px' : size <= 36 ? '12px' : size <= 48 ? '14px' : '18px');
+  const radiusValue = rounded ? '50%' : '8px';
 
   const containerStyle = {
+    position: 'relative',
     width: typeof size === 'number' ? `${size}px` : size,
     height: typeof size === 'number' ? `${size}px` : size,
     minWidth: typeof size === 'number' ? `${size}px` : size,
     minHeight: typeof size === 'number' ? `${size}px` : size,
-    borderRadius: rounded ? '50%' : '8px',
-    overflow: 'hidden',
+    borderRadius: radiusValue,
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -100,6 +105,7 @@ const Avatar = ({
             height: '100%',
             objectFit: 'cover',
             display: 'block',
+            borderRadius: radiusValue,
           }}
           onError={() => setImgError(true)}
         />
