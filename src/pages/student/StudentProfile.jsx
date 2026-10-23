@@ -56,13 +56,13 @@ const StudentProfile = () => {
       last_name: data.last_name || '',
       gender: String(data.gender || '1'),
       date_of_birth: data.date_of_birth ? data.date_of_birth.substring(0, 10) : '',
-      blood_group: data.blood_group || '',
+      blood_group: data.blood_group_name || data.blood_group || '',
       primary_contact_number: data.primary_contact_number || '',
       email_address: data.email_address || '',
-      religion: data.religion || '',
+      religion: data.religion_name || data.religion || '',
       caste: data.caste || '',
-      category: data.category || '',
-      mother_tongue: data.mother_tongue || '',
+      category: data.category_name || data.category || '',
+      mother_tongue: data.mother_tongue_name || data.mother_tongue || '',
       language_known: data.language_known || '',
       picture: '',
     });
@@ -98,11 +98,18 @@ const StudentProfile = () => {
 
     try {
       setSaving(true);
-      const res = await updateStudentProfileApi(formData);
+      const {
+        primary_contact_number,
+        email_address,
+        blood_group,
+        mother_tongue,
+        ...updatePayload
+      } = formData;
+      const res = await updateStudentProfileApi(updatePayload);
       if (res?.data?.success) {
         toast.success('Profile updated successfully!');
         setShowEditModal(false);
-        const updatedStudent = res.data.data || { ...student, ...formData };
+        const updatedStudent = res.data.data || { ...student, ...updatePayload };
         setStudent(updatedStudent);
         dispatch(updateStudentState(updatedStudent));
       } else {
@@ -236,7 +243,9 @@ const StudentProfile = () => {
                   </div>
                   <div className="col-6">
                     <span className="text-muted fs-12 d-block">Mother Tongue</span>
-                    <span className="fw-semibold text-dark fs-13">{activeStudent?.mother_tongue || 'N/A'}</span>
+                    <span className="fw-semibold text-dark fs-13">
+                      {activeStudent?.mother_tongue_name || activeStudent?.mother_tongue || 'N/A'}
+                    </span>
                   </div>
                   <div className="col-6">
                     <span className="text-muted fs-12 d-block">Languages Known</span>
@@ -393,37 +402,22 @@ const StudentProfile = () => {
                       <label className="form-label fs-13 fw-semibold text-dark">Primary Phone</label>
                       <input
                         type="text"
-                        className="form-control"
+                        className="form-control bg-light text-muted"
                         value={formData.primary_contact_number}
-                        onChange={(e) => setFormData({ ...formData, primary_contact_number: e.target.value })}
+                        readOnly
+                        disabled
+                        style={{ cursor: 'not-allowed' }}
                       />
                     </div>
                     <div className="col-12 col-sm-6">
                       <label className="form-label fs-13 fw-semibold text-dark">Email Address</label>
                       <input
                         type="email"
-                        className="form-control"
+                        className="form-control bg-light text-muted"
                         value={formData.email_address}
-                        onChange={(e) => setFormData({ ...formData, email_address: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-12 col-sm-6">
-                      <label className="form-label fs-13 fw-semibold text-dark">Blood Group</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        placeholder="e.g. O+, A+, B+"
-                        value={formData.blood_group}
-                        onChange={(e) => setFormData({ ...formData, blood_group: e.target.value })}
-                      />
-                    </div>
-                    <div className="col-12 col-sm-6">
-                      <label className="form-label fs-13 fw-semibold text-dark">Mother Tongue</label>
-                      <input
-                        type="text"
-                        className="form-control"
-                        value={formData.mother_tongue}
-                        onChange={(e) => setFormData({ ...formData, mother_tongue: e.target.value })}
+                        readOnly
+                        disabled
+                        style={{ cursor: 'not-allowed' }}
                       />
                     </div>
                   </div>

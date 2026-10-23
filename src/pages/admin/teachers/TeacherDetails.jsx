@@ -271,20 +271,12 @@ const TeacherDetails = () => {
                     </span>
                   </dd>
 
-                  <dt className="col-6 fw-medium text-dark mb-3">Assigned Classes</dt>
-                  <dd className="col-6 mb-3 text-dark">
-                    {teacher.assigned_classes || teacher.class_name || 'N/A'}
-                  </dd>
-
                   <dt className="col-6 fw-medium text-dark mb-3">Class Teacher Of</dt>
                   <dd className="col-6 mb-3 text-dark">
                     {teacher.class_name
                       ? `${teacher.class_name}${teacher.section_name ? `, ${teacher.section_name}` : ''}`
                       : 'N/A'}
                   </dd>
-
-                  <dt className="col-6 fw-medium text-dark mb-3">Subject</dt>
-                  <dd className="col-6 mb-3 text-dark">{teacher.subject_name || 'N/A'}</dd>
 
                   <dt className="col-6 fw-medium text-dark mb-3">Gender</dt>
                   <dd className="col-6 mb-3 text-dark">
@@ -478,6 +470,19 @@ const TeacherDetails = () => {
                     }}
                   >
                     <i className="ti ti-school me-2"></i>Teacher Details
+                  </button>
+                </li>
+                <li className="nav-item">
+                  <button
+                    className={`nav-link main-nav-link ${activeTab === 'classes' ? 'active' : ''}`}
+                    onClick={() => setActiveTab('classes')}
+                    type="button"
+                    style={{
+                      color: activeTab === 'classes' ? '#3d5ee1' : '#495057',
+                      fontWeight: activeTab === 'classes' ? '600' : '500',
+                    }}
+                  >
+                    <i className="ti ti-book me-2"></i>Classes &amp; Subjects
                   </button>
                 </li>
                 <li className="nav-item">
@@ -887,6 +892,101 @@ const TeacherDetails = () => {
                 </div>
               </div>
             )}
+
+            {/* TAB: ASSIGNED CLASSES & SUBJECTS */}
+            {activeTab === 'classes' && (() => {
+              const rawAssignments =
+                Array.isArray(teacher.class_assignments) && teacher.class_assignments.length > 0
+                  ? teacher.class_assignments
+                  : teacher.class_name || teacher.subject_name
+                  ? [
+                      {
+                        id: 'default',
+                        class_id: teacher.class,
+                        class_name: teacher.class_name || 'N/A',
+                        subject_id: teacher.subject,
+                        subject_name: teacher.subject_name || 'N/A',
+                      },
+                    ]
+                  : [];
+
+              const groupedByClass = [];
+              const classMap = new Map();
+              rawAssignments.forEach((item) => {
+                const cName = item.class_name || 'Unassigned Class';
+                if (!classMap.has(cName)) {
+                  const entry = { class_name: cName, subjects: [] };
+                  classMap.set(cName, entry);
+                  groupedByClass.push(entry);
+                }
+                if (item.subject_name && !classMap.get(cName).subjects.includes(item.subject_name)) {
+                  classMap.get(cName).subjects.push(item.subject_name);
+                }
+              });
+
+              return (
+                <div className="col-xxl-12 d-flex">
+                  <div className="card flex-fill shadow-sm border">
+                    <div className="card-header bg-white d-flex align-items-center justify-content-between">
+                      <h5 className="fw-bold mb-0">Assigned Classes &amp; Subjects</h5>
+                      <span className="badge bg-primary text-white">
+                        {groupedByClass.length} {groupedByClass.length === 1 ? 'Class' : 'Classes'}
+                      </span>
+                    </div>
+                    <div className="card-body">
+                      {groupedByClass.length > 0 ? (
+                        <div className="row g-3">
+                          {groupedByClass.map((grp, idx) => (
+                            <div key={grp.class_name || idx} className="col-md-6 col-lg-4 d-flex">
+                              <div className="border rounded p-3 bg-light-300 flex-fill">
+                                <div className="d-flex align-items-center mb-2 pb-2 border-bottom">
+                                  <span className="avatar avatar-sm bg-primary-subtle text-primary rounded me-2 flex-shrink-0 d-flex align-items-center justify-content-center">
+                                    <i className="ti ti-chalkboard fs-15"></i>
+                                  </span>
+                                  <div>
+                                    <span className="text-muted fs-11 d-block">Class</span>
+                                    <h6 className="fw-bold text-dark mb-0">{grp.class_name}</h6>
+                                  </div>
+                                </div>
+                                <div>
+                                  <span className="text-dark fw-medium fs-12 d-block mb-2">
+                                    Assigned Subjects ({grp.subjects.length})
+                                  </span>
+                                  {grp.subjects.length > 0 ? (
+                                    <div className="d-flex flex-wrap gap-1">
+                                      {grp.subjects.map((subName, sIdx) => (
+                                        <span
+                                          key={sIdx}
+                                          className="badge bg-white text-dark border px-2 py-1 fw-medium"
+                                        >
+                                          <i className="ti ti-book-2 text-primary me-1"></i>
+                                          {subName}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <span className="text-muted fs-13">N/A</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="py-3">
+                          <NoData
+                            title="No Classes or Subjects Assigned"
+                            message="No classes or subjects have been assigned to this teacher yet."
+                            imageHeight={80}
+                            py={2}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* TAB 2: PAYROLL */}
             {activeTab === 'payroll' && (

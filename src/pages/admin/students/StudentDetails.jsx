@@ -209,7 +209,7 @@ const StudentDetails = () => {
     return String(val);
   };
 
-  const motherTongueStr = getMotherTongueName(student.mother_tongue);
+  const motherTongueStr = getMotherTongueName(student.mother_tongue_name || student.mother_tongue);
 
   const rawLang = student.language_known ? String(student.language_known) : null;
   const languages = rawLang

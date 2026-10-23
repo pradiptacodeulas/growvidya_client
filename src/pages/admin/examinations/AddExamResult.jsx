@@ -359,24 +359,31 @@ const AddExamResult = () => {
       subObj[examTypeId] = numericVal;
 
       // Calculate row total and match grade
+      const hasAnyVal = Object.entries(subObj).some(([eId, v]) => {
+        const isConf = !hasPatternConfig || Boolean(configuredMarksMap[`${subjectId}_${eId}`]);
+        return isConf && v !== undefined && v !== '' && v !== null;
+      });
       const totalRowMarks = Object.entries(subObj).reduce((sum, [eId, v]) => {
         const isConf = !hasPatternConfig || Boolean(configuredMarksMap[`${subjectId}_${eId}`]);
         if (!isConf) return sum;
         return sum + (parseFloat(v) || 0);
       }, 0);
 
-      if (grades.length > 0 && totalRowMarks > 0) {
+      if (grades.length > 0 && hasAnyVal) {
         const matchedGrade = grades.find(
           (g) =>
             totalRowMarks >= (g.percentage_from ?? g.min_percentage ?? 0) &&
             totalRowMarks <= (g.percentage_upto ?? g.max_percentage ?? 100)
         );
-        if (matchedGrade) {
-          setGradesMatrix((gPrev) => ({
-            ...gPrev,
-            [subjectId]: matchedGrade.id,
-          }));
-        }
+        setGradesMatrix((gPrev) => ({
+          ...gPrev,
+          [subjectId]: matchedGrade ? matchedGrade.id : '',
+        }));
+      } else if (!hasAnyVal) {
+        setGradesMatrix((gPrev) => ({
+          ...gPrev,
+          [subjectId]: '',
+        }));
       }
 
       return {
@@ -386,18 +393,6 @@ const AddExamResult = () => {
     });
   };
 
-  const handleGradeChange = (subjectId, gradeId) => {
-    const targetSub = subjects.find((s) => s.subject_id === subjectId);
-    if (targetSub && targetSub.isEditable === false) {
-      return;
-    }
-
-    setGradesMatrix((prev) => ({
-      ...prev,
-      [subjectId]: gradeId,
-    }));
-  };
-
   const calculateSubjectTotal = (subjectId) => {
     const subMarks = marksMatrix[subjectId] || {};
     return Object.entries(subMarks).reduce((acc, [typeId, val]) => {
@@ -405,6 +400,31 @@ const AddExamResult = () => {
       if (!isConfigured) return acc;
       return acc + (parseFloat(val) || 0);
     }, 0);
+  };
+
+  const calculateSubjectGrade = (subjectId) => {
+    const subMarks = marksMatrix[subjectId] || {};
+    const hasAnyEnteredMark = Object.entries(subMarks).some(([typeId, val]) => {
+      const isConfigured = !hasPatternConfig || Boolean(configuredMarksMap[`${subjectId}_${typeId}`]);
+      return isConfigured && val !== undefined && val !== '' && val !== null;
+    });
+
+    if (hasAnyEnteredMark && grades.length > 0) {
+      const totalRowMarks = calculateSubjectTotal(subjectId);
+      const matchedGrade = grades.find(
+        (g) =>
+          totalRowMarks >= (g.percentage_from ?? g.min_percentage ?? 0) &&
+          totalRowMarks <= (g.percentage_upto ?? g.max_percentage ?? 100)
+      );
+      if (matchedGrade) return matchedGrade;
+    }
+
+    const savedGradeId = gradesMatrix[subjectId];
+    if (savedGradeId) {
+      return grades.find((g) => String(g.id) === String(savedGradeId)) || null;
+    }
+
+    return null;
   };
 
   // Check if all configured marks are already submitted
@@ -455,7 +475,8 @@ const AddExamResult = () => {
       const isStudentAbsent = Number(attendanceStatus) === 0 || Number(attendanceStatus) === 2 || String(attendanceStatus).toLowerCase() === 'absent';
 
       const subMarks = marksMatrix[sub.subject_id] || {};
-      const gradeId = gradesMatrix[sub.subject_id] || null;
+      const calculatedGrade = calculateSubjectGrade(sub.subject_id);
+      const gradeId = calculatedGrade?.id || gradesMatrix[sub.subject_id] || null;
 
       let hasAnyMarkForThisSub = false;
 
@@ -1226,29 +1247,8 @@ const AddExamResult = () => {
                                   {calculateSubjectTotal(sub.subject_id)}
                                 </td>
 
-                                <td>
-                                  <select
-                                    className="form-select form-select-sm mx-auto"
-                                    style={{
-                                      width: '120px',
-                                      pointerEvents: !hasSubjectAnyEditable ? 'none' : 'auto',
-                                      backgroundColor: !hasSubjectAnyEditable ? '#f1f5f9' : '#fff',
-                                      cursor: !hasSubjectAnyEditable ? 'not-allowed' : 'default',
-                                    }}
-                                    value={gradesMatrix[sub.subject_id] ?? ''}
-                                    disabled={!hasSubjectAnyEditable}
-                                    onChange={(e) => {
-                                      if (!isSubjectEditable) return;
-                                      handleGradeChange(sub.subject_id, e.target.value);
-                                    }}
-                                  >
-                                    <option value="">Select</option>
-                                    {grades.map((gr) => (
-                                      <option key={gr.id} value={gr.id}>
-                                        {gr.grade_name}
-                                      </option>
-                                    ))}
-                                  </select>
+                                <td className="fw-bold text-dark fs-15">
+                                  {calculateSubjectGrade(sub.subject_id)?.grade_name || '—'}
                                 </td>
                               </tr>
                             );

@@ -73,10 +73,14 @@ const AddStudent = () => {
     });
   };
 
-  // Duplicate Email Validation State
+  // Duplicate Email & Admission Number Validation State
   const [emailError, setEmailError] = useState('');
   const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const emailCheckTimerRef = useRef(null);
+
+  const [admissionNumberError, setAdmissionNumberError] = useState('');
+  const [isCheckingAdmissionNumber, setIsCheckingAdmissionNumber] = useState(false);
+  const admissionNumberCheckTimerRef = useRef(null);
 
   // Tab 1: Personal Info State
   const activeBranchId = localStorage.getItem('active_branch_id');
@@ -651,7 +655,14 @@ const AddStudent = () => {
       try {
         const bRes = await apiClient.get('/admin/branches');
         if (bRes?.data?.data) {
-          setBranches(Array.isArray(bRes.data.data) ? bRes.data.data : []);
+          const loadedBranches = Array.isArray(bRes.data.data) ? bRes.data.data : [];
+          setBranches(loadedBranches);
+          if (loadedBranches.length > 0 && !personalInfo.branch_id && !isEditMode) {
+            const mainBranch = loadedBranches.find((b) => b.is_main_branch === 1 || b.is_main_branch === '1') || loadedBranches[0];
+            if (mainBranch?.id) {
+              setPersonalInfo((prev) => ({ ...prev, branch_id: prev.branch_id || String(mainBranch.id) }));
+            }
+          }
         }
       } catch (bErr) {
         console.warn('Failed to load branches:', bErr);
@@ -796,36 +807,100 @@ const AddStudent = () => {
     setPreviewFn('');
   };
 
+  // Live Admission Number Duplicate Check
+  const checkDuplicateAdmissionNumber = async (admVal, branchOverride) => {
+    const trimmed = String(admVal || '').trim();
+    if (!trimmed) {
+      setAdmissionNumberError('');
+      return false;
+    }
+
+    const targetBranch = branchOverride !== undefined ? branchOverride : personalInfo.branch_id;
+
+    try {
+      setIsCheckingAdmissionNumber(true);
+      const res = await apiClient.get('/admin/students/check-admission-number', {
+        params: {
+          admission_number: trimmed,
+          branch_id: targetBranch || undefined,
+          studentId: isEditMode && id ? id : undefined,
+        },
+      });
+
+      if (res.data?.data?.isDuplicate) {
+        setAdmissionNumberError('This admission number is already assigned to another student in this branch.');
+        return true;
+      } else {
+        setAdmissionNumberError('');
+        return false;
+      }
+    } catch (err) {
+      console.error('Error checking duplicate admission number:', err);
+      return false;
+    } finally {
+      setIsCheckingAdmissionNumber(false);
+    }
+  };
+
+  const handleAdmissionNumberChange = (e) => {
+    const val = e.target.value;
+    setPersonalInfo((prev) => ({ ...prev, admission_number: val }));
+    clearError('admission_number');
+    setAdmissionNumberError('');
+
+    if (admissionNumberCheckTimerRef.current) {
+      clearTimeout(admissionNumberCheckTimerRef.current);
+    }
+
+    admissionNumberCheckTimerRef.current = setTimeout(() => {
+      checkDuplicateAdmissionNumber(val);
+    }, 400);
+  };
+
+  const handleAdmissionNumberBlur = (e) => {
+    const val = e.target.value;
+    if (admissionNumberCheckTimerRef.current) {
+      clearTimeout(admissionNumberCheckTimerRef.current);
+    }
+    checkDuplicateAdmissionNumber(val);
+  };
+
   // Live Email Duplicate Check
-  const checkDuplicateEmail = async (emailVal) => {
+  const checkDuplicateEmail = async (emailVal, branchOverride) => {
     const trimmed = String(emailVal || '').trim();
     if (!trimmed) {
       setEmailError('');
-      return;
+      return false;
     }
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(trimmed)) {
       setEmailError('');
-      return;
+      return false;
     }
+
+    const targetBranch = branchOverride !== undefined ? branchOverride : personalInfo.branch_id;
 
     try {
       setIsCheckingEmail(true);
       const res = await apiClient.get('/admin/students/check-email', {
         params: {
           email: trimmed,
+          branch_id: targetBranch || undefined,
           studentId: isEditMode && id ? id : undefined,
         },
       });
 
       if (res.data?.data?.isDuplicate) {
         setEmailError('This email is already registered to another student.');
+        return true;
       } else {
         setEmailError('');
+        return false;
       }
     } catch (err) {
       console.error('Error checking duplicate email:', err);
+      return false;
     } finally {
       setIsCheckingEmail(false);
     }
@@ -1149,7 +1224,11 @@ const AddStudent = () => {
 
     if (tabToValidate === 'personal') {
       if (!personalInfo.academic_year) newErrors.academic_year = true;
-      if (!personalInfo.admission_number?.trim()) newErrors.admission_number = true;
+      if (!personalInfo.admission_number?.trim()) {
+        newErrors.admission_number = true;
+      } else if (admissionNumberError) {
+        newErrors.admission_number = true;
+      }
       if (!personalInfo.admission_date) newErrors.admission_date = true;
       if (!personalInfo.date_of_birth) newErrors.date_of_birth = true;
       if (!personalInfo.first_name?.trim()) newErrors.first_name = true;
@@ -1239,8 +1318,28 @@ const AddStudent = () => {
     return true;
   };
 
-  const handleNextTab = () => {
+  const handleNextTab = async () => {
     if (!validateCurrentTab()) return;
+
+    if (activeTab === 'personal') {
+      if (admissionNumberCheckTimerRef.current) {
+        clearTimeout(admissionNumberCheckTimerRef.current);
+      }
+      const isDupAdm = await checkDuplicateAdmissionNumber(personalInfo.admission_number);
+      if (isDupAdm) {
+        setErrors((prev) => ({ ...prev, admission_number: true }));
+        return;
+      }
+      if (emailCheckTimerRef.current) {
+        clearTimeout(emailCheckTimerRef.current);
+      }
+      const isDupEmail = await checkDuplicateEmail(personalInfo.email_address);
+      if (isDupEmail) {
+        setErrors((prev) => ({ ...prev, email_address: true }));
+        return;
+      }
+    }
+
     const currentIndex = tabList.findIndex((t) => t.id === activeTab);
     if (currentIndex < tabList.length - 1) {
       const nextIndex = currentIndex + 1;
@@ -1287,6 +1386,12 @@ const AddStudent = () => {
     if (motherImgFile && motherImgFile.size > MAX_IMAGE_SIZE) {
       toast.error("Mother's profile picture exceeds 5 MB. Please upload an image under 5 MB.");
       setActiveTab('parents');
+      return;
+    }
+
+    if (admissionNumberError) {
+      toast.error(admissionNumberError);
+      setActiveTab('personal');
       return;
     }
 
@@ -1350,8 +1455,13 @@ const AddStudent = () => {
       }
     } catch (error) {
       const errMsg = error.response?.data?.message || 'Failed to submit student form.';
-      if (errMsg.toLowerCase().includes('email')) {
+      if (errMsg.toLowerCase().includes('admission')) {
+        setAdmissionNumberError(errMsg);
+        setErrors((prev) => ({ ...prev, admission_number: true }));
+        setActiveTab('personal');
+      } else if (errMsg.toLowerCase().includes('email')) {
         setEmailError(errMsg);
+        setErrors((prev) => ({ ...prev, email_address: true }));
         setActiveTab('personal');
       }
       toast.error(errMsg);
@@ -1471,7 +1581,14 @@ const AddStudent = () => {
                           className="form-select"
                           value={personalInfo.branch_id || ''}
                           onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, branch_id: e.target.value });
+                            const nextBranchId = e.target.value;
+                            setPersonalInfo({ ...personalInfo, branch_id: nextBranchId });
+                            if (personalInfo.admission_number?.trim()) {
+                              checkDuplicateAdmissionNumber(personalInfo.admission_number, nextBranchId);
+                            }
+                            if (personalInfo.email_address?.trim()) {
+                              checkDuplicateEmail(personalInfo.email_address, nextBranchId);
+                            }
                           }}
                         >
                           <option value="">Default / Main Campus</option>
@@ -1505,19 +1622,32 @@ const AddStudent = () => {
                       </div>
 
                       <div className="col-xl-3 col-md-6 mb-3">
-                        <label className="form-label">
-                          Admission Number <span className="text-danger">*</span>
+                        <label className="form-label d-flex justify-content-between align-items-center mb-1">
+                          <span>Admission Number <span className="text-danger">*</span></span>
+                          {isCheckingAdmissionNumber && (
+                            <span className="fs-11 text-muted fw-normal">
+                              <span className="spinner-border spinner-border-sm me-1" style={{ width: '10px', height: '10px' }} />
+                              Checking...
+                            </span>
+                          )}
                         </label>
                         <input
                           type="text"
-                          className={`form-control ${errors.admission_number ? 'is-invalid border-danger' : ''}`}
+                          className={`form-control ${errors.admission_number || admissionNumberError ? 'is-invalid border-danger' : ''}`}
                           placeholder="Enter Admission Number"
                           value={personalInfo.admission_number}
-                          onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, admission_number: e.target.value });
-                            clearError('admission_number');
-                          }}
+                          onChange={handleAdmissionNumberChange}
+                          onBlur={handleAdmissionNumberBlur}
                         />
+                        {admissionNumberError ? (
+                          <div className="text-danger fs-12 mt-1">
+                            {admissionNumberError}
+                          </div>
+                        ) : errors.admission_number ? (
+                          <div className="text-danger fs-12 mt-1">
+                            Admission number is required.
+                          </div>
+                        ) : null}
                       </div>
 
                       <div className="col-xl-3 col-md-6 mb-3">

@@ -78,7 +78,12 @@ export const fetchTeacherSubjectsApi = async (params = {}) => {
 export const fetchTeacherSubjectByIdApi = async (id) =>
   await apiFetch(`/teacher/academics/subjects/${id}`);
 
-// Routine / Timetable
+// Routine / Timetable & Days
+export const fetchTeacherDaysApi = async (params = {}) => {
+  const query = new URLSearchParams(params).toString();
+  return await apiFetch(`/teacher/academics/days${query ? `?${query}` : ''}`);
+};
+
 export const fetchTeacherRoutineApi = async (params = {}) => {
   const query = new URLSearchParams(params).toString();
   return await apiFetch(`/teacher/academics/routine${query ? `?${query}` : ''}`);

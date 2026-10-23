@@ -354,8 +354,9 @@ const ParentFees = () => {
     printHtmlContent(html);
   };
 
-  const getInvoiceStatusBadge = (status, dueDate) => {
+  const getInvoiceStatusBadge = (status, dueDate, latestPaymentStatus) => {
     const s = String(status || '').toLowerCase();
+    const latestPay = String(latestPaymentStatus || '').toLowerCase();
     if (s === 'paid') {
       return (
         <span className="badge bg-success text-white px-2 py-1">
@@ -367,6 +368,13 @@ const ParentFees = () => {
       return (
         <span className="badge bg-warning bg-opacity-25 text-warning-emphasis border border-warning px-2 py-1">
           <i className="fa-solid fa-hourglass-start me-1"></i>Pending Verification
+        </span>
+      );
+    }
+    if (latestPay === 'rejected') {
+      return (
+        <span className="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1">
+          <i className="fa-solid fa-circle-xmark me-1"></i>Payment Rejected
         </span>
       );
     }
@@ -388,6 +396,36 @@ const ParentFees = () => {
     return (
       <span className="badge bg-warning text-dark px-2 py-1">
         <i className="fa-solid fa-clock me-1"></i>Unpaid
+      </span>
+    );
+  };
+
+  const getPaymentStatusBadge = (rec) => {
+    const st = String(rec?.status || '').toLowerCase();
+    if (st === 'rejected') {
+      return (
+        <div>
+          <span className="badge bg-danger bg-opacity-10 text-danger border border-danger px-2 py-1">
+            <i className="fa-solid fa-circle-xmark me-1"></i>Rejected
+          </span>
+          {rec?.rejection_reason && (
+            <div className="fs-11 text-danger mt-1 fw-medium" style={{ maxWidth: '200px', margin: '0 auto' }}>
+              Reason: {rec.rejection_reason}
+            </div>
+          )}
+        </div>
+      );
+    }
+    if (st.includes('pending') || st.includes('verification')) {
+      return (
+        <span className="badge bg-warning bg-opacity-25 text-warning-emphasis border border-warning px-2 py-1">
+          <i className="fa-solid fa-hourglass-start me-1"></i>Pending Verification
+        </span>
+      );
+    }
+    return (
+      <span className="badge bg-success bg-opacity-10 text-success border border-success px-2 py-1">
+        <i className="fa-solid fa-circle-check me-1"></i>Verified / Paid
       </span>
     );
   };
@@ -684,6 +722,19 @@ const ParentFees = () => {
                                   <span className="fw-medium text-dark">{inv.invoice_no}</span>
                                 </p>
 
+                                {String(inv.latest_payment_status || '').toLowerCase() === 'rejected' && (
+                                  <div className="alert alert-danger py-2 px-2.5 mb-3 fs-12 border border-danger-subtle">
+                                    <div className="fw-bold text-danger">
+                                      <i className="fa-solid fa-circle-xmark me-1"></i>Last Payment Rejected
+                                    </div>
+                                    {inv.latest_rejection_reason && (
+                                      <div className="text-danger-emphasis mt-1">
+                                        Reason: {inv.latest_rejection_reason}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
                                 <div className="d-flex align-items-center justify-content-between bg-light p-3 rounded-2 mb-3 border">
                                   <span className="text-muted fs-13 font-semibold">Payable Amount:</span>
                                   <span className="fs-20 fw-bold text-danger">
@@ -714,7 +765,10 @@ const ParentFees = () => {
                                     className="btn btn-primary w-50 fw-bold py-2 shadow-sm"
                                     onClick={() => handleOpenPayModal(inv)}
                                   >
-                                    <i className="fa-solid fa-wallet me-1"></i> Pay Now
+                                    <i className="fa-solid fa-wallet me-1"></i>{' '}
+                                    {String(inv.latest_payment_status || '').toLowerCase() === 'rejected'
+                                      ? 'Re-submit'
+                                      : 'Pay Now'}
                                   </button>
                                 )}
                               </div>
@@ -761,7 +815,13 @@ const ParentFees = () => {
                                 <span className="fw-medium text-dark">{formatDate(inv.due_date)}</span>
                               </td>
                               <td className="text-center">
-                                {getInvoiceStatusBadge(inv.status, inv.due_date)}
+                                {getInvoiceStatusBadge(inv.status, inv.due_date, inv.latest_payment_status)}
+                                {String(inv.latest_payment_status || '').toLowerCase() === 'rejected' &&
+                                  inv.latest_rejection_reason && (
+                                    <div className="fs-11 text-danger mt-1 fw-medium">
+                                      Reason: {inv.latest_rejection_reason}
+                                    </div>
+                                  )}
                               </td>
                               <td className="text-end fw-medium text-muted fs-14">
                                 ₹{formatCurrency(inv.total_amount)}
@@ -793,7 +853,10 @@ const ParentFees = () => {
                                       className="btn btn-sm btn-primary fw-bold px-3 py-1 shadow-sm"
                                       onClick={() => handleOpenPayModal(inv)}
                                     >
-                                      <i className="fa-solid fa-credit-card me-1"></i> Pay Fee
+                                      <i className="fa-solid fa-credit-card me-1"></i>{' '}
+                                      {String(inv.latest_payment_status || '').toLowerCase() === 'rejected'
+                                        ? 'Re-submit Fee'
+                                        : 'Pay Fee'}
                                     </button>
                                   )}
                                 </div>
@@ -827,46 +890,62 @@ const ParentFees = () => {
                             <th className="py-3">Fee Description</th>
                             <th className="text-center py-3">Payment Date</th>
                             <th className="text-center py-3">Payment Mode</th>
+                            <th className="text-center py-3">Status</th>
                             <th className="text-end py-3">Amount Paid</th>
                             <th className="text-center pe-3 py-3">Receipt</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {paidReceipts.map((rec) => (
-                            <tr key={rec.id}>
-                              <td className="ps-3 fw-bold text-primary">
-                                <i className="fa-solid fa-receipt me-1"></i>
-                                {rec.receipt_no || `REC-${rec.id}`}
-                              </td>
-                              <td className="fs-12 text-muted fw-medium">
-                                {rec.txn_no || rec.reference_no || '-'}
-                              </td>
-                              <td className="fw-medium text-dark fs-14">
-                                {rec.fee_title || rec.invoice_title || 'Fee Payment'}
-                              </td>
-                              <td className="text-center fs-13">
-                                {formatDate(rec.payment_date || rec.created_at)}
-                              </td>
-                              <td className="text-center">
-                                <span className="badge bg-light text-dark border px-2 py-1">
-                                  <i className="fa-solid fa-wallet me-1"></i>
-                                  {rec.payment_mode_name || rec.payment_method || 'Online'}
-                                </span>
-                              </td>
-                              <td className="text-end fw-bold text-success fs-15">
-                                ₹{formatCurrency(rec.amount || rec.amount_paid)}
-                              </td>
-                              <td className="text-center pe-3">
-                                <button
-                                  type="button"
-                                  className="btn btn-sm btn-outline-secondary fw-semibold px-2 py-1"
-                                  onClick={() => handleOpenReceiptModal(rec)}
+                          {paidReceipts.map((rec) => {
+                            const isRejected = String(rec.status || '').toLowerCase() === 'rejected';
+                            const isPending =
+                              String(rec.status || '').toLowerCase().includes('pending') ||
+                              String(rec.status || '').toLowerCase().includes('verification');
+                            return (
+                              <tr key={rec.id}>
+                                <td className="ps-3 fw-bold text-primary">
+                                  <i className="fa-solid fa-receipt me-1"></i>
+                                  {rec.receipt_no || `REC-${rec.id}`}
+                                </td>
+                                <td className="fs-12 text-muted fw-medium">
+                                  {rec.txn_no || rec.reference_no || '-'}
+                                </td>
+                                <td className="fw-medium text-dark fs-14">
+                                  {rec.fee_title || rec.invoice_title || 'Fee Payment'}
+                                </td>
+                                <td className="text-center fs-13">
+                                  {formatDate(rec.payment_date || rec.created_at)}
+                                </td>
+                                <td className="text-center">
+                                  <span className="badge bg-light text-dark border px-2 py-1">
+                                    <i className="fa-solid fa-wallet me-1"></i>
+                                    {rec.payment_mode_name || rec.payment_method || 'Online'}
+                                  </span>
+                                </td>
+                                <td className="text-center">{getPaymentStatusBadge(rec)}</td>
+                                <td
+                                  className={`text-end fw-bold fs-15 ${
+                                    isRejected
+                                      ? 'text-danger text-decoration-line-through'
+                                      : isPending
+                                      ? 'text-warning-emphasis'
+                                      : 'text-success'
+                                  }`}
                                 >
-                                  <i className="fa-solid fa-file-lines me-1"></i> Receipt
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
+                                  ₹{formatCurrency(rec.amount || rec.amount_paid)}
+                                </td>
+                                <td className="text-center pe-3">
+                                  <button
+                                    type="button"
+                                    className="btn btn-sm btn-outline-secondary fw-semibold px-2 py-1"
+                                    onClick={() => handleOpenReceiptModal(rec)}
+                                  >
+                                    <i className="fa-solid fa-file-lines me-1"></i> Details
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
@@ -1584,10 +1663,29 @@ const ParentFees = () => {
                     <h4 className="fw-bold text-dark mb-1">
                       {parent?.school_name || parent?.schoolName || ''}
                     </h4>
-                    <span className="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">
-                      PAYMENT SUCCESSFUL
-                    </span>
+                    {String(selectedReceipt.status || '').toLowerCase() === 'rejected' ? (
+                      <span className="badge bg-danger bg-opacity-10 text-danger border border-danger fw-bold px-3 py-1 rounded-pill">
+                        PAYMENT REJECTED
+                      </span>
+                    ) : String(selectedReceipt.status || '').toLowerCase().includes('pending') ||
+                      String(selectedReceipt.status || '').toLowerCase().includes('verification') ? (
+                      <span className="badge bg-warning bg-opacity-25 text-warning-emphasis border border-warning fw-bold px-3 py-1 rounded-pill">
+                        PENDING VERIFICATION
+                      </span>
+                    ) : (
+                      <span className="badge bg-success bg-opacity-10 text-success fw-bold px-3 py-1 rounded-pill">
+                        PAYMENT SUCCESSFUL
+                      </span>
+                    )}
                   </div>
+
+                  {String(selectedReceipt.status || '').toLowerCase() === 'rejected' &&
+                    (selectedReceipt.rejection_reason || selectedReceipt.notes) && (
+                      <div className="alert alert-danger py-2 px-3 mb-3 fs-13">
+                        <strong>Rejection Reason: </strong>
+                        {selectedReceipt.rejection_reason || selectedReceipt.notes}
+                      </div>
+                    )}
 
                   <div className="row g-3 mb-3">
                     <div className="col-sm-6">

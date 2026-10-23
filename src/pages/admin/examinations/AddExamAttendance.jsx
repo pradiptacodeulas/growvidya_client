@@ -78,7 +78,7 @@ const AddExamAttendance = () => {
   };
 
   const { isPassed: isExamDatePassed, isFuture: isExamDateFuture, dateStr: examDateDisplay } = getExamDateStatus();
-  const isTeacherLocked = Boolean(isTeacher && isExamDatePassed);
+  const isTeacherLocked = Boolean(isExamDateFuture || (isTeacher && isExamDatePassed));
 
   useEffect(() => {
     fetchInitialOptions();
@@ -242,6 +242,7 @@ const AddExamAttendance = () => {
       const targetSubject = targetSubObj ? String(targetSubObj.subject_id) : '';
       setSelectedSubjectId(targetSubject);
       setCurrentScheduleId(targetSubObj?.schedule_id ? String(targetSubObj.schedule_id) : '');
+      setExamScheduleDate(targetSubObj?.date || '');
       setIsSubjectEditable(targetSubObj ? targetSubObj.isEditable !== false : true);
 
       if (activeExam && classId && targetSubject) {
@@ -426,6 +427,11 @@ const AddExamAttendance = () => {
 
     if (!isSubjectEditable && isTeacher) {
       toast.error('You are not assigned to this subject. Attendance can only be viewed.');
+      return;
+    }
+
+    if (isExamDateFuture) {
+      toast.error(`Attendance Locked: Exam attendance cannot be recorded before the scheduled exam date (${examDateDisplay}).`);
       return;
     }
 
@@ -656,11 +662,11 @@ const AddExamAttendance = () => {
             </div>
           )}
 
-          {isTeacher && isExamDateFuture && (
-            <div className="alert alert-info border border-info-subtle d-flex align-items-center mb-3 mx-3">
-              <i className="ti ti-calendar-event fs-20 me-2 text-info"></i>
+          {isExamDateFuture && (
+            <div className="alert alert-warning border border-warning-subtle d-flex align-items-center mb-3 mx-3">
+              <i className="ti ti-lock fs-20 me-2 text-warning"></i>
               <div>
-                <strong>Upcoming Exam:</strong> This exam is scheduled for {examDateDisplay}.
+                <strong>Attendance Locked:</strong> This exam is scheduled for {examDateDisplay}. Exam attendance cannot be recorded before the scheduled exam date.
               </div>
             </div>
           )}

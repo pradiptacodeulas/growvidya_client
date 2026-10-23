@@ -5,28 +5,11 @@ import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
 import NoData from '../../components/common/NoData';
 
-// Normalize backend day IDs or day names to 1-7 (1=Mon, ..., 7=Sun)
-const normalizeDayId = (r) => {
-  const name = String(r?.day_name || '').toLowerCase().trim();
-  if (name.includes('mon')) return 1;
-  if (name.includes('tue')) return 2;
-  if (name.includes('wed')) return 3;
-  if (name.includes('thu')) return 4;
-  if (name.includes('fri')) return 5;
-  if (name.includes('sat')) return 6;
-  if (name.includes('sun')) return 7;
-
-  const num = Number(r?.day);
-  if (num >= 1 && num <= 6) return num;
-  if (num >= 7 && num <= 12) return num - 6;
-  if (num === 7) return 7;
-  return 1;
-};
-
 const StudentTimetable = () => {
   const { student: authStudent } = useSelector((state) => state.studentAuth);
 
   const [timetable, setTimetable] = useState([]);
+  const [days, setDays] = useState([]);
   const [selectedDay, setSelectedDay] = useState('ALL');
   const [loading, setLoading] = useState(true);
 
@@ -35,9 +18,18 @@ const StudentTimetable = () => {
     const loadTimetable = async () => {
       try {
         const res = await fetchStudentTimetableApi();
-        const data = res?.data?.data || res?.data || [];
+        const payload = res?.data?.data ?? res?.data ?? {};
+        const routineList = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.routines)
+          ? payload.routines
+          : [];
+        const dayList = Array.isArray(payload?.days)
+          ? payload.days.filter((d) => Number(d.status) === 1)
+          : [];
         if (isMounted) {
-          setTimetable(Array.isArray(data) ? data : []);
+          setTimetable(routineList);
+          setDays(dayList);
         }
       } catch (err) {
         console.error('Failed to load student timetable:', err);
@@ -54,16 +46,6 @@ const StudentTimetable = () => {
     };
   }, []);
 
-  const daysOfWeek = [
-    { id: 1, name: 'Monday' },
-    { id: 2, name: 'Tuesday' },
-    { id: 3, name: 'Wednesday' },
-    { id: 4, name: 'Thursday' },
-    { id: 5, name: 'Friday' },
-    { id: 6, name: 'Saturday' },
-    { id: 7, name: 'Sunday' },
-  ];
-
   const student = authStudent;
   const studentPhoto = resolveImageUrl(student?.picture) || maleUserDefault;
   const studentName =
@@ -71,14 +53,21 @@ const StudentTimetable = () => {
     `${student?.first_name || ''} ${student?.last_name || ''}`.trim() ||
     'Student';
 
-  const getDayPeriods = (dayId) => {
-    return timetable.filter((r) => normalizeDayId(r) === Number(dayId));
+  const getDayPeriods = (dayObj) => {
+    const targetId = Number(dayObj?.id);
+    const targetName = String(dayObj?.day_name || '').trim().toLowerCase();
+    return timetable.filter((r) => {
+      if (r.day !== undefined && r.day !== null && Number(r.day) === targetId) return true;
+      if (r.day_id !== undefined && r.day_id !== null && Number(r.day_id) === targetId) return true;
+      if (targetName && r.day_name && String(r.day_name).trim().toLowerCase() === targetName) return true;
+      return false;
+    });
   };
 
   const displayDays =
     selectedDay === 'ALL'
-      ? daysOfWeek
-      : daysOfWeek.filter((d) => String(d.id) === String(selectedDay));
+      ? days
+      : days.filter((d) => String(d.id) === String(selectedDay));
 
   return (
     <div className="content content-two">
@@ -133,8 +122,8 @@ const StudentTimetable = () => {
             >
               All Days ({timetable.length})
             </button>
-            {daysOfWeek.map((day) => {
-              const count = getDayPeriods(day.id).length;
+            {days.map((day) => {
+              const count = getDayPeriods(day).length;
               return (
                 <button
                   key={`day-btn-${day.id}`}
@@ -146,7 +135,7 @@ const StudentTimetable = () => {
                   }`}
                   onClick={() => setSelectedDay(String(day.id))}
                 >
-                  {day.name} ({count})
+                  {day.day_name} ({count})
                 </button>
               );
             })}
@@ -160,7 +149,7 @@ const StudentTimetable = () => {
           <div className="spinner-border spinner-border-sm text-primary me-2"></div>
           Loading class routine...
         </div>
-      ) : timetable.length === 0 ? (
+      ) : timetable.length === 0 || days.length === 0 ? (
         <div className="card border shadow-sm rounded-3">
           <NoData
             title="No Routine Scheduled"
@@ -172,13 +161,13 @@ const StudentTimetable = () => {
       ) : (
         <div className="d-flex flex-column gap-4">
           {displayDays.map((day) => {
-            const periods = getDayPeriods(day.id);
+            const periods = getDayPeriods(day);
             return (
               <div key={`day-section-${day.id}`} className="card border shadow-sm rounded-3">
                 <div className="card-header bg-white border-bottom py-3 d-flex align-items-center justify-content-between">
                   <h5 className="card-title mb-0 fw-bold fs-15 text-dark d-flex align-items-center gap-2">
                     <i className="ti ti-calendar text-primary fs-18"></i>
-                    {day.name}
+                    {day.day_name}
                   </h5>
                   <span className="badge bg-light text-dark border fs-11">
                     {periods.length} {periods.length === 1 ? 'Period' : 'Periods'}
@@ -186,7 +175,7 @@ const StudentTimetable = () => {
                 </div>
                 <div className="card-body p-3">
                   {periods.length === 0 ? (
-                    <NoData title={`No periods scheduled for ${day.name}.`} message="" imageHeight={60} py={2} />
+                    <NoData title={`No periods scheduled for ${day.day_name}.`} message="" imageHeight={60} py={2} />
                   ) : (
                     <div className="row g-3">
                       {periods.map((p, pIdx) => (

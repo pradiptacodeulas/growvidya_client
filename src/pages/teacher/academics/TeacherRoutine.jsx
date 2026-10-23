@@ -4,24 +4,17 @@ import { useSelector } from 'react-redux';
 import {
   fetchTeacherClassesApi,
   fetchTeacherSectionsApi,
+  fetchTeacherDaysApi,
   fetchTeacherRoutineApi,
 } from '../../../api/teacherAcademic.api';
 import NoData from '../../../components/common/NoData';
-
-const DAYS_LIST = [
-  { id: 1, name: 'Monday' },
-  { id: 2, name: 'Tuesday' },
-  { id: 3, name: 'Wednesday' },
-  { id: 4, name: 'Thursday' },
-  { id: 5, name: 'Friday' },
-  { id: 6, name: 'Saturday' },
-];
 
 const TeacherRoutine = () => {
   const { teacher } = useSelector((state) => state.teacherAuth);
 
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
+  const [days, setDays] = useState([]);
   const [selectedClass, setSelectedClass] = useState('');
   const [selectedSection, setSelectedSection] = useState('');
   const [appliedClass, setAppliedClass] = useState('');
@@ -31,27 +24,38 @@ const TeacherRoutine = () => {
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'calendar'
 
-  // Get current day name (e.g. 'Monday', 'Tuesday' ...)
   const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
-  // Load Classes
+  // Load Classes & Active Days
   useEffect(() => {
-    const loadClasses = async () => {
+    const loadInitialMeta = async () => {
       try {
-        const res = await fetchTeacherClassesApi();
-        const data = Array.isArray(res?.data)
-          ? res.data
-          : Array.isArray(res?.data?.classes)
-          ? res.data.classes
-          : Array.isArray(res)
-          ? res
+        const [clsRes, daysRes] = await Promise.all([
+          fetchTeacherClassesApi().catch(() => null),
+          fetchTeacherDaysApi().catch(() => null),
+        ]);
+        const clsData = Array.isArray(clsRes?.data)
+          ? clsRes.data
+          : Array.isArray(clsRes?.data?.classes)
+          ? clsRes.data.classes
+          : Array.isArray(clsRes)
+          ? clsRes
           : [];
-        setClasses(data);
+        setClasses(clsData);
+
+        const daysData = Array.isArray(daysRes?.data)
+          ? daysRes.data
+          : Array.isArray(daysRes?.data?.days)
+          ? daysRes.data.days
+          : Array.isArray(daysRes)
+          ? daysRes
+          : [];
+        setDays(daysData.filter((d) => Number(d.status) === 1));
       } catch (err) {
-        console.error('Failed to load classes:', err);
+        console.error('Failed to load classes or days:', err);
       }
     };
-    loadClasses();
+    loadInitialMeta();
   }, []);
 
   // Load Sections when selectedClass changes (for dropdown options only)
@@ -163,12 +167,14 @@ const TeacherRoutine = () => {
     return formattedStart || formattedEnd;
   };
 
-  // Group routines by day name
-  const getPeriodsForDay = (dayName, dayId) => {
+  // Group routines by dynamic day from days_master
+  const getPeriodsForDay = (dayObj) => {
+    const targetName = String(dayObj?.day_name || '').trim().toLowerCase();
+    const targetId = Number(dayObj?.id);
     return routines.filter((r) => {
-      if (r.day_name && r.day_name.toLowerCase() === dayName.toLowerCase()) return true;
-      if (r.day && Number(r.day) === dayId) return true;
-      if (r.day_id && Number(r.day_id) === dayId) return true;
+      if (r.day !== undefined && r.day !== null && Number(r.day) === targetId) return true;
+      if (r.day_id !== undefined && r.day_id !== null && Number(r.day_id) === targetId) return true;
+      if (targetName && r.day_name && String(r.day_name).trim().toLowerCase() === targetName) return true;
       return false;
     });
   };
@@ -314,7 +320,7 @@ const TeacherRoutine = () => {
                 </div>
                 <p className="mt-2 text-muted fs-13">Loading timetable routine...</p>
               </div>
-            ) : routines.length === 0 ? (
+            ) : routines.length === 0 || days.length === 0 ? (
               <NoData
                 title="No Routine Scheduled"
                 message="No timetable periods have been assigned to your routine."
@@ -323,9 +329,11 @@ const TeacherRoutine = () => {
               />
             ) : (
               <div className="d-flex flex-nowrap overflow-auto pb-2 gap-3">
-                {DAYS_LIST.map((day) => {
-                  const isToday = todayDayName.toLowerCase() === day.name.toLowerCase();
-                  const dayPeriods = getPeriodsForDay(day.name, day.id);
+                {days.map((day) => {
+                  const dayLabel = day.day_name;
+                  const isToday =
+                    dayLabel && todayDayName.toLowerCase() === String(dayLabel).trim().toLowerCase();
+                  const dayPeriods = getPeriodsForDay(day);
 
                   return (
                     <div
@@ -339,7 +347,7 @@ const TeacherRoutine = () => {
                       {isToday ? (
                         <div className="p-2 mb-2 rounded text-center bg-primary text-white">
                           <h6 className="mb-0 fw-bold text-white">
-                            {day.name}
+                            {dayLabel}
                             <span className="badge bg-white text-primary ms-1 text-xxs">
                               TODAY
                             </span>
@@ -347,7 +355,7 @@ const TeacherRoutine = () => {
                         </div>
                       ) : (
                         <div className="p-2 mb-2 rounded text-center bg-light text-dark fw-bold border">
-                          <h6 className="mb-0 fw-bold text-dark">{day.name}</h6>
+                          <h6 className="mb-0 fw-bold text-dark">{dayLabel}</h6>
                         </div>
                       )}
 

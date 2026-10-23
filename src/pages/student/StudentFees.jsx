@@ -199,25 +199,55 @@ const StudentFees = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {paidReceipts.map((rec, idx) => (
-                    <tr key={`rec-${rec.id || idx}-${idx}`}>
-                      <td className="ps-4 fw-semibold text-primary fs-13">
-                        {rec.receipt_number || `REC-${rec.id || idx + 1}`}
-                      </td>
-                      <td className="text-muted fs-13">
-                        {rec.payment_date ? new Date(rec.payment_date).toLocaleDateString() : 'N/A'}
-                      </td>
-                      <td className="text-muted fs-13">{rec.payment_mode || 'Online / Cash'}</td>
-                      <td className="fw-bold text-success fs-13">
-                        ₹{Number(rec.paid_amount || rec.amount || 0).toLocaleString('en-IN')}
-                      </td>
-                      <td className="text-end pe-4">
-                        <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
-                          Paid
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                  {paidReceipts.map((rec, idx) => {
+                    const st = String(rec.status || '').toLowerCase();
+                    const isRejected = st === 'rejected';
+                    const isPending = st.includes('pending') || st.includes('verification');
+                    return (
+                      <tr key={`rec-${rec.id || idx}-${idx}`}>
+                        <td className="ps-4 fw-semibold text-primary fs-13">
+                          {rec.receipt_no || rec.receipt_number || `REC-${rec.id || idx + 1}`}
+                        </td>
+                        <td className="text-muted fs-13">
+                          {rec.payment_date ? new Date(rec.payment_date).toLocaleDateString() : 'N/A'}
+                        </td>
+                        <td className="text-muted fs-13">
+                          {rec.payment_mode_name || rec.payment_method || rec.payment_mode || 'Online / Cash'}
+                        </td>
+                        <td
+                          className={`fw-bold fs-13 ${
+                            isRejected
+                              ? 'text-danger text-decoration-line-through'
+                              : isPending
+                              ? 'text-warning-emphasis'
+                              : 'text-success'
+                          }`}
+                        >
+                          ₹{Number(rec.amount_paid || rec.paid_amount || rec.amount || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td className="text-end pe-4">
+                          {isRejected ? (
+                            <div>
+                              <span className="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">
+                                Rejected
+                              </span>
+                              {rec.rejection_reason && (
+                                <div className="fs-11 text-danger mt-1">Reason: {rec.rejection_reason}</div>
+                              )}
+                            </div>
+                          ) : isPending ? (
+                            <span className="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle px-2 py-1">
+                              Pending Verification
+                            </span>
+                          ) : (
+                            <span className="badge bg-success-subtle text-success border border-success-subtle px-2 py-1">
+                              Paid
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

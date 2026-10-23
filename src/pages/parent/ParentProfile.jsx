@@ -253,7 +253,8 @@ const ParentProfile = () => {
 
     try {
       setSaving(true);
-      const res = await updateParentProfileApi(formData);
+      const { phone: _phone, email: _email, ...updatableData } = formData;
+      const res = await updateParentProfileApi(updatableData);
       if (res?.data?.parent) {
         dispatch(updateParentState(res.data.parent));
       }
@@ -479,10 +480,11 @@ const ParentProfile = () => {
                         <label className="form-label">Contact Phone</label>
                         <input
                           type="tel"
-                          className="form-control"
+                          className="form-control bg-light"
                           name="phone"
                           value={formData.phone}
-                          onChange={handleInputChange}
+                          readOnly
+                          disabled
                         />
                       </div>
 
@@ -490,10 +492,11 @@ const ParentProfile = () => {
                         <label className="form-label">Email Address</label>
                         <input
                           type="email"
-                          className="form-control"
+                          className="form-control bg-light"
                           name="email"
                           value={formData.email}
-                          onChange={handleInputChange}
+                          readOnly
+                          disabled
                         />
                       </div>
 

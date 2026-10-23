@@ -20,43 +20,15 @@ const formatTime = (timeStr) => {
   return `${hours < 10 ? '0' + hours : hours}:${minutes} ${ampm}`;
 };
 
-const DAYS_CONFIG = [
-  { id: 1, name: 'Monday' },
-  { id: 2, name: 'Tuesday' },
-  { id: 3, name: 'Wednesday' },
-  { id: 4, name: 'Thursday' },
-  { id: 5, name: 'Friday' },
-  { id: 6, name: 'Saturday' },
-  { id: 7, name: 'Sunday' },
-];
-
-// Normalize backend day IDs or day names to 1-7 (1=Mon, ..., 7=Sun)
-const normalizeDayId = (r) => {
-  const name = String(r?.day_name || '').toLowerCase().trim();
-  if (name.includes('mon')) return 1;
-  if (name.includes('tue')) return 2;
-  if (name.includes('wed')) return 3;
-  if (name.includes('thu')) return 4;
-  if (name.includes('fri')) return 5;
-  if (name.includes('sat')) return 6;
-  if (name.includes('sun')) return 7;
-
-  const num = Number(r?.day);
-  if (num >= 1 && num <= 6) return num;
-  if (num >= 7 && num <= 12) return num - 6;
-  if (num === 7) return 7;
-  return 1;
-};
-
 const ParentTimetable = () => {
   const { activeChild } = useSelector((state) => state.parentAuth);
 
   const [loading, setLoading] = useState(true);
   const [routines, setRoutines] = useState([]);
+  const [days, setDays] = useState([]);
   const [selectedDay, setSelectedDay] = useState('all');
 
-  const currentDayIndex = new Date().getDay(); // 0 is Sunday, 1 is Monday...
-  const currentDayId = currentDayIndex === 0 ? 7 : currentDayIndex;
+  const todayDayName = new Date().toLocaleDateString('en-US', { weekday: 'long' });
 
   useEffect(() => {
     const loadTimetable = async () => {
@@ -64,15 +36,21 @@ const ParentTimetable = () => {
       try {
         setLoading(true);
         const res = await fetchChildTimetableApi(activeChild.id);
-        const list = Array.isArray(res?.data?.data)
-          ? res.data.data
-          : Array.isArray(res?.data)
-          ? res.data
+        const payload = res?.data?.data ?? res?.data ?? {};
+        const routineList = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.routines)
+          ? payload.routines
           : [];
-        setRoutines(list);
+        const dayList = Array.isArray(payload?.days)
+          ? payload.days.filter((d) => Number(d.status) === 1)
+          : [];
+        setRoutines(routineList);
+        setDays(dayList);
       } catch (err) {
         console.error('Failed to load child timetable:', err);
         setRoutines([]);
+        setDays([]);
       } finally {
         setLoading(false);
       }
@@ -91,13 +69,30 @@ const ParentTimetable = () => {
   const sectionName = activeChild?.section_name || '-';
   const rollNumber = activeChild?.roll_number || '-';
 
-  // Group routines by normalized day ID
+  // Group routines by dynamic day ID from days_master
   const routinesByDay = useMemo(() => {
     const map = {};
+    days.forEach((d) => {
+      map[String(d.id)] = [];
+    });
+
     (routines || []).forEach((r) => {
-      const dayKey = String(normalizeDayId(r));
-      if (!map[dayKey]) map[dayKey] = [];
-      map[dayKey].push(r);
+      let dayKey = r?.day !== undefined && r?.day !== null ? String(r.day) : '';
+      if (!map[dayKey]) {
+        const matchedDay = days.find(
+          (d) =>
+            d.day_name &&
+            r.day_name &&
+            String(d.day_name).trim().toLowerCase() === String(r.day_name).trim().toLowerCase()
+        );
+        if (matchedDay) {
+          dayKey = String(matchedDay.id);
+        }
+      }
+      if (dayKey) {
+        if (!map[dayKey]) map[dayKey] = [];
+        map[dayKey].push(r);
+      }
     });
 
     // Sort periods inside each day by start_time
@@ -106,15 +101,9 @@ const ParentTimetable = () => {
     });
 
     return map;
-  }, [routines]);
+  }, [routines, days]);
 
-  // Days list (Monday to Saturday, plus Sunday if routines exist or today is Sunday)
-  const displayDays = useMemo(() => {
-    const hasSundayRoutine = routinesByDay['7'] && routinesByDay['7'].length > 0;
-    return hasSundayRoutine || currentDayId === 7
-      ? DAYS_CONFIG
-      : DAYS_CONFIG.slice(0, 6);
-  }, [routinesByDay, currentDayId]);
+  const displayDays = days;
 
   return (
     <div className="content content-two">
@@ -201,9 +190,11 @@ const ParentTimetable = () => {
               All Days <span className="badge bg-white text-dark ms-1">{routines.length}</span>
             </button>
             {displayDays.map((d) => {
+              const dayLabel = d.day_name;
               const count = routinesByDay[String(d.id)]?.length || 0;
-              const isToday = d.id === currentDayId;
-              const isSelected = selectedDay === d.id;
+              const isToday =
+                dayLabel && String(dayLabel).trim().toLowerCase() === todayDayName.toLowerCase();
+              const isSelected = String(selectedDay) === String(d.id);
 
               return (
                 <button
@@ -218,7 +209,7 @@ const ParentTimetable = () => {
                   }`}
                   onClick={() => setSelectedDay(d.id)}
                 >
-                  {d.name}
+                  {dayLabel}
                   <span
                     className={`badge ms-1 ${
                       isSelected
@@ -247,7 +238,7 @@ const ParentTimetable = () => {
               <div className="spinner-border text-primary me-2" role="status"></div>
               <span className="text-muted fw-semibold">Loading class routine...</span>
             </div>
-          ) : routines.length === 0 ? (
+          ) : routines.length === 0 || displayDays.length === 0 ? (
             <NoData
               title="No Routine Scheduled Yet"
               message={`The school has not published the class routine for Class ${className} ${sectionName !== '-' ? `(${sectionName})` : ''} yet.`}
@@ -258,8 +249,10 @@ const ParentTimetable = () => {
             /* All Days Grid View */
             <div className="row g-4">
               {displayDays.map((d) => {
+                const dayLabel = d.day_name;
                 const dayPeriods = routinesByDay[String(d.id)] || [];
-                const isToday = d.id === currentDayId;
+                const isToday =
+                  dayLabel && String(dayLabel).trim().toLowerCase() === todayDayName.toLowerCase();
 
                 return (
                   <div key={d.id} className="col-lg-6 col-xl-4">
@@ -275,7 +268,7 @@ const ParentTimetable = () => {
                         }`}
                       >
                         <h6 className={`fw-bold mb-0 fs-14 ${isToday ? 'text-white' : 'text-dark'}`}>
-                          <i className="ti ti-calendar-event me-2"></i>{d.name}
+                          <i className="ti ti-calendar-event me-2"></i>{dayLabel}
                         </h6>
                         <div className="d-flex align-items-center gap-1">
                           <span
@@ -335,7 +328,7 @@ const ParentTimetable = () => {
                           </div>
                         ) : (
                           <div className="py-2">
-                            <NoData message={`No periods scheduled for ${d.name}.`} imageHeight={60} py={1} />
+                            <NoData message={`No periods scheduled for ${dayLabel}.`} imageHeight={60} py={1} />
                           </div>
                         )}
                       </div>
@@ -349,14 +342,16 @@ const ParentTimetable = () => {
             <div>
               {(() => {
                 const dayPeriods = routinesByDay[String(selectedDay)] || [];
-                const dayObj = DAYS_CONFIG.find((d) => d.id === Number(selectedDay));
-                const isToday = Number(selectedDay) === currentDayId;
+                const dayObj = displayDays.find((d) => String(d.id) === String(selectedDay));
+                const dayLabel = dayObj?.day_name || '';
+                const isToday =
+                  dayLabel && String(dayLabel).trim().toLowerCase() === todayDayName.toLowerCase();
 
                 return (
                   <div>
                     <div className="d-flex align-items-center justify-content-between mb-3 pb-2 border-bottom flex-wrap gap-2">
                       <h6 className="fw-bold text-dark fs-16 mb-0">
-                        {dayObj?.name || 'Selected Day'} Schedule
+                        {dayLabel} Schedule
                         {isToday && (
                           <span className="badge bg-primary ms-2 fs-12">Today</span>
                         )}
@@ -424,7 +419,7 @@ const ParentTimetable = () => {
                     ) : (
                       <div className="text-center py-5 text-muted">
                         <i className="ti ti-coffee fs-36 d-block mb-2 opacity-50"></i>
-                        <p className="fs-14 text-muted mb-3 fw-semibold">No periods scheduled on {dayObj?.name || 'this day'}.</p>
+                        <p className="fs-14 text-muted mb-3 fw-semibold">No periods scheduled on {dayLabel}.</p>
                         {routines.length > 0 && (
                           <button
                             type="button"

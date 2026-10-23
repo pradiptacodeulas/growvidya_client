@@ -197,6 +197,47 @@ const StudentAttendanceList = () => {
       class_id: classId,
       section_id: '',
     }));
+    setCurrentPage(1);
+    if (classId) {
+      loadAttendance(classId, '', filter.academic_year, filter.date, 1, pageSize, search);
+    } else {
+      setStudentList([]);
+      setTotalRecords(0);
+      setTotalPages(1);
+    }
+  };
+
+  const handleSectionChange = (sectionId) => {
+    setFilter((prev) => ({
+      ...prev,
+      section_id: sectionId,
+    }));
+    setCurrentPage(1);
+    if (filter.class_id) {
+      loadAttendance(filter.class_id, sectionId, filter.academic_year, filter.date, 1, pageSize, search);
+    }
+  };
+
+  const handleAcademicYearChange = (acYear) => {
+    setFilter((prev) => ({
+      ...prev,
+      academic_year: acYear,
+    }));
+    setCurrentPage(1);
+    if (filter.class_id) {
+      loadAttendance(filter.class_id, filter.section_id, acYear, filter.date, 1, pageSize, search);
+    }
+  };
+
+  const handleDateChange = (dateVal) => {
+    setFilter((prev) => ({
+      ...prev,
+      date: dateVal,
+    }));
+    setCurrentPage(1);
+    if (filter.class_id && dateVal) {
+      loadAttendance(filter.class_id, filter.section_id, filter.academic_year, dateVal, 1, pageSize, search);
+    }
   };
 
   const handleFilterSubmit = (e) => {
@@ -357,7 +398,7 @@ const StudentAttendanceList = () => {
             <select
               className="form-select form-select-sm"
               value={filter.section_id}
-              onChange={(e) => setFilter({ ...filter, section_id: e.target.value })}
+              onChange={(e) => handleSectionChange(e.target.value)}
             >
               <option value="">All Sections</option>
               {filteredSections.map((s) => (
@@ -373,7 +414,7 @@ const StudentAttendanceList = () => {
             <select
               className="form-select form-select-sm"
               value={filter.academic_year}
-              onChange={(e) => setFilter({ ...filter, academic_year: e.target.value })}
+              onChange={(e) => handleAcademicYearChange(e.target.value)}
             >
               {academicYears.map((y) => (
                 <option key={y.id} value={y.id}>
@@ -389,7 +430,7 @@ const StudentAttendanceList = () => {
               type="date"
               className="form-control form-control-sm"
               value={filter.date}
-              onChange={(e) => setFilter({ ...filter, date: e.target.value })}
+              onChange={(e) => handleDateChange(e.target.value)}
               required
             />
           </div>

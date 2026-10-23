@@ -109,6 +109,9 @@ const AddStudentAttendance = () => {
   const handleClassChange = (classId) => {
     const matched = allSections.filter((s) => String(s.class_id) === String(classId));
     setFilteredSections(matched);
+    setAttendanceData({});
+    setNotesData({});
+    setCurrentPage(1);
     setFilter((prev) => ({
       ...prev,
       class_id: classId,
@@ -116,11 +119,23 @@ const AddStudentAttendance = () => {
     }));
   };
 
+  const handleSectionChange = (sectionId) => {
+    setAttendanceData({});
+    setNotesData({});
+    setCurrentPage(1);
+    setFilter((prev) => ({
+      ...prev,
+      section_id: sectionId,
+    }));
+  };
+
   // Fetch Student Roster with Server Pagination
   const loadStudents = useCallback(
     async (targetPage = 1) => {
       if (!filter.class_id) {
-        toast.warning('Please select a class.');
+        setStudents([]);
+        setTotalRecords(0);
+        setTotalPages(1);
         return;
       }
 
@@ -177,11 +192,26 @@ const AddStudentAttendance = () => {
         setLoading(false);
       }
     },
-    [filter.class_id, filter.section_id, filter.date, pageSize]
+    [filter.class_id, filter.section_id, filter.academic_year, filter.date, pageSize, isTeacher]
   );
+
+  // Automatically fetch students when filter criteria change
+  useEffect(() => {
+    if (filter.class_id) {
+      loadStudents(1);
+    } else {
+      setStudents([]);
+      setTotalRecords(0);
+      setTotalPages(1);
+    }
+  }, [filter.class_id, filter.section_id, filter.academic_year, filter.date, loadStudents]);
 
   const handleSearch = (e) => {
     if (e) e.preventDefault();
+    if (!filter.class_id) {
+      toast.warning('Please select a class.');
+      return;
+    }
     setCurrentPage(1);
     loadStudents(1);
   };
@@ -367,7 +397,7 @@ const AddStudentAttendance = () => {
                     name="section_student"
                     id="section_student"
                     value={filter.section_id}
-                    onChange={(e) => setFilter({ ...filter, section_id: e.target.value })}
+                    onChange={(e) => handleSectionChange(e.target.value)}
                   >
                     <option value="">All Sections</option>
                     {filteredSections.map((s) => (

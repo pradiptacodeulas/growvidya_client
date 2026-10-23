@@ -929,7 +929,7 @@ const SalaryManagement = () => {
                   </small>
                 </div>
                 <span className="avatar avatar-lg bg-danger-subtle text-danger rounded-circle d-inline-flex align-items-center justify-content-center">
-                  <i className="ti ti-alert-Octagon fs-24"></i>
+                  <i className="ti ti-alert-octagon fs-24"></i>
                 </span>
               </div>
             </div>
@@ -1142,7 +1142,6 @@ const SalaryManagement = () => {
                           />
                         </th>
                         <th>Employee</th>
-                        <th className="text-center">School / Branch</th>
                         <th>Beneficiary / Bank Details</th>
                         <th>Leave Records ({bulkMonth})</th>
                         <th style={{ width: '145px' }} className="text-end">Base Salary (₹)</th>
@@ -1155,14 +1154,14 @@ const SalaryManagement = () => {
                     <tbody>
                       {loadingCandidates ? (
                         <tr>
-                          <td colSpan="10" className="text-center py-4">
+                          <td colSpan="9" className="text-center py-4">
                             <div className="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
                             <span className="text-muted">Checking employee beneficiary/bank records and leave deductions...</span>
                           </td>
                         </tr>
                       ) : filteredCandidates.length === 0 ? (
                         <tr>
-                          <td colSpan="10" className="text-center py-4 text-muted">
+                          <td colSpan="9" className="text-center py-4 text-muted">
                             No employees found matching the selected criteria.
                           </td>
                         </tr>
@@ -1172,8 +1171,6 @@ const SalaryManagement = () => {
                           const isSelected = selectedCandidateKeys.includes(key);
                           const isSelectable = Boolean(c.is_beneficiary_verified) && !c.is_already_paid;
                           const nums = computeCandidateNumbers(c);
-                          const rowSchoolId = c.school_id ?? currentUser?.schoolId ?? currentUser?.school_id ?? '—';
-                          const rowBranchId = c.branch_id ?? currentUser?.branchId ?? currentUser?.branch_id ?? '—';
 
                           return (
                             <tr
@@ -1221,24 +1218,6 @@ const SalaryManagement = () => {
                                   >
                                     {c.type_name}
                                   </span>
-                                  {c.employee_code && (
-                                    <small className="text-muted fs-11">#{c.employee_code}</small>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="text-center">
-                                <div className="d-flex flex-column align-items-center gap-1">
-                                  <div className="d-flex align-items-center gap-1 flex-wrap justify-content-center">
-                                    <span className="badge bg-light text-dark border fs-11">
-                                      School ID: {rowSchoolId}
-                                    </span>
-                                    <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-11">
-                                      Branch ID: {rowBranchId}
-                                    </span>
-                                  </div>
-                                  {c.campus_name && (
-                                    <small className="text-muted fs-11">{c.campus_name}</small>
-                                  )}
                                 </div>
                               </td>
                               <td onClick={(e) => e.stopPropagation()}>
@@ -1462,7 +1441,6 @@ const SalaryManagement = () => {
                       <tr>
                         <th>#</th>
                         <th>Employee</th>
-                        <th className="text-center">School / Branch</th>
                         <th>Verified Bank Account</th>
                         <th className="text-center">Unpaid Leave</th>
                         <th className="text-end">Base Salary</th>
@@ -1483,21 +1461,8 @@ const SalaryManagement = () => {
                             <td>
                               <div className="fw-semibold text-dark">{c.name}</div>
                               <small className="text-muted">
-                                {c.type_name} {c.employee_code ? `• #${c.employee_code}` : ''}
+                                {c.type_name}
                               </small>
-                            </td>
-                            <td className="text-center">
-                              <div className="small">
-                                <span className="badge bg-light text-dark border me-1">
-                                  School ID: {c.school_id ?? currentUser?.schoolId ?? currentUser?.school_id ?? '—'}
-                                </span>
-                                <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
-                                  Branch ID: {c.branch_id ?? currentUser?.branchId ?? currentUser?.branch_id ?? '—'}
-                                </span>
-                              </div>
-                              {c.campus_name && (
-                                <div className="fs-11 text-muted mt-0.5">{c.campus_name}</div>
-                              )}
                             </td>
                             <td>
                               <div className="small">
@@ -1548,7 +1513,7 @@ const SalaryManagement = () => {
                     </tbody>
                     <tfoot className="table-light fw-bold">
                       <tr>
-                        <td colSpan="5" className="text-end">
+                        <td colSpan="4" className="text-end">
                           Total ({bulkTotals.count} Employees):
                         </td>
                         <td className="text-end">₹{bulkTotals.totalBase.toFixed(2)}</td>
@@ -1577,7 +1542,7 @@ const SalaryManagement = () => {
                     disabled={processingBulk}
                     onClick={handleConfirmBulkPayment}
                   >
-                    <i className="ti ti-Cash me-2"></i>
+                    <i className="ti ti-cash me-2"></i>
                     {processingBulk
                       ? 'Processing Bulk Salary...'
                       : `Confirm & Pay ₹${bulkTotals.totalNet.toFixed(2)} (${bulkTotals.count} Employees)`}
@@ -1623,7 +1588,6 @@ const SalaryManagement = () => {
                     <thead className="table-light">
                       <tr>
                         <th>Employee</th>
-                        <th className="text-center">School / Branch</th>
                         <th className="text-end">Base Salary</th>
                         <th className="text-end">Total Deductions</th>
                         <th className="text-end">Net Salary</th>
@@ -1635,15 +1599,7 @@ const SalaryManagement = () => {
                     <tbody>
                       {(bulkResult.results || []).map((r, idx) => (
                         <tr key={idx}>
-                          <td className="fw-semibold">{r.name || `Employee #${r.employee_id}`}</td>
-                          <td className="text-center">
-                            <span className="badge bg-light text-dark border me-1">
-                              School ID: {r.school_id ?? currentUser?.schoolId ?? currentUser?.school_id ?? '—'}
-                            </span>
-                            <span className="badge bg-primary-subtle text-primary border border-primary-subtle">
-                              Branch ID: {r.branch_id ?? '—'}
-                            </span>
-                          </td>
+                          <td className="fw-semibold">{r.name || '—'}</td>
                           <td className="text-end">
                             {r.basic_salary !== undefined ? `₹${Number(r.basic_salary).toFixed(2)}` : '—'}
                           </td>
@@ -1832,12 +1788,6 @@ const SalaryManagement = () => {
                         <th className="text-center sorting sorting_asc" style={{ width: '72.359px' }}>
                           Sl No.
                         </th>
-                        <th className="text-center sorting">
-                          School ID
-                        </th>
-                        <th className="text-center sorting">
-                          Branch ID
-                        </th>
                         <th className="text-center sorting" style={{ width: '198.188px' }}>
                           Name
                         </th>
@@ -1867,7 +1817,7 @@ const SalaryManagement = () => {
                     <tbody>
                       {loading ? (
                         <tr>
-                          <td colSpan={isTeacher ? 11 : 12} className="text-center py-4">
+                          <td colSpan={isTeacher ? 9 : 10} className="text-center py-4">
                             <div
                               className="spinner-border spinner-border-sm text-primary me-2"
                               role="status"
@@ -1877,7 +1827,7 @@ const SalaryManagement = () => {
                         </tr>
                       ) : paginatedData.length === 0 ? (
                         <tr>
-                          <td colSpan={isTeacher ? 11 : 12} className="text-center py-4">
+                          <td colSpan={isTeacher ? 9 : 10} className="text-center py-4">
                             <NoData title="No Salary Records Found" message="No salary records found." />
                           </td>
                         </tr>
@@ -1889,8 +1839,6 @@ const SalaryManagement = () => {
                           const statusNum = Number(s.payment_status || 1);
                           const isPaid = statusNum === 1;
                           const isFailed = statusNum === 3;
-                          const rowSchoolId = s.school_id ?? currentUser?.schoolId ?? currentUser?.school_id ?? '—';
-                          const rowBranchId = s.branch_id ?? currentUser?.branchId ?? currentUser?.branch_id ?? '—';
 
                           const actionItems = [
                             {
@@ -1923,21 +1871,6 @@ const SalaryManagement = () => {
                                 </td>
                               )}
                               <td className="text-center sorting_1">{globalIdx + 1}</td>
-                              <td className="text-center">
-                                <span className="badge bg-light text-dark border px-2 py-1">
-                                  {rowSchoolId}
-                                </span>
-                              </td>
-                              <td className="text-center">
-                                <div>
-                                  <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-2 py-1">
-                                    {rowBranchId}
-                                  </span>
-                                </div>
-                                {s.campus_name && (
-                                  <small className="text-muted d-block fs-11 mt-0.5">{s.campus_name}</small>
-                                )}
-                              </td>
                               <td className="text-center">
                                 <div className="fw-semibold text-dark">{s.employee_name || '—'}</div>
                                 {s.type_name && (
