@@ -137,6 +137,39 @@ const BranchDetailsView = () => {
                       .join(', ') || 'Address not registered'}
                   </p>
                 </div>
+                {(() => {
+                  // Read-only Teacher App attendance geofence (if provided by the API)
+                  const lat = overview.latitude ?? overview.lat;
+                  const lng = overview.longitude ?? overview.lng;
+                  if (lat === null || lat === undefined || lat === '' || lng === null || lng === undefined || lng === '') {
+                    return null;
+                  }
+                  const radius = overview.attendanceRadiusM ?? overview.attendance_radius_m;
+                  const geoAddress = overview.geoAddress ?? overview.geo_address;
+                  const geoEnabled = Number(overview.geoAttendanceEnabled ?? overview.geo_attendance_enabled ?? 1) === 1;
+                  return (
+                    <div className="col-12">
+                      <span className="text-muted small d-block mb-1">Attendance Location (Teacher App)</span>
+                      <div className="d-flex align-items-center flex-wrap gap-2">
+                        <span
+                          className={`badge ${geoEnabled ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-light text-muted border'}`}
+                        >
+                          {geoEnabled ? `Set${radius ? ` · ${radius} m` : ''}` : 'Disabled'}
+                        </span>
+                        {geoAddress && <span className="text-dark small">{geoAddress}</span>}
+                        <a
+                          href={`https://www.google.com/maps?q=${lat},${lng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="small font-monospace"
+                        >
+                          <i className="ti ti-map-pin me-1"></i>
+                          {Number(lat).toFixed(5)}, {Number(lng).toFixed(5)}
+                        </a>
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           </div>

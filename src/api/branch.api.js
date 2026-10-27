@@ -32,6 +32,13 @@ export const updateBranchApi = async (id, data) => {
   });
 };
 
+export const updateBranchLocationApi = async (id, data) => {
+  return apiFetch(`/admin/branches/${id}/attendance-location`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+};
+
 export const setMainBranchApi = async (id) => {
   return apiFetch(`/admin/branches/${id}/set-main`, {
     method: 'PATCH',

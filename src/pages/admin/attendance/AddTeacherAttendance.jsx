@@ -9,6 +9,7 @@ import {
 import Avatar from '../../../components/common/Avatar';
 import { getPaginationRange } from '../../../utils/pagination.util';
 import { encodeParam } from '../../../utils/idHelper';
+import { formatCheckInTime } from '../../../utils/attendanceTime.util';
 import NoData from '../../../components/common/NoData';
 
 const SERVER_BASE_URL = getServerBaseUrl();
@@ -257,6 +258,18 @@ const AddTeacherAttendance = () => {
                                 <p className="text-dark mb-0">
                                   {t.first_name} {t.last_name}
                                 </p>
+                                {String(t.source || '').toLowerCase() === 'app' && (
+                                  <span
+                                    className="fs-11 text-success d-inline-flex align-items-center"
+                                    title="Teacher marked this attendance from the Teacher App. You can still change it."
+                                  >
+                                    <i className="ti ti-device-mobile me-1"></i>
+                                    Self check-in{formatCheckInTime(t.check_in_time) ? ` ${formatCheckInTime(t.check_in_time)}` : ''}
+                                    {t.distance_m !== null && t.distance_m !== undefined && t.distance_m !== ''
+                                      ? ` · ${Math.round(Number(t.distance_m))} m`
+                                      : ''}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </td>

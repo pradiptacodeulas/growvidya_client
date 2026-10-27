@@ -12,9 +12,43 @@ import {
   fetchStatesByCountryApi,
   fetchCitiesByStateApi,
   fetchBranchHeadCandidatesApi,
+  fetchBranchByIdApi,
+  updateBranchLocationApi,
 } from '../../../api/branch.api';
 import NoData from '../../../components/common/NoData';
+import BranchLocationPicker from '../../../components/branch/BranchLocationPicker';
+import {
+  DEFAULT_BRANCH_LOCATION,
+  pickBranchLocation,
+  validateBranchLocation,
+  toBranchLocationPayload,
+  hasCoordinates,
+} from '../../../components/branch/branchLocation.util';
 import { resolveImageUrl, maleUserDefault, femaleUserDefault } from '../../../utils/url.util';
+
+// Attendance geofence badge (Teacher App self check-in)
+const renderAttendanceLocationBadge = (branch) => {
+  const loc = pickBranchLocation(branch);
+  if (!hasCoordinates(loc)) {
+    return (
+      <span className="badge bg-warning-subtle text-warning border border-warning-subtle fs-11">
+        <i className="ti ti-map-pin-off me-1"></i>Not set
+      </span>
+    );
+  }
+  if (Number(loc.geo_attendance_enabled) !== 1) {
+    return (
+      <span className="badge bg-light text-muted border fs-11">
+        <i className="ti ti-map-pin me-1"></i>Disabled
+      </span>
+    );
+  }
+  return (
+    <span className="badge bg-success-subtle text-success border border-success-subtle fs-11">
+      <i className="ti ti-map-pin-check me-1"></i>Set · {loc.attendance_radius_m} m
+    </span>
+  );
+};
 
 const BranchManagement = () => {
   const [branches, setBranches] = useState([]);
@@ -54,6 +88,17 @@ const BranchManagement = () => {
     status: 1,
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Attendance Location (Teacher App geofence) for the Add/Edit modal
+  const [locationData, setLocationData] = useState(DEFAULT_BRANCH_LOCATION);
+  const [loadingBranchLocation, setLoadingBranchLocation] = useState(false);
+
+  // Manage Location Modal
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationBranch, setLocationBranch] = useState(null);
+  const [locationModalData, setLocationModalData] = useState(DEFAULT_BRANCH_LOCATION);
+  const [loadingLocationModal, setLoadingLocationModal] = useState(false);
+  const [savingLocation, setSavingLocation] = useState(false);
 
   // Delete Modal
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -191,6 +236,22 @@ const BranchManagement = () => {
     loadHeadCandidates();
   }, []);
 
+  // Fetch the full branch record so the geofence fields are always fresh
+  const loadBranchLocation = async (branch, setData, setLoadingFlag) => {
+    if (!branch?.id) return;
+    try {
+      setLoadingFlag(true);
+      const res = await fetchBranchByIdApi(branch.id);
+      if (res?.success && res?.data) {
+        setData(pickBranchLocation({ ...branch, ...res.data }));
+      }
+    } catch (err) {
+      console.error('Failed to load branch location:', err);
+    } finally {
+      setLoadingFlag(false);
+    }
+  };
+
   // Open Add Modal
   const handleOpenAdd = async () => {
     setModalMode('add');
@@ -207,6 +268,8 @@ const BranchManagement = () => {
       is_main_branch: 0,
       status: 1,
     });
+    setLocationData(DEFAULT_BRANCH_LOCATION);
+    setLoadingBranchLocation(false);
     setSelectedStateId('');
     setSelectedCityId('');
     setStates([]);
@@ -253,6 +316,8 @@ const BranchManagement = () => {
       is_main_branch: branch.is_main_branch || 0,
       status: branch.status !== undefined ? Number(branch.status) : 1,
     });
+    setLocationData(pickBranchLocation(branch));
+    loadBranchLocation(branch, setLocationData, setLoadingBranchLocation);
     setSelectedCountryId('');
     setSelectedStateId('');
     setSelectedCityId('');
@@ -337,6 +402,56 @@ const BranchManagement = () => {
     }
   };
 
+  // Address hint used to center the map when no pin is set yet
+  const buildAddressHint = (parts) => parts.map((p) => String(p || '').trim()).filter(Boolean).join(', ');
+  const findName = (list, id, keys) => {
+    const item = list.find((x) => String(x.id ?? x.id_state) === String(id));
+    if (!item) return '';
+    return keys.map((k) => item[k]).find(Boolean) || '';
+  };
+  const formAddressHint = buildAddressHint([
+    formData.address,
+    findName(cities, selectedCityId, ['name', 'city']),
+    findName(states, selectedStateId, ['state', 'name']),
+    findName(countries, selectedCountryId, ['name', 'country', 'country_name']),
+    formData.pincode,
+  ]);
+
+  // Open Manage Location Modal
+  const handleOpenLocation = (branch) => {
+    setLocationBranch(branch);
+    setLocationModalData(pickBranchLocation(branch));
+    setShowLocationModal(true);
+    loadBranchLocation(branch, setLocationModalData, setLoadingLocationModal);
+  };
+
+  // Save Attendance Location
+  const handleSaveLocation = async () => {
+    if (!locationBranch) return;
+    const locError = validateBranchLocation(locationModalData);
+    if (locError) {
+      toast.warning(locError);
+      return;
+    }
+    try {
+      setSavingLocation(true);
+      const res = await updateBranchLocationApi(locationBranch.id, toBranchLocationPayload(locationModalData));
+      if (res?.success) {
+        toast.success('Attendance location updated successfully!');
+        setShowLocationModal(false);
+        setLocationBranch(null);
+        loadBranches();
+        window.dispatchEvent(new CustomEvent('branch_list_updated'));
+      } else {
+        toast.error(res?.message || 'Failed to update attendance location.');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Failed to update attendance location.');
+    } finally {
+      setSavingLocation(false);
+    }
+  };
+
   // Handle Form Input Change
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -354,8 +469,15 @@ const BranchManagement = () => {
       return;
     }
 
+    const locError = validateBranchLocation(locationData);
+    if (locError) {
+      toast.warning(locError);
+      return;
+    }
+
     const payload = {
       ...formData,
+      ...toBranchLocationPayload(locationData),
       head_user_id: formData.head_user_id ? Number(formData.head_user_id) : null,
       country_id: selectedCountryId ? Number(selectedCountryId) : null,
       state_id: selectedStateId ? Number(selectedStateId) : null,
@@ -468,6 +590,9 @@ const BranchManagement = () => {
     (acc, b) => acc + Number(b.teacher_count || 0),
     0
   );
+  const branchesWithoutLocation = displayableBranches.filter(
+    (b) => !hasCoordinates(pickBranchLocation(b))
+  ).length;
 
   // Filtered branches: status 1 or 2 are displayed; status 4 (soft-deleted) is NOT displayed
   const filteredBranches = branches.filter((b) => {
@@ -608,6 +733,15 @@ const BranchManagement = () => {
             <span className="badge bg-light text-muted border px-2 py-1 fs-11">
               {filteredBranches.length} {filteredBranches.length === 1 ? 'Campus' : 'Campuses'}
             </span>
+            {!loading && branchesWithoutLocation > 0 && (
+              <span
+                className="badge bg-warning-subtle text-warning border border-warning-subtle px-2 py-1 fs-11"
+                title="Teachers of these campuses cannot self check-in from the Teacher App"
+              >
+                <i className="ti ti-map-pin-off me-1"></i>
+                {branchesWithoutLocation} without attendance location
+              </span>
+            )}
           </div>
 
           <div className="d-flex align-items-center gap-2 flex-wrap">
@@ -649,6 +783,7 @@ const BranchManagement = () => {
                   <th className="ps-3">Branch Name</th>
                   <th>Code</th>
                   <th>Location</th>
+                  <th>Attendance Location</th>
                   <th>Campus Head</th>
                   <th>Contact Info</th>
                   <th>Enrollments</th>
@@ -659,14 +794,14 @@ const BranchManagement = () => {
               <tbody>
                 {loading ? (
                   <tr>
-                    <td colSpan="8" className="text-center py-5 text-muted">
+                    <td colSpan="9" className="text-center py-5 text-muted">
                       <div className="spinner-border spinner-border-sm text-primary me-2" role="status" />
                       Loading school branches...
                     </td>
                   </tr>
                 ) : filteredBranches.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="py-5">
+                    <td colSpan="9" className="py-5">
                       <NoData message="No campuses found matching your search." />
                     </td>
                   </tr>
@@ -714,6 +849,18 @@ const BranchManagement = () => {
                             <span className="text-muted fst-italic">Not specified</span>
                           )}
                         </span>
+                      </td>
+
+                      {/* Attendance Location (Teacher App geofence) */}
+                      <td>
+                        <button
+                          type="button"
+                          className="btn btn-link p-0 text-decoration-none"
+                          onClick={() => handleOpenLocation(branch)}
+                          title="Manage attendance location"
+                        >
+                          {renderAttendanceLocationBadge(branch)}
+                        </button>
                       </td>
 
                       {/* Principal / Campus Head */}
@@ -858,6 +1005,16 @@ const BranchManagement = () => {
                                 <span>Edit Campus</span>
                               </button>
                             </li>
+                            <li>
+                              <button
+                                type="button"
+                                className="dropdown-item py-1.5 rounded d-flex align-items-center gap-2 text-primary"
+                                onClick={() => handleOpenLocation(branch)}
+                              >
+                                <i className="ti ti-map-pin fs-14"></i>
+                                <span>Manage Location</span>
+                              </button>
+                            </li>
                             {branch.is_main_branch !== 1 && (
                               <li>
                                 <button
@@ -883,7 +1040,7 @@ const BranchManagement = () => {
       </div>
 
       {/* Add / Edit Branch Modal */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="lg">
+      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="xl" scrollable>
         <form onSubmit={handleSubmit}>
           <Modal.Header closeButton className="border-bottom py-3">
             <Modal.Title className="fs-16 fw-bold text-dark d-flex align-items-center gap-2">
@@ -1171,6 +1328,32 @@ const BranchManagement = () => {
                   </label>
                 </div>
               </div>
+
+              {/* Attendance Location (Teacher App) */}
+              <div className="col-12">
+                <div className="border-top pt-3 mt-1">
+                  <h6 className="fw-bold text-dark mb-1 d-flex align-items-center gap-2">
+                    <i className="ti ti-map-pin text-primary fs-16"></i>
+                    <span>Attendance Location (Teacher App)</span>
+                  </h6>
+                  <p className="fs-11 text-muted mb-3">
+                    Pin the campus on the map and set the radius within which teachers can mark their own attendance.
+                  </p>
+                  {loadingBranchLocation ? (
+                    <div className="text-center py-4 text-muted fs-12">
+                      <div className="spinner-border spinner-border-sm text-primary me-2" role="status" />
+                      Loading attendance location...
+                    </div>
+                  ) : (
+                    <BranchLocationPicker
+                      value={locationData}
+                      onChange={setLocationData}
+                      disabled={submitting}
+                      initialAddressHint={formAddressHint}
+                    />
+                  )}
+                </div>
+              </div>
             </div>
           </Modal.Body>
           <Modal.Footer className="border-top py-2">
@@ -1187,6 +1370,63 @@ const BranchManagement = () => {
             </button>
           </Modal.Footer>
         </form>
+      </Modal>
+
+      {/* Manage Attendance Location Modal */}
+      <Modal
+        show={showLocationModal}
+        onHide={() => !savingLocation && setShowLocationModal(false)}
+        centered
+        size="xl"
+        scrollable
+      >
+        <Modal.Header closeButton className="border-bottom py-3">
+          <Modal.Title className="fs-16 fw-bold text-dark d-flex align-items-center gap-2">
+            <i className="ti ti-map-pin text-primary fs-18"></i>
+            <span>Attendance Location{locationBranch ? ` – ${locationBranch.branch_name}` : ''}</span>
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-4">
+          {loadingLocationModal ? (
+            <div className="text-center py-5 text-muted fs-12">
+              <div className="spinner-border spinner-border-sm text-primary me-2" role="status" />
+              Loading attendance location...
+            </div>
+          ) : (
+            showLocationModal && (
+              <BranchLocationPicker
+                value={locationModalData}
+                onChange={setLocationModalData}
+                disabled={savingLocation}
+                initialAddressHint={buildAddressHint([
+                  locationBranch?.address,
+                  locationBranch?.city,
+                  locationBranch?.state,
+                  locationBranch?.country,
+                  locationBranch?.pincode,
+                ])}
+              />
+            )
+          )}
+        </Modal.Body>
+        <Modal.Footer className="border-top py-2">
+          <button
+            type="button"
+            className="btn btn-sm btn-light"
+            onClick={() => setShowLocationModal(false)}
+            disabled={savingLocation}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-sm btn-primary shadow-sm"
+            onClick={handleSaveLocation}
+            disabled={savingLocation || loadingLocationModal}
+          >
+            {savingLocation ? 'Saving...' : 'Save Location'}
+          </button>
+        </Modal.Footer>
       </Modal>
 
       {/* Delete Confirmation Modal */}

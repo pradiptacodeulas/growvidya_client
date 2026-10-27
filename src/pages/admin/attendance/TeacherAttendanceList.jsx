@@ -7,6 +7,7 @@ import Avatar from '../../../components/common/Avatar';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import { encodeParam } from '../../../utils/idHelper';
+import { formatCheckInTime } from '../../../utils/attendanceTime.util';
 
 const getAttendanceBadge = (status) => {
   const s = String(status !== null && status !== undefined ? status : '').toLowerCase().trim();
@@ -43,6 +44,32 @@ const getAttendanceBadge = (status) => {
       <i className="ti ti-minus fs-12 me-1"></i>Not Marked
     </span>
   );
+};
+
+const getSourceBadge = (source) => {
+  const s = String(source || '').toLowerCase();
+  if (s === 'app') {
+    return (
+      <span className="badge-soft-success">
+        <i className="ti ti-device-mobile fs-12 me-1"></i>App
+      </span>
+    );
+  }
+  if (s === 'machine') {
+    return (
+      <span className="badge-soft-info">
+        <i className="ti ti-fingerprint fs-12 me-1"></i>Machine
+      </span>
+    );
+  }
+  if (s === 'admin') {
+    return (
+      <span className="badge-soft-secondary">
+        <i className="ti ti-user-shield fs-12 me-1"></i>Admin
+      </span>
+    );
+  }
+  return <span className="text-muted">-</span>;
 };
 
 const TeacherAttendanceList = () => {
@@ -175,6 +202,54 @@ const TeacherAttendanceList = () => {
         align: 'center',
         sortable: true,
         cell: ({ value }) => getAttendanceBadge(value),
+      },
+      {
+        accessorKey: 'source',
+        header: 'Source',
+        width: '100px',
+        align: 'center',
+        cell: ({ value }) => getSourceBadge(value),
+      },
+      {
+        accessorKey: 'check_in_time',
+        header: 'Check-in',
+        width: '110px',
+        align: 'center',
+        cell: ({ value }) => (
+          <span className="text-dark fs-13">{formatCheckInTime(value) || '-'}</span>
+        ),
+      },
+      {
+        accessorKey: 'distance_m',
+        header: 'Distance',
+        width: '110px',
+        align: 'center',
+        cell: ({ value, row }) => {
+          const hasCoords =
+            row.latitude !== null &&
+            row.latitude !== undefined &&
+            row.latitude !== '' &&
+            row.longitude !== null &&
+            row.longitude !== undefined &&
+            row.longitude !== '';
+          const hasDistance = value !== null && value !== undefined && value !== '';
+          return (
+            <span className="d-inline-flex align-items-center gap-1 text-dark fs-13">
+              {hasDistance ? `${Math.round(Number(value))} m` : '-'}
+              {hasCoords && (
+                <a
+                  href={`https://www.google.com/maps?q=${row.latitude},${row.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary"
+                  title="View check-in location on map"
+                >
+                  <i className="ti ti-map-pin fs-14"></i>
+                </a>
+              )}
+            </span>
+          );
+        },
       },
       {
         accessorKey: 'notes',
