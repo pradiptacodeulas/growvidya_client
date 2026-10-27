@@ -308,10 +308,6 @@ const AttendanceReport = () => {
     }
   };
 
-  // Print report
-  const handlePrint = () => {
-    window.print();
-  };
 
   // Refresh
   const handleRefresh = () => {
@@ -389,16 +385,6 @@ const AttendanceReport = () => {
               <i className="ti ti-refresh"></i>
             </button>
           </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              onClick={handlePrint}
-              title="Print"
-            >
-              <i className="ti ti-printer"></i>
-            </button>
-          </div>
           <div className="dropdown me-2 mb-2">
             <button
               className="dropdown-toggle btn btn-light fw-medium d-inline-flex align-items-center"
@@ -408,15 +394,6 @@ const AttendanceReport = () => {
               <i className="ti ti-file-export me-2"></i>Export
             </button>
             <ul className="dropdown-menu dropdown-menu-end p-3">
-              <li>
-                <button
-                  type="button"
-                  className="dropdown-item rounded-1"
-                  onClick={() => window.print()}
-                >
-                  <i className="ti ti-file-type-pdf me-2 text-danger"></i>Export as PDF
-                </button>
-              </li>
               <li>
                 <button
                   type="button"

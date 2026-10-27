@@ -282,9 +282,6 @@ const StaffList = () => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
   const handleExportCSV = () => {
     if (staffList.length === 0) return toast.info('No staff to export');
@@ -456,14 +453,6 @@ const StaffList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
 
           <TableActionMenu
             trigger={
@@ -472,11 +461,6 @@ const StaffList = () => {
               </span>
             }
             items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
               {
                 label: 'Export as Excel',
                 icon: 'ti ti-file-type-xls text-success',

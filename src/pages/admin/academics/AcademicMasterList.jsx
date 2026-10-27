@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { useSearchParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminAcademicApi from '../../../api/adminAcademic.api';
@@ -135,7 +136,7 @@ const AcademicMasterList = () => {
       toast.warning('Current academic year cannot be deleted.');
       return;
     }
-    if (!window.confirm('Delete this Academic Year?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Academic Year?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteAcademicYearApi(id);
       toast.success('Academic Year deleted.');
@@ -159,7 +160,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteClass = async (id) => {
-    if (!window.confirm('Delete this Class?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Class?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteClassApi(id);
       toast.success('Class deleted.');
@@ -183,7 +184,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteSection = async (id) => {
-    if (!window.confirm('Delete this Section?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Section?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteSectionApi(id);
       toast.success('Section deleted.');
@@ -207,7 +208,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteSubject = async (id) => {
-    if (!window.confirm('Delete this Subject?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Subject?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteSubjectApi(id);
       toast.success('Subject deleted.');
@@ -231,7 +232,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteShift = async (id) => {
-    if (!window.confirm('Delete this Shift?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Shift?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteShiftApi(id);
       toast.success('Shift deleted.');
@@ -255,7 +256,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteHouse = async (id) => {
-    if (!window.confirm('Delete this House?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this House?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteHouseApi(id);
       toast.success('House deleted.');
@@ -279,7 +280,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeletePeriod = async (id) => {
-    if (!window.confirm('Delete this Period?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Period?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deletePeriodApi(id);
       toast.success('Period deleted.');
@@ -303,7 +304,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteDocType = async (id) => {
-    if (!window.confirm('Delete this Document Type?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Document Type?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteDocumentTypeApi(id);
       toast.success('Document Type deleted.');
@@ -348,7 +349,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteDay = async (id) => {
-    if (!window.confirm('Delete this Day?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Day?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteDayApi(id);
       toast.success('Day deleted.');
@@ -374,7 +375,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteRoutine = async (id) => {
-    if (!window.confirm('Remove this schedule period?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Remove this schedule period?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteRoutineApi(id);
       toast.success('Routine period removed.');
@@ -400,7 +401,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteLesson = async (id) => {
-    if (!window.confirm('Delete this syllabus lesson?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this syllabus lesson?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteLessonApi(id);
       toast.success('Lesson deleted.');
@@ -426,7 +427,7 @@ const AcademicMasterList = () => {
   };
 
   const handleDeleteAssignment = async (id) => {
-    if (!window.confirm('Delete this Assignment?')) return;
+    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this Assignment?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteAssignmentApi(id);
       toast.success('Assignment deleted.');
@@ -1794,7 +1795,7 @@ const AcademicMasterList = () => {
                                 <td className="fw-bold text-dark">{at.type_name}</td>
                                 <td className="text-end">
                                   <button onClick={async () => {
-                                    if (!window.confirm('Delete this type?')) return;
+                                    if (!(await confirmAction({ title: 'Confirm Delete', message: 'Delete this type?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
                                     await adminAcademicApi.deleteAssignmentTypeApi(at.id);
                                     toast.success('Type deleted.');
                                     fetchData();

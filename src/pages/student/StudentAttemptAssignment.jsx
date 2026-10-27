@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { confirmAction } from '../../utils/confirmModal';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   fetchStudentAssignmentForAttemptApi,
@@ -106,7 +107,7 @@ const StudentAttemptAssignment = () => {
       return;
     }
 
-    if (!window.confirm('Are you sure you want to submit your assignment now?')) {
+    if (!(await confirmAction({ title: 'Submit Assignment', message: 'Are you sure you want to submit your assignment now?', confirmText: 'Yes, Submit', variant: 'primary' }))) {
       return;
     }
 

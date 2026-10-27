@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
 import { useSubscription } from '../../../context/SubscriptionContext';
 
@@ -54,7 +55,7 @@ const SubscriptionBilling = () => {
   // Navigate to Step 2 (Configure Page) with selected plan and billing cycle
   const handleSelectPlan = (plan) => {
     if (plan.is_downgrade || (currentPlanPrice > 0 && parseFloat(plan.price) < currentPlanPrice)) {
-      alert(`Downgrading to a lower-tier plan is not permitted. You are currently subscribed to "${planName}" (₹${currentPlanPrice.toFixed(2)}). You may only remain on your current plan or upgrade to an equal or higher-tier plan.`);
+      toast.warning(`Downgrading to a lower-tier plan is not permitted. You are currently subscribed to "${planName}" (₹${currentPlanPrice.toFixed(2)}). You may only remain on your current plan or upgrade to an equal or higher-tier plan.`);
       return;
     }
     sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));

@@ -108,16 +108,6 @@ const TeacherMyTransport = () => {
               <i className="ti ti-refresh text-dark"></i>
             </button>
           </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="btn btn-outline-light bg-white btn-icon me-1 shadow-sm border"
-              title="Print"
-            >
-              <i className="ti ti-printer text-dark"></i>
-            </button>
-          </div>
         </div>
       </div>
       {/* /Page Header */}

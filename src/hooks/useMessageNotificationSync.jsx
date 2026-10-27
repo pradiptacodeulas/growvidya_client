@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
+import { toast } from 'react-toastify';
 import {
   fetchUnreadSummaryThunk,
   addIncomingMessage,
@@ -37,6 +38,24 @@ export const useMessageNotificationSync = () => {
       }
     } catch (_) {}
 
+    // Listen for Web Push notifications forwarded by sw.js (e.g. Support Ticket updates)
+    const handleSwPushMessage = (event) => {
+      if (event.data?.type === 'GROWVIDYA_PUSH_RECEIVED') {
+        const payload = event.data.payload || {};
+        const category = payload.data?.category || payload.data?.type;
+        if (category === 'support_ticket') {
+          playNotificationChime();
+          const msg = payload.body
+            ? `${payload.title || 'Support Update'}: ${payload.body}`
+            : payload.title || 'New Support Ticket Update';
+          toast.info(msg);
+        }
+      }
+    };
+    if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwPushMessage);
+    }
+
     // 1. Fetch initial unread count & unread conversations summary
     dispatch(fetchUnreadSummaryThunk());
 
@@ -44,7 +63,13 @@ export const useMessageNotificationSync = () => {
     const socket = getSocket();
     socketRef.current = socket;
 
-    if (!socket) return;
+    if (!socket) {
+      return () => {
+        if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.removeEventListener('message', handleSwPushMessage);
+        }
+      };
+    }
 
     // 3. Socket event handler for incoming messages
     const handleReceiveMessage = (incomingMsg) => {
@@ -121,6 +146,9 @@ export const useMessageNotificationSync = () => {
     window.addEventListener('chat_messages_marked_read', handleLocalMessagesRead);
 
     return () => {
+      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwPushMessage);
+      }
       socket.off('receive_message', handleReceiveMessage);
       socket.off('unread_count_updated', handleUnreadCountUpdated);
       socket.off('new_notice', handleNewNotice);

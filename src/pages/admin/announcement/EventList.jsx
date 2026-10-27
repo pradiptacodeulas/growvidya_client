@@ -87,9 +87,6 @@ const EventList = () => {
     );
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
   const handleExportCSV = () => {
     if (events.length === 0) return toast.info('No events to export');
@@ -250,14 +247,6 @@ const EventList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
 
           <TableActionMenu
             trigger={
@@ -266,11 +255,6 @@ const EventList = () => {
               </span>
             }
             items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
               {
                 label: 'Export as Excel',
                 icon: 'ti ti-file-type-xls text-success',

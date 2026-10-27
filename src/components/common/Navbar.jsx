@@ -461,6 +461,17 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
               />
             )}
 
+            {/* Help & Support Quick Button */}
+            <div className="pe-1">
+              <Link
+                to="/admin/help-support"
+                className="btn btn-outline-light bg-white btn-icon me-1"
+                title="Help & Support Tickets"
+              >
+                <i className="ti ti-headset text-primary"></i>
+              </Link>
+            </div>
+
             {/* Fullscreen Toggle */}
             <div className="pe-1 d-none d-lg-block">
               <a href="#" onClick={(e) => { e.preventDefault(); toggleFullscreen(); }} className="btn btn-outline-light bg-white btn-icon me-1">
@@ -497,6 +508,9 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   <hr className="m-0" />
                   <Link className="dropdown-item d-inline-flex align-items-center p-2" to="/admin/profile">
                     <i className="ti ti-user-circle me-2"></i> My Profile
+                  </Link>
+                  <Link className="dropdown-item d-inline-flex align-items-center p-2" to="/admin/help-support">
+                    <i className="ti ti-headset me-2 text-primary"></i> Help &amp; Support
                   </Link>
                   <hr className="m-0" />
                   <a className="dropdown-item d-inline-flex align-items-center p-2 text-danger" href="#logout" onClick={handleLogout}>

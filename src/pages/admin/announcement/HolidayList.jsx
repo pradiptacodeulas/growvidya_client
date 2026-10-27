@@ -87,9 +87,6 @@ const HolidayList = () => {
     );
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
   const handleExportCSV = () => {
     if (holidays.length === 0) return toast.info('No holidays to export');
@@ -250,14 +247,6 @@ const HolidayList = () => {
           >
             <i className="ti ti-refresh"></i>
           </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
-          </button>
 
           <TableActionMenu
             trigger={
@@ -266,11 +255,6 @@ const HolidayList = () => {
               </span>
             }
             items={[
-              {
-                label: 'Export as PDF',
-                icon: 'ti ti-file-type-pdf text-danger',
-                onClick: handlePrint,
-              },
               {
                 label: 'Export as Excel',
                 icon: 'ti ti-file-type-xls text-success',

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -350,7 +351,7 @@ const RoutineTimetableView = () => {
   };
 
   const handleDelete = async (routineId) => {
-    if (!window.confirm('Are you sure you want to remove this scheduled period?')) return;
+    if (!(await confirmAction({ title: 'Remove Scheduled Period', message: 'Are you sure you want to remove this scheduled period?', confirmText: 'Yes, Remove', variant: 'danger' }))) return;
     try {
       await deleteRoutineApi(routineId);
       toast.success('Scheduled period removed.');

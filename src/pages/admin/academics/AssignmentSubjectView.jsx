@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
@@ -164,7 +165,7 @@ const AssignmentSubjectView = () => {
   };
 
   const handleDeleteAssignment = async (asgId) => {
-    if (!window.confirm('Are you sure you want to delete this assignment?')) return;
+    if (!(await confirmAction({ title: 'Delete Assignment', message: 'Are you sure you want to delete this assignment?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await deleteAssignmentApi(asgId);
       toast.success('Assignment deleted.');

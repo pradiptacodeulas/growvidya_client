@@ -1447,11 +1447,6 @@ const TeacherDetails = () => {
                               <ul className="dropdown-menu dropdown-menu-end p-2 shadow-sm border">
                                 <li>
                                   <button type="button" className="dropdown-item rounded-1">
-                                    <i className="ti ti-file-type-pdf me-2 text-danger"></i>Export as PDF
-                                  </button>
-                                </li>
-                                <li>
-                                  <button type="button" className="dropdown-item rounded-1">
                                     <i className="ti ti-file-type-xls me-2 text-success"></i>Export as Excel
                                   </button>
                                 </li>

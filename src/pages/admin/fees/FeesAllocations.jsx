@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminFeesApi from '../../../api/adminFees.api';
@@ -102,7 +103,7 @@ const FeesAllocations = () => {
   };
 
   const handleDelete = async (id, studentName) => {
-    if (!window.confirm(`Are you sure you want to remove fee allocation for "${studentName}"?`)) {
+    if (!(await confirmAction({ title: 'Remove Fee Allocation', message: `Are you sure you want to remove fee allocation for "${studentName}"?`, confirmText: 'Yes, Remove', variant: 'danger' }))) {
       return;
     }
 

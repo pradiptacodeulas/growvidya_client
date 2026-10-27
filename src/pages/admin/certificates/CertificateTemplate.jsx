@@ -132,13 +132,7 @@ const CertificateTemplate = () => {
     document.body.removeChild(link);
   };
 
-  const handleExportPdf = () => {
-    window.print();
-  };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
   return (
     <div className="content" ref={dropdownRef}>
@@ -169,16 +163,6 @@ const CertificateTemplate = () => {
               <i className="ti ti-refresh"></i>
             </button>
           </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              onClick={handlePrint}
-              title="Print"
-            >
-              <i className="ti ti-printer"></i>
-            </button>
-          </div>
           <div className="dropdown me-2 mb-2">
             <button
               type="button"
@@ -189,15 +173,6 @@ const CertificateTemplate = () => {
               <i className="ti ti-file-export me-2"></i>Export
             </button>
             <ul className="dropdown-menu dropdown-menu-end p-3">
-              <li>
-                <button
-                  type="button"
-                  className="dropdown-item rounded-1"
-                  onClick={handleExportPdf}
-                >
-                  <i className="ti ti-file-type-pdf me-2"></i>Export as PDF
-                </button>
-              </li>
               <li>
                 <button
                   type="button"

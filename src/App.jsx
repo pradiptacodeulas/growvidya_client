@@ -13,6 +13,7 @@ import { checkParentAuth } from './store/slices/parentAuthSlice';
 import { checkStudentAuth } from './store/slices/studentAuthSlice';
 import { SubscriptionProvider } from './context/SubscriptionContext';
 import LoadingScreen from './components/common/LoadingScreen';
+import GlobalConfirmModal from './components/common/GlobalConfirmModal';
 
 import { publicRoutes } from './routes/public.routes';
 import { adminRoutes } from './routes/admin.routes';
@@ -57,6 +58,8 @@ function AppContent() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
+
+      <GlobalConfirmModal />
 
       <ToastContainer
         position="bottom-right"

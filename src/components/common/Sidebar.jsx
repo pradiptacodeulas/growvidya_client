@@ -1485,6 +1485,21 @@ const Sidebar = ({
                   </li>
                 )}
 
+                {/* Help & Support */}
+                <li>
+                  <NavLink
+                    to="/admin/help-support"
+                    className={({ isActive }) =>
+                      isActive || location.pathname.startsWith('/admin/help-support')
+                        ? 'active'
+                        : ''
+                    }
+                  >
+                    <i className="ti ti-headset text-primary"></i>
+                    <span>Help &amp; Support</span>
+                  </NavLink>
+                </li>
+
                 {/* Logout */}
                 <li>
                   <a href="#logout" onClick={handleLogout} className="text-danger">

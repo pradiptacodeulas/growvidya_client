@@ -1,4 +1,5 @@
 import { getServerBaseUrl, resolveImageUrl, maleUserDefault, femaleUserDefault } from '../../../utils/url.util';
+import { confirmAction } from '../../../utils/confirmModal';
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
@@ -300,7 +301,7 @@ const ParentList = () => {
 
   // Delete Parent
   const handleDeleteParent = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this parent record?')) return;
+    if (!(await confirmAction({ title: 'Delete Parent Record', message: 'Are you sure you want to delete this parent record?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await deleteParentApi(id);
       toast.success('Parent record deleted.');

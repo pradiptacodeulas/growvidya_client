@@ -116,9 +116,6 @@ const TeacherAttendanceList = () => {
     loadAttendance(1, size, search);
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
   const columns = useMemo(
     () => [
@@ -214,14 +211,6 @@ const TeacherAttendanceList = () => {
             title="Refresh"
           >
             <i className="ti ti-refresh"></i>
-          </button>
-          <button
-            type="button"
-            className="btn btn-outline-light bg-white btn-icon shadow-2xs"
-            onClick={handlePrint}
-            title="Print"
-          >
-            <i className="ti ti-printer"></i>
           </button>
 
           <Link

@@ -1,4 +1,5 @@
 import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
+import { confirmAction } from '../../../utils/confirmModal';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -333,7 +334,7 @@ const TeacherList = () => {
   };
 
   const handleDeleteTeacher = async (id, name) => {
-    if (!window.confirm(`Are you sure you want to delete teacher ${name || ''}?`)) return;
+    if (!(await confirmAction({ title: 'Delete Teacher', message: `Are you sure you want to delete teacher ${name || ''}?`, confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await deleteTeacherApi(id);
       toast.success('Teacher record deleted.');

@@ -1,4 +1,5 @@
 import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
+import { confirmAction } from '../../../utils/confirmModal';
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -236,7 +237,7 @@ const StudentList = () => {
   };
 
   const handleDelete = async (studentId) => {
-    if (!window.confirm('Are you sure you want to delete this student?')) return;
+    if (!(await confirmAction({ title: 'Delete Student', message: 'Are you sure you want to delete this student?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       const res = await apiClient.delete(`/admin/students/${studentId}`);
       if (res.data?.success) {

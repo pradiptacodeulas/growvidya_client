@@ -145,25 +145,6 @@ export const unsubscribeFromWebPush = async () => {
 };
 
 /**
- * Send a test push notification to verify end-to-end receipt
- */
-export const sendTestPushNotification = async () => {
-  try {
-    const res = await apiFetch('/notifications/test', {
-      method: 'POST',
-      body: JSON.stringify({
-        title: 'Growvidya Notification Test',
-        body: 'Push notifications are connected and working properly!',
-      }),
-    });
-    return res;
-  } catch (err) {
-    console.warn('[sendTestPushNotification Error]:', err);
-    return null;
-  }
-};
-
-/**
  * Helper to identify browser name for friendly device listing
  */
 function getBrowserName() {

@@ -95,9 +95,6 @@ const UserDetails = () => {
     }
   };
 
-  const handlePrint = () => {
-    window.print();
-  };
 
   if (loading) {
     return (
@@ -167,13 +164,6 @@ const UserDetails = () => {
               >
                 <i className="ti ti-arrow-left me-1"></i>Back to Users
               </Link>
-              <button
-                type="button"
-                onClick={handlePrint}
-                className="btn btn-light d-flex align-items-center mb-2 me-2 border"
-              >
-                <i className="ti ti-printer me-1"></i>Print
-              </button>
               <Link
                 to={`/admin/users/edit/${encodeParam(user.id)}`}
                 className="btn btn-primary d-flex align-items-center mb-2"

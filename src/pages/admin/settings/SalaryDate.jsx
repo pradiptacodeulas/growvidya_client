@@ -154,11 +154,6 @@ const SalaryDate = () => {
     }
   };
 
-  // Print handler
-  const handlePrint = () => {
-    window.print();
-  };
-
   // Export to Excel / CSV
   const handleExportExcel = () => {
     if (salaryDates.length === 0) {
@@ -181,12 +176,6 @@ const SalaryDate = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    setExportDropdownOpen(false);
-  };
-
-  // Export as PDF (print view)
-  const handleExportPDF = () => {
-    window.print();
     setExportDropdownOpen(false);
   };
 
@@ -225,18 +214,6 @@ const SalaryDate = () => {
             </button>
           </div>
 
-          {/* Print */}
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              className="btn btn-outline-light bg-white btn-icon me-1 shadow-sm border"
-              title="Print"
-              onClick={handlePrint}
-            >
-              <i className="ti ti-printer text-dark"></i>
-            </button>
-          </div>
-
           {/* Export Dropdown */}
           <div className="dropdown me-2 mb-2 position-relative" ref={exportRef}>
             <button
@@ -251,15 +228,6 @@ const SalaryDate = () => {
                 className="dropdown-menu dropdown-menu-end p-2 show shadow-lg border"
                 style={{ position: 'absolute', right: 0, zIndex: 1060, minWidth: '160px' }}
               >
-                <li>
-                  <button
-                    type="button"
-                    className="dropdown-item rounded-1 d-flex align-items-center py-2"
-                    onClick={handleExportPDF}
-                  >
-                    <i className="ti ti-file-type-pdf me-2 text-danger fs-16"></i>Export as PDF
-                  </button>
-                </li>
                 <li>
                   <button
                     type="button"

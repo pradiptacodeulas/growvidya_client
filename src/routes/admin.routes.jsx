@@ -7,6 +7,8 @@ import AdminLayout from '../layouts/AdminLayout';
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
 const SubscriptionBilling = lazy(() => import('../pages/admin/subscription/SubscriptionBilling'));
 const SubscriptionConfigure = lazy(() => import('../pages/admin/subscription/SubscriptionConfigure'));
+const HelpSupport = lazy(() => import('../pages/admin/support/HelpSupport'));
+const SupportTicketDetails = lazy(() => import('../pages/admin/support/SupportTicketDetails'));
 const AcademicYearsList = lazy(() => import('../pages/admin/academics/AcademicYearsList'));
 const EditAcademicYear = lazy(() => import('../pages/admin/academics/EditAcademicYear'));
 const ClassesList = lazy(() => import('../pages/admin/academics/ClassesList'));
@@ -169,6 +171,8 @@ export const adminRoutes = (
       <Route path="subscription/configure" element={<SubscriptionConfigure />} />
       <Route path="billing" element={<SubscriptionBilling />} />
       <Route path="billing/configure" element={<SubscriptionConfigure />} />
+      <Route path="help-support" element={<HelpSupport />} />
+      <Route path="help-support/:id" element={<SupportTicketDetails />} />
       <Route path="academics" element={<Navigate to="/admin/academics/years" replace />} />
 
       {/* Academic Years */}

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -256,6 +257,8 @@ const SalaryManagement = () => {
 
   const handleStatusChange = async (id, newStatus) => {
     if (isTeacher) return;
+    const statusLabel = Number(newStatus) === 1 ? 'Paid' : Number(newStatus) === 2 ? 'Failed' : 'Pending';
+    if (!(await confirmAction({ title: 'Update Salary Payment Status', message: `Are you sure you want to mark this salary payment as ${statusLabel}?`, confirmText: 'Yes, Update', variant: 'primary' }))) return;
     try {
       await updateSalaryStatusApi(id, newStatus);
       toast.success('Payment status updated successfully.');
@@ -279,6 +282,7 @@ const SalaryManagement = () => {
       toast.info('Please select at least one failed or pending payment to retry.');
       return;
     }
+    if (!(await confirmAction({ title: 'Retry Salary Payouts', message: `Are you sure you want to retry salary disbursement for ${validIds.length} selected record(s)?`, confirmText: 'Yes, Retry Payout', variant: 'warning' }))) return;
 
     try {
       setRetrying(true);

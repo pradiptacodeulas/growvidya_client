@@ -143,13 +143,6 @@ const ParentTimetable = () => {
             </div>
 
             <div className="d-flex gap-2">
-              <button
-                type="button"
-                className="btn btn-outline-primary btn-sm fw-semibold shadow-2xs d-flex align-items-center px-3"
-                onClick={() => window.print()}
-              >
-                <i className="ti ti-printer me-1"></i> Print Timetable
-              </button>
               <Link
                 to="/parent/dashboard"
                 className="btn btn-outline-secondary btn-sm fw-semibold shadow-2xs d-flex align-items-center px-3"

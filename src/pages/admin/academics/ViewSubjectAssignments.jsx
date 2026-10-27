@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -214,7 +215,7 @@ const ViewSubjectAssignments = () => {
   }, [classId, sectionId, subjectId, isTeacher, reloadTrigger, getEffectiveBranchId, navigate]);
 
   const handlePublish = async (asgId) => {
-    if (!window.confirm('Are you sure you want to publish this assignment? Once published, it will be locked.')) {
+    if (!(await confirmAction({ title: 'Publish Assignment', message: 'Are you sure you want to publish this assignment? Once published, it will be locked.', confirmText: 'Yes, Publish', variant: 'primary' }))) {
       return;
     }
     try {
@@ -228,7 +229,7 @@ const ViewSubjectAssignments = () => {
   };
 
   const handleDelete = async (asgId) => {
-    if (!window.confirm('Are you sure you want to delete this assignment?')) {
+    if (!(await confirmAction({ title: 'Delete Assignment', message: 'Are you sure you want to delete this assignment?', confirmText: 'Yes, Delete', variant: 'danger' }))) {
       return;
     }
     try {

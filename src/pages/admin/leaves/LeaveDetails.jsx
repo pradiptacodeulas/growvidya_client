@@ -1,4 +1,5 @@
 import { getServerBaseUrl } from '../../../utils/url.util';
+import { confirmAction } from '../../../utils/confirmModal';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -43,6 +44,14 @@ const LeaveDetails = () => {
 
   // Handle single date approval/rejection
   const handleDateStatusChange = async (dateId, targetStatus) => {
+    const isApprove = Number(targetStatus) === 2;
+    const confirmed = await confirmAction({
+      title: isApprove ? 'Approve Leave Date' : 'Reject Leave Date',
+      message: `Are you sure you want to ${isApprove ? 'approve' : 'reject'} this leave date?`,
+      confirmText: isApprove ? 'Yes, Approve' : 'Yes, Reject',
+      variant: isApprove ? 'success' : 'danger',
+    });
+    if (!confirmed) return;
     try {
       await updateLeaveDateStatusApi(dateId, targetStatus);
       toast.success(

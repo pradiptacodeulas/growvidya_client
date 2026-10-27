@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -690,6 +691,7 @@ const StudyMaterialsList = () => {
   };
 
   const handleDeleteMaterialType = async (id) => {
+    if (!(await confirmAction({ title: 'Delete Material Type', message: 'Are you sure you want to delete this material type?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       const deleteMaterialType = isTeacher ? deleteTeacherMaterialTypeApi : deleteMaterialTypeApi;
       await deleteMaterialType(id);

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -391,9 +392,12 @@ const CreateFeeStructure = () => {
     }
 
     if (isPublishedVal === 1) {
-      const confirmPublish = window.confirm(
-        'Are you sure you want to publish this fee structure? Once published, it cannot be edited or deleted.'
-      );
+      const confirmPublish = await confirmAction({
+        title: 'Publish Fee Structure',
+        message: 'Are you sure you want to publish this fee structure? Once published, it cannot be edited or deleted.',
+        confirmText: 'Yes, Publish',
+        variant: 'primary',
+      });
       if (!confirmPublish) return;
     }
 

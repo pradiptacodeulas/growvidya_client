@@ -54,7 +54,19 @@ self.addEventListener('push', (event) => {
     renotify: true,
   };
 
-  event.waitUntil(self.registration.showNotification(notificationData.title, options));
+  event.waitUntil(
+    Promise.all([
+      self.registration.showNotification(notificationData.title, options),
+      clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+        for (const client of clientList) {
+          client.postMessage({
+            type: 'GROWVIDYA_PUSH_RECEIVED',
+            payload: notificationData,
+          });
+        }
+      }),
+    ])
+  );
 });
 
 // Handle notification banner clicks (focus open tab or open target page)

@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import { promptInput } from '../../utils/confirmModal';
 
 const RichTextEditor = ({ value, onChange, placeholder = 'Write details here...' }) => {
   const editorRef = useRef(null);
@@ -43,8 +44,13 @@ const RichTextEditor = ({ value, onChange, placeholder = 'Write details here...'
     }
   };
 
-  const handleInsertLink = () => {
-    const url = prompt('Enter URL (https://...):');
+  const handleInsertLink = async () => {
+    const url = await promptInput({
+      title: 'Insert Link',
+      message: 'Enter the URL (https://...):',
+      placeholder: 'https://example.com',
+      confirmText: 'Insert Link',
+    });
     if (url) {
       exec('createLink', url);
     }

@@ -14,10 +14,11 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const { isExpired, isTrial, subscription, loading } = useSubscription();
 
-  // If trial/subscription has expired, only subscription/billing pages are allowed
+  // If trial/subscription has expired, only subscription/billing and help-support pages are allowed
   const isAllowedExpiredPath =
     location.pathname.startsWith('/admin/subscription') ||
-    location.pathname.startsWith('/admin/billing');
+    location.pathname.startsWith('/admin/billing') ||
+    location.pathname.startsWith('/admin/help-support');
 
   useEffect(() => {
     if (isExpired && !loading && !isAllowedExpiredPath) {

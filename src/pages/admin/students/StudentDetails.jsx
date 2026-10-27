@@ -1,4 +1,5 @@
 import { getServerBaseUrl, resolveImageUrl, maleUserDefault, femaleUserDefault } from '../../../utils/url.util';
+import { confirmAction } from '../../../utils/confirmModal';
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
@@ -71,7 +72,7 @@ const StudentDetails = () => {
   };
 
   const handleDeleteSavedActivity = async (actId) => {
-    if (!window.confirm('Are you sure you want to delete this activity?')) return;
+    if (!(await confirmAction({ title: 'Delete Activity', message: 'Are you sure you want to delete this activity?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       const res = await deleteStudentActivityApi(actId);
       if (res.success) {

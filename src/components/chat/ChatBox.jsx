@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { confirmAction } from '../../utils/confirmModal';
+import { toast } from 'react-toastify';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search,
@@ -625,7 +627,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
         });
       }
     } catch (err) {
-      alert(err.message || 'Attachment upload failed');
+      toast.error(err.message || 'Attachment upload failed');
     } finally {
       setAttachmentUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -640,7 +642,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
   // Delete message
   const handleDeleteMessage = async (messageId) => {
     if (!messageId) return;
-    const confirmDelete = window.confirm('Are you sure you want to delete this message for everyone?');
+    const confirmDelete = await confirmAction({ title: 'Delete Message', message: 'Are you sure you want to delete this message for everyone?', confirmText: 'Yes, Delete', variant: 'danger' });
     if (!confirmDelete) return;
 
     try {
@@ -654,7 +656,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
       await deleteMessageApi(messageId);
     } catch (err) {
       console.error('Failed to delete message:', err);
-      alert(err.message || 'Failed to delete message. Please try again.');
+      toast.error(err.message || 'Failed to delete message. Please try again.');
       if (selectedContact) {
         loadConversation(selectedContact, false);
       }
@@ -723,7 +725,7 @@ const ChatBox = ({ currentUserRole = 'admin', currentUserId = null, title = 'Mes
         } catch (err) {
           console.error('Failed to send message:', err);
           setMessages((prev) => prev.filter((m) => m.id !== tempId));
-          alert('Failed to save message to server: ' + (err.message || 'Network error'));
+          toast.error('Failed to save message to server: ' + (err.message || 'Network error'));
         }
       }
     });

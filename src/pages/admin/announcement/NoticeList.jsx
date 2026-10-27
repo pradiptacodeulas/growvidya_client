@@ -381,11 +381,6 @@ const NoticeList = () => {
     setExportDropdownOpen(false);
   };
 
-  // Export to PDF / Print
-  const handleExportPDF = () => {
-    setExportDropdownOpen(false);
-    window.print();
-  };
 
   // Date Range Matcher
   const matchesRange = useCallback(
@@ -528,20 +523,6 @@ const NoticeList = () => {
               <i className="ti ti-refresh"></i>
             </a>
           </div>
-          <div className="pe-1 mb-2">
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="btn btn-outline-light bg-white btn-icon me-1"
-              data-bs-toggle="tooltip"
-              data-bs-placement="top"
-              aria-label="Print"
-              data-bs-original-title="Print"
-              title="Print"
-            >
-              <i className="ti ti-printer"></i>
-            </button>
-          </div>
           <div className="dropdown me-2 mb-2 position-relative" ref={exportDropdownRef}>
             <a
               href="javascript:void(0);"
@@ -561,15 +542,6 @@ const NoticeList = () => {
                 right: 0,
               }}
             >
-              <li>
-                <a
-                  href="javascript:void(0);"
-                  className="dropdown-item rounded-1"
-                  onClick={handleExportPDF}
-                >
-                  <i className="ti ti-file-type-pdf me-2"></i>Export as PDF
-                </a>
-              </li>
               <li>
                 <a
                   href="javascript:void(0);"

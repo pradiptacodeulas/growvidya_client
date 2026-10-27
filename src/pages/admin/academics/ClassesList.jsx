@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
+import { confirmAction } from '../../../utils/confirmModal';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import adminAcademicApi from '../../../api/adminAcademic.api';
@@ -30,7 +31,7 @@ const ClassesList = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this Class?')) return;
+    if (!(await confirmAction({ title: 'Delete Class', message: 'Are you sure you want to delete this Class?', confirmText: 'Yes, Delete', variant: 'danger' }))) return;
     try {
       await adminAcademicApi.deleteClassApi(id);
       toast.success('Class deleted successfully.');
