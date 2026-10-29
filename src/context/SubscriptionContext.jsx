@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { getSubscriptionStatus, upgradeSubscription } from '../api/subscription.api';
 import UpgradeModal from '../components/subscription/UpgradeModal';
 import TrialExpiredLockoutModal from '../components/subscription/TrialExpiredLockoutModal';
@@ -39,6 +40,7 @@ export const useSubscription = () => {
 };
 
 export const SubscriptionProvider = ({ children }) => {
+  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth || {});
   const [subscription, setSubscription] = useState(null);
   const [storageQuota, setStorageQuota] = useState(null);
@@ -223,16 +225,11 @@ export const SubscriptionProvider = ({ children }) => {
 
   const [preselectedPlanId, setPreselectedPlanId] = useState(null);
 
-  const openUpgradeModal = (planId = null) => {
-    if (planId) {
-      setPreselectedPlanId(planId);
-    } else if (subscription?.plan_id) {
-      setPreselectedPlanId(subscription.plan_id);
-    } else {
-      setPreselectedPlanId(null);
-    }
-    setIsUpgradeModalOpen(true);
-  };
+  const openUpgradeModal = useCallback(() => {
+    setIsUpgradeModalOpen(false);
+    setIsLockoutModalOpen(false);
+    navigate('/admin/subscription');
+  }, [navigate]);
 
   const closeUpgradeModal = () => {
     setIsUpgradeModalOpen(false);

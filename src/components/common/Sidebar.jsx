@@ -94,9 +94,9 @@ const Sidebar = ({
     pendingSubscription,
     isLockedOut,
     isActive,
+    isActivePaid,
     isActiveTrial,
     daysLeft,
-    openUpgradeModal,
   } = useSubscription();
 
   const isBillingAdmin = Boolean(
@@ -106,6 +106,17 @@ const Sidebar = ({
         String(user?.roleName || user?.role_name || '').toLowerCase()
       )
   );
+
+  const handleGoToSubscription = () => {
+    if (location.pathname !== '/admin/subscription' || location.search) {
+      navigate('/admin/subscription');
+    } else {
+      const plansSection = document.getElementById('plans-selection-section');
+      if (plansSection) {
+        plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
 
   const handleLockedMenuClick = (e) => {
     if (isLockedOut) {
@@ -119,12 +130,12 @@ const Sidebar = ({
       }
       if (isPending) {
         toast.info('Operational menus will unlock automatically once your offline bank transfer is verified by Super Admin.');
-        navigate('/admin/subscription');
+        handleGoToSubscription();
         return;
       }
       if (isSuspended) {
         toast.warning('Your school subscription is currently suspended. Please check Subscription & Billing or contact Help & Support.');
-        navigate('/admin/subscription');
+        handleGoToSubscription();
         return;
       }
       toast.warning(
@@ -132,7 +143,7 @@ const Sidebar = ({
           ? 'Operational menus are locked because your free trial has ended. Select a plan to continue.'
           : 'Operational menus are locked because your subscription has expired. Renew or upgrade to restore access.'
       );
-      openUpgradeModal(subscription?.plan_id);
+      handleGoToSubscription();
     }
   };
 
@@ -449,20 +460,27 @@ const Sidebar = ({
                         Operational menus are locked. Renew or upgrade to restore access immediately.
                       </p>
                       <div className="d-flex flex-column gap-1">
-                        {!isTrial && (
-                          <button
-                            type="button"
-                            onClick={() => openUpgradeModal(subscription?.plan_id)}
-                            className="btn btn-danger btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center"
-                          >
-                            <i className="ti ti-refresh me-1"></i> Renew Plan
-                          </button>
-                        )}
                         <Link
                           to="/admin/subscription"
-                          className={`btn ${isTrial ? 'btn-danger text-white' : 'btn-outline-danger bg-white text-danger'} btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center`}
+                          onClick={() => {
+                            if (location.pathname === '/admin/subscription' && !location.search) {
+                              const plansSection = document.getElementById('plans-selection-section');
+                              if (plansSection) {
+                                plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                              }
+                            }
+                          }}
+                          className="btn btn-danger text-white btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center"
                         >
-                          <i className="ti ti-arrow-up-right me-1"></i> View Plans
+                          {isTrial ? (
+                            <>
+                              <i className="ti ti-arrow-up-right me-1"></i> View Plans
+                            </>
+                          ) : (
+                            <>
+                              <i className="ti ti-refresh me-1"></i> Renew Plan
+                            </>
+                          )}
                         </Link>
                       </div>
                     </div>
@@ -1507,7 +1525,7 @@ const Sidebar = ({
                 {isBillingAdmin && (
                   <li
                     className={
-                      isLockedOut
+                      isLockedOut || (isActivePaid && daysLeft <= 30)
                         ? 'my-2 rounded border border-warning bg-warning-subtle shadow-sm'
                         : ''
                     }
@@ -1526,8 +1544,12 @@ const Sidebar = ({
                       <span className={isLockedOut ? 'fw-bold text-dark' : ''}>
                         Subscription &amp; Billing
                       </span>
-                      {isLockedOut && showFullLogo && (
-                        <span className="badge bg-danger text-white ms-auto fs-10 px-1.5 py-0.5">
+                      {(isLockedOut || (isActivePaid && daysLeft <= 30)) && showFullLogo && (
+                        <span
+                          className={`badge ${
+                            isLockedOut || daysLeft <= 15 ? 'bg-danger text-white' : 'bg-warning text-dark'
+                          } ms-auto fs-10 px-1.5 py-0.5`}
+                        >
                           {isPending ? 'Pending' : isTrial ? 'Upgrade' : 'Renew'}
                         </span>
                       )}

@@ -44,36 +44,38 @@ function AppContent() {
 
   return (
     <Router>
-      <Suspense fallback={<LoadingScreen />}>
-        <Routes>
-          {publicRoutes}
-          {adminRoutes}
-          {teacherRoutes}
-          {parentRoutes}
-          {studentRoutes}
-          {legacyRedirectRoutes}
+      <SubscriptionProvider>
+        <Suspense fallback={<LoadingScreen />}>
+          <Routes>
+            {publicRoutes}
+            {adminRoutes}
+            {teacherRoutes}
+            {parentRoutes}
+            {studentRoutes}
+            {legacyRedirectRoutes}
 
-          {/* 404 Not Found Page */}
-          <Route path="/404" element={<NotFound />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </Suspense>
+            {/* 404 Not Found Page */}
+            <Route path="/404" element={<NotFound />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
 
-      <GlobalConfirmModal />
+        <GlobalConfirmModal />
 
-      <ToastContainer
-        position="bottom-right"
-        autoClose={3000}
-        hideProgressBar={false}
-        newestOnTop
-        closeOnClick
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        theme="light"
-        limit={3}
-      />
+        <ToastContainer
+          position="bottom-right"
+          autoClose={3000}
+          hideProgressBar={false}
+          newestOnTop
+          closeOnClick
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          theme="light"
+          limit={3}
+        />
+      </SubscriptionProvider>
     </Router>
   );
 }
@@ -81,9 +83,7 @@ function AppContent() {
 function App() {
   return (
     <Provider store={store}>
-      <SubscriptionProvider>
-        <AppContent />
-      </SubscriptionProvider>
+      <AppContent />
     </Provider>
   );
 }

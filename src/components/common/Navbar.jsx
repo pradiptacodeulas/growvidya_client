@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { logoutAdmin } from '../../store/slices/authSlice';
 import { fetchAcademicYearsApi } from '../../api/adminAcademic.api';
 import { fetchNoticesApi } from '../../api/adminAnnouncement.api';
@@ -13,9 +13,11 @@ import Avatar from './Avatar';
 
 const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useSelector((state) => state.auth);
   const { can, isSuperAdmin } = usePermission();
-  const { subscription, isTrial, isExpired, isPending, isActivePaid, isActiveTrial, daysLeft, openUpgradeModal } = useSubscription();
+  const { subscription, isTrial, isExpired, isPending, isActivePaid, isActiveTrial, daysLeft } = useSubscription();
   const [darkMode, setDarkMode] = useState(false);
   const [currentYearText, setCurrentYearText] = useState('2026');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -167,6 +169,18 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
     }
   };
 
+  const handleNavigateToSubscription = (e) => {
+    if (e) e.stopPropagation();
+    if (location.pathname !== '/admin/subscription' || location.search) {
+      navigate('/admin/subscription');
+    } else {
+      const plansSection = document.getElementById('plans-selection-section');
+      if (plansSection) {
+        plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }
+  };
+
   return (
     <div className="header">
       {/* Mobile Hamburger / Close Toggle Button */}
@@ -223,18 +237,42 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
 
             {/* Free Trial Countdown (Active Trial) */}
             {isActiveTrial && (
-              <div className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none">
+              <Link
+                to="/admin/subscription"
+                onClick={(e) => {
+                  if (location.pathname === '/admin/subscription' && !location.search) {
+                    const plansSection = document.getElementById('plans-selection-section');
+                    if (plansSection) {
+                      plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                  }
+                  e.stopPropagation();
+                }}
+                className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none text-decoration-none"
+              >
                 <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
                 <span className="d-none d-sm-inline">{subscription?.plan_name ? `${subscription.plan_name}: ` : ''}</span>
                 <strong className="text-danger">
                   {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
                 </strong>
-              </div>
+              </Link>
             )}
 
             {/* Expired Status (Paid Plan or Trial) */}
             {isExpired && !isPending && (
-              <div className="me-2 d-flex align-items-center bg-danger-subtle border border-danger rounded px-3 py-1 text-danger fw-semibold fs-12 shadow-none">
+              <div
+                onClick={handleNavigateToSubscription}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    handleNavigateToSubscription(e);
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+                className="me-2 d-flex align-items-center bg-danger-subtle border border-danger rounded px-3 py-1 text-danger fw-semibold fs-12 shadow-none"
+              >
                 <i className="ti ti-alert-triangle me-1 fs-14"></i>
                 <span>
                   {subscription?.plan_name
@@ -244,14 +282,22 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                     : 'Subscription Expired'}
                 </span>
                 <div className="d-flex align-items-center gap-1 ms-2">
-                  <button
-                    type="button"
-                    onClick={() => openUpgradeModal(subscription?.plan_id)}
+                  <Link
+                    to="/admin/subscription"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (location.pathname === '/admin/subscription' && !location.search) {
+                        const plansSection = document.getElementById('plans-selection-section');
+                        if (plansSection) {
+                          plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                        }
+                      }
+                    }}
                     className="btn btn-sm btn-danger py-0 px-2 fs-11 rounded-pill"
                     title="Renew Current Plan"
                   >
                     <i className="ti ti-refresh me-1"></i> Renew Plan
-                  </button>
+                  </Link>
                 </div>
               </div>
             )}
@@ -259,6 +305,20 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             {/* Active Paid License with Countdown */}
             {isActivePaid && (
               <div
+                onClick={daysLeft <= 30 ? handleNavigateToSubscription : undefined}
+                role={daysLeft <= 30 ? 'button' : undefined}
+                tabIndex={daysLeft <= 30 ? 0 : undefined}
+                onKeyDown={
+                  daysLeft <= 30
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleNavigateToSubscription(e);
+                        }
+                      }
+                    : undefined
+                }
+                style={daysLeft <= 30 ? { cursor: 'pointer' } : undefined}
                 className={`me-2 d-flex align-items-center rounded px-3 py-1 fw-semibold fs-12 shadow-none border ${
                   daysLeft <= 15
                     ? 'bg-danger-subtle border-danger text-danger'
@@ -289,14 +349,22 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                 </strong>
                 {daysLeft <= 30 && (
                   <div className="d-flex align-items-center gap-1 ms-2">
-                    <button
-                      type="button"
-                      onClick={() => openUpgradeModal(subscription?.plan_id)}
+                    <Link
+                      to="/admin/subscription"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (location.pathname === '/admin/subscription' && !location.search) {
+                          const plansSection = document.getElementById('plans-selection-section');
+                          if (plansSection) {
+                            plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
+                        }
+                      }}
                       className="btn btn-sm btn-warning text-dark fw-bold py-0 px-2 fs-11 rounded-pill"
                       title="Renew Current Plan"
                     >
                       <i className="ti ti-refresh me-1"></i> Renew Plan
-                    </button>
+                    </Link>
                   </div>
                 )}
               </div>

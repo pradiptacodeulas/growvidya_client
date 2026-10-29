@@ -66,10 +66,9 @@ const SubscriptionBilling = () => {
   );
 
   useEffect(() => {
-    if (['plans', 'addons', 'history'].includes(tabParam) && tabParam !== activeTab) {
-      setActiveTab(tabParam);
-    }
-  }, [tabParam, activeTab]);
+    const resolvedTab = ['plans', 'addons', 'history'].includes(tabParam) ? tabParam : 'plans';
+    setActiveTab((prev) => (prev !== resolvedTab ? resolvedTab : prev));
+  }, [tabParam]);
 
   const handleSwitchTab = (tabKey) => {
     setActiveTab(tabKey);
