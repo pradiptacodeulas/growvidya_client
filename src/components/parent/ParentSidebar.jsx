@@ -263,6 +263,16 @@ const ParentSidebar = ({
                 </li>
                 <li>
                   <NavLink
+                    to="/parent/holidays"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                    onClick={onCloseMobileMenu}
+                  >
+                    <i className="ti ti-calendar-event"></i>
+                    <span>Holidays</span>
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink
                     to="/parent/messages"
                     className={({ isActive }) =>
                       isActive ? 'active d-flex align-items-center position-relative' : 'd-flex align-items-center position-relative'

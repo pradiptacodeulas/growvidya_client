@@ -908,7 +908,7 @@ const SubscriptionConfigure = () => {
                       ★ Current Plan Renewal
                     </span>
                   )}
-                  {selectedPlan.stacks_dates && (
+                  {isCurrentPlan && selectedPlan.stacks_dates && (
                     <span className="badge bg-success text-white fw-bold px-3 py-1 fs-11 rounded-pill">
                       ✓ 100% Remaining Days Preserved
                     </span>
@@ -933,32 +933,34 @@ const SubscriptionConfigure = () => {
                     {selectedPlan.description ||
                       'Enterprise-grade cloud school management platform with integrated operational modules.'}
                   </p>
-                  {selectedPlan.projected_start_date && selectedPlan.projected_end_date && (
-                    <div
-                      className="mt-2 fs-12 d-inline-flex align-items-center px-3 py-1 rounded-2 text-white"
-                      style={{
-                        backgroundColor: 'rgba(255, 255, 255, 0.14)',
-                        border: '1px solid rgba(255, 255, 255, 0.24)',
-                      }}
-                    >
-                      <i className="ti ti-calendar-event me-2"></i>
-                      <span>
-                        {selectedPlan.stacks_dates && subscription?.end_date ? (
-                          <>
-                            Early Renewal Validity: Extends{' '}
-                            <strong>{formatDateDisplay(subscription.end_date)}</strong> →{' '}
-                            <strong>{formatDateDisplay(selectedPlan.projected_end_date)}</strong>
-                          </>
-                        ) : (
-                          <>
-                            Projected Validity:{' '}
-                            <strong>{formatDateDisplay(selectedPlan.projected_start_date)}</strong> →{' '}
-                            <strong>{formatDateDisplay(selectedPlan.projected_end_date)}</strong>
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  )}
+                  {selectedPlan.projected_start_date &&
+                    selectedPlan.projected_end_date &&
+                    (isCurrentPlan || !selectedPlan.stacks_dates) && (
+                      <div
+                        className="mt-2 fs-12 d-inline-flex align-items-center px-3 py-1 rounded-2 text-white"
+                        style={{
+                          backgroundColor: 'rgba(255, 255, 255, 0.14)',
+                          border: '1px solid rgba(255, 255, 255, 0.24)',
+                        }}
+                      >
+                        <i className="ti ti-calendar-event me-2"></i>
+                        <span>
+                          {isCurrentPlan && selectedPlan.stacks_dates && subscription?.end_date ? (
+                            <>
+                              Early Renewal Validity: Extends{' '}
+                              <strong>{formatDateDisplay(subscription.end_date)}</strong> →{' '}
+                              <strong>{formatDateDisplay(selectedPlan.projected_end_date)}</strong>
+                            </>
+                          ) : (
+                            <>
+                              Projected Validity:{' '}
+                              <strong>{formatDateDisplay(selectedPlan.projected_start_date)}</strong> →{' '}
+                              <strong>{formatDateDisplay(selectedPlan.projected_end_date)}</strong>
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    )}
                 </div>
                 <div className="text-md-end mt-3 mt-md-0">
                   <div className="text-white-50 fs-11">Base Plan Net Price</div>
@@ -989,7 +991,7 @@ const SubscriptionConfigure = () => {
             </div>
 
             {/* Capacity & Quotas Summary */}
-            <div className="card-body p-4 bg-white border-bottom">
+            <div className="card-body p-4 bg-white">
               <h6 className="fw-bold text-dark mb-3 d-flex align-items-center">
                 <i className="ti ti-chart-bar me-2 text-primary fs-18"></i>
                 Allocated Capacity &amp; Quotas
@@ -1032,28 +1034,24 @@ const SubscriptionConfigure = () => {
             </div>
 
             {/* Included Features */}
-            <div className="card-body p-4 bg-white">
-              <h6 className="fw-bold text-dark mb-3 d-flex align-items-center">
-                <i className="ti ti-circle-check me-2 text-success fs-18"></i>
-                Included Plan Features
-              </h6>
-              <div className="row g-2">
-                <div className="col-12 col-sm-6">
-                  <div className="d-flex align-items-center p-2 rounded-2 bg-light">
-                    <i className="ti ti-check text-success fs-16 me-2"></i>
-                    <span className="fs-13 text-dark fw-semibold">Full School ERP Platform Access (All Modules Unlocked)</span>
-                  </div>
-                </div>
-                {includedItems.map((item) => (
-                  <div className="col-12 col-sm-6" key={item.id}>
-                    <div className="d-flex align-items-center p-2 rounded-2 bg-light">
-                      <i className="ti ti-check text-success fs-16 me-2"></i>
-                      <span className="fs-13 text-dark fw-semibold">{item.item_name}</span>
+            {includedItems.length > 0 && (
+              <div className="card-body p-4 bg-white border-top">
+                <h6 className="fw-bold text-dark mb-3 d-flex align-items-center">
+                  <i className="ti ti-circle-check me-2 text-success fs-18"></i>
+                  Included Plan Features
+                </h6>
+                <div className="row g-2">
+                  {includedItems.map((item) => (
+                    <div className="col-12 col-sm-6" key={item.id}>
+                      <div className="d-flex align-items-center p-2 rounded-2 bg-light">
+                        <i className="ti ti-check text-success fs-16 me-2"></i>
+                        <span className="fs-13 text-dark fw-semibold">{item.item_name}</span>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           {/* Card 2: Cloud Storage Expansion (storage_master) */}

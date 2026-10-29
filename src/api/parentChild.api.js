@@ -79,6 +79,11 @@ export const fetchParentNoticesApi = async (studentId) => {
   return apiClient.get(withStudent('/parent/child/notices', studentId));
 };
 
+export const fetchParentHolidaysApi = async (studentId) => {
+  const res = await apiClient.get(withStudent('/parent/child/holidays', studentId));
+  return res.data;
+};
+
 export const fetchParentAcademicYearsApi = async () => {
   const res = await apiClient.get('/parent/child/academic-years');
   if (Array.isArray(res?.data?.data)) {

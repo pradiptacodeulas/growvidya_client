@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import TableActionMenu from './TableActionMenu';
 import NoData from './NoData';
 
@@ -402,14 +402,14 @@ const DataTable = ({
           </div>
 
           {/* Page Navigation Buttons */}
-          {totalPages > 1 && (
+          {totalPages >= 1 && (
             <ul className="pagination-modern">
               <li>
                 <button
                   type="button"
                   className="page-btn"
                   onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
+                  disabled={currentPage <= 1}
                   title="Previous Page"
                 >
                   <i className="ti ti-chevron-left fs-14"></i>
@@ -491,7 +491,7 @@ const DataTable = ({
                   type="button"
                   className="page-btn"
                   onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
+                  disabled={currentPage >= totalPages}
                   title="Next Page"
                 >
                   <i className="ti ti-chevron-right fs-14"></i>

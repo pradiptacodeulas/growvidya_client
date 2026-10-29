@@ -372,6 +372,11 @@ const UpgradeModal = ({
                 const isCycleLocked =
                   plan.lock_code === 'CYCLE_DOWNGRADE_NOT_ALLOWED' ||
                   plan.lock_code === 'ACTIVE_CYCLE_SHRINK_NOT_ALLOWED';
+                const isCurrent = Boolean(
+                  plan.is_current ||
+                    (!subscription?.isTrial &&
+                      Number(currentPlanId || subscription?.plan_id) === Number(plan.id))
+                );
                 const isPopular = Number(plan.is_popular) === 1;
                 const cInfo = {
                   label: plan.cycle_meta?.label || plan.billing_cycle || '',
@@ -383,7 +388,12 @@ const UpgradeModal = ({
                     <div
                       onClick={() => {
                         if (isLocked) {
-                          toast.warning(plan.lock_reason || 'Switching to this plan is not permitted.');
+                          toast.warning(
+                            (plan.lock_reason || 'Switching to this plan is not permitted.').replace(
+                              /\ba Annual\b/g,
+                              'an Annual'
+                            )
+                          );
                           return;
                         }
                         setSelectedPlanId(plan.id);
@@ -425,7 +435,7 @@ const UpgradeModal = ({
                             ? 'Shorter Cycle Locked'
                             : 'Lower Tier Locked'}
                         </span>
-                      ) : plan.is_current || plan.is_renewal ? (
+                      ) : isCurrent ? (
                         <span
                           className="badge bg-warning text-dark position-absolute"
                           style={{ top: '-10px', left: '16px', fontSize: '10.5px', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap', zIndex: 2 }}
@@ -507,38 +517,19 @@ const UpgradeModal = ({
                             <strong className="text-dark">{Math.max(0, Number(plan.included_storage_gb) || 0)} GB Included</strong>
                           </div>
                         )}
-                        <div className="d-flex justify-content-between py-1 text-muted">
-                          <span>ERP Functionality:</span>
-                          <strong className="text-success">All Modules Unlocked</strong>
-                        </div>
                       </div>
 
-                      {isLocked && plan.lock_reason && (
+                      {!isLocked && isCurrent && plan.stacks_dates && plan.projected_end_date && (
                         <div
                           className="mt-2 px-2 py-2 rounded-2 fs-11"
                           style={{
-                            backgroundColor: '#fffbeb',
-                            border: '1px solid #fde68a',
-                            color: '#78350f',
+                            backgroundColor: '#ecfdf5',
+                            border: '1px solid #a7f3d0',
+                            color: '#065f46',
                           }}
                         >
-                          <i className="ti ti-shield-lock me-1"></i>
-                          {plan.lock_reason.replace(/\ba Annual\b/g, 'an Annual')}
-                        </div>
-                      )}
-
-                      {!isLocked && plan.projected_end_date && (
-                        <div
-                          className="mt-2 px-2 py-2 rounded-2 fs-11"
-                          style={{
-                            backgroundColor: plan.stacks_dates ? '#ecfdf5' : '#eef2ff',
-                            border: `1px solid ${plan.stacks_dates ? '#a7f3d0' : '#c7d2fe'}`,
-                            color: plan.stacks_dates ? '#065f46' : '#3730a3',
-                          }}
-                        >
-                          <i className="ti ti-calendar-check me-1"></i>
-                          Valid till <strong>{plan.projected_end_date}</strong>
-                          {plan.stacks_dates && ' (Remaining days preserved)'}
+                          <i className="ti ti-calendar-plus me-1"></i>
+                          Valid till <strong>{plan.projected_end_date}</strong> (Remaining days preserved)
                         </div>
                       )}
                     </div>

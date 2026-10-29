@@ -340,3 +340,216 @@
 .animate-scale-in {
   animation: scaleIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+
+/* =========================================================
+   HOLIDAY CALENDAR (FULLCALENDAR THEME INTEGRATION)
+   ========================================================= */
+
+.holiday-view-toggle {
+  display: inline-flex;
+  align-items: center;
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.holiday-view-toggle .toggle-btn {
+  border: none;
+  background: transparent;
+  color: #475569;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.holiday-view-toggle .toggle-btn:hover {
+  color: #0F172A;
+}
+
+.holiday-view-toggle .toggle-btn.active {
+  background: #ffffff;
+  color: #4F46E5;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+}
+
+.holiday-calendar-wrap .fc {
+  --fc-border-color: #E2E8F0;
+  --fc-today-bg-color: #EEF2FF;
+  --fc-page-bg-color: #ffffff;
+  --fc-neutral-bg-color: #F8FAFC;
+  font-family: inherit;
+}
+
+.holiday-calendar-wrap .fc .fc-toolbar.fc-header-toolbar {
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.holiday-calendar-wrap .fc .fc-toolbar-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0F172A;
+}
+
+.holiday-calendar-wrap .fc .fc-button {
+  background: #ffffff;
+  border: 1px solid #E2E8F0;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+  padding: 6px 12px;
+  border-radius: 8px;
+  box-shadow: none !important;
+  transition: all 0.15s ease;
+}
+
+.holiday-calendar-wrap .fc .fc-button:hover:not(:disabled) {
+  background: #F8FAFC;
+  border-color: #CBD5E1;
+  color: #0F172A;
+}
+
+.holiday-calendar-wrap .fc .fc-button-primary:not(:disabled).fc-button-active {
+  background: #4F46E5;
+  border-color: #4F46E5;
+  color: #ffffff;
+}
+
+.holiday-calendar-wrap .fc .fc-button-group > .fc-button {
+  border-radius: 0;
+}
+
+.holiday-calendar-wrap .fc .fc-button-group > .fc-button:first-child {
+  border-top-left-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.holiday-calendar-wrap .fc .fc-button-group > .fc-button:last-child {
+  border-top-right-radius: 8px;
+  border-bottom-right-radius: 8px;
+}
+
+.holiday-calendar-wrap .fc .fc-col-header-cell {
+  background: #F8FAFC;
+  padding: 10px 4px;
+}
+
+.holiday-calendar-wrap .fc .fc-col-header-cell-cushion {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  text-decoration: none;
+}
+
+.holiday-calendar-wrap .fc .fc-daygrid-day-frame {
+  min-height: 96px;
+  padding: 4px;
+}
+
+.holiday-calendar-wrap .fc .fc-daygrid-day-top {
+  flex-direction: row;
+  padding: 2px 4px;
+}
+
+.holiday-calendar-wrap .fc .fc-daygrid-day-number {
+  color: #334155;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+}
+
+.holiday-calendar-wrap .fc .fc-day-today .fc-daygrid-day-number {
+  background: #4F46E5;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+.holiday-calendar-wrap .fc .fc-day-other {
+  background: #FAFBFC;
+}
+
+.holiday-calendar-wrap .fc .fc-day-other .fc-daygrid-day-number {
+  color: #94A3B8;
+}
+
+.holiday-calendar-wrap .fc .fc-daygrid-event {
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin-top: 2px;
+  cursor: pointer;
+  border-width: 1px;
+  border-style: solid;
+  font-size: 11.5px;
+  font-weight: 600;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+
+.holiday-calendar-wrap .fc .fc-daygrid-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.08);
+}
+
+.holiday-calendar-wrap .fc .holiday-fc-single {
+  background-color: #FEF2F2 !important;
+  border-color: #FECACA !important;
+  color: #B91C1C !important;
+}
+
+.holiday-calendar-wrap .fc .holiday-fc-multiday {
+  background-color: #EEF2FF !important;
+  border-color: #C7D2FE !important;
+  color: #3730A3 !important;
+}
+
+.holiday-calendar-wrap .fc .holiday-fc-ongoing {
+  background-color: #ECFDF5 !important;
+  border-color: #A7F3D0 !important;
+  color: #065F46 !important;
+}
+
+.holiday-calendar-wrap .fc .holiday-fc-single .fc-event-main,
+.holiday-calendar-wrap .fc .holiday-fc-multiday .fc-event-main,
+.holiday-calendar-wrap .fc .holiday-fc-ongoing .fc-event-main {
+  color: inherit !important;
+}
+
+.holiday-calendar-wrap .fc .fc-daygrid-more-link {
+  font-size: 11px;
+  font-weight: 700;
+  color: #4F46E5;
+  text-decoration: none;
+  padding: 1px 4px;
+}
+
+.holiday-calendar-wrap .fc .fc-popover {
+  border-radius: 10px;
+  border: 1px solid #E2E8F0;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.14);
+  z-index: 1045;
+}
+
+.holiday-calendar-wrap .fc .fc-popover-header {
+  background: #F8FAFC;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #0F172A;
+  padding: 8px 12px;
+}

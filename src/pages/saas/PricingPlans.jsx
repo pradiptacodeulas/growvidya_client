@@ -395,10 +395,6 @@ const PricingPlans = () => {
                                   </span>
                                 </li>
                               )}
-                              <li className="d-flex align-items-center">
-                                <i className="ti ti-check text-success me-2 fs-16"></i>
-                                <span>Full School ERP Access (All Modules Unlocked)</span>
-                              </li>
                               {customItems.map((it) => (
                                 <li key={it.id} className="d-flex align-items-center">
                                   <i className="ti ti-check text-success me-2 fs-16"></i>
@@ -494,14 +490,6 @@ const PricingPlans = () => {
                               {Math.max(0, parseInt(p.included_storage_gb, 10) || 0) > 0
                                 ? `${Math.max(0, parseInt(p.included_storage_gb, 10) || 0)} GB`
                                 : 'Add-on Optional'}
-                            </td>
-                          ))}
-                        </tr>
-                        <tr>
-                          <td className="fw-semibold text-dark">All ERP Modules &amp; Portals</td>
-                          {currentPaidPlans.map((p) => (
-                            <td key={p.id} className="text-center text-success fw-semibold">
-                              <i className="ti ti-circle-check-filled text-success fs-18"></i>
                             </td>
                           ))}
                         </tr>

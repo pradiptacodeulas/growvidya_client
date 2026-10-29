@@ -211,6 +211,16 @@ const StudentSidebar = ({
 
                 <li>
                   <NavLink
+                    to="/student/holidays"
+                    className={({ isActive }) => (isActive ? 'active' : '')}
+                    onClick={onCloseMobileMenu}
+                  >
+                    <i className="ti ti-calendar-event"></i><span>Holidays</span>
+                  </NavLink>
+                </li>
+
+                <li>
+                  <NavLink
                     to="/student/messages"
                     className={({ isActive }) =>
                       isActive ? 'active d-flex align-items-center position-relative' : 'd-flex align-items-center position-relative'

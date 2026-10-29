@@ -18,6 +18,7 @@ const StudentHostel = lazy(() => import('../pages/student/StudentHostel'));
 const StudentMedical = lazy(() => import('../pages/student/StudentMedical'));
 const StudentDocuments = lazy(() => import('../pages/student/StudentDocuments'));
 const StudentNotices = lazy(() => import('../pages/student/StudentNotices'));
+const HolidayList = lazy(() => import('../pages/admin/announcement/HolidayList'));
 const StudentAssignments = lazy(() => import('../pages/student/StudentAssignments'));
 const StudentAttemptAssignment = lazy(() => import('../pages/student/StudentAttemptAssignment'));
 const StudentAssignmentViewResult = lazy(() => import('../pages/student/StudentAssignmentViewResult'));
@@ -53,6 +54,8 @@ export const studentRoutes = (
       <Route path="document" element={<StudentDocuments />} />
       <Route path="notices" element={<StudentNotices />} />
       <Route path="notice" element={<StudentNotices />} />
+      <Route path="holidays" element={<HolidayList />} />
+      <Route path="holiday" element={<HolidayList />} />
       <Route path="assignments" element={<StudentAssignments />} />
       <Route path="assignment" element={<StudentAssignments />} />
       <Route path="assignments/attempt/:id" element={<StudentAttemptAssignment />} />

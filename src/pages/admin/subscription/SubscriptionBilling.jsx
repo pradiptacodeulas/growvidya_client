@@ -108,22 +108,21 @@ const SubscriptionBilling = () => {
     return { cycle: k, label: cycleKey || '', shortLabel: cycleKey || '' };
   };
 
-  const [billingCycle, setBillingCycle] = useState('annual');
+  const [selectedBillingCycle, setBillingCycle] = useState('');
 
-  useEffect(() => {
-    if (availableCycles.length === 0) return;
-    const subCycle = String(subscription?.billing_cycle || '').toLowerCase();
-    const hasCurrentCycle = availableCycles.some((c) => c.cycle === billingCycle);
-    if (!hasCurrentCycle) {
-      if (subCycle && subCycle !== 'trial' && availableCycles.some((c) => c.cycle === subCycle)) {
-        setBillingCycle(subCycle);
-      } else if (availableCycles.some((c) => c.cycle === 'annual')) {
-        setBillingCycle('annual');
-      } else {
-        setBillingCycle(availableCycles[0].cycle);
-      }
+  const billingCycle = useMemo(() => {
+    if (selectedBillingCycle && availableCycles.some((c) => c.cycle === selectedBillingCycle)) {
+      return selectedBillingCycle;
     }
-  }, [availableCycles, subscription?.billing_cycle, billingCycle]);
+    const subCycle = String(subscription?.billing_cycle || '').toLowerCase();
+    if (subCycle && subCycle !== 'trial' && availableCycles.some((c) => c.cycle === subCycle)) {
+      return subCycle;
+    }
+    if (availableCycles.some((c) => c.cycle === 'annual')) {
+      return 'annual';
+    }
+    return availableCycles[0]?.cycle || 'annual';
+  }, [selectedBillingCycle, availableCycles, subscription?.billing_cycle]);
 
   // Billing History & Orders State
   const [orders, setOrders] = useState([]);
@@ -560,16 +559,22 @@ const SubscriptionBilling = () => {
     (p) => String(p.billing_cycle || '').toLowerCase() === billingCycle
   );
 
+  // Whether the school already has a non-trial current plan (so Current Plan takes highlight priority over Most Popular)
+  const hasCurrentPlan = Boolean(
+    !isTrial &&
+      (subscription?.plan_id || (upgradePlans || []).some((p) => Boolean(p.is_current)))
+  );
+
   // Latest rejected offline UTR submission notice (if any)
   const latestRejected = subscription?.latest_rejected_subscription || null;
 
   const handleSelectPlan = (plan) => {
     if (plan.can_switch === false || plan.is_downgrade || plan.is_quota_locked) {
-      toast.warning(
+      const rawReason =
         plan.lock_reason ||
-          plan.downgrade_message ||
-          'Switching to this plan is not permitted under your current subscription tier or active usage.'
-      );
+        plan.downgrade_message ||
+        'Switching to this plan is not permitted under your current subscription tier or active usage.';
+      toast.warning(rawReason.replace(/\ba Annual\b/g, 'an Annual'));
       return;
     }
     sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
@@ -1131,6 +1136,7 @@ const SubscriptionBilling = () => {
                 const isLocked = Boolean(
                   plan.can_switch === false || plan.is_downgrade || plan.is_quota_locked
                 );
+                const isHighlighted = !isLocked && (hasCurrentPlan ? isCurrent : isPopular);
                 const isCycleLocked =
                   plan.lock_code === 'CYCLE_DOWNGRADE_NOT_ALLOWED' ||
                   plan.lock_code === 'ACTIVE_CYCLE_SHRINK_NOT_ALLOWED';
@@ -1146,12 +1152,12 @@ const SubscriptionBilling = () => {
                   <div className="col-12 col-lg-4 d-flex" key={plan.id}>
                     <div
                       className={`card w-100 h-100 rounded-4 bg-white transition-all ${
-                        !isLocked && isPopular ? 'border-2 border-primary shadow' : 'shadow-sm'
+                        isHighlighted ? 'border-2 border-primary shadow' : 'shadow-sm'
                       }`}
                       style={{
                         position: 'relative',
                         overflow: 'visible',
-                        border: !isLocked && isPopular ? undefined : `1px solid ${isLocked ? '#cbd5e1' : '#e2e8f0'}`,
+                        border: isHighlighted ? undefined : `1px solid ${isLocked ? '#cbd5e1' : '#e2e8f0'}`,
                       }}
                     >
                       {isLocked && (
@@ -1309,122 +1315,64 @@ const SubscriptionBilling = () => {
                           )}
                         </div>
 
-                        {/* Projected Validity Preview (Unlocked Plans) */}
-                        {!isLocked && plan.projected_start_date && plan.projected_end_date && (
-                          <div
-                            className="px-3 py-2 rounded-3 mb-3 fs-12"
-                            style={{
-                              backgroundColor: plan.stacks_dates ? '#ecfdf5' : '#eef2ff',
-                              border: `1px solid ${plan.stacks_dates ? '#a7f3d0' : '#c7d2fe'}`,
-                            }}
-                          >
+                        {/* Early Renewal Validity Preview (Current Plan Only) */}
+                        {!isLocked &&
+                          isCurrent &&
+                          plan.stacks_dates &&
+                          subscription?.end_date &&
+                          plan.projected_end_date && (
                             <div
-                              className="fw-bold d-flex align-items-center gap-2 mb-1"
-                              style={{ color: plan.stacks_dates ? '#065f46' : '#3730a3' }}
-                            >
-                              <i
-                                className={`ti ${
-                                  plan.stacks_dates ? 'ti-calendar-plus' : 'ti-calendar-check'
-                                } fs-15 flex-shrink-0`}
-                              ></i>
-                              <span>
-                                {plan.stacks_dates
-                                  ? 'Early Renewal — Remaining Days Preserved'
-                                  : 'Projected License Validity'}
-                              </span>
-                            </div>
-                            <div className="ps-4" style={{ color: '#334155', fontSize: '12px' }}>
-                              {plan.stacks_dates && subscription?.end_date ? (
-                                <>
-                                  Extends {formatDateDisplay(subscription.end_date)} →{' '}
-                                  <strong style={{ color: '#064e3b' }}>
-                                    {formatDateDisplay(plan.projected_end_date)}
-                                  </strong>
-                                </>
-                              ) : (
-                                <>
-                                  {formatDateDisplay(plan.projected_start_date)} →{' '}
-                                  <strong style={{ color: '#1e1b4b' }}>
-                                    {formatDateDisplay(plan.projected_end_date)}
-                                  </strong>
-                                </>
-                              )}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Structured Policy Notice (Locked Plans — e.g. Monthly Cycle Lock while Annual Plan Active) */}
-                        {isLocked && plan.lock_reason && (
-                          <div
-                            className="px-3 py-2 rounded-3 mb-3 fs-12"
-                            style={{
-                              backgroundColor: plan.is_quota_locked ? '#fef2f2' : '#fffbeb',
-                              border: `1px solid ${plan.is_quota_locked ? '#fecaca' : '#fde68a'}`,
-                            }}
-                          >
-                            <div
-                              className="fw-bold d-flex align-items-center gap-2 mb-1"
-                              style={{ color: plan.is_quota_locked ? '#991b1b' : '#92400e' }}
-                            >
-                              <i
-                                className={`ti ${
-                                  plan.is_quota_locked
-                                    ? 'ti-alert-circle'
-                                    : isCycleLocked
-                                    ? 'ti-shield-lock'
-                                    : 'ti-lock'
-                                } fs-15 flex-shrink-0`}
-                              ></i>
-                              <span>
-                                {plan.is_quota_locked
-                                  ? 'Active Student Quota Exceeded'
-                                  : isCycleLocked
-                                  ? `Protected by Active ${activeCycleLabel} Cycle`
-                                  : 'Plan Downgrade Restricted'}
-                              </span>
-                            </div>
-                            <div
-                              className="ps-4"
+                              className="px-3 py-2 rounded-3 mb-3 fs-12"
                               style={{
-                                color: plan.is_quota_locked ? '#7f1d1d' : '#78350f',
-                                fontSize: '12px',
-                                lineHeight: 1.45,
+                                backgroundColor: '#ecfdf5',
+                                border: '1px solid #a7f3d0',
                               }}
                             >
-                              {plan.lock_reason.replace(/\ba Annual\b/g, 'an Annual')}
+                              <div
+                                className="fw-bold d-flex align-items-center gap-2 mb-1"
+                                style={{ color: '#065f46' }}
+                              >
+                                <i className="ti ti-calendar-plus fs-15 flex-shrink-0"></i>
+                                <span>Early Renewal — Remaining Days Preserved</span>
+                              </div>
+                              <div className="ps-4" style={{ color: '#334155', fontSize: '12px' }}>
+                                Extends {formatDateDisplay(subscription.end_date)} →{' '}
+                                <strong style={{ color: '#064e3b' }}>
+                                  {formatDateDisplay(plan.projected_end_date)}
+                                </strong>
+                              </div>
                             </div>
-                          </div>
-                        )}
+                          )}
 
                         {/* Plan Features */}
-                        <div className="border-top py-3 mb-3 flex-grow-1">
-                          <div className="text-dark fs-11 fw-bold text-uppercase mb-2">
-                            Included Features:
-                          </div>
-
-                          <div className="d-flex align-items-center mb-2 fs-13 text-dark">
-                            <i className="ti ti-check text-success fs-16 me-2 flex-shrink-0"></i>
-                            <span>Full School ERP Platform Access (All Modules Unlocked)</span>
-                          </div>
-
-                          {customItems.map((item) => (
-                            <div className="d-flex align-items-center mb-2 fs-13 text-dark" key={item.id}>
-                              <i className="ti ti-check text-success fs-16 me-2 flex-shrink-0"></i>
-                              <span>{item.item_name}</span>
+                        {customItems.length > 0 && (
+                          <div className="border-top py-3 mb-3 flex-grow-1">
+                            <div className="text-dark fs-11 fw-bold text-uppercase mb-2">
+                              Included Features:
                             </div>
-                          ))}
-                        </div>
+
+                            {customItems.map((item) => (
+                              <div className="d-flex align-items-center mb-2 fs-13 text-dark" key={item.id}>
+                                <i className="ti ti-check text-success fs-16 me-2 flex-shrink-0"></i>
+                                <span>{item.item_name}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
 
                         {/* CTA Button */}
                         {isLocked ? (
                           <button
                             type="button"
-                            disabled
+                            aria-disabled="true"
+                            onClick={() => handleSelectPlan(plan)}
                             className="btn w-100 py-2 px-3 fw-semibold d-inline-flex align-items-center justify-content-center mt-auto"
                             style={{
                               backgroundColor: '#f1f5f9',
                               color: '#64748b',
                               border: '1px solid #cbd5e1',
+                              cursor: 'not-allowed',
+                              opacity: 0.75,
                             }}
                           >
                             <i className="ti ti-lock me-2 fs-15"></i>
@@ -1447,7 +1395,7 @@ const SubscriptionBilling = () => {
                         ) : isCurrent ? (
                           <button
                             type="button"
-                            className="btn btn-outline-primary w-100 py-2 px-3 fw-bold d-inline-flex align-items-center justify-content-center shadow-sm mt-auto"
+                            className="btn btn-primary w-100 py-2 px-3 fw-bold d-inline-flex align-items-center justify-content-center shadow-sm mt-auto"
                             onClick={() => handleSelectPlan(plan)}
                           >
                             <i className="ti ti-refresh me-2 fs-15"></i>
@@ -1457,7 +1405,7 @@ const SubscriptionBilling = () => {
                           <button
                             type="button"
                             className={`btn w-100 py-2 px-3 fw-bold d-inline-flex align-items-center justify-content-center shadow-sm mt-auto ${
-                              isPopular ? 'btn-primary' : 'btn-outline-primary'
+                              isHighlighted ? 'btn-primary' : 'btn-outline-primary'
                             }`}
                             onClick={() => handleSelectPlan(plan)}
                           >
