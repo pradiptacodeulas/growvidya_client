@@ -139,7 +139,7 @@ const AddTeacherAttendance = () => {
 
       toast.success('Teacher attendance recorded successfully!');
       navigate('/admin/attendance/teacher');
-    } catch (err) {
+    } catch (err) {c
       console.error('Error saving teacher attendance:', err);
       toast.error('Failed to save teacher attendance.');
     } finally {
