@@ -35,20 +35,19 @@ const SchoolRegistrationWizard = () => {
   const [plans, setPlans] = useState([]);
   const [loadingPlans, setLoadingPlans] = useState(false);
   const [selectedPlanId, setSelectedPlanId] = useState(planFromState?.id || null);
-  const [paymentGateway, setPaymentGateway] = useState('razorpay');
 
-  // Two subscription options: 'monthly' and 'annual'
+  // Dynamic billing cycle derived from URL, preselected plan, or active DB plans
   const [billingCycle, setBillingCycle] = useState(
-    billingParam === 'monthly' || billingParam === 'annual'
+    billingParam && billingParam !== 'trial'
       ? billingParam
-      : planFromState?.billing_cycle === 'monthly'
-      ? 'monthly'
+      : planFromState?.billing_cycle && planFromState.billing_cycle !== 'trial'
+      ? planFromState.billing_cycle
       : 'annual'
   );
 
   // Wizard Step (1 to 5: School Profile -> Campus -> Academic Year -> Super Admin -> Choose Plan)
   const [currentStep, setCurrentStep] = useState(
-    stepParam >= 1 && stepParam <= 5 ? stepParam : (location.state?.step || 1)
+    stepParam >= 1 && stepParam <= 5 ? stepParam : location.state?.step || 1
   );
   const [submitting, setSubmitting] = useState(false);
 
@@ -94,7 +93,7 @@ const SchoolRegistrationWizard = () => {
         setCountries(list);
         const india = list.find((c) => c.id === 101 || c.name?.toLowerCase() === 'india');
         if (india) {
-          setCampusForm((prev) => ({ ...prev, country: String(india.id) }));
+          setCampusForm((prev) => ({ ...prev, country: prev.country || String(india.id) }));
         }
       } catch (err) {
         console.error('Failed to load countries:', err);
@@ -157,9 +156,18 @@ const SchoolRegistrationWizard = () => {
 
   // Step 3: Academic Year
   const [academicForm, setAcademicForm] = useState(() => ({
-    academic_year: location.state?.academicYear?.academic_year || savedPendingData?.academicYear?.academic_year || `${currentYear} - ${currentYear + 1}`,
-    start_date: location.state?.academicYear?.start_date || savedPendingData?.academicYear?.start_date || `${currentYear}-04-01`,
-    end_date: location.state?.academicYear?.end_date || savedPendingData?.academicYear?.end_date || `${currentYear + 1}-03-31`,
+    academic_year:
+      location.state?.academicYear?.academic_year ||
+      savedPendingData?.academicYear?.academic_year ||
+      `${currentYear} - ${currentYear + 1}`,
+    start_date:
+      location.state?.academicYear?.start_date ||
+      savedPendingData?.academicYear?.start_date ||
+      `${currentYear}-04-01`,
+    end_date:
+      location.state?.academicYear?.end_date ||
+      savedPendingData?.academicYear?.end_date ||
+      `${currentYear + 1}-03-31`,
   }));
 
   // Dynamic Genders List
@@ -260,34 +268,75 @@ const SchoolRegistrationWizard = () => {
     };
   };
 
-  // Free Trial Plan (strictly from admin database, common to both monthly & annual)
-  const trialPlan =
-    plans.find((p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0) || null;
+  // Free Trial Plan (strictly from admin database, common across all billing cycle tabs)
+  const trialPlan = useMemo(
+    () => plans.find((p) => p.billing_cycle === 'trial' || parseFloat(p.price) === 0) || null,
+    [plans]
+  );
+
+  const trialDays = useMemo(
+    () => Math.max(0, Number(trialPlan?.free_trial_days) || 0),
+    [trialPlan]
+  );
 
   const trialSms = trialPlan ? getSmsAllocation(trialPlan) : null;
   const trialPush = trialPlan ? getPushAllocation(trialPlan) : null;
 
-  // Filter paid plans for selected billing cycle
-  const currentPaidPlans = plans.filter((p) => {
-    const isTrial = p.billing_cycle === 'trial' || parseFloat(p.price) === 0;
-    return !isTrial && p.billing_cycle === billingCycle;
-  });
+  // Available paid billing cycles dynamically derived from active database plans
+  const availableCycleMetas = useMemo(() => {
+    const map = new Map();
+    plans.forEach((p) => {
+      const c = String(p.billing_cycle || '').toLowerCase();
+      if (c && c !== 'trial' && parseFloat(p.price) > 0 && !map.has(c) && p.cycle_meta) {
+        map.set(c, { ...p.cycle_meta, cycle: p.cycle_meta.cycle || p.cycle_meta.code || c });
+      }
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => (a.rank ?? a.months ?? 0) - (b.rank ?? b.months ?? 0)
+    );
+  }, [plans]);
 
-  // Toggle Billing Cycle between Monthly and Annual
+  const availableCycles = useMemo(
+    () => availableCycleMetas.map((m) => m.cycle || m.code),
+    [availableCycleMetas]
+  );
+
+  // Filter paid plans for selected billing cycle sorted by tier_rank
+  const currentPaidPlans = useMemo(() => {
+    return plans
+      .filter((p) => {
+        const isTrial = p.billing_cycle === 'trial' || parseFloat(p.price) === 0;
+        return !isTrial && p.billing_cycle === billingCycle;
+      })
+      .sort((a, b) => (Number(a.tier_rank) || 0) - (Number(b.tier_rank) || 0) || parseFloat(a.price) - parseFloat(b.price));
+  }, [plans, billingCycle]);
+
+  const maxTierRank = useMemo(() => {
+    if (currentPaidPlans.length === 0) return 1;
+    return Math.max(...currentPaidPlans.map((p) => Number(p.tier_rank) || 1), 1);
+  }, [currentPaidPlans]);
+
+  // Toggle Billing Cycle dynamically across available cycles
   const handleCycleChange = (newCycle) => {
     setBillingCycle(newCycle);
     if (trialPlan && String(selectedPlanId) === String(trialPlan.id)) {
-      return; // Keep trial selected as it is common to both options
+      return; // Keep trial selected as it is common across options
     }
     const currentSelected = plans.find((p) => String(p.id) === String(selectedPlanId));
     if (currentSelected && (currentSelected.billing_cycle === 'trial' || parseFloat(currentSelected.price) === 0)) {
       return;
     }
-    const cyclePlans = plans.filter((p) => p.billing_cycle === newCycle && parseFloat(p.price) > 0);
+    const cyclePlans = plans
+      .filter((p) => p.billing_cycle === newCycle && parseFloat(p.price) > 0)
+      .sort((a, b) => (Number(a.tier_rank) || 0) - (Number(b.tier_rank) || 0));
+
     if (cyclePlans.length > 0) {
       if (currentSelected) {
         const match = cyclePlans.find(
-          (p) => p.plan_name?.toLowerCase().trim() === currentSelected.plan_name?.toLowerCase().trim()
+          (p) =>
+            (p.plan_group && currentSelected.plan_group && p.plan_group === currentSelected.plan_group) ||
+            (Number(p.tier_rank) > 0 && Number(p.tier_rank) === Number(currentSelected.tier_rank)) ||
+            p.plan_name?.toLowerCase().trim() === currentSelected.plan_name?.toLowerCase().trim()
         );
         if (match) {
           setSelectedPlanId(match.id);
@@ -409,10 +458,33 @@ const SchoolRegistrationWizard = () => {
     });
   };
 
-  // Redirect to /configure for Free Trial
-  const handleStartTrial = (plan) => {
+  // Redirect to /configure for Free Trial (after checking one-trial-ever eligibility)
+  const handleStartTrial = async (plan) => {
     if (!plan) return;
     if (!validateRegistrationFields()) return;
+
+    try {
+      const eligibilityRes = await saasApi.checkTrialEligibility({
+        email: adminForm.email || campusForm.email,
+        phone: adminForm.phone || campusForm.phone_number,
+        school_code: schoolForm.school_code,
+      });
+      const eligData = eligibilityRes?.data || eligibilityRes;
+      if (eligData && eligData.eligible === false) {
+        toast.error(
+          eligData.reason ||
+            'A free trial has already been claimed for this institution or contact. Please choose a paid plan.'
+        );
+        return;
+      }
+    } catch (err) {
+      const msg = err?.response?.data?.message;
+      if (msg) {
+        toast.error(msg);
+        return;
+      }
+    }
+
     setSelectedPlanId(plan.id);
     sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
     sessionStorage.setItem('selected_billing_cycle', 'trial');
@@ -446,12 +518,38 @@ const SchoolRegistrationWizard = () => {
         const planList = res?.data || [];
         setPlans(planList);
 
+        const cycleMap = new Map();
+        planList.forEach((p) => {
+          const c = String(p.billing_cycle || '').toLowerCase();
+          if (c && c !== 'trial' && parseFloat(p.price) > 0 && !cycleMap.has(c)) {
+            cycleMap.set(c, p.cycle_meta?.rank ?? p.cycle_meta?.months ?? 0);
+          }
+        });
+        const paidCycles = Array.from(cycleMap.entries())
+          .sort((a, b) => a[1] - b[1])
+          .map(([c]) => c);
+        const resolvedCycle =
+          paidCycles.includes(billingCycle)
+            ? billingCycle
+            : paidCycles.includes('annual')
+            ? 'annual'
+            : paidCycles[0] || billingCycle;
+
+        if (resolvedCycle !== billingCycle) {
+          setBillingCycle(resolvedCycle);
+        }
+
         if (!selectedPlanId && planList.length > 0) {
           if (planFromState?.id) {
             setSelectedPlanId(planFromState.id);
           } else {
+            const popularPlan = planList.find(
+              (p) => p.billing_cycle === resolvedCycle && Number(p.is_popular) === 1
+            );
             const matchingPlan =
-              planList.find((p) => p.billing_cycle === billingCycle) || planList[0];
+              popularPlan ||
+              planList.find((p) => p.billing_cycle === resolvedCycle) ||
+              planList[0];
             setSelectedPlanId(matchingPlan.id);
           }
         }
@@ -569,57 +667,30 @@ const SchoolRegistrationWizard = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Final Registration Submission at Step 5
+  // Direct Registration Submission Fallback
   const handleSubmitRegistration = async (e) => {
     if (e) e.preventDefault();
-
-    if (!schoolForm.school_name.trim()) {
-      toast.warning('Please complete the School Legal Name in Step 1.');
-      setCurrentStep(1);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    if (!campusForm.phone_number.trim() || !campusForm.email.trim() || !campusForm.address.trim()) {
-      toast.warning('Please complete the Campus Contact Details in Step 2.');
-      setCurrentStep(2);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    if (!academicForm.academic_year.trim() || !academicForm.start_date || !academicForm.end_date) {
-      toast.warning('Please specify Academic Year details in Step 3.');
-      setCurrentStep(3);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    if (!adminForm.first_name.trim() || !adminForm.email.trim() || !adminForm.gender || !adminForm.password) {
-      toast.warning('Please complete the Super Admin Account details in Step 4.');
-      setCurrentStep(4);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
-    if (!adminForm.agree_terms) {
-      toast.warning('Please agree to the Terms of Service & Privacy Policy in Step 4.');
-      setCurrentStep(4);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
+    if (!validateRegistrationFields()) return;
 
     const selectedPlan =
       plans.find((p) => String(p.id) === String(selectedPlanId)) ||
-      (String(selectedPlanId) === String(trialPlan.id) ? trialPlan : plans[0]);
+      (trialPlan && String(selectedPlanId) === String(trialPlan.id) ? trialPlan : plans[0]);
+
     if (!selectedPlan) {
       toast.error('Please select a subscription plan to complete registration.');
       return;
     }
 
     const isTrialSelected =
-      String(selectedPlan.id) === String(trialPlan.id) ||
+      (trialPlan && String(selectedPlan.id) === String(trialPlan.id)) ||
       selectedPlan.billing_cycle === 'trial' ||
-      parseFloat(selectedPlan.price) === 0 ||
-      (selectedPlan.plan_code || '').toLowerCase().includes('trial');
+      parseFloat(selectedPlan.price) === 0;
 
     const basePayload = {
+      plan_id: selectedPlan.id,
       planId: selectedPlan.id,
+      is_trial: isTrialSelected,
+      isTrial: isTrialSelected,
       school: {
         ...schoolForm,
         phone_number: campusForm.phone_number,
@@ -632,6 +703,7 @@ const SchoolRegistrationWizard = () => {
         postal_code: campusForm.postal_code,
         footer: campusForm.footer,
       },
+      academic_year: academicForm,
       academicYear: academicForm,
       admin: {
         first_name: adminForm.first_name,
@@ -648,112 +720,133 @@ const SchoolRegistrationWizard = () => {
       },
     };
 
+    const completePostRegistrationRedirect = (res) => {
+      const data = res?.data || res;
+      sessionStorage.removeItem('pending_registration_data');
+      if (data?.handover_token) {
+        navigate(`/auth/callback?token=${encodeURIComponent(data.handover_token)}`);
+        return;
+      }
+      navigate('/account/login/adminlogin', {
+        state: {
+          registeredEmail: adminForm.email,
+          registrationSuccess: true,
+        },
+      });
+    };
+
     try {
       setSubmitting(true);
 
-      if (isTrialSelected) {
-        // Free 14-Day Evaluation Trial
-        const payload = {
-          ...basePayload,
-          isTrial: true,
-          amountPaid: 0,
-          paymentGateway: 'free_trial',
-          paymentTransactionId: `TRIAL_14DAYS_${Date.now()}_${Math.floor(1000 + Math.random() * 9000)}`,
-        };
+      const orderRes = await saasApi.createOrder({
+        plan_id: selectedPlan.id,
+        is_trial: isTrialSelected,
+        email: adminForm.email || campusForm.email,
+        phone: adminForm.phone || campusForm.phone_number,
+      });
+      const orderData = orderRes?.data || orderRes;
 
-        const res = await saasApi.registerSchool(payload);
+      if (isTrialSelected || orderData?.zero_amount_ready) {
+        const res = await saasApi.registerSchool({
+          ...basePayload,
+          order_no: orderData?.order_no,
+          payment_order_id: orderData?.payment_order_id,
+          paymentGateway: isTrialSelected ? 'free_trial' : 'coupon_100',
+        });
         toast.success(
           res?.message ||
-            '🎉 School & Admin registered successfully! Your 14-Day Free Trial is now active.'
+            `🎉 School & Admin registered! Your ${isTrialSelected ? `${trialDays}-Day Free Trial` : selectedPlan.plan_name} is now active.`
         );
-        navigate('/account/login/adminlogin', {
-          state: {
-            registeredEmail: adminForm.email,
-            registrationSuccess: true,
-          },
-        });
-      } else {
-        // Paid Plan via Razorpay Checkout
-        const isLoaded = await loadRazorpayScript();
-        if (!isLoaded) {
-          toast.error('Could not connect to Razorpay SDK. Please check your internet connection.');
-          setSubmitting(false);
-          return;
-        }
-
-        const orderRes = await saasApi.createOrder(selectedPlan.id);
-        const orderData = orderRes?.data || orderRes;
-
-        if (!orderData?.order_id) {
-          throw new Error(orderRes?.message || 'Failed to initialize payment order with gateway.');
-        }
-
-        const options = {
-          key: orderData.key_id,
-          amount: orderData.amount,
-          currency: orderData.currency || 'INR',
-          name: 'GrowVidya School ERP',
-          description: `Setup & Annual License: ${selectedPlan.plan_name}`,
-          order_id: orderData.order_id,
-          prefill: {
-            name: `${adminForm.first_name} ${adminForm.last_name}`.trim(),
-            email: adminForm.email,
-            contact: adminForm.phone || campusForm.phone_number || '',
-          },
-          notes: {
-            school_name: schoolForm.school_name,
-            plan_id: selectedPlan.id,
-          },
-          theme: { color: '#6366f1' },
-          handler: async function (response) {
-            try {
-              setSubmitting(true);
-              const payload = {
-                ...basePayload,
-                isTrial: false,
-                amountPaid: selectedPlan.price,
-                paymentGateway: 'razorpay',
-                paymentTransactionId: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-              };
-
-              const res = await saasApi.registerSchool(payload);
-              toast.success(
-                res?.message ||
-                  '🎉 Payment verified & School registered! Your school portal is fully unlocked.'
-              );
-              navigate('/account/login/adminlogin', {
-                state: {
-                  registeredEmail: adminForm.email,
-                  registrationSuccess: true,
-                },
-              });
-            } catch (err) {
-              console.error('Registration after payment failed:', err);
-              toast.error(
-                err?.response?.data?.message || err.message || 'Registration failed after payment.'
-              );
-            } finally {
-              setSubmitting(false);
-            }
-          },
-          modal: {
-            ondismiss: function () {
-              setSubmitting(false);
-              toast.info('Payment checkout window was closed.');
-            },
-          },
-        };
-
-        const rzp = new window.Razorpay(options);
-        rzp.on('payment.failed', function (resp) {
-          toast.error(`Payment declined: ${resp.error?.description || 'Transaction failed.'}`);
-          setSubmitting(false);
-        });
-        rzp.open();
+        completePostRegistrationRedirect(res);
+        return;
       }
+
+      // Paid Plan via Razorpay Checkout
+      const isLoaded = await loadRazorpayScript();
+      if (!isLoaded) {
+        toast.error('Could not connect to Razorpay SDK. Please check your internet connection.');
+        setSubmitting(false);
+        return;
+      }
+
+      if (!orderData?.order_id) {
+        throw new Error(orderRes?.message || 'Failed to initialize payment order with gateway.');
+      }
+
+      const cycleMeta = selectedPlan.cycle_meta || { label: selectedPlan.billing_cycle || '' };
+
+      const options = {
+        key: orderData.key_id,
+        amount: orderData.amount,
+        currency: orderData.currency || 'INR',
+        name: 'GrowVidya School ERP',
+        description: `${cycleMeta.label} School License: ${selectedPlan.plan_name}`,
+        order_id: orderData.order_id,
+        prefill: {
+          name: `${adminForm.first_name} ${adminForm.last_name}`.trim(),
+          email: adminForm.email,
+          contact: adminForm.phone || campusForm.phone_number || '',
+        },
+        notes: {
+          school_name: schoolForm.school_name,
+          plan_id: selectedPlan.id,
+          order_no: orderData.order_no,
+        },
+        theme: { color: '#6366f1' },
+        handler: async function (response) {
+          try {
+            setSubmitting(true);
+            const payload = {
+              ...basePayload,
+              order_no: orderData.order_no,
+              payment_order_id: orderData.payment_order_id,
+              paymentGateway: 'razorpay',
+              paymentTransactionId: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+            };
+
+            const res = await saasApi.registerSchool(payload);
+            toast.success(
+              res?.message ||
+                '🎉 Payment verified & School registered! Your school portal is fully unlocked.'
+            );
+            completePostRegistrationRedirect(res);
+          } catch (err) {
+            console.error('Registration after payment failed:', err);
+            toast.error(
+              err?.response?.data?.message || err.message || 'Registration failed after payment.'
+            );
+          } finally {
+            setSubmitting(false);
+          }
+        },
+        modal: {
+          ondismiss: function () {
+            setSubmitting(false);
+            toast.info('Payment checkout window was closed.');
+          },
+        },
+      };
+
+      const rzp = new window.Razorpay(options);
+      rzp.on('payment.failed', function (resp) {
+        const errCode = resp?.error?.code || 'PAYMENT_FAILED';
+        const errDesc = resp?.error?.description || 'Transaction declined by bank or gateway.';
+        saasApi
+          .recordPaymentFailure({
+            order_no: orderData.order_no,
+            razorpay_order_id: resp?.error?.metadata?.order_id || orderData.order_id,
+            razorpay_payment_id: resp?.error?.metadata?.payment_id || null,
+            error_code: errCode,
+            error_description: errDesc,
+          })
+          .catch(() => {});
+        toast.error(`Payment declined: ${errDesc}`);
+        setSubmitting(false);
+      });
+      rzp.open();
     } catch (err) {
       console.error('Registration error:', err);
       toast.error(
@@ -761,11 +854,9 @@ const SchoolRegistrationWizard = () => {
           err.message ||
           'Registration failed. Please review details and try again.'
       );
-    } finally {
       setSubmitting(false);
     }
   };
-
 
   const steps = [
     { num: 1, title: 'School Profile', desc: 'Identity & Board', icon: 'ti ti-building' },
@@ -775,10 +866,22 @@ const SchoolRegistrationWizard = () => {
     { num: 5, title: 'Choose Plan', desc: 'Select Plan & Activate', icon: 'ti ti-crown' },
   ];
 
+  const activeCycleMeta = useMemo(
+    () =>
+      availableCycleMetas.find((c) => (c.cycle || c.code) === billingCycle) ||
+      availableCycleMetas[0] || {
+        cycle: billingCycle,
+        label: billingCycle,
+        shortLabel: billingCycle,
+        durationText: '',
+      },
+    [availableCycleMetas, billingCycle]
+  );
+
   return (
     <div className="bg-white min-vh-100 d-flex flex-column">
       {/* 1. Full-Width Modern Header */}
-      <header className="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-xs px-3 px-md-5 py-2 py-md-3 w-100 sticky-top">
+      <header className="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm px-3 px-md-5 py-2 py-md-3 w-100 sticky-top">
         <div className="container-fluid px-0 d-flex justify-content-between align-items-center">
           <div className="d-flex align-items-center gap-3">
             <Link to="/" className="navbar-brand d-flex align-items-center m-0 p-0 text-decoration-none">
@@ -802,8 +905,8 @@ const SchoolRegistrationWizard = () => {
             <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-2 fs-12 fw-semibold">
               <i className="ti ti-shield-check me-1"></i> New School Registration
             </span>
-            <Link to="/pricing" className="btn btn-outline-secondary btn-sm ms-2">
-              <i className="ti ti-crown me-1"></i> View All Plans
+            <Link to="/pricing" className="btn btn-light border text-dark btn-sm ms-2 fw-semibold">
+              <i className="ti ti-crown me-1 text-primary"></i> View All Plans
             </Link>
           </div>
         </div>
@@ -888,8 +991,7 @@ const SchoolRegistrationWizard = () => {
         </div>
       </div>
 
-
-      {/* 3. Full-Page Form Area (Wide, Non-Card Layout) */}
+      {/* 3. Full-Page Form Area */}
       <main className="flex-grow-1 py-4 py-lg-5 w-100">
         <div className="container-fluid px-3 px-md-5" style={{ maxWidth: '1400px' }}>
           {/* STEP 1: SCHOOL IDENTITY & PROFILE */}
@@ -911,11 +1013,11 @@ const SchoolRegistrationWizard = () => {
               </div>
 
               {/* Quick Jump Callout to Step 5: Choose Subscription Plan */}
-              <div className="alert alert-light border border-primary-subtle d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 px-3 mb-4 rounded-3 shadow-xs">
+              <div className="alert alert-light border border-primary-subtle d-flex align-items-center justify-content-between flex-wrap gap-2 py-2 px-3 mb-4 rounded-3 shadow-sm">
                 <div className="d-flex align-items-center gap-2 text-dark fs-13">
                   <i className="ti ti-crown text-primary fs-18"></i>
                   <span>
-                    Want to inspect or select your <strong>Monthly</strong> or <strong>Annual</strong> subscription package first?
+                    Want to inspect or select your school subscription package first?
                   </span>
                 </div>
                 <button
@@ -1037,7 +1139,7 @@ const SchoolRegistrationWizard = () => {
             </div>
           )}
 
-          {/* STEP 2: CAMPUS LOCATION & CONTACT DETAILS (ALL school_master fields) */}
+          {/* STEP 2: CAMPUS LOCATION & CONTACT DETAILS */}
           {currentStep === 2 && (
             <div>
               <div className="mb-4 pb-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-2">
@@ -1186,7 +1288,8 @@ const SchoolRegistrationWizard = () => {
                 {/* Footer Text Column */}
                 <div className="col-12">
                   <label className="form-label fw-semibold text-dark fs-14">
-                    Footer / Copyright Note <span className="text-muted fw-normal fs-12">(Used across print receipts and reports)</span>
+                    Footer / Copyright Note{' '}
+                    <span className="text-muted fw-normal fs-12">(Used across print receipts and reports)</span>
                   </label>
                   <input
                     type="text"
@@ -1210,7 +1313,7 @@ const SchoolRegistrationWizard = () => {
                   </span>
                   <h3 className="fw-bold text-dark mb-1">Academic Session Configuration</h3>
                   <p className="text-muted fs-14 mb-0">
-                    Set up your institution's initial active academic calendar year.
+                    Set up your institution&apos;s initial active academic calendar year.
                   </p>
                 </div>
                 <div className="text-muted fs-13">
@@ -1231,7 +1334,9 @@ const SchoolRegistrationWizard = () => {
                     onChange={(e) => setAcademicForm({ ...academicForm, academic_year: e.target.value })}
                     required
                   />
-                  <small className="text-muted fs-12">Format: <code>YYYY - YYYY</code></small>
+                  <small className="text-muted fs-12">
+                    Format: <code>YYYY - YYYY</code>
+                  </small>
                 </div>
 
                 <div className="col-lg-4">
@@ -1266,7 +1371,7 @@ const SchoolRegistrationWizard = () => {
                     <div>
                       <h6 className="fw-bold text-dark mb-1">Current Active Academic Year</h6>
                       <p className="text-muted fs-13 mb-0">
-                        This session will automatically be initialized as your school's default active academic cycle.
+                        This session will automatically be initialized as your school&apos;s default active academic cycle.
                         All initial student admissions, section allocations, and term timetables will automatically link
                         to this cycle. You can create further academic years later from the admin portal.
                       </p>
@@ -1358,7 +1463,9 @@ const SchoolRegistrationWizard = () => {
                       onChange={(e) => setAdminForm({ ...adminForm, gender: e.target.value })}
                       required
                     >
-                      <option value="" disabled>Select Gender</option>
+                      <option value="" disabled>
+                        Select Gender
+                      </option>
                       {genders.map((g) => (
                         <option key={g.id} value={g.id}>
                           {g.gender}
@@ -1372,7 +1479,7 @@ const SchoolRegistrationWizard = () => {
                     <label className="form-label fw-semibold text-dark fs-14">Administrator Profile Photo (Optional)</label>
                     <div className="d-flex align-items-center gap-3 p-3 bg-light border rounded-3">
                       <div
-                        className="border rounded-circle bg-white d-flex align-items-center justify-content-center shadow-xs"
+                        className="border rounded-circle bg-white d-flex align-items-center justify-content-center shadow-sm"
                         style={{ width: '64px', height: '64px', overflow: 'hidden', flexShrink: 0 }}
                       >
                         {adminAvatarPreview ? (
@@ -1415,7 +1522,7 @@ const SchoolRegistrationWizard = () => {
                       />
                       <button
                         type="button"
-                        className="btn btn-outline-secondary"
+                        className="btn btn-light border text-dark"
                         onClick={() => setShowPassword(!showPassword)}
                       >
                         <i className={showPassword ? 'ti ti-eye-off' : 'ti ti-eye'}></i>
@@ -1484,7 +1591,7 @@ const SchoolRegistrationWizard = () => {
                   </span>
                   <h3 className="fw-bold text-dark mb-1">Choose Subscription Plan</h3>
                   <p className="text-muted fs-14 mb-0">
-                    Select between Monthly and Annual subscription packages tailored for your institution.
+                    Select a flexible subscription cycle and tier tailored for your institution. Flat net pricing — Zero GST.
                   </p>
                 </div>
                 <div className="text-muted fs-13">
@@ -1501,247 +1608,332 @@ const SchoolRegistrationWizard = () => {
                 </div>
               ) : (
                 <div>
-                  {/* Billing Cycle Toggle */}
+                  {/* Dynamic Billing Cycle Toggle */}
                   <div className="text-center mb-4">
-                    <div className="bg-light p-1.5 rounded-pill d-inline-flex border shadow-xs">
-                      <button
-                        type="button"
-                        className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
-                          billingCycle === 'monthly'
-                            ? 'btn-primary text-white shadow-sm'
-                            : 'btn-light text-dark'
-                        }`}
-                        onClick={() => handleCycleChange('monthly')}
-                      >
-                        <i className="ti ti-calendar me-1"></i> Monthly Subscription
-                      </button>
-                      <button
-                        type="button"
-                        className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
-                          billingCycle === 'annual'
-                            ? 'btn-primary text-white shadow-sm'
-                            : 'btn-light text-dark'
-                        }`}
-                        onClick={() => handleCycleChange('annual')}
-                      >
-                        <i className="ti ti-calendar-event me-1"></i> Annual Subscription
-                        <span className="badge bg-success text-white ms-2 fs-11">Save ~20%</span>
-                      </button>
+                    <div className="bg-light p-1 rounded-pill d-inline-flex flex-wrap justify-content-center border shadow-sm gap-1">
+                      {availableCycleMetas.map((meta) => {
+                        const cycleKey = meta.cycle || meta.code;
+                        const isCycleActive = billingCycle === cycleKey;
+                        return (
+                          <button
+                            key={cycleKey}
+                            type="button"
+                            className={`btn rounded-pill px-4 py-2 fs-14 fw-semibold transition-all ${
+                              isCycleActive ? 'btn-primary text-white shadow-sm' : 'btn-light text-dark'
+                            }`}
+                            onClick={() => handleCycleChange(cycleKey)}
+                          >
+                            <i className={`ti ${cycleKey === 'annual' ? 'ti-calendar-event' : 'ti-calendar'} me-1`}></i>
+                            {meta.label}
+                            {cycleKey === 'annual' && (
+                              <span className="badge bg-success text-white ms-2 fs-11">Best Value</span>
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                     <div className="text-muted fs-13 mt-2">
-                      Showing <strong>{billingCycle === 'monthly' ? 'Monthly' : 'Annual'}</strong> packages. The <strong>14-Day Free Trial</strong> is available under both options.
+                      Showing <strong>{activeCycleMeta.label}</strong> packages.
+                      {trialPlan && (
+                        <>
+                          {' '}
+                          The <strong>{trialDays}-Day Free Trial</strong> is available alongside all billing cycles.
+                        </>
+                      )}
                     </div>
                   </div>
 
-                  {/* 4 Pricing Cards in a Unified Row */}
+                  {/* Pricing Cards Row */}
                   <div className="row g-4 justify-content-center align-items-stretch pt-3">
-                    {/* CARD 1: 14-DAY FREE TRIAL (Always shown under both Monthly and Annual) */}
-                    {trialPlan && (() => {
-                      const isTrialSelected = String(selectedPlanId) === String(trialPlan.id);
+                    {/* CARD 1: DYNAMIC FREE TRIAL (From Database) */}
+                    {trialPlan &&
+                      (() => {
+                        const isTrialSelected = String(selectedPlanId) === String(trialPlan.id);
+                        const trialStorageGb = Number(trialPlan.included_storage_gb) || 0;
 
-                      return (
-                        <div className="col-12 col-md-6 col-xl-3 d-flex">
-                          <div
-                            className={`card w-100 border-2 rounded-4 transition-all position-relative d-flex flex-column ${
-                              isTrialSelected
-                                ? 'border-success shadow bg-success-subtle bg-opacity-10'
-                                : 'border-success-subtle bg-white shadow-xs'
-                            }`}
-                            style={{ cursor: 'pointer', borderRadius: '16px' }}
-                            onClick={() => setSelectedPlanId(trialPlan.id)}
-                          >
-                            {/* Top Badge */}
-                            <div className="position-absolute top-0 start-50 translate-middle">
-                              <span className="badge rounded-pill bg-success text-white px-3 py-1.5 fs-11 fw-bold shadow-sm text-uppercase">
-                                ✨ 14-Day Free Trial
-                              </span>
-                            </div>
-
-                            <div className="card-body p-4 d-flex flex-column">
-                              <div className="mb-2">
-                                <h5 className="fw-bold text-dark mb-1 fs-18">{trialPlan.plan_name}</h5>
-                                <p className="text-muted fs-13 mb-0" style={{ minHeight: '44px' }}>
-                                  {trialPlan.description}
-                                </p>
+                        return (
+                          <div className="col-12 col-md-6 col-xl-3 d-flex">
+                            <div
+                              className={`card w-100 border-2 rounded-4 transition-all position-relative d-flex flex-column ${
+                                isTrialSelected
+                                  ? 'border-success shadow'
+                                  : 'border-success-subtle bg-white shadow-sm'
+                              }`}
+                              style={{
+                                cursor: 'pointer',
+                                borderRadius: '16px',
+                                overflow: 'visible',
+                                backgroundColor: isTrialSelected ? '#f0fdf4' : '#ffffff',
+                              }}
+                              onClick={() => setSelectedPlanId(trialPlan.id)}
+                            >
+                              {/* Top Badge */}
+                              <div
+                                className="position-absolute"
+                                style={{ top: '-13px', left: '50%', transform: 'translateX(-50%)', zIndex: 2 }}
+                              >
+                                <span
+                                  className="badge rounded-pill bg-success text-white px-3 py-1 fs-11 fw-bold shadow-sm text-uppercase"
+                                  style={{ whiteSpace: 'nowrap' }}
+                                >
+                                  ✨ {trialDays}-Day Free Trial
+                                </span>
                               </div>
 
-                              {/* Price Display */}
-                              <div className="my-3 pb-3 border-bottom">
-                                <div className="d-flex align-items-baseline gap-1">
-                                  <span className="display-6 fw-bold text-success">₹0</span>
-                                  <span className="text-muted fs-13 fw-semibold">/ 14 days access</span>
+                              <div className="card-body p-4 pt-4 d-flex flex-column">
+                                <div className="mb-2 mt-1">
+                                  <h5 className="fw-bold text-dark mb-1 fs-18">{trialPlan.plan_name}</h5>
+                                  <p className="text-muted fs-13 mb-0" style={{ minHeight: '40px' }}>
+                                    {trialPlan.description || `${trialDays}-day institutional evaluation access`}
+                                  </p>
                                 </div>
-                                <div className="mt-1">
-                                  <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-2.5 py-1 fs-11 fw-semibold">
-                                    <i className="ti ti-check me-1"></i> No Credit Card Required
-                                  </span>
-                                </div>
-                              </div>
 
-                              {/* Features & Quotas */}
-                              <div className="mb-4 flex-grow-1">
-                                <div className="fw-semibold text-dark fs-12 mb-3 text-uppercase">Features & Quotas:</div>
-                                <ul className="list-unstyled fs-13 mb-0 d-flex flex-column gap-2">
-                                  {trialPlan.max_students !== undefined && trialPlan.max_students !== null && (
+                                {/* Price Display */}
+                                <div className="my-3 pb-3 border-bottom">
+                                  <div className="d-flex align-items-baseline gap-1">
+                                    <span className="display-6 fw-bold text-success">₹0</span>
+                                    <span className="text-muted fs-13 fw-semibold">/ {trialDays} days access</span>
+                                  </div>
+                                  <div className="mt-1">
+                                    <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fs-11 fw-semibold">
+                                      <i className="ti ti-check me-1"></i> One Trial Per Institution
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Features & Quotas */}
+                                <div className="mb-4 flex-grow-1">
+                                  <div className="fw-semibold text-dark fs-12 mb-3 text-uppercase">Features & Quotas:</div>
+                                  <ul className="list-unstyled fs-13 mb-0 d-flex flex-column gap-2">
                                     <li className="d-flex align-items-center">
                                       <i className="ti ti-users text-primary me-2 fs-16"></i>
                                       <span>
-                                        <strong>{trialPlan.max_students > 0 ? `Up to ${Number(trialPlan.max_students).toLocaleString()}` : 'Unlimited'}</strong> Students
+                                        <strong>
+                                          {Number(trialPlan.max_students) > 0
+                                            ? `Up to ${Number(trialPlan.max_students).toLocaleString()}`
+                                            : 'Unlimited'}
+                                        </strong>{' '}
+                                        Students
                                       </span>
                                     </li>
-                                  )}
-                                  {trialPlan.max_teachers !== undefined && trialPlan.max_teachers !== null && (
                                     <li className="d-flex align-items-center">
                                       <i className="ti ti-user-check text-primary me-2 fs-16"></i>
                                       <span>
-                                        <strong>{trialPlan.max_teachers > 0 ? `Up to ${Number(trialPlan.max_teachers).toLocaleString()}` : 'Unlimited'}</strong> Staff & Teachers
+                                        <strong>Unlimited</strong> Staff, Teachers & Branches
                                       </span>
                                     </li>
-                                  )}
-                                  {trialSms && (
-                                    <li className="d-flex align-items-center">
-                                      <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
-                                      <span>
-                                        <strong>{trialSms.label}</strong>
-                                      </span>
-                                    </li>
-                                  )}
-                                  {trialPush && (
-                                    <li className="d-flex align-items-center">
-                                      <i className="ti ti-bell-ringing text-success me-2 fs-16"></i>
-                                      <span>
-                                        <strong>{trialPush.label}</strong>
-                                      </span>
-                                    </li>
-                                  )}
-                                  {(trialPlan.items || [])
-                                    .filter(
-                                      (it) =>
-                                        it.item_code !== 'PUSH_NOTIF' &&
-                                        !it.item_code?.toUpperCase().includes('SMS') &&
-                                        it.item_code !== 'EMAIL_ALERTS'
-                                    )
-                                    .map((it) => (
-                                      <li key={it.id} className="d-flex align-items-center">
-                                        <i
-                                          className={`ti ${
-                                            it.item_type === 'included' || parseFloat(it.price) === 0
-                                              ? 'ti-check text-success'
-                                              : 'ti-plus text-primary'
-                                          } me-2 fs-16`}
-                                        ></i>
+                                    {trialStorageGb > 0 && (
+                                      <li className="d-flex align-items-center">
+                                        <i className="ti ti-cloud text-primary me-2 fs-16"></i>
                                         <span>
-                                          {it.item_name}{' '}
-                                          {it.item_type === 'addon' && parseFloat(it.price) > 0 && (
-                                            <span className="text-muted">
-                                              (Add-on: ₹{Number(it.price).toLocaleString('en-IN')})
-                                            </span>
-                                          )}
+                                          <strong>{trialStorageGb} GB</strong> Cloud Storage Included
                                         </span>
                                       </li>
-                                    ))}
-                                </ul>
-                              </div>
+                                    )}
+                                    {trialSms && (
+                                      <li className="d-flex align-items-center">
+                                        <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
+                                        <span>
+                                          <strong>{trialSms.label}</strong>
+                                        </span>
+                                      </li>
+                                    )}
+                                    {trialPush && (
+                                      <li className="d-flex align-items-center">
+                                        <i className="ti ti-bell-ringing text-success me-2 fs-16"></i>
+                                        <span>
+                                          <strong>{trialPush.label}</strong>
+                                        </span>
+                                      </li>
+                                    )}
+                                    {(trialPlan.items || [])
+                                      .filter(
+                                        (it) =>
+                                          it.item_code !== 'PUSH_NOTIF' &&
+                                          !it.item_code?.toUpperCase().includes('SMS') &&
+                                          it.item_code !== 'EMAIL_ALERTS'
+                                      )
+                                      .map((it) => (
+                                        <li key={it.id} className="d-flex align-items-center">
+                                          <i
+                                            className={`ti ${
+                                              it.item_type === 'included' || parseFloat(it.price) === 0
+                                                ? 'ti-check text-success'
+                                                : 'ti-plus text-primary'
+                                            } me-2 fs-16`}
+                                          ></i>
+                                          <span>
+                                            {it.item_name}{' '}
+                                            {it.item_type === 'addon' && parseFloat(it.price) > 0 && (
+                                              <span className="text-muted">
+                                                (Add-on: ₹{Number(it.price).toLocaleString('en-IN')})
+                                              </span>
+                                            )}
+                                          </span>
+                                        </li>
+                                      ))}
+                                  </ul>
+                                </div>
 
-                              {/* Card Action Button */}
-                              <div className="d-flex flex-column mt-auto pt-2">
-                                <button
-                                  type="button"
-                                  className={`btn w-100 py-2.5 fw-semibold d-flex align-items-center justify-content-center shadow-xs ${
-                                    isTrialSelected ? 'btn-success text-white' : 'btn-outline-success'
-                                  }`}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStartTrial(trialPlan);
-                                  }}
-                                >
-                                  <span>{isTrialSelected ? '✓ Free Trial Selected • Configure' : 'Select 14-Day Free Trial'}</span>
-                                  <i className="ti ti-arrow-right ms-2 fs-15"></i>
-                                </button>
-                                <div className="text-center text-muted fs-11 mt-1">
-                                  Instant Access • No Card Needed
+                                {/* Card Action Button */}
+                                <div className="d-flex flex-column mt-auto pt-2">
+                                  <button
+                                    type="button"
+                                    className={`btn w-100 py-2 px-3 fw-semibold d-flex align-items-center justify-content-center shadow-sm ${
+                                      isTrialSelected ? 'btn-success text-white' : 'btn-outline-success'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleStartTrial(trialPlan);
+                                    }}
+                                  >
+                                    <span>
+                                      {isTrialSelected
+                                        ? '✓ Free Trial Selected • Configure'
+                                        : `Start ${trialDays}-Day Free Trial`}
+                                    </span>
+                                    <i className="ti ti-arrow-right ms-2 fs-15"></i>
+                                  </button>
+                                  <div className="text-center text-muted fs-11 mt-1">
+                                    Instant Access • No Card Needed
+                                  </div>
                                 </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      );
-                    })()}
+                        );
+                      })()}
 
-                    {/* CARDS 2, 3, 4: PAID PLANS (Starter, Growth, Enterprise for current billing cycle) */}
+                    {/* PAID PLANS FOR SELECTED BILLING CYCLE (100% Dynamic from DB) */}
                     {currentPaidPlans.map((p) => {
                       const isSelected = String(selectedPlanId) === String(p.id);
-                      const isGrowth = (p.plan_code || '').toLowerCase().includes('growth') || p.id === 2 || p.id === 8;
-                      const isEnterprise = (p.plan_code || '').toLowerCase().includes('enterprise') || p.id === 3 || p.id === 9;
+                      const isPopular = Number(p.is_popular) === 1;
+                      const isTopTier =
+                        !isPopular &&
+                        currentPaidPlans.length > 1 &&
+                        (Number(p.tier_rank) || 1) === maxTierRank;
                       const smsInfo = getSmsAllocation(p);
                       const pushInfo = getPushAllocation(p);
+                      const cycleMeta = p.cycle_meta || activeCycleMeta;
+                      const storageGb = Number(p.included_storage_gb) || 0;
 
                       return (
                         <div key={p.id} className="col-12 col-md-6 col-xl-3 d-flex">
                           <div
                             className={`card w-100 border-2 rounded-4 transition-all position-relative d-flex flex-column ${
                               isSelected
-                                ? 'border-primary shadow bg-primary-subtle bg-opacity-10'
-                                : isGrowth
-                                ? 'border-primary bg-white shadow-xs'
-                                : isEnterprise
-                                ? 'border-dark-subtle bg-white shadow-xs'
-                                : 'border-light-subtle bg-white shadow-xs'
+                                ? 'border-primary shadow'
+                                : isPopular
+                                ? 'border-primary bg-white shadow-sm'
+                                : isTopTier
+                                ? 'border-dark-subtle bg-white shadow-sm'
+                                : 'bg-white shadow-sm'
                             }`}
-                            style={{ cursor: 'pointer', borderRadius: '16px' }}
+                            style={{
+                              cursor: 'pointer',
+                              borderRadius: '16px',
+                              overflow: 'visible',
+                              backgroundColor: isSelected ? '#eef2ff' : '#ffffff',
+                              borderColor: !isSelected && !isPopular && !isTopTier ? '#e2e8f0' : undefined,
+                            }}
                             onClick={() => setSelectedPlanId(p.id)}
                           >
-                            {/* Top Badges */}
-                            {isGrowth && (
-                              <div className="position-absolute top-0 start-50 translate-middle">
-                                <span className="badge rounded-pill bg-primary text-white px-3 py-1.5 fs-11 fw-bold shadow-sm text-uppercase">
+                            {/* Top Dynamic Badge */}
+                            <div
+                              className="position-absolute"
+                              style={{ top: '-13px', left: '50%', transform: 'translateX(-50%)', zIndex: 2 }}
+                            >
+                              {isPopular ? (
+                                <span
+                                  className="badge rounded-pill bg-primary text-white px-3 py-1 fs-11 fw-bold shadow-sm text-uppercase"
+                                  style={{ whiteSpace: 'nowrap' }}
+                                >
                                   ★ Most Popular
                                 </span>
-                              </div>
-                            )}
-                            {isEnterprise && (
-                              <div className="position-absolute top-0 start-50 translate-middle">
-                                <span className="badge rounded-pill bg-dark text-white px-3 py-1.5 fs-11 fw-bold shadow-sm text-uppercase">
-                                  👑 Enterprise Grade
+                              ) : isTopTier ? (
+                                <span
+                                  className="badge rounded-pill bg-dark text-white px-3 py-1 fs-11 fw-bold shadow-sm text-uppercase"
+                                  style={{ whiteSpace: 'nowrap' }}
+                                >
+                                  👑 Top Tier
                                 </span>
-                              </div>
-                            )}
-                            {!isGrowth && !isEnterprise && (
-                              <div className="position-absolute top-0 start-50 translate-middle">
-                                <span className="badge rounded-pill bg-light text-secondary border px-3 py-1.5 fs-11 fw-semibold text-uppercase">
-                                  Starter Tier
+                              ) : (
+                                <span
+                                  className="badge rounded-pill px-3 py-1 fs-11 fw-semibold text-uppercase shadow-sm"
+                                  style={{
+                                    whiteSpace: 'nowrap',
+                                    backgroundColor: '#f1f5f9',
+                                    color: '#334155',
+                                    border: '1px solid #cbd5e1',
+                                  }}
+                                >
+                                  {p.plan_group ? `${p.plan_group} Plan` : `Tier ${p.tier_rank || 1}`}
                                 </span>
-                              </div>
-                            )}
+                              )}
+                            </div>
 
-                            <div className="card-body p-4 d-flex flex-column">
-                              <div className="mb-2">
+                            <div className="card-body p-4 pt-4 d-flex flex-column">
+                              <div className="mb-2 mt-1">
                                 <h5 className="fw-bold text-dark mb-1 fs-18">{p.plan_name}</h5>
-                                <p className="text-muted fs-13 mb-0" style={{ minHeight: '44px' }}>
-                                  {p.description}
+                                <p className="text-muted fs-13 mb-0" style={{ minHeight: '40px' }}>
+                                  {p.description || `${cycleMeta.label} institutional license`}
                                 </p>
                               </div>
 
                               {/* Price Display */}
                               <div className="my-3 pb-3 border-bottom">
+                                {Number(p.original_price) > Number(p.price) && (
+                                  <div className="d-flex align-items-center gap-2 mb-1">
+                                    <span
+                                      className="fs-14 fw-semibold text-decoration-line-through"
+                                      style={{ color: '#94a3b8' }}
+                                    >
+                                      ₹{Number(p.original_price).toLocaleString('en-IN')}
+                                    </span>
+                                    <span
+                                      className="badge rounded-pill px-2 py-1 fs-10 fw-bold"
+                                      style={{
+                                        backgroundColor: '#ecfdf5',
+                                        color: '#047857',
+                                        border: '1px solid #a7f3d0',
+                                      }}
+                                    >
+                                      {Math.round(
+                                        ((Number(p.original_price) - Number(p.price)) /
+                                          Number(p.original_price)) *
+                                          100
+                                      )}
+                                      % OFF
+                                    </span>
+                                  </div>
+                                )}
                                 <div className="d-flex align-items-baseline gap-1">
-                                  <span className={`display-6 fw-bold ${isGrowth ? 'text-primary' : 'text-dark'}`}>
+                                  <span className={`display-6 fw-bold ${isPopular ? 'text-primary' : 'text-dark'}`}>
                                     ₹{Number(p.price).toLocaleString('en-IN')}
                                   </span>
                                   <span className="text-muted fs-13 fw-semibold">
-                                    / {p.billing_cycle === 'annual' ? 'year' : 'month'}
+                                    / {cycleMeta.shortLabel || cycleMeta.label}
                                   </span>
                                 </div>
                                 <div className="mt-1">
                                   <span
-                                    className={`badge border rounded-pill px-2.5 py-1 fs-11 fw-semibold ${
-                                      isGrowth
-                                        ? 'bg-primary-subtle text-primary border-primary-subtle'
-                                        : 'bg-light text-secondary border-light-subtle'
+                                    className={`badge rounded-pill px-3 py-1 fs-11 fw-semibold ${
+                                      isPopular
+                                        ? 'bg-primary-subtle text-primary border border-primary-subtle'
+                                        : ''
                                     }`}
+                                    style={
+                                      !isPopular
+                                        ? {
+                                            backgroundColor: '#f1f5f9',
+                                            color: '#475569',
+                                            border: '1px solid #cbd5e1',
+                                          }
+                                        : undefined
+                                    }
                                   >
                                     <i className="ti ti-shield-check me-1"></i>
-                                    {p.billing_cycle === 'annual' ? 'Annual School License' : 'Monthly School License'}
+                                    {cycleMeta.label} School License
                                   </span>
                                 </div>
                               </div>
@@ -1753,15 +1945,28 @@ const SchoolRegistrationWizard = () => {
                                   <li className="d-flex align-items-center">
                                     <i className="ti ti-users text-primary me-2 fs-16"></i>
                                     <span>
-                                      <strong>{p.max_students > 0 ? `Up to ${p.max_students.toLocaleString()}` : 'Unlimited'}</strong> Students
+                                      <strong>
+                                        {Number(p.max_students) > 0
+                                          ? `Up to ${Number(p.max_students).toLocaleString()}`
+                                          : 'Unlimited'}
+                                      </strong>{' '}
+                                      Students
                                     </span>
                                   </li>
                                   <li className="d-flex align-items-center">
                                     <i className="ti ti-user-check text-primary me-2 fs-16"></i>
                                     <span>
-                                      <strong>{p.max_teachers > 0 ? `Up to ${p.max_teachers.toLocaleString()}` : 'Unlimited'}</strong> Staff & Teachers
+                                      <strong>Unlimited</strong> Staff, Teachers & Branches
                                     </span>
                                   </li>
+                                  {storageGb > 0 && (
+                                    <li className="d-flex align-items-center">
+                                      <i className="ti ti-cloud text-primary me-2 fs-16"></i>
+                                      <span>
+                                        <strong>{storageGb} GB</strong> Cloud Storage Included
+                                      </span>
+                                    </li>
+                                  )}
                                   {smsInfo && (
                                     <li className="d-flex align-items-center">
                                       <i className="ti ti-message-dots text-primary me-2 fs-16"></i>
@@ -1811,16 +2016,12 @@ const SchoolRegistrationWizard = () => {
                               <div className="d-flex flex-column mt-auto pt-2">
                                 <button
                                   type="button"
-                                  className={`btn w-100 py-2.5 fw-semibold shadow-xs d-flex align-items-center justify-content-center ${
+                                  className={`btn w-100 py-2 px-3 fw-semibold shadow-sm d-flex align-items-center justify-content-center ${
                                     isSelected
-                                      ? isGrowth
-                                        ? 'btn-primary'
-                                        : isEnterprise
+                                      ? isTopTier
                                         ? 'btn-dark'
                                         : 'btn-primary'
-                                      : isGrowth
-                                      ? 'btn-outline-primary'
-                                      : isEnterprise
+                                      : isTopTier
                                       ? 'btn-outline-dark'
                                       : 'btn-outline-primary'
                                   }`}
@@ -1829,13 +2030,14 @@ const SchoolRegistrationWizard = () => {
                                     handleSelectPackage(p);
                                   }}
                                 >
-                                  <span>{isSelected ? `✓ ${p.plan_name} Selected • Configure` : `Select ${p.plan_name}`}</span>
+                                  <span>
+                                    {isSelected ? `✓ ${p.plan_name} Selected • Configure` : `Select ${p.plan_name}`}
+                                  </span>
                                   <i className="ti ti-arrow-right ms-2 fs-15"></i>
                                 </button>
                                 <div className="text-center text-muted fs-11 mt-1">
-                                  {p.billing_cycle === 'annual'
-                                    ? 'Billed Annually • Configurable'
-                                    : 'Billed Monthly • Flexible'}
+                                  Billed {cycleMeta.label}
+                                  {cycleMeta.durationText ? ` • ${cycleMeta.durationText}` : ''}
                                 </div>
                               </div>
                             </div>
@@ -1858,15 +2060,15 @@ const SchoolRegistrationWizard = () => {
             {currentStep > 1 ? (
               <button
                 type="button"
-                className="btn btn-outline-secondary px-4 py-2 fw-semibold"
+                className="btn btn-light border text-dark px-4 py-2 fw-semibold"
                 onClick={handlePrevStep}
                 disabled={submitting}
               >
                 <i className="ti ti-arrow-left me-1"></i> Previous Step
               </button>
             ) : (
-              <Link to="/pricing" className="btn btn-outline-secondary px-4 py-2">
-                <i className="ti ti-crown me-1"></i> View Pricing
+              <Link to="/pricing" className="btn btn-light border text-dark px-4 py-2 fw-semibold">
+                <i className="ti ti-crown me-1 text-primary"></i> View Pricing
               </Link>
             )}
           </div>
@@ -1893,13 +2095,15 @@ const SchoolRegistrationWizard = () => {
                 onClick={() => {
                   const sel =
                     plans.find((p) => String(p.id) === String(selectedPlanId)) ||
-                    (String(selectedPlanId) === String(trialPlan.id) ? trialPlan : plans[0] || trialPlan);
+                    (trialPlan && String(selectedPlanId) === String(trialPlan.id)
+                      ? trialPlan
+                      : currentPaidPlans[0] || plans[0] || trialPlan);
                   if (!sel) {
                     toast.warning('Please select a subscription plan to continue.');
                     return;
                   }
                   if (
-                    String(sel.id) === String(trialPlan.id) ||
+                    (trialPlan && String(sel.id) === String(trialPlan.id)) ||
                     sel.billing_cycle === 'trial' ||
                     parseFloat(sel.price) === 0
                   ) {
@@ -1916,7 +2120,6 @@ const SchoolRegistrationWizard = () => {
           </div>
         </div>
       </footer>
-
     </div>
   );
 };

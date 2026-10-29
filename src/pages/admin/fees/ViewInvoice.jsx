@@ -110,6 +110,12 @@ const ViewInvoice = () => {
     0
   );
 
+  const verifiedPayments = (invoice.payments || []).filter((p) =>
+    ['success', 'verified', 'paid', 'completed', '1'].includes(
+      String(p?.status ?? '').trim().toLowerCase()
+    )
+  );
+
   const schoolName = invoice?.school_name || user?.school_name || user?.schoolName || '';
   const schoolAddress = invoice?.school_address || user?.school_address || user?.address || '';
   const schoolPhone = invoice?.school_phone || user?.school_phone || user?.phone_number || '';
@@ -187,7 +193,7 @@ const ViewInvoice = () => {
                 className={`badge px-3 py-2 fs-12 ${
                   invoice.status === 'Paid'
                     ? 'bg-success'
-                    : invoice.status === 'Partial'
+                    : invoice.status === 'Partial' || invoice.status === 'Pending Verification'
                     ? 'bg-warning text-dark'
                     : 'bg-danger'
                 }`}
@@ -297,7 +303,7 @@ const ViewInvoice = () => {
           </div>
 
           {/* Payments Made History */}
-          {invoice.payments && invoice.payments.length > 0 && (
+          {verifiedPayments.length > 0 && (
             <div className="mb-4">
               <h6 className="text-uppercase text-muted fs-12 fw-bold mb-2">Payment History:</h6>
               <div className="table-responsive">
@@ -313,7 +319,7 @@ const ViewInvoice = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {invoice.payments.map((p) => (
+                    {verifiedPayments.map((p) => (
                       <tr key={`p-${p.id}`}>
                         <td className="fw-bold text-primary">{p.receipt_no}</td>
                         <td><small className="text-muted">{p.txn_no}</small></td>

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Link, useLocation } from 'react-router-dom';
+import { NavLink, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logoutAdmin } from '../../store/slices/authSlice';
 import logoDark from '../../assets/logo_dark.png';
 import logoSmall from '../../assets/logo-small.png';
 import schoolLogoDefault from '../../assets/school-logo.png';
 import { resolveImageUrl } from '../../utils/url.util';
-import Avatar from './Avatar';
 import usePermission from '../../hooks/usePermission';
 import { useSubscription } from '../../context/SubscriptionContext';
 import { fetchBranchesApi } from '../../api/branch.api';
@@ -81,21 +80,57 @@ const Sidebar = ({
 }) => {
   const dispatch = useDispatch();
   const location = useLocation();
-  const { user } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+  const { user } = useSelector((state) => state.auth || {});
   const messageUnreadCount = useSelector((state) => state.messageNotification?.unreadCount || 0);
   const { can, hasAny, isSuperAdmin } = usePermission();
-  const { subscription, isTrial, isExpired, isPending, isActivePaid, isActiveTrial, daysLeft, openUpgradeModal } = useSubscription();
+  const {
+    subscription,
+    isTrial,
+    isExpired,
+    isSuspended,
+    isPending,
+    hasPendingOffline,
+    pendingSubscription,
+    isLockedOut,
+    isActive,
+    isActiveTrial,
+    daysLeft,
+    openUpgradeModal,
+  } = useSubscription();
+
+  const isBillingAdmin = Boolean(
+    isSuperAdmin ||
+      Number(user?.adminType || user?.admin_type) === 1 ||
+      ['super admin', 'admin'].includes(
+        String(user?.roleName || user?.role_name || '').toLowerCase()
+      )
+  );
 
   const handleLockedMenuClick = (e) => {
-    if (isExpired) {
+    if (isLockedOut) {
       if (e) {
         e.preventDefault();
         e.stopPropagation();
       }
+      if (!isBillingAdmin) {
+        toast.info('School portal services are temporarily paused. Please contact your School Administration.');
+        return;
+      }
+      if (isPending) {
+        toast.info('Operational menus will unlock automatically once your offline bank transfer is verified by Super Admin.');
+        navigate('/admin/subscription');
+        return;
+      }
+      if (isSuspended) {
+        toast.warning('Your school subscription is currently suspended. Please check Subscription & Billing or contact Help & Support.');
+        navigate('/admin/subscription');
+        return;
+      }
       toast.warning(
         isTrial
-          ? 'All operational menus are disabled because your trial has expired. Please upgrade in Subscription & Plans.'
-          : 'All operational menus are disabled because your subscription has expired. Please renew or upgrade in Subscription & Plans.'
+          ? 'Operational menus are locked because your free trial has ended. Select a plan to continue.'
+          : 'Operational menus are locked because your subscription has expired. Renew or upgrade to restore access.'
       );
       openUpgradeModal(subscription?.plan_id);
     }
@@ -121,7 +156,6 @@ const Sidebar = ({
         setActiveBranchName(cachedName);
       }
 
-      // If super admin and cached name missing, fetch branches to resolve
       if (isSuperAdmin && !cachedName) {
         try {
           const res = await fetchBranchesApi({ status: 1 });
@@ -165,7 +199,6 @@ const Sidebar = ({
     (isSuperAdmin || Number(user?.adminType || user?.admin_type) === 1);
   const homeDashboardPath = isMultiBranchSuperAdmin ? '/admin/super-admin/dashboard' : '/admin/dashboard';
 
-  // Helper to determine the single active menu from current URL path
   const getActiveMenuFromPath = (path) => {
     if (path.includes('/admin/students') || path.includes('/admin/parents')) return 'ward';
     if (
@@ -190,16 +223,14 @@ const Sidebar = ({
     return null;
   };
 
-  // Submenu open states (only one key can be true at any time)
   const [openSubmenu, setOpenSubmenu] = useState(() => {
-    if (isExpired) return {};
+    if (isLockedOut) return {};
     const active = getActiveMenuFromPath(location.pathname);
     return active ? { [active]: true } : {};
   });
 
-  // On route change or expiry change, collapse submenus when expired or match current route
   useEffect(() => {
-    if (isExpired) {
+    if (isLockedOut) {
       setOpenSubmenu({});
       return;
     }
@@ -209,17 +240,11 @@ const Sidebar = ({
     } else {
       setOpenSubmenu({});
     }
-  }, [location.pathname, isExpired]);
+  }, [location.pathname, isLockedOut]);
 
-  // Accordion toggle: opening one menu closes all others (blocked if expired)
   const toggleSubmenu = (menuKey) => {
-    if (isExpired) {
-      toast.warning(
-        isTrial
-          ? 'All operational menus are disabled because your trial has expired. Please upgrade in Subscription & Plans.'
-          : 'All operational menus are disabled because your subscription has expired. Please renew or upgrade in Subscription & Plans.'
-      );
-      openUpgradeModal(subscription?.plan_id);
+    if (isLockedOut) {
+      handleLockedMenuClick();
       return;
     }
     setOpenSubmenu((prev) => {
@@ -242,7 +267,6 @@ const Sidebar = ({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
-      {/* Sidebar Top Header Element (App Logo & Desktop Hamburger / Mobile Close Button) */}
       <div className="sidebar-logo d-flex align-items-center justify-content-between ps-3 pe-2">
         <Link to={homeDashboardPath} className="d-flex align-items-center text-decoration-none">
           <img
@@ -259,7 +283,6 @@ const Sidebar = ({
           />
         </Link>
 
-        {/* Desktop Collapse Toggle Button */}
         <a
           id="toggle_btn"
           href="#"
@@ -273,7 +296,6 @@ const Sidebar = ({
           <i className="ti ti-menu-deep fs-20 text-dark"></i>
         </a>
 
-        {/* Mobile Close Button (shown on smaller screens < 992px) */}
         <button
           type="button"
           onClick={(e) => {
@@ -288,14 +310,13 @@ const Sidebar = ({
         </button>
       </div>
 
-      {/* Sidebar Scrollable Menu Body */}
       <div className="sidebar-inner slimscroll flex-fill">
         <div id="sidebar-menu" className="sidebar-menu">
-          {/* School Profile / Header Widget */}
           <ul className="mb-3">
             <li>
               <a
-                href="javascript:void(0);"
+                href="#school"
+                onClick={(e) => e.preventDefault()}
                 className="d-flex align-items-center border bg-white rounded p-2 text-decoration-none"
                 title={displayName !== schoolName && schoolName ? `${displayName} (${schoolName})` : displayName}
               >
@@ -319,22 +340,21 @@ const Sidebar = ({
             </li>
           </ul>
 
-          {/* Navigation Menu Hierarchy */}
           <ul>
             <li>
               <ul>
-                {/* Pending Plan Approval Notice */}
-                {isPending && (
+                {/* Initial Pending Plan Approval Notice (No active plan yet) */}
+                {isPending && isBillingAdmin && showFullLogo && (
                   <li className="p-2 mb-2">
                     <div className="bg-warning-subtle border border-warning rounded p-2 text-dark">
                       <div className="d-flex align-items-center mb-1">
                         <i className="ti ti-clock-hour-4 text-warning-emphasis fs-16 me-1"></i>
                         <span className="fw-bold fs-11 text-uppercase">
-                          {subscription?.plan_name || 'Subscription'}
+                          {subscription?.plan_name || 'Bank Transfer Pending'}
                         </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
-                        Plan approval pending review by Super Admin{daysLeft > 0 ? ` (${daysLeft} days validity once approved).` : '.'}
+                        Offline transfer under Super Admin verification.
                       </p>
                       <Link
                         to="/admin/subscription"
@@ -346,8 +366,50 @@ const Sidebar = ({
                   </li>
                 )}
 
-                {/* Trial Notice (When active and not expired: Full Access) */}
-                {isActiveTrial && (
+                {/* Non-blocking Pending Offline Renewal Banner when School is STILL Active */}
+                {isActive && hasPendingOffline && isBillingAdmin && showFullLogo && (
+                  <li className="p-2 mb-2">
+                    <div className="bg-info-subtle border border-info rounded p-2 text-dark">
+                      <div className="d-flex align-items-center mb-1">
+                        <i className="ti ti-clock-check text-info-emphasis fs-15 me-1"></i>
+                        <span className="fw-bold fs-11 text-uppercase">Offline Renewal Queued</span>
+                      </div>
+                      <p className="mb-1.5 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
+                        {pendingSubscription?.plan_name || 'Order'} awaiting UTR verification. Current access remains active.
+                      </p>
+                      <Link
+                        to="/admin/subscription"
+                        className="btn btn-outline-primary btn-sm w-100 py-0.5 fs-11 fw-semibold text-center d-block bg-white"
+                      >
+                        View Order
+                      </Link>
+                    </div>
+                  </li>
+                )}
+
+                {/* Suspended Notice */}
+                {isSuspended && isBillingAdmin && showFullLogo && (
+                  <li className="p-2 mb-2">
+                    <div className="bg-danger-subtle border border-danger rounded p-2 text-danger">
+                      <div className="d-flex align-items-center mb-1">
+                        <i className="ti ti-ban fs-16 me-1 text-danger"></i>
+                        <span className="fw-bold fs-11 text-uppercase">License Suspended</span>
+                      </div>
+                      <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
+                        Operational modules are paused. Contact platform support or review billing.
+                      </p>
+                      <Link
+                        to="/admin/subscription"
+                        className="btn btn-danger btn-sm w-100 py-1 fs-11 fw-bold shadow-none text-center d-block"
+                      >
+                        Review Billing
+                      </Link>
+                    </div>
+                  </li>
+                )}
+
+                {/* Active Trial Notice */}
+                {isActiveTrial && isBillingAdmin && showFullLogo && (
                   <li className="p-2 mb-2">
                     <div className="bg-warning-subtle border border-warning rounded p-2 text-dark">
                       <div className="d-flex align-items-center mb-1">
@@ -357,22 +419,20 @@ const Sidebar = ({
                         </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
-                        Full access enabled ({daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}).
+                        Full evaluation access ({daysLeft === 0 ? 'Expires today' : `${daysLeft} days left`}).
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => openUpgradeModal()}
-                        className="btn btn-warning btn-sm w-100 py-1 fs-11 fw-bold text-dark shadow-none"
+                      <Link
+                        to="/admin/subscription"
+                        className="btn btn-warning btn-sm w-100 py-1 fs-11 fw-bold text-dark shadow-none text-center d-block"
                       >
                         Upgrade Plan
-                      </button>
+                      </Link>
                     </div>
                   </li>
                 )}
 
-
-                {/* Plan Expired Notice (Trial or Paid: Menus Locked) */}
-                {isExpired && (
+                {/* Plan Expired Notice */}
+                {isExpired && isBillingAdmin && showFullLogo && (
                   <li className="p-2 mb-2">
                     <div className="bg-danger-subtle border border-danger rounded p-2 text-danger">
                       <div className="d-flex align-items-center mb-1">
@@ -386,11 +446,7 @@ const Sidebar = ({
                         </span>
                       </div>
                       <p className="mb-2 fs-11 text-muted" style={{ lineHeight: '1.3' }}>
-                        {isTrial
-                          ? 'All operational menus are locked. Upgrade to restore full access.'
-                          : subscription?.plan_name
-                          ? `Your ${subscription.plan_name} has expired. Renew or upgrade to restore full access.`
-                          : 'Your subscription has expired. Renew or upgrade to restore full access.'}
+                        Operational menus are locked. Renew or upgrade to restore access immediately.
                       </p>
                       <div className="d-flex flex-column gap-1">
                         {!isTrial && (
@@ -402,21 +458,20 @@ const Sidebar = ({
                             <i className="ti ti-refresh me-1"></i> Renew Plan
                           </button>
                         )}
-                        <button
-                          type="button"
-                          onClick={() => openUpgradeModal()}
-                          className={`btn ${isTrial ? 'btn-danger' : 'btn-outline-danger bg-white text-danger'} btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center`}
+                        <Link
+                          to="/admin/subscription"
+                          className={`btn ${isTrial ? 'btn-danger text-white' : 'btn-outline-danger bg-white text-danger'} btn-sm w-100 py-1 fs-11 fw-bold shadow-none d-flex align-items-center justify-content-center`}
                         >
-                          <i className="ti ti-arrow-up-right me-1"></i> Upgrade Plan
-                        </button>
+                          <i className="ti ti-arrow-up-right me-1"></i> View Plans
+                        </Link>
                       </div>
                     </div>
                   </li>
                 )}
 
-                {/* Operational Modules Wrapper: Disabled when plan is expired */}
+                {/* Operational Modules Wrapper: Disabled when locked out */}
                 <div className="position-relative">
-                  {isExpired && (
+                  {isLockedOut && (
                     <div
                       onClick={handleLockedMenuClick}
                       style={{
@@ -428,12 +483,12 @@ const Sidebar = ({
                         zIndex: 100,
                         cursor: 'not-allowed',
                       }}
-                      title="All operational menus are disabled because your subscription has expired. Click Subscription & Plans to renew or upgrade."
+                      title="Operational menus are paused until an active subscription is restored."
                     />
                   )}
                   <div
                     style={
-                      isExpired
+                      isLockedOut
                         ? {
                             opacity: 0.38,
                             filter: 'grayscale(100%)',
@@ -443,13 +498,12 @@ const Sidebar = ({
                         : {}
                     }
                   >
-                    {/* Organization Dashboard */}
                     {isMultiBranchSuperAdmin && (
                       <li>
                         <NavLink
                           to="/admin/super-admin/dashboard"
-                          className={({ isActive }) =>
-                            isActive || location.pathname.includes('/admin/super-admin') ? 'active' : ''
+                          className={({ isActive: navActive }) =>
+                            navActive || location.pathname.includes('/admin/super-admin') ? 'active' : ''
                           }
                         >
                           <i className="ti ti-building-community"></i>
@@ -458,12 +512,11 @@ const Sidebar = ({
                       </li>
                     )}
 
-                    {/* Dashboard */}
                     <li>
                       <NavLink
                         to={isMultiBranchSuperAdmin ? '/admin/dashboard?view=branch' : '/admin/dashboard'}
-                        className={({ isActive }) =>
-                          isActive && !location.pathname.includes('/admin/super-admin') ? 'active' : ''
+                        className={({ isActive: navActive }) =>
+                          navActive && !location.pathname.includes('/admin/super-admin') ? 'active' : ''
                         }
                       >
                         <i className="ti ti-layout-dashboard"></i>
@@ -471,1014 +524,1011 @@ const Sidebar = ({
                       </NavLink>
                     </li>
 
-                {/* Academic */}
-                {hasAny(ACADEMIC_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.academic ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('academic');
-                      }}
-                      className={openSubmenu.academic ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-notebook"></i>
-                      <span>Academic</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.academic ? 'submenu-open' : ''}`}>
-                      {can('academic/year', 'view') && (
-                        <li><NavLink to="/admin/academics/years" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/years') || location.pathname.startsWith('/admin/academic/years') || location.pathname.startsWith('/admin/academic/year') ? 'active' : '')}><span>Academic Year</span></NavLink></li>
-                      )}
-                      {can('academic/shift', 'view') && (
-                        <li><NavLink to="/admin/academics/shifts" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/shifts') || location.pathname.startsWith('/admin/academic/shifts') || location.pathname.startsWith('/admin/academic/shift') ? 'active' : '')}><span>Shift</span></NavLink></li>
-                      )}
-                      {can('academic/classes', 'view') && (
-                        <li><NavLink to="/admin/academics/classes" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/classes') || location.pathname.startsWith('/admin/academic/classes') || location.pathname.startsWith('/admin/academic/class') ? 'active' : '')}><span>Class</span></NavLink></li>
-                      )}
-                      {can('academic/sections', 'view') && (
-                        <li><NavLink to="/admin/academics/sections" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/sections') || location.pathname.startsWith('/admin/academic/sections') || location.pathname.startsWith('/admin/academic/section') ? 'active' : '')}><span>Section</span></NavLink></li>
-                      )}
-                      {can('academic/subject', 'view') && (
-                        <li><NavLink to="/admin/academics/subjects" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/subjects') || location.pathname.startsWith('/admin/academic/subjects') || location.pathname.startsWith('/admin/academic/subject') ? 'active' : '')}><span>Subject</span></NavLink></li>
-                      )}
-                      {can('academic/days', 'view') && (
-                        <li><NavLink to="/admin/academics/days" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/days') || location.pathname.startsWith('/admin/academic/days') || location.pathname.startsWith('/admin/academic/day') ? 'active' : '')}><span>Days</span></NavLink></li>
-                      )}
-                      {can('academic/period', 'view') && (
-                        <li><NavLink to="/admin/academics/periods" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/periods') || location.pathname.startsWith('/admin/academic/periods') || location.pathname.startsWith('/admin/academic/period') ? 'active' : '')}><span>Period</span></NavLink></li>
-                      )}
-                      {can('academic/routine', 'view') && (
-                        <li><NavLink to="/admin/academics/routine" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/routine') || location.pathname.startsWith('/admin/academics/routines') ? 'active' : '')}><span>Routine</span></NavLink></li>
-                      )}
-                      {can('academic/house', 'view') && (
-                        <li><NavLink to="/admin/academics/houses" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/houses') || location.pathname.startsWith('/admin/academic/houses') || location.pathname.startsWith('/admin/academic/house') ? 'active' : '')}><span>House</span></NavLink></li>
-                      )}
-                      {can('academic/documentType', 'view') && (
-                        <li><NavLink to="/admin/academics/document-types" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/document-types') ? 'active' : '')}><span>Document Type</span></NavLink></li>
-                      )}
-                      {can('academic/syllabus', 'view') && (
-                        <li><NavLink to="/admin/academics/syllabus" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/syllabus') ? 'active' : '')}><span>Syllabus</span></NavLink></li>
-                      )}
-                      {can('academic/assignmenttype', 'view') && (
-                        <li><NavLink to="/admin/academics/assignment-types" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/assignment-types') ? 'active' : '')}><span>Assignment Type</span></NavLink></li>
-                      )}
-                      {can('academic/assignment', 'view') && (
-                        <li><NavLink to="/admin/academics/assignments" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/assignments') ? 'active' : '')}><span>Assignment</span></NavLink></li>
-                      )}
-                      {can('academic/material', 'view') && (
-                        <li><NavLink to="/admin/academics/study-material" className={({ isActive }) => (isActive || location.pathname.startsWith('/admin/academics/study-material') || location.pathname.startsWith('/admin/academics/study-materials') ? 'active' : '')}><span>Study Material</span></NavLink></li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {/* Ward */}
-                {hasAny(WARD_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.ward ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('ward');
-                      }}
-                      className={openSubmenu.ward ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-school"></i>
-                      <span>Ward</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.ward ? 'submenu-open' : ''}`}>
-                      {can('ward/students', 'view') && (
-                        <li>
-                          <NavLink to="/admin/students" className={({ isActive }) => (isActive ? 'active' : '')}>
-                            <span>Students</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('ward/parents', 'view') && (
-                        <li>
-                          <NavLink to="/admin/parents" className={({ isActive }) => (isActive ? 'active' : '')}>
-                            <span>Parents</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {/* Staff */}
-                {hasAny(STAFF_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.staff ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('staff');
-                      }}
-                      className={openSubmenu.staff ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-users"></i>
-                      <span>Staff</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.staff ? 'submenu-open' : ''}`}>
-                      {can('staff/teachers', 'view') && (
-                        <li>
-                          <NavLink to="/admin/teachers" className={({ isActive }) => (isActive ? 'active' : '')}>
-                            <span>Teachers</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('staff/users', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/users"
-                            className={({ isActive }) =>
-                              isActive || location.pathname === '/admin/staff' ? 'active' : ''
-                            }
-                          >
-                            <span>Users</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {/* Attendance */}
-                {hasAny(ATTENDANCE_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.attendance ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('attendance');
-                      }}
-                      className={openSubmenu.attendance ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-calendar-user"></i>
-                      <span>Attendance</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.attendance ? 'submenu-open' : ''}`}>
-                      {can('attendance/student', 'view') && (
-                        <li><NavLink to="/admin/attendance/student" className={({ isActive }) => (isActive ? 'active' : '')}><span>Student Attendance</span></NavLink></li>
-                      )}
-                      {can('attendance/teacher', 'view') && (
-                        <li><NavLink to="/admin/attendance/teacher" className={({ isActive }) => (isActive ? 'active' : '')}><span>Teacher Attendance</span></NavLink></li>
-                      )}
-                      {can('attendance/staff', 'view') && (
-                        <li><NavLink to="/admin/attendance/staff" className={({ isActive }) => (isActive ? 'active' : '')}><span>Staff Attendance</span></NavLink></li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {/* Leaves Application */}
-                {hasAny(LEAVES_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.leaves ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('leaves');
-                      }}
-                      className={openSubmenu.leaves ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-beach"></i>
-                      <span>Leaves Application</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.leaves ? 'submenu-open' : ''}`}>
-                      {can('leaves/leaveassign', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/leaves/assign"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/leaves/assign') ? 'active' : ''
-                            }
-                          >
-                            <span>Leave Assign</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('leaves/leaveapply', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/leaves"
-                            end
-                            className={({ isActive }) =>
-                              (isActive || (location.pathname.startsWith('/admin/leaves') && !location.pathname.startsWith('/admin/leaves/assign')))
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Leave apply</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {/* Examination */}
-                {hasAny(EXAMINATION_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.examination ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('examination');
-                      }}
-                      className={openSubmenu.examination ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-file-text"></i>
-                      <span>Examination</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.examination ? 'submenu-open' : ''}`}>
-                      {can('examination/gradeSettings', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/examinations/grades"
-                            className={({ isActive }) => (isActive || location.pathname.includes('gradeSettings') ? 'active' : '')}
-                          >
-                            <span>Grade</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('examination/exam', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/examinations/exams"
-                            className={({ isActive }) => (isActive || (location.pathname.startsWith('/admin/examinations/exams') || location.pathname === '/admin/examination/exam') ? 'active' : '')}
-                          >
-                            <span>Exam</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('examination/examtype', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/examinations/exam-types"
-                            className={({ isActive }) => (isActive || location.pathname.includes('examtype') ? 'active' : '')}
-                          >
-                            <span>Exam Type</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('examination/examsubject', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/examinations/exam-subjects"
-                            className={({ isActive }) => (isActive || location.pathname.includes('examsubject') ? 'active' : '')}
-                          >
-                            <span>Exam Subject</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('examination/examschedule', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/examinations/schedules"
-                            className={({ isActive }) => (isActive || location.pathname.includes('examschedule') ? 'active' : '')}
-                          >
-                            <span>Exam Schedule</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('examination/examAttendance', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/examinations/attendance"
-                            className={({ isActive }) => (isActive || location.pathname.includes('examAttendance') ? 'active' : '')}
-                          >
-                            <span>Exam Attendance</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('examination/examResult', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/examinations/results"
-                            className={({ isActive }) => (isActive || location.pathname.includes('examResult') ? 'active' : '')}
-                          >
-                            <span>Exam Result</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
-
-                {/* Message */}
-                <li>
-                  <NavLink
-                    to="/admin/message"
-                    className={({ isActive }) =>
-                      isActive || location.pathname.startsWith('/admin/message') || location.pathname.startsWith('/admin/messages')
-                        ? 'active d-flex align-items-center position-relative'
-                        : 'd-flex align-items-center position-relative'
-                    }
-                  >
-                    <i className="ti ti-message-dots"></i>
-                    <span>Message</span>
-                    {messageUnreadCount > 0 && (
-                      <span
-                        className="badge bg-danger text-white fw-bold"
-                        style={{
-                          position: 'absolute',
-                          right: '14px',
-                          top: '50%',
-                          transform: 'translateY(-50%)',
-                          width: '20px',
-                          height: '20px',
-                          minWidth: '20px',
-                          maxWidth: '20px',
-                          borderRadius: '50%',
-                          fontSize: messageUnreadCount > 9 ? '9px' : '10.5px',
-                          padding: 0,
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          lineHeight: 1,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {messageUnreadCount > 99 ? '99+' : messageUnreadCount}
-                      </span>
+                    {/* Academic */}
+                    {hasAny(ACADEMIC_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.academic ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('academic');
+                          }}
+                          className={openSubmenu.academic ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-notebook"></i>
+                          <span>Academic</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.academic ? 'submenu-open' : ''}`}>
+                          {can('academic/year', 'view') && (
+                            <li><NavLink to="/admin/academics/years" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/years') || location.pathname.startsWith('/admin/academic/years') || location.pathname.startsWith('/admin/academic/year') ? 'active' : '')}><span>Academic Year</span></NavLink></li>
+                          )}
+                          {can('academic/shift', 'view') && (
+                            <li><NavLink to="/admin/academics/shifts" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/shifts') || location.pathname.startsWith('/admin/academic/shifts') || location.pathname.startsWith('/admin/academic/shift') ? 'active' : '')}><span>Shift</span></NavLink></li>
+                          )}
+                          {can('academic/classes', 'view') && (
+                            <li><NavLink to="/admin/academics/classes" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/classes') || location.pathname.startsWith('/admin/academic/classes') || location.pathname.startsWith('/admin/academic/class') ? 'active' : '')}><span>Class</span></NavLink></li>
+                          )}
+                          {can('academic/sections', 'view') && (
+                            <li><NavLink to="/admin/academics/sections" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/sections') || location.pathname.startsWith('/admin/academic/sections') || location.pathname.startsWith('/admin/academic/section') ? 'active' : '')}><span>Section</span></NavLink></li>
+                          )}
+                          {can('academic/subject', 'view') && (
+                            <li><NavLink to="/admin/academics/subjects" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/subjects') || location.pathname.startsWith('/admin/academic/subjects') || location.pathname.startsWith('/admin/academic/subject') ? 'active' : '')}><span>Subject</span></NavLink></li>
+                          )}
+                          {can('academic/days', 'view') && (
+                            <li><NavLink to="/admin/academics/days" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/days') || location.pathname.startsWith('/admin/academic/days') || location.pathname.startsWith('/admin/academic/day') ? 'active' : '')}><span>Days</span></NavLink></li>
+                          )}
+                          {can('academic/period', 'view') && (
+                            <li><NavLink to="/admin/academics/periods" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/periods') || location.pathname.startsWith('/admin/academic/periods') || location.pathname.startsWith('/admin/academic/period') ? 'active' : '')}><span>Period</span></NavLink></li>
+                          )}
+                          {can('academic/routine', 'view') && (
+                            <li><NavLink to="/admin/academics/routine" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/routine') || location.pathname.startsWith('/admin/academics/routines') ? 'active' : '')}><span>Routine</span></NavLink></li>
+                          )}
+                          {can('academic/house', 'view') && (
+                            <li><NavLink to="/admin/academics/houses" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/houses') || location.pathname.startsWith('/admin/academic/houses') || location.pathname.startsWith('/admin/academic/house') ? 'active' : '')}><span>House</span></NavLink></li>
+                          )}
+                          {can('academic/documentType', 'view') && (
+                            <li><NavLink to="/admin/academics/document-types" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/document-types') ? 'active' : '')}><span>Document Type</span></NavLink></li>
+                          )}
+                          {can('academic/syllabus', 'view') && (
+                            <li><NavLink to="/admin/academics/syllabus" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/syllabus') ? 'active' : '')}><span>Syllabus</span></NavLink></li>
+                          )}
+                          {can('academic/assignmenttype', 'view') && (
+                            <li><NavLink to="/admin/academics/assignment-types" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/assignment-types') ? 'active' : '')}><span>Assignment Type</span></NavLink></li>
+                          )}
+                          {can('academic/assignment', 'view') && (
+                            <li><NavLink to="/admin/academics/assignments" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/assignments') ? 'active' : '')}><span>Assignment</span></NavLink></li>
+                          )}
+                          {can('academic/material', 'view') && (
+                            <li><NavLink to="/admin/academics/study-material" className={({ isActive: navActive }) => (navActive || location.pathname.startsWith('/admin/academics/study-material') || location.pathname.startsWith('/admin/academics/study-materials') ? 'active' : '')}><span>Study Material</span></NavLink></li>
+                          )}
+                        </ul>
+                      </li>
                     )}
-                  </NavLink>
-                </li>
 
-                {/* Payroll */}
-                {(isSuperAdmin || hasAny(PAYROLL_MODULES, 'view')) && (
-                  <li className={`submenu ${openSubmenu.payroll ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('payroll');
-                      }}
-                      className={openSubmenu.payroll ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-coins"></i>
-                      <span>Payroll</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.payroll ? 'submenu-open' : ''}`}>
-                      <li>
-                        <NavLink
-                          to="/admin/payroll/beneficiaries"
-                          className={({ isActive }) =>
-                            isActive || location.pathname.startsWith('/admin/payroll/beneficiar')
-                              ? 'active'
-                              : ''
-                          }
+                    {/* Ward */}
+                    {hasAny(WARD_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.ward ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('ward');
+                          }}
+                          className={openSubmenu.ward ? 'subdrop active' : ''}
                         >
-                          <span>Beneficiary Management</span>
-                        </NavLink>
+                          <i className="ti ti-school"></i>
+                          <span>Ward</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.ward ? 'submenu-open' : ''}`}>
+                          {can('ward/students', 'view') && (
+                            <li>
+                              <NavLink to="/admin/students" className={({ isActive: navActive }) => (navActive ? 'active' : '')}>
+                                <span>Students</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('ward/parents', 'view') && (
+                            <li>
+                              <NavLink to="/admin/parents" className={({ isActive: navActive }) => (navActive ? 'active' : '')}>
+                                <span>Parents</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
                       </li>
-                      <li>
-                        <NavLink
-                          to="/admin/payroll/salary"
-                          className={({ isActive }) =>
-                            isActive || location.pathname.startsWith('/admin/payroll/salar')
-                              ? 'active'
-                              : ''
-                          }
+                    )}
+
+                    {/* Staff */}
+                    {hasAny(STAFF_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.staff ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('staff');
+                          }}
+                          className={openSubmenu.staff ? 'subdrop active' : ''}
                         >
-                          <span>Salary</span>
-                        </NavLink>
+                          <i className="ti ti-users"></i>
+                          <span>Staff</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.staff ? 'submenu-open' : ''}`}>
+                          {can('staff/teachers', 'view') && (
+                            <li>
+                              <NavLink to="/admin/teachers" className={({ isActive: navActive }) => (navActive ? 'active' : '')}>
+                                <span>Teachers</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('staff/users', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/users"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname === '/admin/staff' ? 'active' : ''
+                                }
+                              >
+                                <span>Users</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
                       </li>
-                    </ul>
-                  </li>
-                )}
+                    )}
 
-                {/* Transport */}
-                {hasAny(TRANSPORT_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.transport ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('transport');
-                      }}
-                      className={openSubmenu.transport ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-bus"></i>
-                      <span>Transport</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.transport ? 'submenu-open' : ''}`}>
-                      {can('transport/bus', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/transport/bus"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/transport/bus') ||
-                              location.pathname.startsWith('/admin/transport/vehicles')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Bus</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('transport/driver', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/transport/driver"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/transport/driver')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Driver</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('transport/helper', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/transport/helper"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/transport/helper')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Helper</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('transport/route', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/transport/route"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/transport/route')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Route</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
+                    {/* Attendance */}
+                    {hasAny(ATTENDANCE_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.attendance ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('attendance');
+                          }}
+                          className={openSubmenu.attendance ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-calendar-user"></i>
+                          <span>Attendance</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.attendance ? 'submenu-open' : ''}`}>
+                          {can('attendance/student', 'view') && (
+                            <li><NavLink to="/admin/attendance/student" className={({ isActive: navActive }) => (navActive ? 'active' : '')}><span>Student Attendance</span></NavLink></li>
+                          )}
+                          {can('attendance/teacher', 'view') && (
+                            <li><NavLink to="/admin/attendance/teacher" className={({ isActive: navActive }) => (navActive ? 'active' : '')}><span>Teacher Attendance</span></NavLink></li>
+                          )}
+                          {can('attendance/staff', 'view') && (
+                            <li><NavLink to="/admin/attendance/staff" className={({ isActive: navActive }) => (navActive ? 'active' : '')}><span>Staff Attendance</span></NavLink></li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
 
-                {/* Hostel */}
-                {hasAny(HOSTEL_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.hostel ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('hostel');
-                      }}
-                      className={openSubmenu.hostel ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-building-community"></i>
-                      <span>Hostel</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.hostel ? 'submenu-open' : ''}`}>
-                      {can('hostel/hostelList', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/hostel/list"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/hostel/list') ||
-                              location.pathname.startsWith('/admin/hostel/add') ||
-                              location.pathname.startsWith('/admin/hostel/edit')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Hostel List</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('hostel/hostelRooms', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/hostel/rooms"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/hostel/rooms')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Hostel Rooms</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
+                    {/* Leaves Application */}
+                    {hasAny(LEAVES_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.leaves ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('leaves');
+                          }}
+                          className={openSubmenu.leaves ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-beach"></i>
+                          <span>Leaves Application</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.leaves ? 'submenu-open' : ''}`}>
+                          {can('leaves/leaveassign', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/leaves/assign"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/leaves/assign') ? 'active' : ''
+                                }
+                              >
+                                <span>Leave Assign</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('leaves/leaveapply', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/leaves"
+                                end
+                                className={({ isActive: navActive }) =>
+                                  navActive || (location.pathname.startsWith('/admin/leaves') && !location.pathname.startsWith('/admin/leaves/assign'))
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Leave apply</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
 
-                {/* Announcement */}
-                {hasAny(ANNOUNCEMENT_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.announcement ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('announcement');
-                      }}
-                      className={openSubmenu.announcement ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-speakerphone"></i>
-                      <span>Announcement</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.announcement ? 'submenu-open' : ''}`}>
-                      {can('announcement/notice', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/announcement/notice"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/announcement/notice')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Notice</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('announcement/event', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/announcement/event"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/announcement/event')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Event</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('announcement/holiday', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/announcement/holiday"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/announcement/holiday')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Holiday</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
+                    {/* Examination */}
+                    {hasAny(EXAMINATION_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.examination ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('examination');
+                          }}
+                          className={openSubmenu.examination ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-file-text"></i>
+                          <span>Examination</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.examination ? 'submenu-open' : ''}`}>
+                          {can('examination/gradeSettings', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/examinations/grades"
+                                className={({ isActive: navActive }) => (navActive || location.pathname.includes('gradeSettings') ? 'active' : '')}
+                              >
+                                <span>Grade</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('examination/exam', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/examinations/exams"
+                                className={({ isActive: navActive }) => (navActive || (location.pathname.startsWith('/admin/examinations/exams') || location.pathname === '/admin/examination/exam') ? 'active' : '')}
+                              >
+                                <span>Exam</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('examination/examtype', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/examinations/exam-types"
+                                className={({ isActive: navActive }) => (navActive || location.pathname.includes('examtype') ? 'active' : '')}
+                              >
+                                <span>Exam Type</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('examination/examsubject', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/examinations/exam-subjects"
+                                className={({ isActive: navActive }) => (navActive || location.pathname.includes('examsubject') ? 'active' : '')}
+                              >
+                                <span>Exam Subject</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('examination/examschedule', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/examinations/schedules"
+                                className={({ isActive: navActive }) => (navActive || location.pathname.includes('examschedule') ? 'active' : '')}
+                              >
+                                <span>Exam Schedule</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('examination/examAttendance', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/examinations/attendance"
+                                className={({ isActive: navActive }) => (navActive || location.pathname.includes('examAttendance') ? 'active' : '')}
+                              >
+                                <span>Exam Attendance</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('examination/examResult', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/examinations/results"
+                                className={({ isActive: navActive }) => (navActive || location.pathname.includes('examResult') ? 'active' : '')}
+                              >
+                                <span>Exam Result</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
 
-                {/* Fees Management */}
-                {hasAny(FEES_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.fees ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('fees');
-                      }}
-                      className={openSubmenu.fees ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-receipt-2"></i>
-                      <span>Fees Management</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.fees ? 'submenu-open' : ''}`}>
-                      {can('feesmanagement/components', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/fees/components"
-                            className={({ isActive }) => (isActive ? 'active' : '')}
+                    {/* Message */}
+                    <li>
+                      <NavLink
+                        to="/admin/message"
+                        className={({ isActive: navActive }) =>
+                          navActive || location.pathname.startsWith('/admin/message') || location.pathname.startsWith('/admin/messages')
+                            ? 'active d-flex align-items-center position-relative'
+                            : 'd-flex align-items-center position-relative'
+                        }
+                      >
+                        <i className="ti ti-message-dots"></i>
+                        <span>Message</span>
+                        {messageUnreadCount > 0 && (
+                          <span
+                            className="badge bg-danger text-white fw-bold"
+                            style={{
+                              position: 'absolute',
+                              right: '14px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: '20px',
+                              height: '20px',
+                              minWidth: '20px',
+                              maxWidth: '20px',
+                              borderRadius: '50%',
+                              fontSize: messageUnreadCount > 9 ? '9px' : '10.5px',
+                              padding: 0,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              lineHeight: 1,
+                              flexShrink: 0,
+                            }}
                           >
-                            <span>Fee Headings</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('feesmanagement/structures', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/fees/structures"
-                            className={({ isActive }) => (isActive || location.pathname.includes('/fees/structures') ? 'active' : '')}
-                          >
-                            <span>Fee Groups & Structures</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('feesmanagement/allocations', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/fees/allocations"
-                            className={({ isActive }) => (isActive ? 'active' : '')}
-                          >
-                            <span>Fee Allocation/Assign</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('feesmanagement/invoices', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/fees/invoices"
-                            className={({ isActive }) => (isActive ? 'active' : '')}
-                          >
-                            <span>Invoices & Demand</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('feesmanagement/payments', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/fees/dashboard"
-                            className={({ isActive }) =>
-                              isActive || location.pathname === '/admin/fees/collect' || location.pathname === '/admin/fees' ? 'active' : ''
-                            }
-                          >
-                            <span>Fees Collection</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('feesmanagement/payments', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/fees/payments"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/fees/payments') ||
-                              location.pathname.startsWith('/admin/fees/receipts')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Payment History &amp; Receipts</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
+                            {messageUnreadCount > 99 ? '99+' : messageUnreadCount}
+                          </span>
+                        )}
+                      </NavLink>
+                    </li>
 
-                {/* Records & Documents */}
-                {hasAny(RECORDS_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.records ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('records');
-                      }}
-                      className={openSubmenu.records ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-id-badge-2"></i>
-                      <span>Records &amp; Documents</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.records ? 'submenu-open' : ''}`}>
-                      {can('records/admitcard', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/records/admit-card"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/records/admit-card') ||
-                              location.pathname.startsWith('/admin/records/admitcard')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Admit Card</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('records/idcard', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/records/id-card"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/records/id-card') ||
-                              location.pathname.startsWith('/admin/records/idcard')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>ID Card</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('records/marksheet', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/records/marksheet"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/records/marksheet') ||
-                              location.pathname.startsWith('/admin/records/mark-sheet')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Mark Sheet</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
+                    {/* Payroll */}
+                    {(isSuperAdmin || hasAny(PAYROLL_MODULES, 'view')) && (
+                      <li className={`submenu ${openSubmenu.payroll ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('payroll');
+                          }}
+                          className={openSubmenu.payroll ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-coins"></i>
+                          <span>Payroll</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.payroll ? 'submenu-open' : ''}`}>
+                          <li>
+                            <NavLink
+                              to="/admin/payroll/beneficiaries"
+                              className={({ isActive: navActive }) =>
+                                navActive || location.pathname.startsWith('/admin/payroll/beneficiar')
+                                  ? 'active'
+                                  : ''
+                              }
+                            >
+                              <span>Beneficiary Management</span>
+                            </NavLink>
+                          </li>
+                          <li>
+                            <NavLink
+                              to="/admin/payroll/salary"
+                              className={({ isActive: navActive }) =>
+                                navActive || location.pathname.startsWith('/admin/payroll/salar')
+                                  ? 'active'
+                                  : ''
+                              }
+                            >
+                              <span>Salary</span>
+                            </NavLink>
+                          </li>
+                        </ul>
+                      </li>
+                    )}
 
-                {/* Manage Certificate */}
-                {hasAny(CERTIFICATE_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.manageCertificate ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('manageCertificate');
-                      }}
-                      className={openSubmenu.manageCertificate ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-certificate"></i>
-                      <span>Manage Certificate</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.manageCertificate ? 'submenu-open' : ''}`}>
-                      {can('certificate/category', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/certificates/category"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/certificates/categor')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Certificate Category</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('certificate/template', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/certificates/border"
-                            className={({ isActive }) =>
-                              isActive ||
-                              location.pathname.startsWith('/admin/certificates/border')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Certificate Border</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('certificate/template', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/certificates/template"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/certificates/template')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Certificate Template</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('certificate/certificatecreate', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/certificates/create"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/certificates/create')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Certificate Create</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
+                    {/* Transport */}
+                    {hasAny(TRANSPORT_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.transport ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('transport');
+                          }}
+                          className={openSubmenu.transport ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-bus"></i>
+                          <span>Transport</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.transport ? 'submenu-open' : ''}`}>
+                          {can('transport/bus', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/transport/bus"
+                                className={({ isActive: navActive }) =>
+                                  navActive ||
+                                  location.pathname.startsWith('/admin/transport/bus') ||
+                                  location.pathname.startsWith('/admin/transport/vehicles')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Bus</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('transport/driver', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/transport/driver"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/transport/driver')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Driver</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('transport/helper', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/transport/helper"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/transport/helper')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Helper</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('transport/route', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/transport/route"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/transport/route')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Route</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
 
-                {/* Reports */}
-                {hasAny(REPORT_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.report ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('report');
-                      }}
-                      className={openSubmenu.report ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-chart-bar"></i>
-                      <span>Reports</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.report ? 'submenu-open' : ''}`}>
-                      {can('report/classReport', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/reports/class-report"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/reports/class')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Class Report</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('report/studentReport', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/reports/student-report"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/reports/student')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Student Report</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('report/attendanceReport', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/reports/attendance-report"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/reports/attendance')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Attendance Report</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('report/calendarReport', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/reports/calendar-report"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.startsWith('/admin/reports/calendar')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Calendar Report</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
+                    {/* Hostel */}
+                    {hasAny(HOSTEL_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.hostel ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('hostel');
+                          }}
+                          className={openSubmenu.hostel ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-building-community"></i>
+                          <span>Hostel</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.hostel ? 'submenu-open' : ''}`}>
+                          {can('hostel/hostelList', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/hostel/list"
+                                className={({ isActive: navActive }) =>
+                                  navActive ||
+                                  location.pathname.startsWith('/admin/hostel/list') ||
+                                  location.pathname.startsWith('/admin/hostel/add') ||
+                                  location.pathname.startsWith('/admin/hostel/edit')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Hostel List</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('hostel/hostelRooms', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/hostel/rooms"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/hostel/rooms')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Hostel Rooms</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
 
-                {/* Settings */}
-                {hasAny(SETTINGS_MODULES, 'view') && (
-                  <li className={`submenu ${openSubmenu.settings ? 'active' : ''}`}>
-                    <a
-                      href="#"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        toggleSubmenu('settings');
-                      }}
-                      className={openSubmenu.settings ? 'subdrop active' : ''}
-                    >
-                      <i className="ti ti-settings"></i>
-                      <span>Settings</span>
-                      <span className="menu-arrow"></span>
-                    </a>
-                    <ul className={`sidebar-submenu-list ${openSubmenu.settings ? 'submenu-open' : ''}`}>
-                      {can('settings/miscManagement', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/settings/misc-management"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.includes('misc') || location.pathname.includes('mics')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Mics Management</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('settings/general', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/settings/general-setting"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.includes('general')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>General Setting</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {can('settings/salarydatesettings', 'view') && (
-                        <li>
-                          <NavLink
-                            to="/admin/settings/salary-date"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.includes('salary-date') || location.pathname.includes('salarydate')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Salary Date</span>
-                          </NavLink>
-                        </li>
-                      )}
-                      {(isSuperAdmin || can('settings/branches', 'view')) && (
-                        <li>
-                          <NavLink
-                            to="/admin/settings/branches"
-                            className={({ isActive }) =>
-                              isActive || location.pathname.includes('branches')
-                                ? 'active'
-                                : ''
-                            }
-                          >
-                            <span>Campuses / Branches</span>
-                          </NavLink>
-                        </li>
-                      )}
-                    </ul>
-                  </li>
-                )}
+                    {/* Announcement */}
+                    {hasAny(ANNOUNCEMENT_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.announcement ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('announcement');
+                          }}
+                          className={openSubmenu.announcement ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-speakerphone"></i>
+                          <span>Announcement</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.announcement ? 'submenu-open' : ''}`}>
+                          {can('announcement/notice', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/announcement/notice"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/announcement/notice')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Notice</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('announcement/event', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/announcement/event"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/announcement/event')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Event</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('announcement/holiday', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/announcement/holiday"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/announcement/holiday')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Holiday</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
+
+                    {/* Fees Management */}
+                    {hasAny(FEES_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.fees ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('fees');
+                          }}
+                          className={openSubmenu.fees ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-receipt-2"></i>
+                          <span>Fees Management</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.fees ? 'submenu-open' : ''}`}>
+                          {can('feesmanagement/components', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/fees/components"
+                                className={({ isActive: navActive }) => (navActive ? 'active' : '')}
+                              >
+                                <span>Fee Headings</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('feesmanagement/structures', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/fees/structures"
+                                className={({ isActive: navActive }) => (navActive || location.pathname.includes('/fees/structures') ? 'active' : '')}
+                              >
+                                <span>Fee Groups &amp; Structures</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('feesmanagement/allocations', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/fees/allocations"
+                                className={({ isActive: navActive }) => (navActive ? 'active' : '')}
+                              >
+                                <span>Fee Allocation/Assign</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('feesmanagement/invoices', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/fees/invoices"
+                                className={({ isActive: navActive }) => (navActive ? 'active' : '')}
+                              >
+                                <span>Invoices &amp; Demand</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('feesmanagement/payments', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/fees/dashboard"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname === '/admin/fees/collect' || location.pathname === '/admin/fees' ? 'active' : ''
+                                }
+                              >
+                                <span>Fees Collection</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('feesmanagement/payments', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/fees/payments"
+                                className={({ isActive: navActive }) =>
+                                  navActive ||
+                                  location.pathname.startsWith('/admin/fees/payments') ||
+                                  location.pathname.startsWith('/admin/fees/receipts')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Payment History &amp; Receipts</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
+
+                    {/* Records & Documents */}
+                    {hasAny(RECORDS_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.records ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('records');
+                          }}
+                          className={openSubmenu.records ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-id-badge-2"></i>
+                          <span>Records &amp; Documents</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.records ? 'submenu-open' : ''}`}>
+                          {can('records/admitcard', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/records/admit-card"
+                                className={({ isActive: navActive }) =>
+                                  navActive ||
+                                  location.pathname.startsWith('/admin/records/admit-card') ||
+                                  location.pathname.startsWith('/admin/records/admitcard')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Admit Card</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('records/idcard', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/records/id-card"
+                                className={({ isActive: navActive }) =>
+                                  navActive ||
+                                  location.pathname.startsWith('/admin/records/id-card') ||
+                                  location.pathname.startsWith('/admin/records/idcard')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>ID Card</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('records/marksheet', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/records/marksheet"
+                                className={({ isActive: navActive }) =>
+                                  navActive ||
+                                  location.pathname.startsWith('/admin/records/marksheet') ||
+                                  location.pathname.startsWith('/admin/records/mark-sheet')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Mark Sheet</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
+
+                    {/* Manage Certificate */}
+                    {hasAny(CERTIFICATE_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.manageCertificate ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('manageCertificate');
+                          }}
+                          className={openSubmenu.manageCertificate ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-certificate"></i>
+                          <span>Manage Certificate</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.manageCertificate ? 'submenu-open' : ''}`}>
+                          {can('certificate/category', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/certificates/category"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/certificates/categor')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Certificate Category</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('certificate/template', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/certificates/border"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/certificates/border')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Certificate Border</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('certificate/template', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/certificates/template"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/certificates/template')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Certificate Template</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('certificate/certificatecreate', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/certificates/create"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/certificates/create')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Certificate Create</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
+
+                    {/* Reports */}
+                    {hasAny(REPORT_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.report ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('report');
+                          }}
+                          className={openSubmenu.report ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-chart-bar"></i>
+                          <span>Reports</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.report ? 'submenu-open' : ''}`}>
+                          {can('report/classReport', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/reports/class-report"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/reports/class')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Class Report</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('report/studentReport', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/reports/student-report"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/reports/student')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Student Report</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('report/attendanceReport', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/reports/attendance-report"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/reports/attendance')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Attendance Report</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('report/calendarReport', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/reports/calendar-report"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.startsWith('/admin/reports/calendar')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Calendar Report</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
+
+                    {/* Settings */}
+                    {hasAny(SETTINGS_MODULES, 'view') && (
+                      <li className={`submenu ${openSubmenu.settings ? 'active' : ''}`}>
+                        <a
+                          href="#"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            toggleSubmenu('settings');
+                          }}
+                          className={openSubmenu.settings ? 'subdrop active' : ''}
+                        >
+                          <i className="ti ti-settings"></i>
+                          <span>Settings</span>
+                          <span className="menu-arrow"></span>
+                        </a>
+                        <ul className={`sidebar-submenu-list ${openSubmenu.settings ? 'submenu-open' : ''}`}>
+                          {can('settings/miscManagement', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/settings/misc-management"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.includes('misc') || location.pathname.includes('mics')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Mics Management</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('settings/general', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/settings/general-setting"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.includes('general')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>General Setting</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {can('settings/salarydatesettings', 'view') && (
+                            <li>
+                              <NavLink
+                                to="/admin/settings/salary-date"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.includes('salary-date') || location.pathname.includes('salarydate')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Salary Date</span>
+                              </NavLink>
+                            </li>
+                          )}
+                          {(isSuperAdmin || can('settings/branches', 'view')) && (
+                            <li>
+                              <NavLink
+                                to="/admin/settings/branches"
+                                className={({ isActive: navActive }) =>
+                                  navActive || location.pathname.includes('branches')
+                                    ? 'active'
+                                    : ''
+                                }
+                              >
+                                <span>Campuses / Branches</span>
+                              </NavLink>
+                            </li>
+                          )}
+                        </ul>
+                      </li>
+                    )}
 
                     {/* Roles & Permissions */}
                     {(isSuperAdmin || can('permissions/permission', 'view')) && (
                       <li>
                         <NavLink
                           to="/admin/roles-permissions"
-                          className={({ isActive }) =>
-                            isActive || location.pathname.startsWith('/admin/roles-permissions')
+                          className={({ isActive: navActive }) =>
+                            navActive || location.pathname.startsWith('/admin/roles-permissions')
                               ? 'active'
                               : ''
                           }
                         >
                           <i className="ti ti-user-shield"></i>
-                          <span>Roles & Permissions</span>
+                          <span>Roles &amp; Permissions</span>
                         </NavLink>
                       </li>
                     )}
                   </div>
                 </div>
 
-                {/* Subscription & License - Super Admin only */}
-                {isSuperAdmin && (
+                {/* Subscription & Billing - Billing Admin / Super Admin */}
+                {isBillingAdmin && (
                   <li
                     className={
-                      isExpired
+                      isLockedOut
                         ? 'my-2 rounded border border-warning bg-warning-subtle shadow-sm'
                         : ''
                     }
                   >
                     <NavLink
                       to="/admin/subscription"
-                      className={({ isActive }) =>
-                        isActive || location.pathname.startsWith('/admin/subscription')
+                      className={({ isActive: navActive }) =>
+                        navActive ||
+                        location.pathname.startsWith('/admin/subscription') ||
+                        location.pathname.startsWith('/admin/billing')
                           ? 'active'
                           : ''
                       }
                     >
                       <i className="ti ti-crown text-warning"></i>
-                      <span className={isExpired ? 'fw-bold text-dark' : ''}>
-                        Subscription &amp; Plans
+                      <span className={isLockedOut ? 'fw-bold text-dark' : ''}>
+                        Subscription &amp; Billing
                       </span>
-                      {isExpired && (
+                      {isLockedOut && showFullLogo && (
                         <span className="badge bg-danger text-white ms-auto fs-10 px-1.5 py-0.5">
-                          {isTrial ? 'Upgrade' : 'Renew'}
+                          {isPending ? 'Pending' : isTrial ? 'Upgrade' : 'Renew'}
                         </span>
                       )}
                     </NavLink>
@@ -1489,8 +1539,8 @@ const Sidebar = ({
                 <li>
                   <NavLink
                     to="/admin/help-support"
-                    className={({ isActive }) =>
-                      isActive || location.pathname.startsWith('/admin/help-support')
+                    className={({ isActive: navActive }) =>
+                      navActive || location.pathname.startsWith('/admin/help-support')
                         ? 'active'
                         : ''
                     }
@@ -1509,7 +1559,7 @@ const Sidebar = ({
                 </li>
               </ul>
             </li>
-      </ul>
+          </ul>
         </div>
       </div>
     </div>

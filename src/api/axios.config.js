@@ -16,6 +16,13 @@ const apiClient = axios.create({
   withCredentials: true,
 });
 
+const SUBSCRIPTION_LOCK_CODES = new Set([
+  'SUBSCRIPTION_EXPIRED',
+  'SUBSCRIPTION_SUSPENDED',
+  'SUBSCRIPTION_PENDING_APPROVAL',
+  'SUBSCRIPTION_REQUIRED',
+]);
+
 // Dynamic baseURL interceptor & Bearer Token authentication header
 apiClient.interceptors.request.use((config) => {
   // Always ensure request uses the resolved dynamic base URL
@@ -98,8 +105,12 @@ apiClient.interceptors.request.use((config) => {
     else if (p.startsWith('/student')) config.headers['X-Portal-Type'] = 'StudentPortal';
   }
 
-  // 1. Encode URL path numeric ID parameters (e.g. /api/admin/teachers/22 -> /api/admin/teachers/MjI=)
-  if (config.url) {
+  // 1. Encode URL path numeric ID parameters (skipping order/invoice reference routes)
+  if (
+    config.url &&
+    !config.url.includes('/subscription/orders/') &&
+    !config.url.includes('/saas/orders/')
+  ) {
     config.url = config.url.replace(/\/(\d+)(?=(\/|\?|$))/g, (match, p1) => `/${encodeParam(p1)}`);
   }
 
@@ -134,17 +145,40 @@ apiClient.interceptors.response.use(
     return response;
   },
   (error) => {
+    const currentPath = typeof window !== 'undefined' ? (window.location.pathname || '') : '';
+    const isNonAdminPortal =
+      currentPath.startsWith('/teacher') ||
+      currentPath.startsWith('/parent') ||
+      currentPath.startsWith('/student');
+
+    const errCode = error.response?.data?.errors?.code || error.response?.data?.code || null;
+
+    const isSubscriptionLocked =
+      error.response?.status === 402 ||
+      (errCode && SUBSCRIPTION_LOCK_CODES.has(String(errCode)));
+
     const isFeatureNotInPlan =
-      error.response?.data?.errors?.code === 'FEATURE_NOT_IN_PLAN' ||
-      error.response?.data?.code === 'FEATURE_NOT_IN_PLAN' ||
+      errCode === 'FEATURE_NOT_IN_PLAN' ||
+      errCode === 'FEATURE_NOT_INCLUDED' ||
       (typeof error.response?.data?.message === 'string' &&
         (error.response.data.message.includes('not included in your') ||
-         error.response.data.message.includes('upgrade your current plan') ||
-         error.response.data.message.includes('upgrade your subscription plan')));
+          error.response.data.message.includes('upgrade your current plan') ||
+          error.response.data.message.includes('upgrade your subscription plan')));
 
-    const friendlyMsg = isFeatureNotInPlan
-      ? 'You are not allow to use this features try to upgrade your current plan'
-      : extractUserFriendlyMessage(error);
+    let friendlyMsg;
+    if (isSubscriptionLocked && isNonAdminPortal) {
+      friendlyMsg = 'School portal services are temporarily paused. Please contact your School Administration.';
+    } else if (isFeatureNotInPlan && isNonAdminPortal) {
+      friendlyMsg = 'This module is currently unavailable for your school. Please contact your School Administration.';
+    } else if (errCode === 'STORAGE_QUOTA_EXCEEDED' && isNonAdminPortal) {
+      friendlyMsg = 'School cloud storage capacity has been reached. Please contact your School Administration.';
+    } else if (isFeatureNotInPlan) {
+      friendlyMsg =
+        error.response?.data?.message ||
+        'This module is not included in your current subscription plan. Please upgrade your plan to unlock it.';
+    } else {
+      friendlyMsg = extractUserFriendlyMessage(error);
+    }
 
     error.message = friendlyMsg;
     error.userFriendlyMessage = friendlyMsg;
@@ -154,15 +188,19 @@ apiClient.interceptors.response.use(
       error.response.data.message = friendlyMsg;
     }
 
-    if (error.response?.status === 402 || error.response?.data?.code === 'SUBSCRIPTION_EXPIRED') {
+    if (isSubscriptionLocked && !isNonAdminPortal) {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(
           new CustomEvent('subscription_expired', {
-            detail: error.response?.data?.data || error.response?.data,
+            detail: {
+              ...(error.response?.data?.data || error.response?.data || {}),
+              code: errCode || 'SUBSCRIPTION_EXPIRED',
+            },
           })
         );
       }
     }
+
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
         const reqUrl = error.config?.url || '';
@@ -194,4 +232,3 @@ apiClient.interceptors.response.use(
 );
 
 export default apiClient;
-

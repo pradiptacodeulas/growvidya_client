@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useSelector } from 'react-redux';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { loadRazorpayScript } from '../../utils/loadRazorpay';
 import {
   createSubscriptionOrder,
   verifySubscriptionPayment,
+  recordSubscriptionPaymentFailure,
   getConfigurationCatalog,
 } from '../../api/subscription.api';
 import { resolveImageUrl } from '../../utils/url.util';
@@ -13,6 +15,7 @@ const UpgradeModal = ({
   isOpen,
   onClose,
   plans = [],
+  activeCycles = [],
   currentPlanId,
   subscription,
   initialPlanId,
@@ -20,24 +23,61 @@ const UpgradeModal = ({
   refreshSubscription,
   isLockout = false,
 }) => {
+  const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth || {});
-  const [selectedPlanId, setSelectedPlanId] = useState(() => initialPlanId || currentPlanId || plans[0]?.id || null);
 
+  const availableCycles = useMemo(() => {
+    if (Array.isArray(activeCycles) && activeCycles.length > 0) {
+      return activeCycles
+        .filter((c) => (c.cycle || c.code) !== 'trial')
+        .map((c) => ({ ...c, cycle: c.cycle || c.code }));
+    }
+    const map = new Map();
+    for (const p of plans) {
+      const c = String(p.billing_cycle || '').toLowerCase();
+      if (c && c !== 'trial' && !map.has(c) && p.cycle_meta) {
+        map.set(c, { ...p.cycle_meta, cycle: p.cycle_meta.cycle || p.cycle_meta.code || c });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => (a.rank ?? a.months ?? 0) - (b.rank ?? b.months ?? 0));
+  }, [activeCycles, plans]);
+
+  const [selectedCycle, setSelectedCycle] = useState(() => {
+    const initialPlan = plans.find((p) => Number(p.id) === Number(initialPlanId || currentPlanId));
+    if (initialPlan?.billing_cycle && initialPlan.billing_cycle !== 'trial') {
+      return initialPlan.billing_cycle;
+    }
+    if (subscription?.billing_cycle && subscription.billing_cycle !== 'trial') {
+      return subscription.billing_cycle;
+    }
+    return availableCycles.find((c) => c.cycle === 'annual')?.cycle || availableCycles[0]?.cycle || 'annual';
+  });
+
+  const cyclePlans = useMemo(() => {
+    const filtered = plans.filter((p) => String(p.billing_cycle).toLowerCase() === String(selectedCycle).toLowerCase());
+    return filtered.length > 0 ? filtered : plans;
+  }, [plans, selectedCycle]);
+
+  const [selectedPlanId, setSelectedPlanId] = useState(null);
   const [paymentGateway, setPaymentGateway] = useState('razorpay');
   const [utrNumber, setUtrNumber] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [bankLoading, setBankLoading] = useState(false);
 
-  React.useEffect(() => {
-    if (initialPlanId) {
-      setSelectedPlanId(initialPlanId);
-    } else if (currentPlanId && !selectedPlanId) {
-      setSelectedPlanId(currentPlanId);
+  useEffect(() => {
+    if (!isOpen) return;
+    const preferred =
+      cyclePlans.find((p) => Number(p.id) === Number(initialPlanId) && p.can_switch !== false) ||
+      cyclePlans.find((p) => Number(p.id) === Number(currentPlanId) && p.can_switch !== false) ||
+      cyclePlans.find((p) => p.can_switch !== false) ||
+      cyclePlans[0];
+    if (preferred) {
+      setSelectedPlanId(preferred.id);
     }
-  }, [initialPlanId, currentPlanId]);
+  }, [isOpen, initialPlanId, currentPlanId, cyclePlans]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (isOpen) {
       const fetchBankAccounts = async () => {
         try {
@@ -49,7 +89,7 @@ const UpgradeModal = ({
               (Number(acc.is_default) === 1 || acc.is_default === true) &&
               (acc.status === undefined || Number(acc.status) === 1 || acc.status === true)
           );
-          setBankAccounts(eligible);
+          setBankAccounts(eligible.length > 0 ? eligible : raw);
         } catch (err) {
           console.warn('Failed to load bank accounts for upgrade modal:', err);
         } finally {
@@ -64,14 +104,43 @@ const UpgradeModal = ({
 
   if (!isOpen) return null;
 
-  const selectedPlan = plans.find((p) => p.id === Number(selectedPlanId)) || plans[0];
+  const selectedPlan = cyclePlans.find((p) => Number(p.id) === Number(selectedPlanId)) || cyclePlans[0];
   const isCurrentSelected = Boolean(
-    selectedPlan && currentPlanId && Number(selectedPlan.id) === Number(currentPlanId)
+    selectedPlan &&
+      (selectedPlan.is_current ||
+        selectedPlan.is_renewal ||
+        (currentPlanId && Number(selectedPlan.id) === Number(currentPlanId)))
   );
+  const selectedCycleInfo = {
+    label: selectedPlan?.cycle_meta?.label || selectedPlan?.billing_cycle || '',
+    short: selectedPlan?.cycle_meta?.shortLabel || selectedPlan?.cycle_meta?.label || '',
+    daysText: selectedPlan?.cycle_meta?.durationText || selectedPlan?.cycle_meta?.label || '',
+  };
+
+  const handleGoToConfigureWithAddons = () => {
+    if (!selectedPlan) return;
+    if (selectedPlan.can_switch === false) {
+      toast.warning(selectedPlan.lock_reason || 'This plan cannot be selected under the no-downgrade policy.');
+      return;
+    }
+    sessionStorage.setItem('selected_subscription_plan', JSON.stringify(selectedPlan));
+    sessionStorage.setItem('selected_billing_cycle', selectedPlan.billing_cycle || selectedCycle);
+    if (onClose) onClose();
+    navigate('/admin/subscription/configure', {
+      state: {
+        plan: selectedPlan,
+        billingCycle: selectedPlan.billing_cycle || selectedCycle,
+      },
+    });
+  };
 
   const handleConfirmUpgrade = async () => {
     if (!selectedPlan) {
       toast.error('Please select a plan to continue.');
+      return;
+    }
+    if (selectedPlan.can_switch === false) {
+      toast.error(selectedPlan.lock_reason || 'Downgrading is not permitted.');
       return;
     }
 
@@ -79,7 +148,6 @@ const UpgradeModal = ({
       setIsProcessing(true);
 
       if (paymentGateway === 'razorpay') {
-        // 1. Ensure Razorpay Checkout script is loaded
         const isLoaded = await loadRazorpayScript();
         if (!isLoaded) {
           toast.error('Could not connect to Razorpay SDK. Please check your internet connection.');
@@ -87,15 +155,21 @@ const UpgradeModal = ({
           return;
         }
 
-        // 2. Create order on the backend
-        const orderRes = await createSubscriptionOrder(selectedPlan.id);
-        const orderData = orderRes?.data || orderRes;
+        const orderData = await createSubscriptionOrder({ plan_id: selectedPlan.id });
 
-        if (!orderData?.order_id) {
-          throw new Error(orderRes?.message || 'Failed to initialize payment order with gateway.');
+        if (orderData?.zero_amount_activated) {
+          toast.success(`${selectedPlan.plan_name} activated immediately!`);
+          if (onClose) onClose();
+          if (refreshSubscription) await refreshSubscription();
+          navigate(`/admin/subscription/payment-success?order_no=${encodeURIComponent(orderData.order_no)}`);
+          setIsProcessing(false);
+          return;
         }
 
-        // 3. Configure and trigger Razorpay Checkout
+        if (!orderData?.order_id) {
+          throw new Error('Failed to initialize payment order with gateway.');
+        }
+
         const options = {
           key: orderData.key_id,
           amount: orderData.amount,
@@ -111,14 +185,15 @@ const UpgradeModal = ({
           notes: {
             school_id: user?.schoolId || user?.school_id || '',
             plan_id: selectedPlan.id,
+            order_no: orderData.order_no || '',
           },
           theme: {
-            color: '#6366f1',
+            color: '#4f46e5',
           },
           handler: async function (response) {
             try {
               setIsProcessing(true);
-              const verifyRes = await verifySubscriptionPayment({
+              const verified = await verifySubscriptionPayment({
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
@@ -126,11 +201,14 @@ const UpgradeModal = ({
               });
 
               toast.success(
-                verifyRes?.message ||
-                  `🎉 Payment submitted for ${selectedPlan.plan_name}! Your plan is currently pending review and approval by the Super Admin.`
+                `Payment verified! ${selectedPlan.plan_name} is now active immediately.`
               );
               if (onClose) onClose();
               if (refreshSubscription) await refreshSubscription();
+              const targetOrderNo = verified?.order_no || orderData.order_no;
+              if (targetOrderNo) {
+                navigate(`/admin/subscription/payment-success?order_no=${encodeURIComponent(targetOrderNo)}`);
+              }
             } catch (err) {
               console.error('Payment verification failed:', err);
               toast.error(
@@ -149,37 +227,52 @@ const UpgradeModal = ({
         };
 
         const rzp = new window.Razorpay(options);
-        rzp.on('payment.failed', function (resp) {
+        rzp.on('payment.failed', async function (resp) {
           console.error('Razorpay payment failed:', resp.error);
-          toast.error(`Payment failed: ${resp.error?.description || 'Transaction was declined.'}`);
+          const reason = resp.error?.description || 'Transaction was declined.';
+          try {
+            await recordSubscriptionPaymentFailure({
+              order_no: orderData.order_no,
+              razorpay_order_id: orderData.order_id,
+              razorpay_payment_id: resp.error?.metadata?.payment_id || null,
+              error_code: resp.error?.code || 'PAYMENT_FAILED',
+              error_description: reason,
+            });
+          } catch (_) {}
           setIsProcessing(false);
+          if (onClose) onClose();
+          if (orderData.order_no) {
+            navigate(
+              `/admin/subscription/payment-failed?order_no=${encodeURIComponent(orderData.order_no)}&reason=${encodeURIComponent(reason)}`
+            );
+          } else {
+            toast.error(`Payment failed: ${reason}`);
+          }
         });
 
         rzp.open();
       } else {
-        // Direct bank transfer / offline request
         if (!activeBankAccount) {
-          toast.error('No default active bank account has been configured by the Super Admin yet. Please use Instant Online Checkout or contact support.');
+          toast.error('No active bank account has been configured by Super Admin yet. Please use Online Checkout.');
           setIsProcessing(false);
           return;
         }
 
         if (!utrNumber || String(utrNumber).trim().length < 4) {
-          toast.error('Please enter the Bank Transfer reference or UTR number from your payment receipt.');
+          toast.error('Please enter a valid Bank Transfer UTR / Reference number (minimum 4 characters).');
           setIsProcessing(false);
           return;
         }
 
         const res = await onUpgrade({
           plan_id: selectedPlan.id,
-          amount_paid: selectedPlan.price,
           payment_gateway: 'bank_transfer',
           payment_transaction_id: String(utrNumber).trim(),
         });
 
         toast.info(
           res?.message ||
-            `Plan request submitted for ${selectedPlan.plan_name}. It will remain pending until the Super Admin reviews and approves it.`
+            `Offline Bank Transfer recorded for ${selectedPlan.plan_name}. Your submission is queued for Super Admin verification.`
         );
         if (onClose) onClose();
         if (refreshSubscription) await refreshSubscription();
@@ -231,12 +324,10 @@ const UpgradeModal = ({
                     ? `Renew ${selectedPlan?.plan_name || 'Current Plan'}`
                     : isLockout
                     ? 'Reactivate Your School Portal'
-                    : 'Upgrade to Annual License'}
+                    : 'Upgrade or Extend School Subscription'}
                 </h5>
                 <p className="text-white-50 mb-0 fs-13">
-                  {isCurrentSelected
-                    ? `Renew your ${selectedPlan?.plan_name} for another 365 days of full cloud access and updates.`
-                    : 'Select your school plan for unlimited cloud access, regular updates & premium support.'}
+                  Instant online activation via Razorpay • Flat Net Pricing (Zero GST) • Unlimited Staff &amp; Branches
                 </p>
               </div>
             </div>
@@ -252,111 +343,202 @@ const UpgradeModal = ({
           </div>
 
           {/* Modal Body */}
-          <div className="modal-body p-4 bg-light">
+          <div className="modal-body p-4 bg-light" style={{ maxHeight: '78vh', overflowY: 'auto' }}>
+            {/* Dynamic Billing Cycle Tabs */}
+            {availableCycles.length > 1 && (
+              <div className="d-flex justify-content-center mb-4">
+                <div className="bg-white p-1 rounded-pill border shadow-sm d-inline-flex flex-wrap gap-1">
+                  {availableCycles.map((c) => (
+                    <button
+                      key={c.cycle}
+                      type="button"
+                      className={`btn btn-sm rounded-pill px-3 py-1 fw-semibold ${
+                        selectedCycle === c.cycle ? 'btn-primary text-white shadow-sm' : 'btn-light text-dark'
+                      }`}
+                      onClick={() => setSelectedCycle(c.cycle)}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {/* Plan selection grid */}
-            <div className="row g-3 mb-4">
-              {plans.map((plan) => {
+            <div className="row g-3 mb-4 pt-2">
+              {cyclePlans.map((plan) => {
                 const isSelected = Number(selectedPlanId) === Number(plan.id);
-                const isCurrent = Number(currentPlanId) === Number(plan.id);
-                const isPopular = plan.plan_code?.includes('growth') || plan.id === 2;
+                const isLocked = plan.can_switch === false;
+                const isCycleLocked =
+                  plan.lock_code === 'CYCLE_DOWNGRADE_NOT_ALLOWED' ||
+                  plan.lock_code === 'ACTIVE_CYCLE_SHRINK_NOT_ALLOWED';
+                const isPopular = Number(plan.is_popular) === 1;
+                const cInfo = {
+                  label: plan.cycle_meta?.label || plan.billing_cycle || '',
+                  short: plan.cycle_meta?.shortLabel || plan.cycle_meta?.label || '',
+                };
 
                 return (
                   <div className="col-12 col-md-4" key={plan.id}>
                     <div
-                      onClick={() => setSelectedPlanId(plan.id)}
-                      className={`h-100 p-3 rounded-3 border transition-all cursor-pointer position-relative ${
-                        isSelected
-                          ? 'border-primary bg-white shadow-sm'
-                          : 'border-200 bg-white hover-shadow'
+                      onClick={() => {
+                        if (isLocked) {
+                          toast.warning(plan.lock_reason || 'Switching to this plan is not permitted.');
+                          return;
+                        }
+                        setSelectedPlanId(plan.id);
+                      }}
+                      className={`h-100 p-3 rounded-3 bg-white transition-all position-relative d-flex flex-column ${
+                        !isLocked && isSelected ? 'shadow-sm' : ''
                       }`}
                       style={{
-                        cursor: 'pointer',
-                        borderWidth: isSelected ? '2px' : '1px',
+                        cursor: isLocked ? 'not-allowed' : 'pointer',
+                        border:
+                          isSelected && !isLocked
+                            ? '2px solid #4f46e5'
+                            : `1px solid ${isLocked ? '#cbd5e1' : '#e2e8f0'}`,
                         transition: 'all 0.2s ease',
                       }}
                     >
-                      {isCurrent ? (
+                      {isLocked ? (
                         <span
-                          className="badge bg-warning text-dark position-absolute"
+                          className="position-absolute fw-bold text-uppercase"
                           style={{
                             top: '-10px',
                             left: '16px',
-                            fontSize: '11px',
-                            padding: '4px 10px',
-                            borderRadius: '12px',
+                            fontSize: '10.5px',
+                            padding: '3px 10px',
+                            borderRadius: '999px',
+                            backgroundColor: plan.is_quota_locked
+                              ? '#b45309'
+                              : isCycleLocked
+                              ? '#475569'
+                              : '#64748b',
+                            color: '#ffffff',
+                            whiteSpace: 'nowrap',
                             zIndex: 2,
                           }}
                         >
-                          ★ CURRENT PLAN (RENEW)
+                          {plan.is_quota_locked
+                            ? 'Quota Exceeded'
+                            : isCycleLocked
+                            ? 'Shorter Cycle Locked'
+                            : 'Lower Tier Locked'}
+                        </span>
+                      ) : plan.is_current || plan.is_renewal ? (
+                        <span
+                          className="badge bg-warning text-dark position-absolute"
+                          style={{ top: '-10px', left: '16px', fontSize: '10.5px', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap', zIndex: 2 }}
+                        >
+                          ★ RENEW PLAN
                         </span>
                       ) : isPopular ? (
                         <span
                           className="badge bg-primary text-white position-absolute"
-                          style={{
-                            top: '-10px',
-                            right: '16px',
-                            fontSize: '11px',
-                            padding: '4px 10px',
-                            borderRadius: '12px',
-                            zIndex: 2,
-                          }}
+                          style={{ top: '-10px', right: '16px', fontSize: '10.5px', padding: '4px 10px', borderRadius: '12px', whiteSpace: 'nowrap', zIndex: 2 }}
                         >
                           ★ MOST POPULAR
                         </span>
                       ) : null}
 
-                      <div className="d-flex align-items-center justify-content-between mb-2">
-                        <div className="d-flex align-items-center gap-1">
+                      <div className="d-flex align-items-center justify-content-between mb-2 mt-1">
+                        <div>
                           <h6 className="fw-bold text-dark mb-0">{plan.plan_name}</h6>
-                          {isCurrent && (
-                            <span className="badge bg-warning-subtle text-warning-emphasis border border-warning fs-10 px-2 py-0.5 rounded-pill">
-                              Renew
-                            </span>
-                          )}
-                          {!isCurrent && currentPlanId && (
-                            <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-2 py-0.5 rounded-pill">
-                              Upgrade
-                            </span>
-                          )}
+                          <span className="text-muted fs-11">Tier {plan.tier_rank || 1} • {cInfo.label}</span>
                         </div>
                         <input
                           type="radio"
                           name="plan_selection"
-                          checked={isSelected}
-                          onChange={() => setSelectedPlanId(plan.id)}
+                          checked={isSelected && !isLocked}
+                          disabled={isLocked}
+                          onChange={() => !isLocked && setSelectedPlanId(plan.id)}
                           className="form-check-input"
                         />
                       </div>
 
                       <div className="mb-2">
-                        <span className="fs-24 fw-bold text-dark">
-                          ₹{Number(plan.price).toLocaleString('en-IN')}
-                        </span>
-                        <span className="text-muted fs-12"> / year</span>
+                        {Number(plan.original_price) > Number(plan.price) && (
+                          <div className="d-flex align-items-center gap-2 mb-1">
+                            <span
+                              className="fs-13 fw-semibold text-decoration-line-through"
+                              style={{ color: '#94a3b8' }}
+                            >
+                              ₹{Number(plan.original_price).toLocaleString('en-IN')}
+                            </span>
+                            <span
+                              className="badge rounded-pill px-2 py-1 fs-10 fw-bold"
+                              style={{
+                                backgroundColor: '#ecfdf5',
+                                color: '#047857',
+                                border: '1px solid #a7f3d0',
+                              }}
+                            >
+                              {Math.round(
+                                ((Number(plan.original_price) - Number(plan.price)) /
+                                  Number(plan.original_price)) *
+                                  100
+                              )}
+                              % OFF
+                            </span>
+                          </div>
+                        )}
+                        <div>
+                          <span className="fs-24 fw-bold text-dark">
+                            ₹{Number(plan.price).toLocaleString('en-IN')}
+                          </span>
+                          <span className="text-muted fs-12"> / {cInfo.short}</span>
+                        </div>
                       </div>
 
-                      <p className="text-muted fs-12 mb-3" style={{ minHeight: '36px' }}>
-                        {plan.description}
-                      </p>
-
-                      <div className="border-top pt-2 fs-12">
-                        <div className="d-flex justify-content-between py-1 text-secondary">
-                          <span>Student Quota:</span>
+                      <div className="border-top pt-2 fs-12 flex-grow-1">
+                        <div className="d-flex justify-content-between py-1 text-muted">
+                          <span>Students:</span>
                           <strong className="text-dark">
-                            {plan.max_students > 0 ? `${plan.max_students} Students` : 'Unlimited'}
+                            {plan.max_students > 0 ? `${Number(plan.max_students).toLocaleString('en-IN')} Max` : 'Unlimited'}
                           </strong>
                         </div>
-                        <div className="d-flex justify-content-between py-1 text-secondary">
-                          <span>Teacher Quota:</span>
-                          <strong className="text-dark">
-                            {plan.max_teachers > 0 ? `${plan.max_teachers} Staff` : 'Unlimited'}
-                          </strong>
+                        <div className="d-flex justify-content-between py-1 text-muted">
+                          <span>Teachers &amp; Branches:</span>
+                          <strong className="text-success">Unlimited</strong>
                         </div>
-                        <div className="d-flex justify-content-between py-1 text-secondary">
-                          <span>Billing Cycle:</span>
-                          <strong className="text-dark text-capitalize">{plan.billing_cycle || 'Annual'}</strong>
+                        <div className="d-flex justify-content-between py-1 text-muted">
+                          <span>Cloud Storage:</span>
+                          <strong className="text-dark">{Math.max(0, Number(plan.included_storage_gb) || 0)} GB Included</strong>
+                        </div>
+                        <div className="d-flex justify-content-between py-1 text-muted">
+                          <span>ERP Functionality:</span>
+                          <strong className="text-success">All Modules Unlocked</strong>
                         </div>
                       </div>
+
+                      {isLocked && plan.lock_reason && (
+                        <div
+                          className="mt-2 px-2 py-2 rounded-2 fs-11"
+                          style={{
+                            backgroundColor: '#fffbeb',
+                            border: '1px solid #fde68a',
+                            color: '#78350f',
+                          }}
+                        >
+                          <i className="ti ti-shield-lock me-1"></i>
+                          {plan.lock_reason.replace(/\ba Annual\b/g, 'an Annual')}
+                        </div>
+                      )}
+
+                      {!isLocked && plan.projected_end_date && (
+                        <div
+                          className="mt-2 px-2 py-2 rounded-2 fs-11"
+                          style={{
+                            backgroundColor: plan.stacks_dates ? '#ecfdf5' : '#eef2ff',
+                            border: `1px solid ${plan.stacks_dates ? '#a7f3d0' : '#c7d2fe'}`,
+                            color: plan.stacks_dates ? '#065f46' : '#3730a3',
+                          }}
+                        >
+                          <i className="ti ti-calendar-check me-1"></i>
+                          Valid till <strong>{plan.projected_end_date}</strong>
+                          {plan.stacks_dates && ' (Remaining days preserved)'}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -364,21 +546,32 @@ const UpgradeModal = ({
             </div>
 
             {/* Payment Method Selector */}
-            {selectedPlan && (
+            {selectedPlan && selectedPlan.can_switch !== false && (
               <div className="bg-white p-3 rounded-3 border mb-3">
-                <h6 className="fw-bold text-dark mb-3 d-flex align-items-center">
-                  <i className="ti ti-credit-card me-2 text-primary"></i>
-                  Payment Method
-                </h6>
+                <div className="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+                  <h6 className="fw-bold text-dark mb-0 d-flex align-items-center">
+                    <i className="ti ti-credit-card me-2 text-primary"></i>
+                    Payment Method
+                  </h6>
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-outline-primary fs-12"
+                    onClick={handleGoToConfigureWithAddons}
+                  >
+                    <i className="ti ti-plus me-1"></i> Need Cloud Storage, Hardware or SMS Credits? Configure Bundle
+                  </button>
+                </div>
+
                 <div className="row g-3">
                   <div className="col-12 col-md-6">
                     <label
-                      className={`d-flex align-items-center p-3 border rounded-3 cursor-pointer w-100 mb-0 ${
-                        paymentGateway === 'razorpay'
-                          ? 'border-primary bg-primary-transparent'
-                          : 'border-200'
+                      className={`d-flex align-items-center p-3 border rounded-3 w-100 mb-0 ${
+                        paymentGateway === 'razorpay' ? 'border-primary' : 'bg-white'
                       }`}
-                      style={{ cursor: 'pointer' }}
+                      style={{
+                        cursor: 'pointer',
+                        backgroundColor: paymentGateway === 'razorpay' ? '#eef2ff' : undefined,
+                      }}
                     >
                       <input
                         type="radio"
@@ -390,19 +583,20 @@ const UpgradeModal = ({
                       />
                       <div>
                         <div className="fw-semibold text-dark fs-13">Online Instant Checkout (Razorpay)</div>
-                        <div className="text-muted fs-11">Instant license activation via UPI, Cards, & NetBanking</div>
+                        <div className="text-muted fs-11">Instant activation via UPI, Cards, &amp; NetBanking</div>
                       </div>
                     </label>
                   </div>
 
                   <div className="col-12 col-md-6">
                     <label
-                      className={`d-flex align-items-center p-3 border rounded-3 cursor-pointer w-100 mb-0 ${
-                        paymentGateway === 'bank_transfer'
-                          ? 'border-primary bg-primary-transparent'
-                          : 'border-200'
+                      className={`d-flex align-items-center p-3 border rounded-3 w-100 mb-0 ${
+                        paymentGateway === 'bank_transfer' ? 'border-primary' : 'bg-white'
                       }`}
-                      style={{ cursor: 'pointer' }}
+                      style={{
+                        cursor: 'pointer',
+                        backgroundColor: paymentGateway === 'bank_transfer' ? '#eef2ff' : undefined,
+                      }}
                     >
                       <input
                         type="radio"
@@ -413,8 +607,8 @@ const UpgradeModal = ({
                         className="form-check-input me-3"
                       />
                       <div>
-                        <div className="fw-semibold text-dark fs-13">Direct Bank Transfer / Offline</div>
-                        <div className="text-muted fs-11">Submit offline corporate transfer request</div>
+                        <div className="fw-semibold text-dark fs-13">Direct Bank Transfer (NEFT / RTGS / UPI)</div>
+                        <div className="text-muted fs-11">Submit UTR reference for Super Admin verification</div>
                       </div>
                     </label>
                   </div>
@@ -434,11 +628,6 @@ const UpgradeModal = ({
                             <i className="ti ti-building-bank me-2 text-primary fs-15"></i>
                             Official Bank Details: {activeBankAccount.account_title || activeBankAccount.bank_name}
                           </span>
-                          {Number(activeBankAccount.is_default) === 1 && (
-                            <span className="badge bg-primary-subtle text-primary border border-primary-subtle fs-10 px-2 py-0.5 rounded-pill">
-                              Primary Account
-                            </span>
-                          )}
                         </div>
 
                         {activeBankAccount.qr_code_image && (
@@ -454,11 +643,8 @@ const UpgradeModal = ({
                             />
                             <div>
                               <div className="fw-semibold text-dark fs-12">Scan to Pay via UPI</div>
-                              <div className="text-muted fs-11">
-                                Scan using any UPI app to transfer subscription fees directly.
-                              </div>
                               {activeBankAccount.upi_id && (
-                                <div className="font-monospace text-primary fs-11 mt-0.5">
+                                <div className="font-monospace text-primary fs-11 mt-1">
                                   {activeBankAccount.upi_id}
                                 </div>
                               )}
@@ -466,30 +652,16 @@ const UpgradeModal = ({
                           </div>
                         )}
 
-                        <div className="row g-2 fs-12 text-secondary mb-3">
+                        <div className="row g-2 fs-12 text-muted mb-3">
                           <div className="col-12 col-sm-6">
-                            <div><strong className="text-dark">Beneficiary Name:</strong> {activeBankAccount.beneficiary_name}</div>
-                            <div><strong className="text-dark">Account Number:</strong> <span className="font-monospace fw-bold text-dark">{activeBankAccount.account_number}</span></div>
-                            <div><strong className="text-dark">Account Type:</strong> {activeBankAccount.account_type || 'Current'}</div>
+                            <div><strong className="text-dark">Beneficiary:</strong> {activeBankAccount.beneficiary_name}</div>
+                            <div><strong className="text-dark">Account No:</strong> <span className="font-monospace fw-bold text-dark">{activeBankAccount.account_number}</span></div>
                           </div>
                           <div className="col-12 col-sm-6">
-                            <div><strong className="text-dark">Bank & Branch:</strong> {activeBankAccount.bank_name}{activeBankAccount.branch_name ? `, ${activeBankAccount.branch_name}` : ''}</div>
-                            <div><strong className="text-dark">IFSC Code:</strong> <span className="font-monospace fw-bold text-dark">{activeBankAccount.ifsc_code}</span></div>
-                            {activeBankAccount.upi_id && (
-                              <div><strong className="text-dark">UPI VPA:</strong> <span className="font-monospace text-primary">{activeBankAccount.upi_id}</span></div>
-                            )}
-                            {activeBankAccount.swift_code && (
-                              <div><strong className="text-dark">SWIFT / BIC:</strong> <span className="font-monospace text-dark">{activeBankAccount.swift_code}</span></div>
-                            )}
+                            <div><strong className="text-dark">Bank:</strong> {activeBankAccount.bank_name}{activeBankAccount.branch_name ? `, ${activeBankAccount.branch_name}` : ''}</div>
+                            <div><strong className="text-dark">IFSC:</strong> <span className="font-monospace fw-bold text-dark">{activeBankAccount.ifsc_code}</span></div>
                           </div>
                         </div>
-
-                        {activeBankAccount.instructions && (
-                          <div className="alert alert-info py-1.5 px-2.5 fs-11 mb-3 rounded-2 border-0 bg-info-subtle text-dark">
-                            <i className="ti ti-info-circle me-1 text-info"></i>
-                            {activeBankAccount.instructions}
-                          </div>
-                        )}
 
                         <div>
                           <label className="form-label fs-12 fw-semibold text-dark mb-1">
@@ -498,21 +670,17 @@ const UpgradeModal = ({
                           <input
                             type="text"
                             className="form-control form-control-sm"
-                            placeholder="e.g. UTR202609139876 or IMPS Reference ID"
+                            placeholder="e.g. UTR202610299876 or IMPS Reference ID"
                             value={utrNumber}
                             onChange={(e) => setUtrNumber(e.target.value)}
                           />
-                          <span className="text-muted fs-11 mt-1 d-block">
-                            Enter the transaction reference from your payment receipt for ₹{Number(selectedPlan?.price).toLocaleString('en-IN')}. Platform administrators will verify and activate your license within 24 hours.
-                          </span>
                         </div>
                       </>
                     ) : (
                       <div className="p-3 bg-white rounded-2 border border-warning-subtle text-center">
-                        <i className="ti ti-alert-triangle fs-20 text-warning mb-1 d-block"></i>
-                        <h6 className="fw-bold text-dark mb-1 fs-12">No Bank Transfer Details Configured</h6>
+                        <h6 className="fw-bold text-dark mb-1 fs-12">No Bank Transfer Account Configured</h6>
                         <p className="text-muted fs-11 mb-0">
-                          The Super Admin has not configured any active bank accounts for offline transfer. Please choose <strong>Instant Online Checkout</strong> to proceed, or contact platform administration.
+                          Please choose <strong>Online Instant Checkout</strong> to proceed.
                         </p>
                       </div>
                     )}
@@ -521,18 +689,22 @@ const UpgradeModal = ({
               </div>
             )}
 
-            {/* Summary Banner */}
+            {/* Summary Banner (Zero GST) */}
             {selectedPlan && (
-              <div className="d-flex align-items-center justify-content-between p-3 rounded-3 bg-white border">
+              <div className="d-flex flex-wrap align-items-center justify-content-between p-3 rounded-3 bg-white border gap-2">
                 <div>
-                  <div className="text-muted fs-12">Selected Plan:</div>
+                  <div className="text-muted fs-12">Selected Plan (Flat Net Price — No GST):</div>
                   <div className="fw-bold text-dark fs-15">
-                    {selectedPlan.plan_name} — ₹{Number(selectedPlan.price).toLocaleString('en-IN')}{' '}
-                    <span className="fw-normal text-muted fs-12">(Annual License + 365 Days Access)</span>
+                    {selectedPlan.plan_name} ({selectedCycleInfo.label})
+                    {selectedPlan.projected_end_date && (
+                      <span className="fw-normal text-success fs-12 ms-2">
+                        • Valid through {selectedPlan.projected_end_date}
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="text-end">
-                  <div className="text-muted fs-11">Total Due Today</div>
+                  <div className="text-muted fs-11">Total Payable</div>
                   <div className="fs-20 fw-bold text-success">
                     ₹{Number(selectedPlan.price).toLocaleString('en-IN')}
                   </div>
@@ -546,7 +718,7 @@ const UpgradeModal = ({
             {!isLockout ? (
               <button
                 type="button"
-                className="btn btn-outline-secondary px-4 py-2"
+                className="btn btn-light border text-dark px-4 py-2"
                 onClick={onClose}
                 disabled={isProcessing}
               >
@@ -555,7 +727,7 @@ const UpgradeModal = ({
             ) : (
               <div className="text-muted fs-12 d-flex align-items-center">
                 <i className="ti ti-shield-check text-success fs-16 me-1"></i>
-                All your existing school data will immediately unlock upon upgrade.
+                All existing school data unlocks immediately upon activation.
               </div>
             )}
 
@@ -563,7 +735,7 @@ const UpgradeModal = ({
               type="button"
               className="btn btn-primary px-4 py-2 fw-semibold d-inline-flex align-items-center shadow-sm"
               onClick={handleConfirmUpgrade}
-              disabled={isProcessing || !selectedPlan}
+              disabled={isProcessing || !selectedPlan || selectedPlan.can_switch === false}
             >
               {isProcessing ? (
                 <>
@@ -571,26 +743,19 @@ const UpgradeModal = ({
                   Processing...
                 </>
               ) : paymentGateway === 'bank_transfer' ? (
-                isCurrentSelected ? (
-                  <>
-                    <i className="ti ti-send me-2"></i>
-                    Submit Bank Transfer for Renewal (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
-                  </>
-                ) : (
-                  <>
-                    <i className="ti ti-send me-2"></i>
-                    Submit Bank Transfer for Upgrade (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
-                  </>
-                )
+                <>
+                  <i className="ti ti-send me-2"></i>
+                  Submit UTR for {isCurrentSelected ? 'Renewal' : 'Upgrade'} (₹{Number(selectedPlan?.price || 0).toLocaleString('en-IN')})
+                </>
               ) : isCurrentSelected ? (
                 <>
                   <i className="ti ti-refresh me-2"></i>
-                  Renew {selectedPlan.plan_name} (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
+                  Renew {selectedPlan?.plan_name} (₹{Number(selectedPlan?.price || 0).toLocaleString('en-IN')})
                 </>
               ) : (
                 <>
                   <i className="ti ti-arrow-up-right me-2"></i>
-                  Upgrade to {selectedPlan.plan_name} (₹{Number(selectedPlan.price).toLocaleString('en-IN')})
+                  Activate {selectedPlan?.plan_name} (₹{Number(selectedPlan?.price || 0).toLocaleString('en-IN')})
                 </>
               )}
             </button>

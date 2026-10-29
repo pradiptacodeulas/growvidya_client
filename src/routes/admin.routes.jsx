@@ -7,6 +7,8 @@ import AdminLayout from '../layouts/AdminLayout';
 const AdminDashboard = lazy(() => import('../pages/admin/AdminDashboard'));
 const SubscriptionBilling = lazy(() => import('../pages/admin/subscription/SubscriptionBilling'));
 const SubscriptionConfigure = lazy(() => import('../pages/admin/subscription/SubscriptionConfigure'));
+const PaymentSuccess = lazy(() => import('../pages/admin/subscription/PaymentSuccess'));
+const PaymentFailure = lazy(() => import('../pages/admin/subscription/PaymentFailure'));
 const HelpSupport = lazy(() => import('../pages/admin/support/HelpSupport'));
 const SupportTicketDetails = lazy(() => import('../pages/admin/support/SupportTicketDetails'));
 const AcademicYearsList = lazy(() => import('../pages/admin/academics/AcademicYearsList'));
@@ -169,8 +171,12 @@ export const adminRoutes = (
       <Route path="super-admin" element={<Navigate to="/admin/super-admin/dashboard" replace />} />
       <Route path="subscription" element={<SubscriptionBilling />} />
       <Route path="subscription/configure" element={<SubscriptionConfigure />} />
+      <Route path="subscription/payment-success" element={<PaymentSuccess />} />
+      <Route path="subscription/payment-failed" element={<PaymentFailure />} />
       <Route path="billing" element={<SubscriptionBilling />} />
       <Route path="billing/configure" element={<SubscriptionConfigure />} />
+      <Route path="billing/payment-success" element={<PaymentSuccess />} />
+      <Route path="billing/payment-failed" element={<PaymentFailure />} />
       <Route path="help-support" element={<HelpSupport />} />
       <Route path="help-support/:id" element={<SupportTicketDetails />} />
       <Route path="academics" element={<Navigate to="/admin/academics/years" replace />} />

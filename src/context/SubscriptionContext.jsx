@@ -11,16 +11,24 @@ export const useSubscription = () => {
   if (!context) {
     return {
       subscription: null,
+      storageQuota: null,
+      notificationWallet: null,
       upgradePlans: [],
+      activeCycles: [],
+      catalog: null,
       loading: false,
       isTrial: false,
       isExpired: false,
+      isSuspended: false,
       isPending: false,
+      hasPendingOffline: false,
+      isLockedOut: false,
       isActive: false,
       isActivePaid: false,
       isActiveTrial: false,
       pendingSubscription: null,
       daysLeft: 0,
+      hasFeature: () => true,
       openUpgradeModal: () => {},
       closeUpgradeModal: () => {},
       refreshSubscription: () => {},
@@ -31,47 +39,55 @@ export const useSubscription = () => {
 };
 
 export const SubscriptionProvider = ({ children }) => {
-  const { user } = useSelector((state) => state.auth);
+  const { user } = useSelector((state) => state.auth || {});
   const [subscription, setSubscription] = useState(null);
+  const [storageQuota, setStorageQuota] = useState(null);
   const [upgradePlans, setUpgradePlans] = useState([]);
+  const [activeCycles, setActiveCycles] = useState([]);
+  const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(false);
   const [isLockoutModalOpen, setIsLockoutModalOpen] = useState(false);
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   const activeSubscription = subscription || user?.subscription || null;
-  const activePlanName = activeSubscription?.plan_name || '';
-  const planNameLower = activePlanName.toLowerCase();
 
   const hasSubscription = Boolean(
-    activeSubscription && (activeSubscription.subscription_id || activeSubscription.id || activeSubscription.plan_id)
+    activeSubscription &&
+      (activeSubscription.subscription_id || activeSubscription.id || activeSubscription.plan_id)
   );
 
+  // Primary status is 'pending' ONLY when the school has NO active/trial subscription and is awaiting initial/post-expiry offline verification.
   const isPending = Boolean(
-    activeSubscription?.isPending ||
-    activeSubscription?.status === 'pending' ||
-    activeSubscription?.pending_subscription ||
-    activeSubscription?.pendingSubscription
+    activeSubscription &&
+      (activeSubscription.liveStatus === 'pending' ||
+        (activeSubscription.status === 'pending' && activeSubscription.isPending !== false))
   );
 
+  const isSuspended = Boolean(
+    activeSubscription &&
+      (activeSubscription.liveStatus === 'suspended' || activeSubscription.status === 'suspended')
+  );
+
+  // Separate flag for when an ACTIVE school also has a queued offline bank transfer renewal/upgrade/add-on
   const pendingSubscription =
     activeSubscription?.pending_subscription ||
     activeSubscription?.pendingSubscription ||
-    (activeSubscription?.status === 'pending' ? activeSubscription : null);
+    (isPending ? activeSubscription : null);
 
+  const hasPendingOffline = Boolean(
+    activeSubscription?.has_pending_offline || pendingSubscription
+  );
+
+  // 100% dynamic trial detection — zero hardcoded plan names
   const isTrial = activeSubscription
     ? Boolean(
         activeSubscription.isTrial ||
-        activeSubscription.billing_cycle === 'trial' ||
-        (activeSubscription.plan_code || '').toLowerCase().includes('trial')
-      ) &&
-      activeSubscription.billing_cycle !== 'annual' &&
-      activeSubscription.billing_cycle !== 'monthly' &&
-      !planNameLower.includes('starter') &&
-      !planNameLower.includes('growth') &&
-      !planNameLower.includes('enterprise')
+          activeSubscription.status === 'trial' ||
+          String(activeSubscription.billing_cycle || '').toLowerCase() === 'trial' ||
+          activeSubscription.payment_gateway === 'free_trial'
+      )
     : false;
 
-  // Calculate dynamic days left: prefer MySQL DATEDIFF from DB, fallback to dynamic end_date calculation
   const getDynamicDaysLeft = (sub) => {
     if (!sub) return 0;
     if (sub.days_left !== undefined && sub.days_left !== null) {
@@ -79,10 +95,12 @@ export const SubscriptionProvider = ({ children }) => {
     }
     if (sub.end_date) {
       try {
-        const end = new Date(String(sub.end_date).replace(' ', 'T'));
+        const endStr = String(sub.end_date).slice(0, 10);
+        const end = new Date(`${endStr}T23:59:59+05:30`);
         const now = new Date();
         const diffTime = end.getTime() - now.getTime();
-        return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+        if (diffTime < 0) return -1;
+        return Math.max(0, Math.floor(diffTime / (1000 * 60 * 60 * 24)));
       } catch {
         return 0;
       }
@@ -90,20 +108,33 @@ export const SubscriptionProvider = ({ children }) => {
     return 0;
   };
 
-  const daysLeft = getDynamicDaysLeft(activeSubscription);
+  const rawDaysLeft = getDynamicDaysLeft(activeSubscription);
+  const daysLeft = Math.max(0, rawDaysLeft);
 
-  const isExpired = activeSubscription && !isPending
-    ? Boolean(
-        activeSubscription.isExpired ||
-        activeSubscription.liveStatus === 'expired' ||
-        activeSubscription.status === 'expired' ||
-        daysLeft <= 0
-      )
-    : false;
+  // Note: days_left === 0 means expires TODAY (still active until 23:59:59 IST); actual_days_left < 0 is expired.
+  const isExpired =
+    activeSubscription && !isPending && !isSuspended
+      ? Boolean(
+          activeSubscription.isExpired ||
+            activeSubscription.liveStatus === 'expired' ||
+            activeSubscription.liveStatus === 'rejected' ||
+            activeSubscription.status === 'expired' ||
+            activeSubscription.status === 'rejected' ||
+            (activeSubscription.actual_days_left !== undefined &&
+              activeSubscription.actual_days_left !== null &&
+              Number(activeSubscription.actual_days_left) < 0) ||
+            rawDaysLeft < 0
+        )
+      : false;
 
-  const isActive = Boolean(hasSubscription && !isPending && !isExpired);
+  const isLockedOut = Boolean(isExpired || isSuspended || isPending);
+  const isActive = Boolean(hasSubscription && !isLockedOut);
   const isActivePaid = Boolean(isActive && !isTrial);
   const isActiveTrial = Boolean(isActive && isTrial);
+
+  const notificationWallet = activeSubscription?.notification_wallet || null;
+
+  const hasFeature = useCallback(() => true, []);
 
   const refreshSubscription = useCallback(async () => {
     const hasAdminToken =
@@ -122,11 +153,19 @@ export const SubscriptionProvider = ({ children }) => {
       const data = await getSubscriptionStatus();
       if (data?.subscription) {
         setSubscription(data.subscription);
-        // Keep sidebar and Subscription menu visible and accessible
         setIsLockoutModalOpen(false);
+      }
+      if (data?.storage_quota) {
+        setStorageQuota(data.storage_quota);
       }
       if (Array.isArray(data?.upgrade_plans)) {
         setUpgradePlans(data.upgrade_plans);
+      }
+      if (Array.isArray(data?.active_cycles)) {
+        setActiveCycles(data.active_cycles);
+      }
+      if (data?.catalog) {
+        setCatalog(data.catalog);
       }
     } catch (err) {
       console.warn('Could not load subscription status:', err?.response?.data || err.message);
@@ -135,23 +174,44 @@ export const SubscriptionProvider = ({ children }) => {
     }
   }, [user]);
 
-  // Initial load when component mounts or user/route changes
   useEffect(() => {
     refreshSubscription();
-  }, [refreshSubscription, user]);
+  }, [refreshSubscription]);
 
-  // Listen for global 402 HTTP interceptor event
+  // Listen for global 402 HTTP interceptor event on Admin Portal
   useEffect(() => {
     const handleSubscriptionExpired = (event) => {
-      console.warn('[SubscriptionContext] 402 Subscription Expired event captured:', event.detail);
-      setSubscription((prev) => ({
-        ...(prev || {}),
-        isExpired: true,
-        liveStatus: 'expired',
-        status: 'expired',
-        days_left: 0,
-      }));
-      // Keep sidebar visible and Subscription menu accessible
+      const code = event?.detail?.code || 'SUBSCRIPTION_EXPIRED';
+      console.warn('[SubscriptionContext] 402 Subscription lock event captured:', code, event.detail);
+
+      setSubscription((prev) => {
+        if (code === 'SUBSCRIPTION_SUSPENDED') {
+          return {
+            ...(prev || {}),
+            isExpired: false,
+            isPending: false,
+            liveStatus: 'suspended',
+            status: 'suspended',
+          };
+        }
+        if (code === 'SUBSCRIPTION_PENDING_APPROVAL') {
+          return {
+            ...(prev || {}),
+            isExpired: false,
+            isPending: true,
+            liveStatus: 'pending',
+            status: 'pending',
+          };
+        }
+        return {
+          ...(prev || {}),
+          isExpired: true,
+          liveStatus: 'expired',
+          status: 'expired',
+          days_left: 0,
+          actual_days_left: -1,
+        };
+      });
       setIsLockoutModalOpen(false);
     };
 
@@ -191,16 +251,24 @@ export const SubscriptionProvider = ({ children }) => {
     <SubscriptionContext.Provider
       value={{
         subscription,
+        storageQuota,
+        notificationWallet,
         upgradePlans,
+        activeCycles,
+        catalog,
         loading,
         isTrial,
         isExpired,
+        isSuspended,
         isPending,
+        hasPendingOffline,
+        isLockedOut,
         isActive,
         isActivePaid,
         isActiveTrial,
         pendingSubscription,
         daysLeft,
+        hasFeature,
         openUpgradeModal,
         closeUpgradeModal,
         refreshSubscription,
@@ -209,22 +277,22 @@ export const SubscriptionProvider = ({ children }) => {
     >
       {children}
 
-      {/* Global Non-Dismissible Lockout Modal if trial/subscription has expired */}
       {isLockoutModalOpen && !isPending && (
         <TrialExpiredLockoutModal
           subscription={subscription}
           plans={upgradePlans}
+          activeCycles={activeCycles}
           onUpgrade={upgradeToPlan}
           refreshSubscription={refreshSubscription}
         />
       )}
 
-      {/* Self-Service Upgrade / Renewal Modal when admin clicks "Upgrade Now" or "Renew" */}
       {isUpgradeModalOpen && !isLockoutModalOpen && (
         <UpgradeModal
           isOpen={isUpgradeModalOpen}
           onClose={closeUpgradeModal}
           plans={upgradePlans}
+          activeCycles={activeCycles}
           currentPlanId={subscription?.plan_id}
           subscription={subscription}
           initialPlanId={preselectedPlanId}
