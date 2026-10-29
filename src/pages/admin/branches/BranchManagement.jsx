@@ -16,6 +16,7 @@ import {
   updateBranchLocationApi,
 } from '../../../api/branch.api';
 import NoData from '../../../components/common/NoData';
+import TableActionMenu from '../../../components/common/TableActionMenu';
 import BranchLocationPicker from '../../../components/branch/BranchLocationPicker';
 import {
   DEFAULT_BRANCH_LOCATION,
@@ -973,62 +974,38 @@ const BranchManagement = () => {
 
                       {/* Actions */}
                       <td className="text-end pe-3">
-                        <div className="dropdown">
-                          <button
-                            className="btn btn-sm btn-icon btn-light rounded-circle shadow-none"
-                            type="button"
-                            data-bs-toggle="dropdown"
-                            aria-expanded="false"
-                          >
-                            <i className="ti ti-dots-vertical fs-14"></i>
-                          </button>
-                          <ul className="dropdown-menu dropdown-menu-end shadow-sm border p-1 fs-12">
-                            {branch.is_main_branch !== 1 && (
-                              <li>
-                                <button
-                                  type="button"
-                                  className="dropdown-item py-1.5 rounded d-flex align-items-center gap-2 text-success"
-                                  onClick={() => handleSetMain(branch)}
-                                >
-                                  <i className="ti ti-crown fs-14"></i>
-                                  <span>Set as Main Campus</span>
-                                </button>
-                              </li>
-                            )}
-                            <li>
-                              <button
-                                type="button"
-                                className="dropdown-item py-1.5 rounded d-flex align-items-center gap-2 text-dark"
-                                onClick={() => handleOpenEdit(branch)}
-                              >
-                                <i className="ti ti-edit fs-14"></i>
-                                <span>Edit Campus</span>
-                              </button>
-                            </li>
-                            <li>
-                              <button
-                                type="button"
-                                className="dropdown-item py-1.5 rounded d-flex align-items-center gap-2 text-primary"
-                                onClick={() => handleOpenLocation(branch)}
-                              >
-                                <i className="ti ti-map-pin fs-14"></i>
-                                <span>Manage Location</span>
-                              </button>
-                            </li>
-                            {branch.is_main_branch !== 1 && (
-                              <li>
-                                <button
-                                  type="button"
-                                  className="dropdown-item py-1.5 rounded d-flex align-items-center gap-2 text-danger"
-                                  onClick={() => handleOpenDelete(branch)}
-                                >
-                                  <i className="ti ti-trash fs-14"></i>
-                                  <span>Delete Campus</span>
-                                </button>
-                              </li>
-                            )}
-                          </ul>
-                        </div>
+                        <TableActionMenu
+                          menuWidth="205px"
+                          items={[
+                            branch.is_main_branch !== 1 && {
+                              key: 'set-main',
+                              label: 'Set as Main Campus',
+                              icon: 'ti ti-crown',
+                              variant: 'success',
+                              onClick: () => handleSetMain(branch),
+                            },
+                            {
+                              key: 'edit',
+                              label: 'Edit Campus',
+                              icon: 'ti ti-edit',
+                              onClick: () => handleOpenEdit(branch),
+                            },
+                            {
+                              key: 'location',
+                              label: 'Manage Location',
+                              icon: 'ti ti-map-pin',
+                              variant: 'primary',
+                              onClick: () => handleOpenLocation(branch),
+                            },
+                            branch.is_main_branch !== 1 && {
+                              key: 'delete',
+                              label: 'Delete Campus',
+                              icon: 'ti ti-trash',
+                              variant: 'danger',
+                              onClick: () => handleOpenDelete(branch),
+                            },
+                          ]}
+                        />
                       </td>
                     </tr>
                   ))
@@ -1040,15 +1017,21 @@ const BranchManagement = () => {
       </div>
 
       {/* Add / Edit Branch Modal */}
-      <Modal show={showModal} onHide={() => setShowModal(false)} centered size="xl" scrollable>
-        <form onSubmit={handleSubmit}>
-          <Modal.Header closeButton className="border-bottom py-3">
-            <Modal.Title className="fs-16 fw-bold text-dark d-flex align-items-center gap-2">
-              <i className="ti ti-building-community text-primary fs-18"></i>
-              <span>{modalMode === 'add' ? 'Add New School Campus' : 'Edit Campus Details'}</span>
-            </Modal.Title>
-          </Modal.Header>
-          <Modal.Body className="p-4">
+      <Modal
+        show={showModal}
+        onHide={() => !submitting && setShowModal(false)}
+        centered
+        size="xl"
+        scrollable
+      >
+        <Modal.Header closeButton className="border-bottom py-3 px-4 flex-shrink-0">
+          <Modal.Title className="fs-16 fw-bold text-dark d-flex align-items-center gap-2">
+            <i className="ti ti-building-community text-primary fs-18"></i>
+            <span>{modalMode === 'add' ? 'Add New School Campus' : 'Edit Campus Details'}</span>
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-4" style={{ overflowY: 'auto', minHeight: 0 }}>
+          <form id="branch-campus-form" onSubmit={handleSubmit}>
             <div className="row g-3">
               {/* Branch Name */}
               <div className="col-12 col-md-8">
@@ -1158,44 +1141,47 @@ const BranchManagement = () => {
                 </div>
               </div>
 
-              {/* Phone */}
+              {/* Phone & Email stacked alongside Principal / Campus Head */}
               <div className="col-12 col-md-6">
-                <label className="form-label fs-12 fw-semibold text-dark d-flex align-items-center justify-content-between">
-                  <span>Contact Phone</span>
-                  {formData.head_user_id && formData.phone && (
-                    <span className="text-muted fw-normal fs-11">
-                      <i className="ti ti-check text-success me-1"></i>From Principal
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="tel"
-                  name="phone"
-                  className="form-control form-control-sm"
-                  placeholder="e.g. +91 98765 43210"
-                  value={formData.phone}
-                  onChange={handleChange}
-                />
-              </div>
+                <div className="d-flex flex-column gap-3">
+                  <div>
+                    <label className="form-label fs-12 fw-semibold text-dark d-flex align-items-center justify-content-between">
+                      <span>Contact Phone</span>
+                      {formData.head_user_id && formData.phone && (
+                        <span className="text-muted fw-normal fs-11">
+                          <i className="ti ti-check text-success me-1"></i>From Principal
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="tel"
+                      name="phone"
+                      className="form-control form-control-sm"
+                      placeholder="e.g. +91 98765 43210"
+                      value={formData.phone}
+                      onChange={handleChange}
+                    />
+                  </div>
 
-              {/* Email */}
-              <div className="col-12 col-md-6">
-                <label className="form-label fs-12 fw-semibold text-dark d-flex align-items-center justify-content-between">
-                  <span>Campus Email</span>
-                  {formData.head_user_id && formData.email && (
-                    <span className="text-muted fw-normal fs-11">
-                      <i className="ti ti-check text-success me-1"></i>From Principal
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="email"
-                  name="email"
-                  className="form-control form-control-sm"
-                  placeholder="e.g. north@school.edu"
-                  value={formData.email}
-                  onChange={handleChange}
-                />
+                  <div>
+                    <label className="form-label fs-12 fw-semibold text-dark d-flex align-items-center justify-content-between">
+                      <span>Campus Email</span>
+                      {formData.head_user_id && formData.email && (
+                        <span className="text-muted fw-normal fs-11">
+                          <i className="ti ti-check text-success me-1"></i>From Principal
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="email"
+                      name="email"
+                      className="form-control form-control-sm"
+                      placeholder="e.g. north@school.edu"
+                      value={formData.email}
+                      onChange={handleChange}
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Street Address */}
@@ -1355,21 +1341,26 @@ const BranchManagement = () => {
                 </div>
               </div>
             </div>
-          </Modal.Body>
-          <Modal.Footer className="border-top py-2">
-            <button
-              type="button"
-              className="btn btn-sm btn-light"
-              onClick={() => setShowModal(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-sm btn-primary shadow-sm" disabled={submitting}>
-              {submitting ? 'Saving...' : modalMode === 'add' ? 'Create Campus' : 'Update Campus'}
-            </button>
-          </Modal.Footer>
-        </form>
+          </form>
+        </Modal.Body>
+        <Modal.Footer className="border-top py-3 px-4 bg-white d-flex align-items-center justify-content-end gap-2 flex-shrink-0">
+          <button
+            type="button"
+            className="btn btn-sm btn-light border px-3"
+            onClick={() => setShowModal(false)}
+            disabled={submitting}
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="branch-campus-form"
+            className="btn btn-sm btn-primary shadow-sm px-3"
+            disabled={submitting}
+          >
+            {submitting ? 'Saving...' : modalMode === 'add' ? 'Create Campus' : 'Update Campus'}
+          </button>
+        </Modal.Footer>
       </Modal>
 
       {/* Manage Attendance Location Modal */}
@@ -1380,13 +1371,13 @@ const BranchManagement = () => {
         size="xl"
         scrollable
       >
-        <Modal.Header closeButton className="border-bottom py-3">
+        <Modal.Header closeButton className="border-bottom py-3 px-4 flex-shrink-0">
           <Modal.Title className="fs-16 fw-bold text-dark d-flex align-items-center gap-2">
             <i className="ti ti-map-pin text-primary fs-18"></i>
             <span>Attendance Location{locationBranch ? ` – ${locationBranch.branch_name}` : ''}</span>
           </Modal.Title>
         </Modal.Header>
-        <Modal.Body className="p-4">
+        <Modal.Body className="p-4" style={{ overflowY: 'auto', minHeight: 0 }}>
           {loadingLocationModal ? (
             <div className="text-center py-5 text-muted fs-12">
               <div className="spinner-border spinner-border-sm text-primary me-2" role="status" />
@@ -1409,10 +1400,10 @@ const BranchManagement = () => {
             )
           )}
         </Modal.Body>
-        <Modal.Footer className="border-top py-2">
+        <Modal.Footer className="border-top py-3 px-4 bg-white d-flex align-items-center justify-content-end gap-2 flex-shrink-0">
           <button
             type="button"
-            className="btn btn-sm btn-light"
+            className="btn btn-sm btn-light border px-3"
             onClick={() => setShowLocationModal(false)}
             disabled={savingLocation}
           >
@@ -1420,7 +1411,7 @@ const BranchManagement = () => {
           </button>
           <button
             type="button"
-            className="btn btn-sm btn-primary shadow-sm"
+            className="btn btn-sm btn-primary shadow-sm px-3"
             onClick={handleSaveLocation}
             disabled={savingLocation || loadingLocationModal}
           >

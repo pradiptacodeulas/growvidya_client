@@ -209,6 +209,11 @@
   color: #2563EB !important;
 }
 
+.action-item-success:hover {
+  background-color: #F0FDF4 !important;
+  color: #16A34A !important;
+}
+
 .action-btn-hover {
   width: 32px;
   height: 32px;

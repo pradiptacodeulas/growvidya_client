@@ -405,10 +405,12 @@ const TrialExpiredLockoutModal = ({
                         <span>Teachers &amp; Branches:</span>
                         <strong className="text-success">Unlimited</strong>
                       </div>
-                      <div className="d-flex justify-content-between py-1 text-muted">
-                        <span>Cloud Storage:</span>
-                        <strong className="text-dark">{Math.max(0, Number(plan.included_storage_gb) || 0)} GB Included</strong>
-                      </div>
+                      {Number(plan.included_storage_gb) > 0 && (
+                        <div className="d-flex justify-content-between py-1 text-muted">
+                          <span>Cloud Storage:</span>
+                          <strong className="text-dark">{Math.max(0, Number(plan.included_storage_gb) || 0)} GB Included</strong>
+                        </div>
+                      )}
                     </div>
 
                     {isLocked && plan.lock_reason && (

@@ -1297,14 +1297,16 @@ const SubscriptionBilling = () => {
                                 : 'Unlimited Students'}
                             </strong>
                           </div>
-                          <div className="d-flex align-items-center justify-content-between mb-2">
+                          <div className={`d-flex align-items-center justify-content-between ${includedStorage > 0 ? 'mb-2' : ''}`}>
                             <span className="text-muted">Teachers &amp; Branches:</span>
                             <strong className="text-dark">Unlimited</strong>
                           </div>
-                          <div className="d-flex align-items-center justify-content-between">
-                            <span className="text-muted">Included Cloud Storage:</span>
-                            <strong className="text-primary">{includedStorage} GB</strong>
-                          </div>
+                          {includedStorage > 0 && (
+                            <div className="d-flex align-items-center justify-content-between">
+                              <span className="text-muted">Included Cloud Storage:</span>
+                              <strong className="text-primary">{includedStorage} GB</strong>
+                            </div>
+                          )}
                         </div>
 
                         {/* Projected Validity Preview (Unlocked Plans) */}

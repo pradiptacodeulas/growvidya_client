@@ -241,12 +241,14 @@ const PricingPlans = () => {
                                 <strong>Unlimited</strong> Teachers &amp; Branches
                               </span>
                             </li>
-                            <li className="d-flex align-items-center">
-                              <i className="ti ti-cloud text-info me-2 fs-16"></i>
-                              <span>
-                                <strong>{Math.max(0, parseInt(trialPlan.included_storage_gb, 10) || 0)} GB</strong> Cloud Storage
-                              </span>
-                            </li>
+                            {Math.max(0, parseInt(trialPlan.included_storage_gb, 10) || 0) > 0 && (
+                              <li className="d-flex align-items-center">
+                                <i className="ti ti-cloud text-info me-2 fs-16"></i>
+                                <span>
+                                  <strong>{Math.max(0, parseInt(trialPlan.included_storage_gb, 10) || 0)} GB</strong> Cloud Storage
+                                </span>
+                              </li>
+                            )}
                             {(trialPlan.items || []).map((it) => (
                               <li key={it.id} className="d-flex align-items-center">
                                 <i className="ti ti-check text-success me-2 fs-16"></i>
@@ -385,12 +387,14 @@ const PricingPlans = () => {
                                   <strong>Unlimited</strong> Teachers &amp; Branches
                                 </span>
                               </li>
-                              <li className="d-flex align-items-center">
-                                <i className="ti ti-cloud text-info me-2 fs-16"></i>
-                                <span>
-                                  <strong>{includedStorage} GB</strong> Cloud Storage Included
-                                </span>
-                              </li>
+                              {includedStorage > 0 && (
+                                <li className="d-flex align-items-center">
+                                  <i className="ti ti-cloud text-info me-2 fs-16"></i>
+                                  <span>
+                                    <strong>{includedStorage} GB</strong> Cloud Storage Included
+                                  </span>
+                                </li>
+                              )}
                               <li className="d-flex align-items-center">
                                 <i className="ti ti-check text-success me-2 fs-16"></i>
                                 <span>Full School ERP Access (All Modules Unlocked)</span>
@@ -487,7 +491,9 @@ const PricingPlans = () => {
                           <td className="fw-semibold text-dark">Included Cloud Storage</td>
                           {currentPaidPlans.map((p) => (
                             <td key={p.id} className="text-center fw-semibold">
-                              {Math.max(0, parseInt(p.included_storage_gb, 10) || 0)} GB
+                              {Math.max(0, parseInt(p.included_storage_gb, 10) || 0) > 0
+                                ? `${Math.max(0, parseInt(p.included_storage_gb, 10) || 0)} GB`
+                                : 'Add-on Optional'}
                             </td>
                           ))}
                         </tr>
