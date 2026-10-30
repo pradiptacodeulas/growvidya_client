@@ -329,14 +329,9 @@ const SubscriptionConfigurePublic = () => {
     });
   };
 
-  const completeHandoverOrLogin = (resData, fallbackEmail) => {
+  const completeHandoverOrLogin = (_resData, fallbackEmail) => {
     sessionStorage.removeItem('pending_registration_data');
     sessionStorage.removeItem('configured_subscription');
-    const handoverToken = resData?.data?.handover_token || resData?.handover_token;
-    if (handoverToken) {
-      navigate(`/auth/callback?token=${encodeURIComponent(handoverToken)}`, { replace: true });
-      return;
-    }
     navigate('/account/login/adminlogin', {
       state: { registeredEmail: fallbackEmail, registrationSuccess: true },
     });

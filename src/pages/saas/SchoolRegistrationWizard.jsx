@@ -720,13 +720,8 @@ const SchoolRegistrationWizard = () => {
       },
     };
 
-    const completePostRegistrationRedirect = (res) => {
-      const data = res?.data || res;
+    const completePostRegistrationRedirect = () => {
       sessionStorage.removeItem('pending_registration_data');
-      if (data?.handover_token) {
-        navigate(`/auth/callback?token=${encodeURIComponent(data.handover_token)}`);
-        return;
-      }
       navigate('/account/login/adminlogin', {
         state: {
           registeredEmail: adminForm.email,
