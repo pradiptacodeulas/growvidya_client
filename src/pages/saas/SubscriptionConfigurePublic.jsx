@@ -302,16 +302,24 @@ const SubscriptionConfigurePublic = () => {
       sessionStorage.setItem('selected_subscription_plan', JSON.stringify(selectedPlan));
     }
 
-    const onboardingUrl = import.meta.env.VITE_ONBOARDING_URL;
+    const params = new URLSearchParams();
+    if (selectedPlan?.id) params.set('plan_id', String(selectedPlan.id));
+    const resolvedCycle = String(selectedPlan?.billing_cycle || billingCycle || 'monthly').toLowerCase();
+    if (resolvedCycle) params.set('cycle', resolvedCycle);
+    const hasTrial = appliedCoupon ? false : true;
+    params.set('trial', hasTrial ? '1' : '0');
+
+    const onboardingUrl =
+      import.meta.env.VITE_ONBOARDING_URL ||
+      (typeof window !== 'undefined'
+        ? `${window.location.protocol}//${window.location.hostname}:3000`
+        : '');
     if (onboardingUrl && !hasRegistrationData) {
-      const params = new URLSearchParams();
-      if (selectedPlan?.id) params.set('plan_id', String(selectedPlan.id));
-      if (isSelectedTrial) params.set('trial', '1');
       window.location.href = `${onboardingUrl}/register?${params.toString()}`;
       return;
     }
 
-    navigate('/register', {
+    navigate(`/register?${params.toString()}`, {
       state: {
         configuration: configurationPayload,
         plan: selectedPlan,

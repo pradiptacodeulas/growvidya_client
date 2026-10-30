@@ -11,10 +11,15 @@ const ParentLogin = lazy(() => import('../pages/parent/ParentLogin'));
 const StudentLogin = lazy(() => import('../pages/student/StudentLogin'));
 
 const OnboardingRedirect = () => {
+  const location = useLocation();
   React.useEffect(() => {
-    const onboardingUrl = import.meta.env.VITE_ONBOARDING_URL || 'http://localhost:3000';
-    window.location.replace(`${onboardingUrl}/register`);
-  }, []);
+    const onboardingUrl =
+      import.meta.env.VITE_ONBOARDING_URL ||
+      (typeof window !== 'undefined'
+        ? `${window.location.protocol}//${window.location.hostname}:3000`
+        : 'http://localhost:3000');
+    window.location.replace(`${onboardingUrl}/register${location.search || ''}`);
+  }, [location.search]);
   return null;
 };
 

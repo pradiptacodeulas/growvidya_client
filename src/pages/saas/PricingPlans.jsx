@@ -53,16 +53,27 @@ const PricingPlans = () => {
     }
   }, [availableCycles, billingCycle]);
 
-  const handleSelectPlan = (plan, isTrial = false) => {
+  const handleSelectPlan = (plan, isTrial = true) => {
     if (!plan) return;
-    const cycle = isTrial ? 'trial' : plan.billing_cycle || billingCycle;
+    const cycle = String(plan.billing_cycle || billingCycle || 'monthly').toLowerCase();
+    const hasTrial = Boolean(
+      isTrial ||
+        cycle === 'trial' ||
+        parseFloat(plan.price) <= 0 ||
+        parseInt(plan.free_trial_days, 10) > 0
+    );
     sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
     sessionStorage.setItem('selected_billing_cycle', cycle);
 
-    navigate('/configure', {
+    const params = new URLSearchParams();
+    if (plan.id) params.set('plan_id', String(plan.id));
+    if (cycle) params.set('cycle', cycle);
+    params.set('trial', hasTrial ? '1' : '0');
+
+    navigate(`/register?${params.toString()}`, {
       state: {
         plan,
-        isTrial,
+        isTrial: hasTrial,
         billingCycle: cycle,
       },
     });
