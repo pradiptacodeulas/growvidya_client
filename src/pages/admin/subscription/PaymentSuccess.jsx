@@ -3,6 +3,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { getSubscriptionOrderInvoice } from '../../../api/subscription.api';
 import { useSubscription } from '../../../context/SubscriptionContext';
+import logoDark from '../../../assets/logo_dark.png';
 
 const formatDateDisplay = (val) => {
   if (!val) return '—';
@@ -325,8 +326,12 @@ const PaymentSuccess = () => {
             {/* Invoice Header */}
             <div className="d-flex flex-wrap align-items-start justify-content-between border-bottom pb-4 mb-4 gap-3">
               <div>
-                <div className="d-flex align-items-center gap-2 mb-1">
-                  <span className="fw-bold fs-22 text-primary">GrowVidya</span>
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  <img
+                    src={logoDark}
+                    alt="GrowVidya"
+                    style={{ height: '42px', width: 'auto', objectFit: 'contain' }}
+                  />
                   <span className="badge bg-light text-muted border fs-11 px-2 py-1">
                     Cloud School ERP
                   </span>
