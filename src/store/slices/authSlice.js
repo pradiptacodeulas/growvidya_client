@@ -1,0 +1,248 @@
+import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
+import { adminLoginApi, verifyAdminOtpApi, getAdminProfileApi, adminLogoutApi, exchangeHandoverTokenApi } from '../../api/adminAuth.api';
+
+// Async Thunks
+export const loginWithHandoverToken = createAsyncThunk(
+  'auth/loginWithHandoverToken',
+  async (handoverToken, { rejectWithValue }) => {
+    try {
+      const response = await exchangeHandoverTokenApi(handoverToken);
+      const resData = response.data || response || {};
+      const token = resData.token;
+      const user = resData.user;
+
+      if (token) {
+        localStorage.setItem('admin_token', token);
+        if (user?.branch_id || user?.branchId) {
+          localStorage.setItem('active_branch_id', String(user.branch_id || user.branchId));
+        } else {
+          localStorage.setItem('active_branch_id', 'all');
+        }
+      }
+      return { user, token };
+    } catch (error) {
+      if (!error.response) {
+        return rejectWithValue('Network error: Unable to reach backend server.');
+      }
+      return rejectWithValue(error.response?.data?.message || 'Handover token exchange failed.');
+    }
+  }
+);
+
+export const loginAdmin = createAsyncThunk(
+  'auth/loginAdmin',
+  async (credentials, { rejectWithValue }) => {
+    try {
+      const response = await adminLoginApi(credentials);
+      const resData = response.data?.data || response.data || {};
+      const token = resData.token;
+      const user = resData.user;
+
+      if (token) {
+        localStorage.setItem('admin_token', token);
+        if (user?.branch_id || user?.branchId) {
+          localStorage.setItem('active_branch_id', String(user.branch_id || user.branchId));
+        } else {
+          localStorage.setItem('active_branch_id', 'all');
+        }
+      }
+      return { user, token };
+    } catch (error) {
+      if (!error.response) {
+        return rejectWithValue('Network error: Unable to reach backend server. Please verify server connection.');
+      }
+      return rejectWithValue(error.response?.data?.message || 'Login failed. Please check credentials.');
+    }
+  }
+);
+
+export const loginAdminWithOtp = createAsyncThunk(
+  'auth/loginAdminWithOtp',
+  async ({ identifier, otp }, { rejectWithValue }) => {
+    try {
+      const response = await verifyAdminOtpApi(identifier, otp);
+      const resData = response.data?.data || response.data || {};
+      const token = resData.token;
+      const user = resData.user;
+
+      if (token) {
+        localStorage.setItem('admin_token', token);
+        if (user?.branch_id || user?.branchId) {
+          localStorage.setItem('active_branch_id', String(user.branch_id || user.branchId));
+        } else {
+          localStorage.setItem('active_branch_id', 'all');
+        }
+      }
+      return { user, token };
+    } catch (error) {
+      if (!error.response) {
+        return rejectWithValue('Network error: Unable to reach backend server. Please verify server connection.');
+      }
+      return rejectWithValue(error.response?.data?.message || 'Verification failed. Please check your 6-digit OTP.');
+    }
+  }
+);
+
+export const checkAdminAuth = createAsyncThunk(
+  'auth/checkAdminAuth',
+  async (_, { rejectWithValue }) => {
+    try {
+      const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+      const hasAdminToken = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
+      const isProtectedAdminPath = currentPath.startsWith('/admin') && !currentPath.startsWith('/admin/login') && currentPath !== '/account/login/adminlogin';
+
+      if (!isProtectedAdminPath && !hasAdminToken) {
+        return rejectWithValue('No active admin session');
+      }
+
+      const response = await getAdminProfileApi();
+      const resData = response.data?.data || response.data || {};
+      const user = resData.user || resData;
+      if (typeof window !== 'undefined' && user) {
+        const userBranchId = user.branch_id || user.branchId;
+        const isSuperAdmin = Boolean(user.isSuperAdmin) || Number(user.admin_type ?? user.adminType) === 1;
+        const existingBranch = localStorage.getItem('active_branch_id');
+        if (!isSuperAdmin && userBranchId) {
+          localStorage.setItem('active_branch_id', String(userBranchId));
+        } else if (!existingBranch) {
+          localStorage.setItem('active_branch_id', userBranchId ? String(userBranchId) : 'all');
+        }
+      }
+      return user;
+    } catch (error) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('admin_token');
+        localStorage.removeItem('active_branch_id');
+      }
+      return rejectWithValue('Session invalid or expired');
+    }
+  }
+);
+
+export const logoutAdmin = createAsyncThunk('auth/logoutAdmin', async () => {
+  try {
+    await adminLogoutApi();
+  } catch (e) {
+    // Ignore network errors during logout
+  } finally {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('admin_token');
+      localStorage.removeItem('active_branch_id');
+    }
+  }
+});
+
+const hasAdminToken = typeof window !== 'undefined' ? Boolean(localStorage.getItem('admin_token')) : false;
+
+const authSlice = createSlice({
+  name: 'auth',
+  initialState: {
+    user: null,
+    isAuthenticated: false,
+    loading: false,
+    checkingAuth: hasAdminToken,
+    error: null,
+  },
+  reducers: {
+    clearAuthError: (state) => {
+      state.error = null;
+    },
+    updateUserState: (state, action) => {
+      state.user = { ...state.user, ...action.payload };
+    },
+    updateUserSchoolInfo: (state, action) => {
+      if (state.user) {
+        if (action.payload.schoolName !== undefined) {
+          state.user.schoolName = action.payload.schoolName;
+        }
+        if (action.payload.schoolLogo !== undefined) {
+          state.user.schoolLogo = action.payload.schoolLogo;
+        }
+        if (action.payload.schoolFooter !== undefined) {
+          state.user.schoolFooter = action.payload.schoolFooter;
+        }
+      }
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      // Handover Login
+      .addCase(loginWithHandoverToken.pending, (state) => {
+        state.loading = true;
+        state.checkingAuth = true;
+        state.error = null;
+      })
+      .addCase(loginWithHandoverToken.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = true;
+        state.checkingAuth = false;
+        state.user = action.payload.user;
+        state.error = null;
+      })
+      .addCase(loginWithHandoverToken.rejected, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = false;
+        state.checkingAuth = false;
+        state.error = action.payload;
+      })
+      // Login
+      .addCase(loginAdminWithOtp.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loginAdminWithOtp.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = true;
+        state.checkingAuth = false;
+        state.user = action.payload.user;
+        state.error = null;
+      })
+      .addCase(loginAdminWithOtp.rejected, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = false;
+        state.checkingAuth = false;
+        state.error = action.payload;
+      })
+      .addCase(loginAdmin.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(loginAdmin.fulfilled, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = true;
+        state.checkingAuth = false;
+        state.user = action.payload.user;
+        state.error = null;
+      })
+      .addCase(loginAdmin.rejected, (state, action) => {
+        state.loading = false;
+        state.isAuthenticated = false;
+        state.checkingAuth = false;
+        state.error = action.payload;
+      })
+      // Check Auth
+      .addCase(checkAdminAuth.pending, (state) => {
+        state.checkingAuth = true;
+      })
+      .addCase(checkAdminAuth.fulfilled, (state, action) => {
+        state.checkingAuth = false;
+        state.isAuthenticated = true;
+        state.user = action.payload;
+      })
+      .addCase(checkAdminAuth.rejected, (state) => {
+        state.checkingAuth = false;
+        state.isAuthenticated = false;
+        state.user = null;
+      })
+      // Logout
+      .addCase(logoutAdmin.fulfilled, (state) => {
+        state.user = null;
+        state.isAuthenticated = false;
+        state.checkingAuth = false;
+        state.error = null;
+      });
+  },
+});
+
+export const { clearAuthError, updateUserState, updateUserSchoolInfo } = authSlice.actions;
+export default authSlice.reducer;
