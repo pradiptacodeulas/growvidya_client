@@ -15059,7 +15059,7 @@ table.table-bordered thead tr th p {
 .card {
   margin-bottom: 1.5rem;
   background-color: #FFF;
-  transition: all 0.5s ease-in-out;
+  /* transition: all 0.5s ease-in-out; */
   position: relative;
   border-radius: 5px;
   border: 1px solid #E9EDF4;
