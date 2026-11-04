@@ -1148,7 +1148,7 @@ const SubscriptionBilling = () => {
                 const customItems = plan.items || [];
 
                 return (
-                  <div className="col-12 col-lg-4 d-flex" key={plan.id}>
+                  <div className="col-12 col-lg-3 d-flex" key={plan.id}>
                     <div
                       className={`card w-100 h-100 rounded-4 bg-white transition-all ${
                         isHighlighted ? 'border-2 border-primary shadow' : 'shadow-sm'
