@@ -286,7 +286,7 @@ const AddLeaveAssign = () => {
                       >
                         <option value="">select</option>
                         <option value="1">Teacher</option>
-                        <option value="2">User</option>
+                        <option value="2">Staff</option>
                       </select>
                     </div>
                   </div>

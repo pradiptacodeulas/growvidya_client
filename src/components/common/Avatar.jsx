@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getServerBaseUrl } from '../../utils/url.util';
+import { getServerBaseUrl, appendAuthToken } from '../../utils/url.util';
 
 const getAvatarColors = (name) => {
   const palette = [
@@ -40,16 +40,22 @@ export const resolveImageUrl = (pic) => {
   const clean = String(pic).trim();
   if (clean.includes('female-user.png')) return null; // Falls back to crisp initials or fallback
   if (clean.includes('male-user.png')) return null;
-  if (clean.startsWith('data:') || clean.startsWith('http://') || clean.startsWith('https://')) {
+  if (clean.startsWith('data:')) {
     return clean;
   }
+  if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    return clean.includes('/upload/') ? appendAuthToken(clean) : clean;
+  }
   const baseUrl = getServerBaseUrl();
-  if (clean.startsWith('/upload/')) return `${baseUrl}${clean}`;
-  if (clean.startsWith('upload/')) return `${baseUrl}/${clean}`;
-  if (clean.startsWith('/vidya_assets/')) return `${baseUrl}${clean.replace('/vidya_assets/', '/upload/')}`;
-  if (clean.startsWith('vidya_assets/')) return `${baseUrl}/${clean.replace('vidya_assets/', 'upload/')}`;
-  if (clean.startsWith('/')) return `${baseUrl}${clean}`;
-  return `${baseUrl}/upload/${clean}`;
+  let fullUrl = '';
+  if (clean.startsWith('/upload/')) fullUrl = `${baseUrl}${clean}`;
+  else if (clean.startsWith('upload/')) fullUrl = `${baseUrl}/${clean}`;
+  else if (clean.startsWith('/vidya_assets/')) fullUrl = `${baseUrl}${clean.replace('/vidya_assets/', '/upload/')}`;
+  else if (clean.startsWith('vidya_assets/')) fullUrl = `${baseUrl}/${clean.replace('vidya_assets/', 'upload/')}`;
+  else if (clean.startsWith('/')) fullUrl = `${baseUrl}${clean}`;
+  else fullUrl = `${baseUrl}/upload/${clean}`;
+
+  return appendAuthToken(fullUrl);
 };
 
 /**

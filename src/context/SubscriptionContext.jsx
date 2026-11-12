@@ -2,8 +2,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { getSubscriptionStatus, upgradeSubscription } from '../api/subscription.api';
-import UpgradeModal from '../components/subscription/UpgradeModal';
-import TrialExpiredLockoutModal from '../components/subscription/TrialExpiredLockoutModal';
 
 const SubscriptionContext = createContext(null);
 
@@ -48,8 +46,6 @@ export const SubscriptionProvider = ({ children }) => {
   const [activeCycles, setActiveCycles] = useState([]);
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [isLockoutModalOpen, setIsLockoutModalOpen] = useState(false);
-  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
 
   const activeSubscription = subscription || user?.subscription || null;
 
@@ -155,7 +151,6 @@ export const SubscriptionProvider = ({ children }) => {
       const data = await getSubscriptionStatus();
       if (data?.subscription) {
         setSubscription(data.subscription);
-        setIsLockoutModalOpen(false);
       }
       if (data?.storage_quota) {
         setStorageQuota(data.storage_quota);
@@ -214,7 +209,6 @@ export const SubscriptionProvider = ({ children }) => {
           actual_days_left: -1,
         };
       });
-      setIsLockoutModalOpen(false);
     };
 
     window.addEventListener('subscription_expired', handleSubscriptionExpired);
@@ -223,23 +217,14 @@ export const SubscriptionProvider = ({ children }) => {
     };
   }, []);
 
-  const [preselectedPlanId, setPreselectedPlanId] = useState(null);
-
   const openUpgradeModal = useCallback(() => {
-    setIsUpgradeModalOpen(false);
-    setIsLockoutModalOpen(false);
     navigate('/admin/subscription');
   }, [navigate]);
 
-  const closeUpgradeModal = () => {
-    setIsUpgradeModalOpen(false);
-    setPreselectedPlanId(null);
-  };
+  const closeUpgradeModal = useCallback(() => {}, []);
 
   const upgradeToPlan = async (payload) => {
     const result = await upgradeSubscription(payload);
-    setIsLockoutModalOpen(false);
-    setIsUpgradeModalOpen(false);
     await refreshSubscription();
     return result;
   };
@@ -273,31 +258,6 @@ export const SubscriptionProvider = ({ children }) => {
       }}
     >
       {children}
-
-      {isLockoutModalOpen && !isPending && (
-        <TrialExpiredLockoutModal
-          subscription={subscription}
-          plans={upgradePlans}
-          activeCycles={activeCycles}
-          onUpgrade={upgradeToPlan}
-          refreshSubscription={refreshSubscription}
-        />
-      )}
-
-      {isUpgradeModalOpen && !isLockoutModalOpen && (
-        <UpgradeModal
-          isOpen={isUpgradeModalOpen}
-          onClose={closeUpgradeModal}
-          plans={upgradePlans}
-          activeCycles={activeCycles}
-          currentPlanId={subscription?.plan_id}
-          subscription={subscription}
-          initialPlanId={preselectedPlanId}
-          onUpgrade={upgradeToPlan}
-          refreshSubscription={refreshSubscription}
-          isLockout={false}
-        />
-      )}
     </SubscriptionContext.Provider>
   );
 };

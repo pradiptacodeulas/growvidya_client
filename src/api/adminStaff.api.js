@@ -1,5 +1,13 @@
+import axios from 'axios';
 import apiClient from './axios.config';
 import { sortDropdownDesc } from '../utils/dropdownSort.util';
+
+const CSV_API_BASE_URL = import.meta.env.VITE_CSV_API_BASE_URL;
+
+const getAdminAuthHeaders = () => {
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 /**
  * Fetch staff list with filters and pagination
@@ -122,4 +130,46 @@ export const checkStaffDuplicateApi = async ({ email, phone }, excludeId = null)
   const response = await apiClient.post('/admin/staff/check-duplicate', { email, phone, exclude_id: excludeId });
   return response.data;
 };
+
+/**
+ * Download User Excel/CSV upload template from CSV server
+ */
+export const downloadUserTemplateApi = async () => {
+  const response = await axios.get(`${CSV_API_BASE_URL}/admin/users/csv/template.xlsx`, {
+    headers: getAdminAuthHeaders(),
+    responseType: 'blob',
+    withCredentials: true,
+  });
+  return response.data;
+};
+
+/**
+ * Upload User Excel/CSV file to CSV server
+ */
+export const uploadUsersCsvApi = async (formData) => {
+  const response = await axios.post(`${CSV_API_BASE_URL}/admin/users/csv/upload`, formData, {
+    headers: {
+      ...getAdminAuthHeaders(),
+    },
+    withCredentials: true,
+  });
+  return response.data;
+};
+
+/**
+ * Download Failed User records CSV from CSV server
+ */
+export const downloadFailedUsersCsvApi = async (batchId) => {
+  const cleanBatchId = String(batchId || '').replace(/\.csv$/i, '').trim();
+  const url = cleanBatchId
+    ? `${CSV_API_BASE_URL}/admin/users/csv/failed-download/${cleanBatchId}`
+    : `${CSV_API_BASE_URL}/admin/users/csv/failed-download`;
+  const response = await axios.get(url, {
+    headers: getAdminAuthHeaders(),
+    responseType: 'blob',
+    withCredentials: true,
+  });
+  return response.data;
+};
+
 

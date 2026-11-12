@@ -1,4 +1,4 @@
-import { getServerBaseUrl } from '../../../utils/url.util';
+import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -18,17 +18,19 @@ const SERVER_BASE_URL = getServerBaseUrl();
 
 const formatImageUrl = (pic) => {
   if (!pic) return '';
-  if (pic.startsWith('http://') || pic.startsWith('https://') || pic.startsWith('data:') || pic.startsWith('blob:')) {
-    return pic;
+  if (pic.startsWith('blob:')) return pic;
+  const clean = String(pic).trim().replace(/^\//, '');
+  if (
+    clean.startsWith('http://') ||
+    clean.startsWith('https://') ||
+    clean.startsWith('data:') ||
+    clean.startsWith('upload/') ||
+    clean.startsWith('vidya_assets/') ||
+    clean.startsWith('teacher/')
+  ) {
+    return resolveImageUrl(clean, '');
   }
-  const clean = pic.replace(/^\//, '');
-  if (clean.startsWith('upload/')) {
-    return `${SERVER_BASE_URL}/${clean}`;
-  }
-  if (clean.startsWith('vidya_assets/')) {
-    return `${SERVER_BASE_URL}/${clean.replace('vidya_assets/', 'upload/')}`;
-  }
-  return `${SERVER_BASE_URL}/upload/teacher/${clean}`;
+  return resolveImageUrl(`upload/teacher/${clean}`, '');
 };
 
 const AddTeacher = () => {

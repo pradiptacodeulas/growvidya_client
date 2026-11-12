@@ -238,6 +238,16 @@ const TeacherStudentList = () => {
             </ol>
           </nav>
         </div>
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <div className="mb-2">
+            <Link
+              to="/teacher/students/activities"
+              className="btn btn-primary d-flex align-items-center fw-semibold"
+            >
+              <i className="ti ti-activity-heartbeat me-2"></i>Student Activities
+            </Link>
+          </div>
+        </div>
       </div>
       {/* /Page Header */}
 

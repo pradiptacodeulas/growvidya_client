@@ -113,7 +113,9 @@ const SubscriptionBilling = () => {
     if (selectedBillingCycle && availableCycles.some((c) => c.cycle === selectedBillingCycle)) {
       return selectedBillingCycle;
     }
-    const subCycle = String(subscription?.billing_cycle || '').toLowerCase();
+    const subCycle = String(
+      subscription?.billing_cycle || subscription?.last_paid_subscription?.billing_cycle || ''
+    ).toLowerCase();
     if (subCycle && subCycle !== 'trial' && availableCycles.some((c) => c.cycle === subCycle)) {
       return subCycle;
     }
@@ -121,7 +123,12 @@ const SubscriptionBilling = () => {
       return 'annual';
     }
     return availableCycles[0]?.cycle || 'annual';
-  }, [selectedBillingCycle, availableCycles, subscription?.billing_cycle]);
+  }, [
+    selectedBillingCycle,
+    availableCycles,
+    subscription?.billing_cycle,
+    subscription?.last_paid_subscription?.billing_cycle,
+  ]);
 
   // Billing History & Orders State
   const [orders, setOrders] = useState([]);
@@ -265,6 +272,10 @@ const SubscriptionBilling = () => {
         ? addonStorageTotal
         : 0;
     if (eligibleBase <= 0) return 0;
+    const minOrder = parseFloat(
+      addonAppliedCoupon.minOrderAmount ?? addonAppliedCoupon.min_order_amount ?? 0
+    );
+    if (minOrder > 0 && eligibleBase < minOrder) return 0;
 
     if (addonAppliedCoupon.discountType === 'percentage') {
       const raw = (eligibleBase * parseFloat(addonAppliedCoupon.discountValue || 0)) / 100;
@@ -275,6 +286,13 @@ const SubscriptionBilling = () => {
     }
     return Math.min(eligibleBase, parseFloat(addonAppliedCoupon.discountValue || 0));
   }, [addonAppliedCoupon, addonSubtotal, addonStorageTotal]);
+
+  useEffect(() => {
+    if (addonAppliedCoupon && addonDiscountAmount <= 0) {
+      setAddonAppliedCoupon(null);
+      setAddonCouponError('Coupon removed because cart items no longer meet coupon requirements.');
+    }
+  }, [addonAppliedCoupon, addonDiscountAmount]);
 
   const addonGrandTotal = Math.max(
     0,
@@ -313,6 +331,7 @@ const SubscriptionBilling = () => {
         code: data.code,
         discountType: data.discountType,
         discountValue: parseFloat(data.discountValue),
+        minOrderAmount: parseFloat(data.min_order_amount ?? data.minOrderAmount ?? 0),
         maxDiscountAmount: data.max_discount_amount || data.maxDiscountAmount || null,
         applicable_scope: data.applicable_scope || 'plan_only',
       });
@@ -384,12 +403,14 @@ const SubscriptionBilling = () => {
     try {
       setIsProcessingAddon(true);
 
-      if (addonGateway === 'razorpay') {
-        const sdkLoaded = await loadRazorpayScript();
-        if (!sdkLoaded) {
-          toast.error('Unable to load Razorpay Checkout SDK. Check your internet connection.');
-          setIsProcessingAddon(false);
-          return;
+      if (addonGateway === 'razorpay' || addonGrandTotal <= 0) {
+        if (addonGrandTotal > 0) {
+          const sdkLoaded = await loadRazorpayScript();
+          if (!sdkLoaded) {
+            toast.error('Unable to load Razorpay Checkout SDK. Check your internet connection.');
+            setIsProcessingAddon(false);
+            return;
+          }
         }
 
         const orderData = await createAddonOrder(payload);
@@ -1592,17 +1613,17 @@ const SubscriptionBilling = () => {
                                           ...prev,
                                           [rec.id]: {
                                             selected: true,
-                                            quantity: Math.max(minQty, qty - 500),
+                                            quantity: Math.max(minQty, qty - minQty),
                                           },
                                         }))
                                       }
                                     >
-                                      -500
+                                      -{minQty}
                                     </button>
                                     <input
                                       type="number"
                                       min={minQty}
-                                      step="100"
+                                      step={minQty}
                                       className="form-control form-control-sm text-center fw-bold"
                                       style={{ width: '90px' }}
                                       value={qty}
@@ -1624,12 +1645,12 @@ const SubscriptionBilling = () => {
                                           ...prev,
                                           [rec.id]: {
                                             selected: true,
-                                            quantity: qty + 500,
+                                            quantity: qty + minQty,
                                           },
                                         }))
                                       }
                                     >
-                                      +500
+                                      +{minQty}
                                     </button>
                                   </div>
                                 )}
@@ -1769,7 +1790,7 @@ const SubscriptionBilling = () => {
                                           setAddonCards((prev) => {
                                             const next = { ...prev };
                                             if (qty <= minQty) delete next[c.id];
-                                            else next[c.id] = Math.max(minQty, qty - 50);
+                                            else next[c.id] = Math.max(minQty, qty - minQty);
                                             return next;
                                           })
                                         }
@@ -1794,7 +1815,7 @@ const SubscriptionBilling = () => {
                                         type="button"
                                         className="btn btn-sm btn-primary px-2"
                                         onClick={() =>
-                                          setAddonCards((prev) => ({ ...prev, [c.id]: qty + 50 }))
+                                          setAddonCards((prev) => ({ ...prev, [c.id]: qty + minQty }))
                                         }
                                       >
                                         +

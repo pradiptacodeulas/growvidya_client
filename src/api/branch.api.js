@@ -45,9 +45,17 @@ export const setMainBranchApi = async (id) => {
   });
 };
 
-export const deleteBranchApi = async (id) => {
+export const requestDeleteBranchOtpApi = async (id, password) => {
+  return apiFetch(`/admin/branches/${id}/request-delete-otp`, {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  });
+};
+
+export const deleteBranchApi = async (id, otp) => {
   return apiFetch(`/admin/branches/${id}`, {
     method: 'DELETE',
+    body: JSON.stringify({ otp }),
   });
 };
 

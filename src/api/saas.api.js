@@ -31,12 +31,14 @@ export const saasApi = {
   createOrder: async (orderOrPlanId) => {
     const payload =
       typeof orderOrPlanId === 'object' && orderOrPlanId !== null
+
+      
         ? orderOrPlanId
         : { plan_id: orderOrPlanId };
     const res = await apiClient.post('/saas/create-order', payload);
     return res.data;
   },
-
+// Dont show the user avater in the navber of the mobile view 
   /**
    * Record Razorpay checkout failure for public registration order
    */

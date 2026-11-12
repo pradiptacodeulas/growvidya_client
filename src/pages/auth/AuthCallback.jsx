@@ -28,7 +28,7 @@ const AuthCallback = () => {
         if (loginWithHandoverToken.fulfilled.match(result)) {
           toast.success('Welcome to Growvidya! Your school portal is ready.');
           const user = result.payload?.user;
-          if (user?.registrationType === 'multiple' && (user?.isSuperAdmin || user?.adminType === 1)) {
+          if (user?.isSuperAdmin || Number(user?.adminType || user?.admin_type) === 1) {
             navigate('/admin/super-admin/dashboard', { replace: true });
           } else {
             navigate('/admin/dashboard', { replace: true });

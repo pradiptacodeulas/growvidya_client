@@ -52,6 +52,7 @@ const AddTeacher = lazy(() => import('../pages/admin/teachers/AddTeacher'));
 const StudentList = lazy(() => import('../pages/admin/students/StudentList'));
 const StudentDetails = lazy(() => import('../pages/admin/students/StudentDetails'));
 const AddStudent = lazy(() => import('../pages/admin/students/AddStudent'));
+const StudentActivitiesManage = lazy(() => import('../pages/admin/students/StudentActivitiesManage'));
 const ParentList = lazy(() => import('../pages/admin/parents/ParentList'));
 const StaffList = lazy(() => import('../pages/admin/staff/StaffList'));
 const UserDetails = lazy(() => import('../pages/admin/staff/UserDetails'));
@@ -111,10 +112,13 @@ const EditHostel = lazy(() => import('../pages/admin/hostel/EditHostel'));
 const HostelRoomsList = lazy(() => import('../pages/admin/hostel/HostelRoomsList'));
 const EditHostelRoom = lazy(() => import('../pages/admin/hostel/EditHostelRoom'));
 const NoticeList = lazy(() => import('../pages/admin/announcement/NoticeList'));
+const ViewNotice = lazy(() => import('../pages/admin/announcement/ViewNotice'));
 const EditNotice = lazy(() => import('../pages/admin/announcement/EditNotice'));
 const EventList = lazy(() => import('../pages/admin/announcement/EventList'));
+const ViewEvent = lazy(() => import('../pages/admin/announcement/ViewEvent'));
 const EditEvent = lazy(() => import('../pages/admin/announcement/EditEvent'));
 const HolidayList = lazy(() => import('../pages/admin/announcement/HolidayList'));
+const ViewHoliday = lazy(() => import('../pages/admin/announcement/ViewHoliday'));
 const EditHoliday = lazy(() => import('../pages/admin/announcement/EditHoliday'));
 const AdmitCard = lazy(() => import('../pages/admin/records/AdmitCard'));
 const IdCard = lazy(() => import('../pages/admin/records/IdCard'));
@@ -149,14 +153,12 @@ const AdminIndexRedirect = () => {
     return null;
   }
 
-  const regType = String(user?.registrationType || user?.registration_type || '').toLowerCase();
-  const isAdmin = Boolean(
+  const isSchoolSuperAdmin = Boolean(
     user?.isSuperAdmin ||
     Number(user?.adminType || user?.admin_type) === 1 ||
     String(user?.roleName || user?.role_name || '').toLowerCase() === 'super admin'
   );
-  const isMultiBranchSuperAdmin = regType === 'multiple' && isAdmin;
-  return <Navigate to={isMultiBranchSuperAdmin ? '/admin/super-admin/dashboard' : '/admin/dashboard'} replace />;
+  return <Navigate to={isSchoolSuperAdmin ? '/admin/super-admin/dashboard' : '/admin/dashboard'} replace />;
 };
 
 export const adminRoutes = (
@@ -166,15 +168,78 @@ export const adminRoutes = (
       <Route path="dashboard" element={<AdminDashboard />} />
       <Route path="profile" element={<AdminProfile />} />
       <Route path="profile/edit" element={<EditAdminProfile />} />
-      <Route path="super-admin/dashboard" element={<SuperAdminDashboard />} />
-      <Route path="super-admin/branches/:id" element={<BranchDetailsView />} />
-      <Route path="super-admin" element={<Navigate to="/admin/super-admin/dashboard" replace />} />
-      <Route path="subscription" element={<SubscriptionBilling />} />
-      <Route path="subscription/configure" element={<SubscriptionConfigure />} />
-      <Route path="subscription/payment-success" element={<PaymentSuccess />} />
-      <Route path="subscription/payment-failed" element={<PaymentFailure />} />
-      <Route path="billing" element={<SubscriptionBilling />} />
-      <Route path="billing/configure" element={<SubscriptionConfigure />} />
+      <Route
+        path="super-admin/dashboard"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <SuperAdminDashboard />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="super-admin/branches/:id"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <BranchDetailsView />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="super-admin"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <Navigate to="/admin/super-admin/dashboard" replace />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="subscription"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <SubscriptionBilling />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="subscription/configure"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <SubscriptionConfigure />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="subscription/payment-success"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <PaymentSuccess />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="subscription/payment-failed"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <PaymentFailure />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="billing"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <SubscriptionBilling />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="billing/configure"
+        element={
+          <ProtectedRoute allowedRoles={['Super Admin']}>
+            <SubscriptionConfigure />
+          </ProtectedRoute>
+        }
+      />
       <Route path="billing/payment-success" element={<PaymentSuccess />} />
       <Route path="billing/payment-failed" element={<PaymentFailure />} />
       <Route path="help-support" element={<HelpSupport />} />
@@ -464,6 +529,7 @@ export const adminRoutes = (
       {/* Students */}
       <Route element={<ProtectedRoute module="ward/students" action="view" />}>
         <Route path="students" element={<StudentList />} />
+        <Route path="students/activities" element={<StudentActivitiesManage />} />
         <Route path="students/:id" element={<StudentDetails />} />
       </Route>
       <Route element={<ProtectedRoute module="ward/students" action="add" />}>
@@ -793,6 +859,10 @@ export const adminRoutes = (
         <Route path="announcement/notices" element={<NoticeList />} />
         <Route path="notices" element={<NoticeList />} />
         <Route path="notice" element={<NoticeList />} />
+        <Route path="announcement/notice/view/:id" element={<ViewNotice />} />
+        <Route path="announcement/notices/view/:id" element={<ViewNotice />} />
+        <Route path="notices/view/:id" element={<ViewNotice />} />
+        <Route path="notice/view/:id" element={<ViewNotice />} />
       </Route>
       <Route element={<ProtectedRoute module="announcement/notice" action="add" />}>
         <Route path="announcement/notice/add" element={<EditNotice />} />
@@ -812,6 +882,10 @@ export const adminRoutes = (
         <Route path="announcement/events" element={<EventList />} />
         <Route path="events" element={<EventList />} />
         <Route path="event" element={<EventList />} />
+        <Route path="announcement/event/view/:id" element={<ViewEvent />} />
+        <Route path="announcement/events/view/:id" element={<ViewEvent />} />
+        <Route path="events/view/:id" element={<ViewEvent />} />
+        <Route path="event/view/:id" element={<ViewEvent />} />
       </Route>
       <Route element={<ProtectedRoute module="announcement/event" action="add" />}>
         <Route path="announcement/event/add" element={<EditEvent />} />
@@ -837,6 +911,10 @@ export const adminRoutes = (
         <Route path="announcement/holidays" element={<HolidayList />} />
         <Route path="holidays" element={<HolidayList />} />
         <Route path="holiday" element={<HolidayList />} />
+        <Route path="announcement/holiday/view/:id" element={<ViewHoliday />} />
+        <Route path="announcement/holidays/view/:id" element={<ViewHoliday />} />
+        <Route path="holidays/view/:id" element={<ViewHoliday />} />
+        <Route path="holiday/view/:id" element={<ViewHoliday />} />
       </Route>
       <Route element={<ProtectedRoute module="announcement/holiday" action="add" />}>
         <Route path="announcement/holiday/add" element={<EditHoliday />} />

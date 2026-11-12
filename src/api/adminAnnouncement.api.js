@@ -1,8 +1,8 @@
 import axiosInstance from './axios.config';
 
 // ================= NOTICE API =================
-export const fetchNoticesApi = async () => {
-  const response = await axiosInstance.get('/admin/announcement/notices');
+export const fetchNoticesApi = async (params = {}) => {
+  const response = await axiosInstance.get('/admin/announcement/notices', { params });
   return response.data;
 };
 
@@ -36,8 +36,8 @@ export const searchAnnouncementUsersApi = async (query = '', role = '') => {
 };
 
 // ================= EVENT API =================
-export const fetchEventsApi = async () => {
-  const response = await axiosInstance.get('/admin/announcement/events');
+export const fetchEventsApi = async (params = {}) => {
+  const response = await axiosInstance.get('/admin/announcement/events', { params });
   return response.data;
 };
 
@@ -62,8 +62,8 @@ export const deleteEventApi = async (id) => {
 };
 
 // ================= HOLIDAY API =================
-export const fetchHolidaysApi = async () => {
-  const response = await axiosInstance.get('/admin/announcement/holidays');
+export const fetchHolidaysApi = async (params = {}) => {
+  const response = await axiosInstance.get('/admin/announcement/holidays', { params });
   return response.data;
 };
 

@@ -29,16 +29,32 @@ const formatToYYYYMMDD = (date) => {
 
 const parseDateFromAny = (str) => {
   if (!str) return null;
-  if (str instanceof Date && !isNaN(str.getTime())) return str;
-  // If DD/MM/YYYY
-  if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
-    const [d, m, y] = str.split('/');
-    const date = new Date(Number(y), Number(m) - 1, Number(d));
+  if (str instanceof Date && !isNaN(str.getTime())) {
+    return new Date(str.getFullYear(), str.getMonth(), str.getDate());
+  }
+  const raw = String(str).trim();
+  // Match DD/MM/YYYY
+  const dmyMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmyMatch) {
+    const d = Number(dmyMatch[1]);
+    const m = Number(dmyMatch[2]);
+    const y = Number(dmyMatch[3]);
+    const date = new Date(y, m - 1, d);
     return isNaN(date.getTime()) ? null : date;
   }
-  // If YYYY-MM-DD
-  const date = new Date(str);
-  return isNaN(date.getTime()) ? null : date;
+  // Match YYYY-MM-DD (without timezone shift)
+  const ymdMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (ymdMatch) {
+    const y = Number(ymdMatch[1]);
+    const m = Number(ymdMatch[2]);
+    const d = Number(ymdMatch[3]);
+    const date = new Date(y, m - 1, d);
+    return isNaN(date.getTime()) ? null : date;
+  }
+  // Fallback for ISO strings: use local date parts
+  const parsed = new Date(raw);
+  if (isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 };
 
 const isSameDay = (d1, d2) => {
@@ -55,7 +71,7 @@ const isBetweenDays = (date, start, end) => {
   const t = date.getTime();
   const s = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
   const e = new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime();
-  return t > s && t < e;
+  return (t > s && t < e) || (t > e && t < s);
 };
 
 const DateRangePicker = ({
@@ -70,7 +86,7 @@ const DateRangePicker = ({
   const containerRef = useRef(null);
 
   const initialStart = parseDateFromAny(propStartDate) || new Date();
-  const initialEnd = parseDateFromAny(propEndDate) || new Date();
+  const initialEnd = parseDateFromAny(propEndDate) || initialStart;
 
   const [startDate, setStartDate] = useState(initialStart);
   const [endDate, setEndDate] = useState(initialEnd);
@@ -80,28 +96,53 @@ const DateRangePicker = ({
   const [viewYear, setViewYear] = useState(initialStart.getFullYear());
   const [viewMonth, setViewMonth] = useState(initialStart.getMonth());
 
-  // Close when clicking outside
+  const emitChange = (sDate, eDate) => {
+    const finalStart = sDate || new Date();
+    const finalEnd = eDate || finalStart;
+    if (onChange) {
+      onChange({
+        startDate: finalStart,
+        endDate: finalEnd,
+        startDateFormatted: formatToYYYYMMDD(finalStart),
+        endDateFormatted: formatToYYYYMMDD(finalEnd),
+        rangeFormatted: `${formatToDDMMYYYY(finalStart)} - ${formatToDDMMYYYY(finalEnd)}`,
+      });
+    }
+  };
+
+  // Close when clicking outside and ensure any in-progress single-day selection is committed
   useEffect(() => {
     const handleOutsideClick = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsOpen(false);
+        setIsOpen((wasOpen) => {
+          if (wasOpen && startDate && !endDate) {
+            setEndDate(startDate);
+          }
+          return false;
+        });
       }
     };
     document.addEventListener('mousedown', handleOutsideClick);
     return () => document.removeEventListener('mousedown', handleOutsideClick);
-  }, []);
+  }, [startDate, endDate]);
 
   // Sync with props
   useEffect(() => {
-    if (value && value.includes(' - ')) {
+    if (propStartDate || propEndDate) {
+      const parsedS = parseDateFromAny(propStartDate);
+      const parsedE = parseDateFromAny(propEndDate) || parsedS;
+      if (parsedS) {
+        setStartDate(parsedS);
+        setViewYear(parsedS.getFullYear());
+        setViewMonth(parsedS.getMonth());
+      }
+      if (parsedE) setEndDate(parsedE);
+    } else if (value && value.includes(' - ')) {
       const [s, e] = value.split(' - ');
       const parsedS = parseDateFromAny(s);
       const parsedE = parseDateFromAny(e);
       if (parsedS) setStartDate(parsedS);
       if (parsedE) setEndDate(parsedE);
-    } else if (propStartDate || propEndDate) {
-      if (propStartDate) setStartDate(parseDateFromAny(propStartDate));
-      if (propEndDate) setEndDate(parseDateFromAny(propEndDate));
     }
   }, [value, propStartDate, propEndDate]);
 
@@ -125,17 +166,21 @@ const DateRangePicker = ({
 
   const handleDateClick = (date) => {
     if (!startDate || (startDate && endDate)) {
-      // Start a new selection
+      // Start a new selection (immediately sync single-day range so parent state is never stale)
       setStartDate(date);
       setEndDate(null);
+      emitChange(date, date);
     } else if (startDate && !endDate) {
       // Completing the range
+      let nextStart = startDate;
+      let nextEnd = date;
       if (date < startDate) {
-        setEndDate(startDate);
-        setStartDate(date);
-      } else {
-        setEndDate(date);
+        nextStart = date;
+        nextEnd = startDate;
       }
+      setStartDate(nextStart);
+      setEndDate(nextEnd);
+      emitChange(nextStart, nextEnd);
     }
   };
 
@@ -158,7 +203,7 @@ const DateRangePicker = ({
     } else if (preset === 'Next Week') {
       const day = now.getDay();
       s.setDate(s.getDate() + (7 - day));
-      e.setDate(s.getDate() + 6);
+      e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 6);
     } else if (preset === 'This Month') {
       s = new Date(now.getFullYear(), now.getMonth(), 1);
       e = new Date(now.getFullYear(), now.getMonth() + 1, 0);
@@ -168,30 +213,14 @@ const DateRangePicker = ({
     setEndDate(e);
     setViewYear(s.getFullYear());
     setViewMonth(s.getMonth());
-
-    if (onChange) {
-      onChange({
-        startDate: s,
-        endDate: e,
-        startDateFormatted: formatToYYYYMMDD(s),
-        endDateFormatted: formatToYYYYMMDD(e),
-        rangeFormatted: `${formatToDDMMYYYY(s)} - ${formatToDDMMYYYY(e)}`,
-      });
-    }
+    emitChange(s, e);
   };
 
   const handleApply = () => {
     const finalStart = startDate || new Date();
     const finalEnd = endDate || startDate || new Date();
-    if (onChange) {
-      onChange({
-        startDate: finalStart,
-        endDate: finalEnd,
-        startDateFormatted: formatToYYYYMMDD(finalStart),
-        endDateFormatted: formatToYYYYMMDD(finalEnd),
-        rangeFormatted: `${formatToDDMMYYYY(finalStart)} - ${formatToDDMMYYYY(finalEnd)}`,
-      });
-    }
+    setEndDate(finalEnd);
+    emitChange(finalStart, finalEnd);
     setIsOpen(false);
   };
 
@@ -260,7 +289,7 @@ const DateRangePicker = ({
 
             let bg = 'transparent';
             let color = isCurrentMonth ? '#212529' : '#adb5bd';
-            let borderRadius = '4px';
+            const borderRadius = '4px';
 
             if (isStart || isEnd) {
               bg = '#3D5EE1';
@@ -392,7 +421,7 @@ const DateRangePicker = ({
                   <i className="ti ti-chevron-left"></i>
                 </button>
                 <div className="small text-muted fw-semibold">
-                  Select Event Start &amp; End Dates
+                  Select Start &amp; End Dates
                 </div>
                 <button
                   type="button"
@@ -421,7 +450,7 @@ const DateRangePicker = ({
                     className="btn btn-sm btn-light px-3"
                     onClick={() => setIsOpen(false)}
                   >
-                    Cancel
+                    Close
                   </button>
                   <button
                     type="button"

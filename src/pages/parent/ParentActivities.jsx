@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSelector } from 'react-redux';
 import { Link } from 'react-router-dom';
+import { toast } from 'react-toastify';
 import { fetchChildActivitiesApi } from '../../api/parentChild.api';
 import { resolveImageUrl } from '../../utils/url.util';
 import Avatar from '../../components/common/Avatar';
@@ -10,13 +11,22 @@ const ParentActivities = () => {
   const { activeChild } = useSelector((state) => state.parentAuth);
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activities, setActivities] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    const loadActivities = async () => {
-      if (!activeChild?.id) return;
+  const loadActivities = useCallback(
+    async (isManualRefresh = false) => {
+      if (!activeChild?.id) {
+        setLoading(false);
+        return;
+      }
       try {
-        setLoading(true);
+        if (isManualRefresh) {
+          setRefreshing(true);
+        } else {
+          setLoading(true);
+        }
         const res = await fetchChildActivitiesApi(activeChild.id);
         const list = Array.isArray(res?.data?.data)
           ? res.data.data
@@ -24,16 +34,47 @@ const ParentActivities = () => {
           ? res.data
           : [];
         setActivities(list);
+        if (isManualRefresh) {
+          toast.success('Latest student activities refreshed.');
+        }
       } catch (err) {
         console.error('Failed to load child activities:', err);
-        setActivities([]);
+        if (!isManualRefresh) {
+          setActivities([]);
+        } else {
+          toast.error('Failed to refresh activities.');
+        }
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
-    };
+    },
+    [activeChild?.id]
+  );
 
-    loadActivities();
-  }, [activeChild?.id]);
+  useEffect(() => {
+    loadActivities(false);
+
+    const handleRealtimeActivity = () => {
+      loadActivities(false);
+    };
+    window.addEventListener('growvidya:new_activity', handleRealtimeActivity);
+    return () => {
+      window.removeEventListener('growvidya:new_activity', handleRealtimeActivity);
+    };
+  }, [loadActivities]);
+
+  const filteredActivities = useMemo(() => {
+    if (!searchTerm.trim()) return activities;
+    const q = searchTerm.toLowerCase().trim();
+    return activities.filter((act) => {
+      const desc = String(
+        act.activity_description || act.title || act.description || ''
+      ).toLowerCase();
+      const dt = String(act.date || '').toLowerCase();
+      return desc.includes(q) || dt.includes(q);
+    });
+  }, [activities, searchTerm]);
 
   const fullName =
     activeChild?.full_name ||
@@ -95,6 +136,18 @@ const ParentActivities = () => {
             </div>
 
             <div className="d-flex gap-2">
+              <button
+                type="button"
+                onClick={() => loadActivities(true)}
+                disabled={loading || refreshing}
+                className="btn btn-outline-primary btn-sm fw-semibold shadow-2xs d-flex align-items-center px-3"
+                title="Refresh Latest Activities"
+              >
+                <i
+                  className={`ti ti-refresh me-1 ${refreshing ? 'fa-spin' : ''}`}
+                ></i>
+                {refreshing ? 'Refreshing...' : 'Refresh Latest'}
+              </button>
               <Link
                 to="/parent/dashboard"
                 className="btn btn-outline-secondary btn-sm fw-semibold shadow-2xs d-flex align-items-center px-3"
@@ -112,8 +165,21 @@ const ParentActivities = () => {
         <div className="card-header bg-white py-3 border-bottom d-flex align-items-center justify-content-between flex-wrap gap-2">
           <h5 className="fw-bold text-dark mb-0 fs-16 d-flex align-items-center">
             <i className="ti ti-activity me-2 text-info fs-20"></i>
-            Student Activities &amp; Log ({activities.length} Recorded)
+            Student Activities &amp; Log ({filteredActivities.length} Recorded)
           </h5>
+
+          <div className="d-flex align-items-center gap-2">
+            <div className="position-relative" style={{ minWidth: '220px' }}>
+              <input
+                type="text"
+                className="form-control form-control-sm pe-4 rounded-pill"
+                placeholder="Search activities..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+              <i className="ti ti-search position-absolute end-0 top-50 translate-middle-y me-3 text-muted"></i>
+            </div>
+          </div>
         </div>
         <div className="card-body p-4">
           {loading ? (
@@ -121,16 +187,20 @@ const ParentActivities = () => {
               <div className="spinner-border text-primary me-2" role="status"></div>
               <span className="text-muted fw-semibold">Loading student activities...</span>
             </div>
-          ) : activities.length === 0 ? (
+          ) : filteredActivities.length === 0 ? (
             <NoData
               title="No Activities Recorded"
-              message="No extracurricular or behavioral activities have been logged for this student yet."
+              message={
+                searchTerm
+                  ? 'No activities match your search query.'
+                  : 'No extracurricular or behavioral activities have been logged for this student yet.'
+              }
               imageHeight={120}
               py={4}
             />
           ) : (
             <div className="list-group list-group-flush">
-              {activities.map((act) => (
+              {filteredActivities.map((act) => (
                 <div
                   key={act.id}
                   className="list-group-item p-3 border rounded mb-2 d-flex align-items-center justify-content-between flex-wrap gap-2 bg-white hover-elevate transition-all"

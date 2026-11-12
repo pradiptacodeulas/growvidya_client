@@ -6,7 +6,6 @@ import apiClient from '../../../api/axios.config';
 import adminIdCardApi from '../../../api/adminIdCard.api';
 import Avatar, { resolveImageUrl } from '../../../components/common/Avatar';
 import NoData from '../../../components/common/NoData';
-import schoolLogo from '../../../assets/school-logo.png';
 import maleUser from '../../../assets/male-user.png';
 
 // Helper to format academic year with month duration

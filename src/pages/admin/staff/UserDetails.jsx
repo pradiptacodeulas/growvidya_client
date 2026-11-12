@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { fetchStaffByIdApi } from '../../../api/adminStaff.api';
+import { fetchStaffByIdApi, updateStaffApi } from '../../../api/adminStaff.api';
 import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
 import Avatar from '../../../components/common/Avatar';
 import NoData from '../../../components/common/NoData';
@@ -22,6 +22,58 @@ const UserDetails = () => {
 
   // Sidebar widget sub-tab: 'hostel' or 'transport'
   const [sidebarTab, setSidebarTab] = useState('hostel');
+
+  // Login Details & Change Password Modal State
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [updatingPassword, setUpdatingPassword] = useState(false);
+
+  const openLoginModal = () => {
+    setNewPassword('');
+    setConfirmPassword('');
+    setShowNewPassword(false);
+    setShowConfirmPassword(false);
+    setShowLoginModal(true);
+  };
+
+  const closeLoginModal = () => {
+    if (updatingPassword) return;
+    setShowLoginModal(false);
+    setNewPassword('');
+    setConfirmPassword('');
+  };
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    if (!newPassword.trim()) {
+      toast.error('Please enter a new password');
+      return;
+    }
+    if (newPassword.trim().length < 4) {
+      toast.error('Password must be at least 4 characters');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('Password and Confirm Password do not match');
+      return;
+    }
+    try {
+      setUpdatingPassword(true);
+      await updateStaffApi(user.id, { password: newPassword.trim() });
+      toast.success('Password updated successfully');
+      setShowLoginModal(false);
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err) {
+      console.error('Failed to update password:', err);
+      toast.error(err?.response?.data?.message || 'Failed to update password');
+    } finally {
+      setUpdatingPassword(false);
+    }
+  };
 
   const loadUserDetails = async () => {
     try {
@@ -63,14 +115,7 @@ const UserDetails = () => {
   const getDocumentFileUrl = (doc) => {
     const raw = doc?.file_url || doc?.attachments || doc?.file_name || '';
     if (!raw || raw === '#' || String(raw).trim() === '') return '#';
-    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:')) {
-      return raw;
-    }
-    const cleanPath = String(raw).trim().replace(/^\//, '');
-    if (cleanPath.startsWith('upload/')) {
-      return `${SERVER_BASE_URL}/${cleanPath}`;
-    }
-    return `${SERVER_BASE_URL}/upload/${cleanPath}`;
+    return resolveImageUrl(raw, '#');
   };
 
   const handleDownloadFile = async (fileUrl, fileName) => {
@@ -117,9 +162,6 @@ const UserDetails = () => {
   }
 
   const roleName = Number(user.admin_type) === 1 ? 'Super Admin' : (user.role_name || 'Staff');
-  console.log(roleName);
-  
-  
   const isActive = Number(user.status) === 1;
   const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'N/A';
   const bank = user.bank_details || null;
@@ -164,6 +206,13 @@ const UserDetails = () => {
               >
                 <i className="ti ti-arrow-left me-1"></i>Back to Users
               </Link>
+              <button
+                type="button"
+                onClick={openLoginModal}
+                className="btn btn-light d-flex align-items-center mb-2 me-2"
+              >
+                <i className="ti ti-lock me-2"></i>Login Details
+              </button>
               <Link
                 to={`/admin/users/edit/${encodeParam(user.id)}`}
                 className="btn btn-primary d-flex align-items-center mb-2"
@@ -828,6 +877,168 @@ const UserDetails = () => {
         </div>
         {/* /Right Content Area */}
       </div>
+
+      {/* Login Details & Change Password Modal */}
+      {showLoginModal && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h4 className="modal-title d-flex align-items-center">
+                  <i className="ti ti-lock text-primary me-2"></i>Login Details
+                </h4>
+                <button
+                  type="button"
+                  className="btn-close custom-btn-close"
+                  onClick={closeLoginModal}
+                  disabled={updatingPassword}
+                  aria-label="Close"
+                >
+                  <i className="ti ti-x"></i>
+                </button>
+              </div>
+              <form onSubmit={handleUpdatePassword}>
+                <div className="modal-body">
+                  {/* User Summary Header */}
+                  <div className="d-flex align-items-center p-3 bg-light-300 rounded border mb-3">
+                    <Avatar
+                      src={user.picture}
+                      name={fullName}
+                      size={48}
+                      rounded={false}
+                      className="me-3 flex-shrink-0 border"
+                      style={{ borderRadius: '10px' }}
+                    />
+                    <div className="overflow-hidden">
+                      <h6 className="mb-0.5 fw-bold text-dark text-truncate">{fullName}</h6>
+                      <div className="d-flex align-items-center flex-wrap gap-2">
+                        <span className="badge bg-primary-transparent text-primary fs-11 fw-semibold">
+                          {roleName}
+                        </span>
+                        <span className="text-muted fs-12">ID: U-{user.id}</span>
+                        <span
+                          className={`badge ${
+                            isActive ? 'badge-soft-success' : 'badge-soft-danger'
+                          } fs-11`}
+                        >
+                          {isActive ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Login Credentials Info */}
+                  <div className="table-responsive border rounded mb-4">
+                    <table className="table table-sm mb-0 align-middle">
+                      <thead className="thead-light">
+                        <tr>
+                          <th className="py-2 px-3">Login Email</th>
+                          <th className="py-2 px-3">Registered Phone</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr>
+                          <td className="py-2.5 px-3 fw-semibold text-dark text-break">
+                            {user.email || '—'}
+                          </td>
+                          <td className="py-2.5 px-3 fw-semibold text-dark">
+                            {user.phone || '—'}
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Change Password Section */}
+                  <h6 className="fw-bold fs-14 text-dark mb-3">
+                    <i className="ti ti-key text-primary me-1.5"></i>Change Password
+                  </h6>
+                  <div className="row g-3">
+                    <div className="col-12">
+                      <label className="form-label">
+                        New Password <span className="text-danger">*</span>
+                      </label>
+                      <div className="position-relative">
+                        <input
+                          type={showNewPassword ? 'text' : 'password'}
+                          className="form-control pe-5"
+                          placeholder="Enter new password"
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          autoComplete="new-password"
+                          disabled={updatingPassword}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted text-decoration-none px-3"
+                          onClick={() => setShowNewPassword((prev) => !prev)}
+                          tabIndex={-1}
+                        >
+                          <i className={`ti ${showNewPassword ? 'ti-eye' : 'ti-eye-off'} fs-16`}></i>
+                        </button>
+                      </div>
+                    </div>
+                    <div className="col-12">
+                      <label className="form-label">
+                        Confirm Password <span className="text-danger">*</span>
+                      </label>
+                      <div className="position-relative">
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          className="form-control pe-5"
+                          placeholder="Re-enter new password"
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          autoComplete="new-password"
+                          disabled={updatingPassword}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-link position-absolute top-50 end-0 translate-middle-y text-muted text-decoration-none px-3"
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                          tabIndex={-1}
+                        >
+                          <i className={`ti ${showConfirmPassword ? 'ti-eye' : 'ti-eye-off'} fs-16`}></i>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <button
+                    type="button"
+                    className="btn btn-light me-2"
+                    onClick={closeLoginModal}
+                    disabled={updatingPassword}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary d-flex align-items-center"
+                    disabled={updatingPassword}
+                  >
+                    {updatingPassword ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Updating...
+                      </>
+                    ) : (
+                      <>
+                        <i className="ti ti-device-floppy me-1.5"></i>Update Password
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

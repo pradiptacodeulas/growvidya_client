@@ -1,4 +1,4 @@
-import { getServerBaseUrl } from '../../../utils/url.util';
+import { resolveImageUrl } from '../../../utils/url.util';
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
@@ -17,8 +17,6 @@ import {
 import apiClient from '../../../api/axios.config';
 import { decodeParam } from '../../../utils/idHelper';
 
-const SERVER_BASE_URL = getServerBaseUrl();
-
 const AddUser = () => {
   const { id: rawId } = useParams();
   const id = decodeParam(rawId);
@@ -27,7 +25,6 @@ const AddUser = () => {
   const fileInputRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('PersonalInformationTab');
-  const [completedStepIndex, setCompletedStepIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
@@ -49,7 +46,8 @@ const AddUser = () => {
 
   // Form State
   const activeBranchId = localStorage.getItem('active_branch_id');
-  const defaultBranchId = (activeBranchId && activeBranchId !== 'all' && activeBranchId !== '0') ? activeBranchId : '';
+  const defaultBranchId =
+    activeBranchId && activeBranchId !== 'all' && activeBranchId !== '0' ? activeBranchId : '';
 
   const [pictureFile, setPictureFile] = useState(null);
   const [picturePreview, setPicturePreview] = useState('');
@@ -62,7 +60,6 @@ const AddUser = () => {
     phone: '',
     gender: '',
     blood_group: '',
-    password: '',
     country_id: '',
     state_id: '',
     city: '',
@@ -70,6 +67,13 @@ const AddUser = () => {
     status: '1',
     picture: '',
   });
+
+  const [passwordInfo, setPasswordInfo] = useState({
+    password: '',
+    confirm_password: '',
+  });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [bankInfo, setBankInfo] = useState({
     account_name: '',
@@ -102,11 +106,12 @@ const AddUser = () => {
   const [deleteDocModal, setDeleteDocModal] = useState({ show: false, index: null, docId: null });
 
   const tabList = [
-    { id: 'PersonalInformationTab', title: 'Personal Information', icon: 'ti ti-school' },
-    { id: 'BankAccountTab', title: 'Bank Account Detail', icon: 'ti ti-report-money' },
-    { id: 'TransportInformationTab', title: 'Transport Information', icon: 'ti ti-bookmark-edit' },
-    { id: 'HostelInformationTab', title: 'Hostel Information', icon: 'ti ti-books' },
-    { id: 'DocumentsTab', title: 'Documents', icon: 'ti ti-books' },
+    { id: 'PersonalInformationTab', title: 'Personal Information', icon: 'ti ti-user' },
+    { id: 'BankAccountTab', title: 'Bank Account Detail', icon: 'ti ti-building-bank' },
+    { id: 'TransportInformationTab', title: 'Transport Information', icon: 'ti ti-bus' },
+    { id: 'HostelInformationTab', title: 'Hostel Information', icon: 'ti ti-building-community' },
+    { id: 'DocumentsTab', title: 'Documents', icon: 'ti ti-file-text' },
+    { id: 'PasswordTab', title: 'Password', icon: 'ti ti-key' },
   ];
 
   // Load Master Options
@@ -167,7 +172,9 @@ const AddUser = () => {
           const res = await fetchStaffByIdApi(id);
           if (res?.data?.staff) {
             const u = res.data.staff;
-            const isSuperAdmin = Number(u.admin_type) === 1 || String(u.role_name || '').toLowerCase().trim() === 'super admin';
+            const isSuperAdmin =
+              Number(u.admin_type) === 1 ||
+              String(u.role_name || '').toLowerCase().trim() === 'super admin';
             setIsSuperAdminUser(isSuperAdmin);
 
             setPersonalInfo({
@@ -178,7 +185,6 @@ const AddUser = () => {
               phone: u.phone || '',
               gender: u.gender !== undefined && u.gender !== null ? String(u.gender) : '',
               blood_group: u.blood_group ? String(u.blood_group) : '',
-              password: '',
               country_id: u.country_id ? String(u.country_id) : '',
               state_id: u.state_id ? String(u.state_id) : '',
               city: u.city ? String(u.city) : '',
@@ -188,17 +194,9 @@ const AddUser = () => {
             });
 
             if (u.picture) {
-              const cleanPic = String(u.picture).trim();
-              if (cleanPic.startsWith('http') || cleanPic.startsWith('data:')) {
-                setPicturePreview(cleanPic);
-              } else if (cleanPic.startsWith('/upload/') || cleanPic.startsWith('upload/')) {
-                setPicturePreview(`${SERVER_BASE_URL}/${cleanPic.replace(/^\//, '')}`);
-              } else {
-                setPicturePreview(`${SERVER_BASE_URL}/upload/${cleanPic}`);
-              }
+              setPicturePreview(resolveImageUrl(u.picture, ''));
             }
 
-            // Load states and cities if country/state are set
             if (u.country_id) {
               fetchStaffStatesApi(u.country_id).then((sRes) => {
                 setStates(sRes?.data?.states || []);
@@ -210,7 +208,6 @@ const AddUser = () => {
               });
             }
 
-            // Bank details
             if (u.bank_details) {
               const b = u.bank_details;
               setBankInfo({
@@ -222,7 +219,6 @@ const AddUser = () => {
               });
             }
 
-            // Transport details
             if (u.transport_details) {
               const t = u.transport_details;
               setTransportInfo({
@@ -233,7 +229,6 @@ const AddUser = () => {
               });
             }
 
-            // Hostel details
             if (u.hostel_details) {
               const h = u.hostel_details;
               setHostelInfo({
@@ -247,7 +242,6 @@ const AddUser = () => {
               }
             }
 
-            // Documents
             if (Array.isArray(u.documents)) {
               setDocumentsList(
                 u.documents.map((d) => ({
@@ -272,7 +266,6 @@ const AddUser = () => {
     }
   }, [isEditMode, id]);
 
-  // Country Change handler
   const handleCountryChange = async (e) => {
     const countryId = e.target.value;
     setPersonalInfo((prev) => ({
@@ -294,7 +287,6 @@ const AddUser = () => {
     }
   };
 
-  // State Change handler
   const handleStateChange = async (e) => {
     const stateId = e.target.value;
     setPersonalInfo((prev) => ({
@@ -314,7 +306,6 @@ const AddUser = () => {
     }
   };
 
-  // Hostel Change handler
   const handleHostelChange = async (e) => {
     const hostelId = e.target.value;
     setHostelInfo((prev) => ({
@@ -334,7 +325,6 @@ const AddUser = () => {
     }
   };
 
-  // Image Upload handler
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -366,7 +356,6 @@ const AddUser = () => {
     }
   };
 
-  // Document File Change handler
   const handleDocFileChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -384,7 +373,6 @@ const AddUser = () => {
     setCurrentDocFileName(file.name);
   };
 
-  // Add Document to list
   const handleAddDocument = async () => {
     if (!currentDocType) {
       toast.warning('Please select document type.');
@@ -429,7 +417,6 @@ const AddUser = () => {
     }
   };
 
-  // Delete Document row
   const handleDeleteDocClick = (index, docId) => {
     setDeleteDocModal({ show: true, index, docId });
   };
@@ -444,7 +431,6 @@ const AddUser = () => {
     setDeleteDocModal({ show: false, index: null, docId: null });
   };
 
-  // Live Email & Phone Checks
   const handleEmailBlur = async (email) => {
     const trimmed = String(email || '').trim();
     if (!trimmed || !trimmed.includes('@')) return;
@@ -487,7 +473,6 @@ const AddUser = () => {
     }
   };
 
-  // Form Validation per tab - shows errors ONLY in form fields
   const validateTab = (tabId) => {
     const newErrors = {};
 
@@ -510,23 +495,26 @@ const AddUser = () => {
       } else if (errors.phone) {
         newErrors.phone = errors.phone;
       }
-      if (!isEditMode && !String(personalInfo.password || '').trim()) {
-        newErrors.password = 'Password is required.';
-      }
-      if (!personalInfo.country_id) {
-        newErrors.country_id = 'Country is required.';
-      }
-      if (!personalInfo.state_id) {
-        newErrors.state_id = 'State is required.';
-      }
-      if (!personalInfo.city) {
-        newErrors.city = 'City is required.';
-      }
       if (!isSuperAdminUser && !personalInfo.role) {
         newErrors.role = 'Role is required.';
       }
       if (!personalInfo.status) {
         newErrors.status = 'Status is required.';
+      }
+    }
+
+    if (tabId === 'PasswordTab') {
+      const pwd = String(passwordInfo.password || '').trim();
+      const confirmPwd = String(passwordInfo.confirm_password || '').trim();
+
+      if (!isEditMode && !pwd) {
+        newErrors.password = 'Password is required.';
+      }
+      if (!isEditMode && !confirmPwd) {
+        newErrors.confirm_password = 'Confirm Password is required.';
+      }
+      if ((pwd || confirmPwd) && pwd !== confirmPwd) {
+        newErrors.confirm_password = 'Passwords do not match.';
       }
     }
 
@@ -546,17 +534,15 @@ const AddUser = () => {
     return true;
   };
 
-  // Safe tab switching
   const handleTabClick = (targetTabId) => {
     const currentIndex = tabList.findIndex((t) => t.id === activeTab);
     const targetIndex = tabList.findIndex((t) => t.id === targetTabId);
 
     if (targetIndex === currentIndex) return;
 
-    // If moving forward, require current tab validation
     if (targetIndex > currentIndex) {
       if (!validateTab(activeTab)) {
-        return; // BLOCK moving forward
+        return;
       }
     }
 
@@ -566,14 +552,12 @@ const AddUser = () => {
 
   const handleNext = () => {
     const currentIndex = tabList.findIndex((t) => t.id === activeTab);
-    // Strict validation on current tab
     if (!validateTab(activeTab)) {
-      return; // DO NOT MOVE FORWARD
+      return;
     }
 
     if (currentIndex < tabList.length - 1) {
       const nextTab = tabList[currentIndex + 1].id;
-      setCompletedStepIndex((prev) => Math.max(prev, currentIndex + 1));
       setActiveTab(nextTab);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
@@ -588,7 +572,6 @@ const AddUser = () => {
     }
   };
 
-  // Final Form Submission
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
 
@@ -597,10 +580,14 @@ const AddUser = () => {
       return;
     }
 
+    if (!validateTab('PasswordTab')) {
+      setActiveTab('PasswordTab');
+      return;
+    }
+
     try {
       setSubmitting(true);
 
-      // Pre-submission duplicate check
       try {
         const dupRes = await checkStaffDuplicateApi(
           {
@@ -639,6 +626,8 @@ const AddUser = () => {
         uploadedPicPath = imgRes.data?.data?.file_path || '';
       }
 
+      const trimmedPassword = String(passwordInfo.password || '').trim();
+
       const payload = {
         branch_id: personalInfo.branch_id ? Number(personalInfo.branch_id) : null,
         first_name: String(personalInfo.first_name || '').trim(),
@@ -647,7 +636,7 @@ const AddUser = () => {
         phone: String(personalInfo.phone || '').trim(),
         gender: personalInfo.gender ? Number(personalInfo.gender) : null,
         blood_group: personalInfo.blood_group ? Number(personalInfo.blood_group) : null,
-        password: personalInfo.password ? String(personalInfo.password).trim() : undefined,
+        password: trimmedPassword ? trimmedPassword : undefined,
         country_id: personalInfo.country_id || null,
         state_id: personalInfo.state_id || null,
         city: personalInfo.city || null,
@@ -717,20 +706,28 @@ const AddUser = () => {
       {/* Page Header */}
       <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
         <div className="my-auto mb-2">
-          <h3 className="mb-1">{isEditMode ? 'Edit Users' : 'Add Users'}</h3>
+          <h3 className="page-title mb-1">{isEditMode ? 'Edit User' : 'Add User'}</h3>
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
                 <Link to="/admin/dashboard">Dashboard</Link>
               </li>
               <li className="breadcrumb-item">
-                <Link to="/admin/users">User</Link>
+                <Link to="/admin/users">Users</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
-                {isEditMode ? 'Edit Users' : 'Add Users'}
+                {isEditMode ? 'Edit User' : 'Add User'}
               </li>
             </ol>
           </nav>
+        </div>
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <Link
+            to="/admin/users"
+            className="btn btn-outline-light bg-white text-dark border d-inline-flex align-items-center"
+          >
+            <i className="ti ti-arrow-left me-1"></i>Back to Users
+          </Link>
         </div>
       </div>
       {/* /Page Header */}
@@ -741,7 +738,6 @@ const AddUser = () => {
           <ul className="nav nav-tabs nav-tabs-bottom mb-4" role="tablist">
             {tabList.map((tab) => {
               const isActive = activeTab === tab.id;
-
               return (
                 <li key={tab.id} className="nav-item">
                   <button
@@ -767,430 +763,329 @@ const AddUser = () => {
                 id="PersonalInformationTab"
                 role="tabpanel"
               >
-                <div className="border-bottom">
-                  <h4 className="mb-2">Personal Information</h4>
+                <div className="border-bottom pb-2 mb-3">
+                  <h4 className="mb-0">Personal Information</h4>
                 </div>
                 <div className="card-body pb-1">
                   {/* Profile Picture Uploader */}
-                  <div className="row">
-                    <div className="col-md-12">
-                      <div className="d-flex align-items-center flex-wrap row-gap-3 mb-3 profile-uploader-div">
-                        <div
-                          style={{ width: '200px', height: '200px' }}
-                          className="profile-uploader-img d-flex align-items-center justify-content-center avatar avatar-xxl border border-dashed me-2 flex-shrink-0 text-dark frames bg-light position-relative overflow-hidden"
-                        >
-                          <i
-                            className={`ti ti-photo-plus fs-24 text-muted ${
-                              picturePreview ? 'd-none' : ''
-                            }`}
-                          ></i>
-                          <img
-                            src={picturePreview || ''}
-                            alt=""
-                            className={picturePreview ? '' : 'd-none'}
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  <div className="d-flex align-items-center flex-wrap row-gap-3 mb-4">
+                    <div
+                      style={{ width: '100px', height: '100px' }}
+                      className="d-flex align-items-center justify-content-center border border-dashed rounded-3 me-3 flex-shrink-0 text-dark bg-light position-relative overflow-hidden"
+                    >
+                      {picturePreview ? (
+                        <img
+                          src={picturePreview}
+                          alt="Profile Preview"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      ) : (
+                        <i className="ti ti-photo-plus fs-24 text-muted"></i>
+                      )}
+                    </div>
+                    <div>
+                      <div className="d-flex align-items-center flex-wrap gap-2">
+                        <label className="btn btn-primary btn-sm cursor-pointer d-inline-flex align-items-center mb-0">
+                          <i className="ti ti-upload me-1"></i>Upload Photo
+                          <input
+                            ref={fileInputRef}
+                            type="file"
+                            name="personal-image"
+                            className="d-none"
+                            accept="image/jpeg,image/png,image/jpg"
+                            onChange={handleImageChange}
                           />
-                        </div>
-                        <div className="profile-upload personal-image-upload">
-                          <div className="profile-uploader d-flex align-items-center flex-wrap gap-2">
-                            <label className="btn btn-primary drag-upload-btn mb-3 mb-sm-0 cursor-pointer d-inline-flex align-items-center">
-                              Upload
-                              <input
-                                ref={fileInputRef}
-                                type="file"
-                                name="personal-image"
-                                className="form-control d-none image-sign"
-                                accept="image/jpeg,image/png,image/jpg"
-                                onChange={handleImageChange}
-                              />
-                            </label>
-                            <button
-                              type="button"
-                              onClick={handleRemoveImage}
-                              className="btn btn-primary mb-3 mb-sm-0 ms-1"
-                            >
-                              Remove
-                            </button>
-                          </div>
-                          <p className="fs-12 mt-2 mb-0">Upload image size 4MB, Format JPG, PNG, JPEG</p>
-                        </div>
+                        </label>
+                        {picturePreview && (
+                          <button
+                            type="button"
+                            onClick={handleRemoveImage}
+                            className="btn btn-outline-danger btn-sm"
+                          >
+                            <i className="ti ti-trash me-1"></i>Remove
+                          </button>
+                        )}
                       </div>
+                      <p className="fs-12 text-muted mt-2 mb-0">
+                        Max file size 4MB, Formats: JPG, PNG, JPEG
+                      </p>
                     </div>
                   </div>
 
                   {/* Form Inputs */}
-                  <div className="row row-cols-xxl-5 row-cols-md-6">
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          Campus / Branch
-                        </label>
-                        <select
-                          className="form-select"
-                          name="branch_id"
-                          value={personalInfo.branch_id || ''}
-                          onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, branch_id: e.target.value });
-                          }}
-                        >
-                          <option value="">Default / Main Campus</option>
-                          {branches.map((b) => (
-                            <option key={b.id} value={b.id}>
-                              {b.branch_name} {b.is_main_branch ? '(Main Campus)' : ''}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                  <div className="row g-3">
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">Campus / Branch</label>
+                      <select
+                        className="form-select"
+                        name="branch_id"
+                        value={personalInfo.branch_id || ''}
+                        onChange={(e) =>
+                          setPersonalInfo({ ...personalInfo, branch_id: e.target.value })
+                        }
+                      >
+                        <option value="">Default / Main Campus</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.branch_name} {b.is_main_branch ? '(Main Campus)' : ''}
+                          </option>
+                        ))}
+                      </select>
                     </div>
 
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          First Name <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          className={`form-control ${errors.first_name ? 'is-invalid border-danger' : ''}`}
-                          name="first_name"
-                          id="first_name"
-                          value={personalInfo.first_name}
-                          onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, first_name: e.target.value });
-                            if (errors.first_name) setErrors({ ...errors, first_name: null });
-                          }}
-                          required
-                        />
-                        {errors.first_name && (
-                          <div className="invalid-feedback d-block">{errors.first_name}</div>
-                        )}
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">
+                        First Name <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className={`form-control ${errors.first_name ? 'is-invalid border-danger' : ''}`}
+                        name="first_name"
+                        placeholder="Enter first name"
+                        value={personalInfo.first_name}
+                        onChange={(e) => {
+                          setPersonalInfo({ ...personalInfo, first_name: e.target.value });
+                          if (errors.first_name) setErrors({ ...errors, first_name: null });
+                        }}
+                      />
+                      {errors.first_name && (
+                        <div className="invalid-feedback d-block">{errors.first_name}</div>
+                      )}
                     </div>
 
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          Last Name <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          className={`form-control ${errors.last_name ? 'is-invalid border-danger' : ''}`}
-                          name="last_name"
-                          id="last_name"
-                          value={personalInfo.last_name}
-                          onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, last_name: e.target.value });
-                            if (errors.last_name) setErrors({ ...errors, last_name: null });
-                          }}
-                          required
-                        />
-                        {errors.last_name && (
-                          <div className="invalid-feedback d-block">{errors.last_name}</div>
-                        )}
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">
+                        Last Name <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className={`form-control ${errors.last_name ? 'is-invalid border-danger' : ''}`}
+                        name="last_name"
+                        placeholder="Enter last name"
+                        value={personalInfo.last_name}
+                        onChange={(e) => {
+                          setPersonalInfo({ ...personalInfo, last_name: e.target.value });
+                          if (errors.last_name) setErrors({ ...errors, last_name: null });
+                        }}
+                      />
+                      {errors.last_name && (
+                        <div className="invalid-feedback d-block">{errors.last_name}</div>
+                      )}
                     </div>
 
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          Email <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="email"
-                          className={`form-control ${errors.email ? 'is-invalid border-danger' : ''}`}
-                          name="email"
-                          id="email"
-                          value={personalInfo.email}
-                          onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, email: e.target.value });
-                            if (errors.email) setErrors({ ...errors, email: null });
-                          }}
-                          onBlur={(e) => handleEmailBlur(e.target.value)}
-                          required
-                        />
-                        {errors.email && (
-                          <div className="invalid-feedback d-block">{errors.email}</div>
-                        )}
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">
+                        Email <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="email"
+                        className={`form-control ${errors.email ? 'is-invalid border-danger' : ''}`}
+                        name="email"
+                        placeholder="Enter email address"
+                        value={personalInfo.email}
+                        onChange={(e) => {
+                          setPersonalInfo({ ...personalInfo, email: e.target.value });
+                          if (errors.email) setErrors({ ...errors, email: null });
+                        }}
+                        onBlur={(e) => handleEmailBlur(e.target.value)}
+                      />
+                      {errors.email && (
+                        <div className="invalid-feedback d-block">{errors.email}</div>
+                      )}
                     </div>
 
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          Phone <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="tel"
-                          className={`form-control ${errors.phone ? 'is-invalid border-danger' : ''}`}
-                          name="phone"
-                          id="phone"
-                          value={personalInfo.phone}
-                          onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, phone: e.target.value });
-                            if (errors.phone) setErrors({ ...errors, phone: null });
-                          }}
-                          onBlur={(e) => handlePhoneBlur(e.target.value)}
-                          required
-                        />
-                        {errors.phone && (
-                          <div className="invalid-feedback d-block">{errors.phone}</div>
-                        )}
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">
+                        Phone <span className="text-danger">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        className={`form-control ${errors.phone ? 'is-invalid border-danger' : ''}`}
+                        name="phone"
+                        placeholder="Enter phone number"
+                        value={personalInfo.phone}
+                        onChange={(e) => {
+                          setPersonalInfo({ ...personalInfo, phone: e.target.value });
+                          if (errors.phone) setErrors({ ...errors, phone: null });
+                        }}
+                        onBlur={(e) => handlePhoneBlur(e.target.value)}
+                      />
+                      {errors.phone && (
+                        <div className="invalid-feedback d-block">{errors.phone}</div>
+                      )}
                     </div>
 
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Gender</label>
-                        <select
-                          className="select form-select"
-                          name="gender"
-                          id="gender"
-                          value={personalInfo.gender || ''}
-                          onChange={(e) =>
-                            setPersonalInfo({ ...personalInfo, gender: e.target.value })
-                          }
-                        >
-                          <option value="">Select Gender</option>
-                          {genders.map((g) => (
-                            <option key={g.id} value={String(g.id)}>
-                              {g.gender || g.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Blood Group</label>
-                        <select
-                          className="select form-select"
-                          name="blood_group"
-                          id="blood_group"
-                          value={personalInfo.blood_group}
-                          onChange={(e) =>
-                            setPersonalInfo({ ...personalInfo, blood_group: e.target.value })
-                          }
-                        >
-                          <option value="">Select Blood Group</option>
-                          {bloodGroups.map((bg) => (
-                            <option key={bg.id} value={String(bg.id)}>
-                              {bg.blood_group || bg.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        {isEditMode ? (
-                          <>
-                            <label className="form-label">Password</label>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">
+                        Role <span className="text-danger">*</span>
+                      </label>
+                      {isSuperAdminUser ? (
+                        <div>
+                          <div className="input-group">
+                            <span className="input-group-text bg-light text-muted">
+                              <i className="ti ti-lock"></i>
+                            </span>
                             <input
-                              type="password"
-                              className="form-control"
-                              name="password"
-                              id="password"
-                              placeholder="Leave blank to keep unchanged"
-                              value={personalInfo.password}
-                              onChange={(e) =>
-                                setPersonalInfo({ ...personalInfo, password: e.target.value })
-                              }
+                              type="text"
+                              className="form-control bg-light text-dark fw-medium"
+                              value="Super Admin (System Protected)"
+                              disabled
+                              readOnly
                             />
-                          </>
-                        ) : (
-                          <>
-                            <label className="form-label">
-                              Password <span className="text-danger">*</span>
-                            </label>
-                            <input
-                              type="password"
-                              className={`form-control ${errors.password ? 'is-invalid border-danger' : ''}`}
-                              name="password"
-                              id="password"
-                              value={personalInfo.password}
-                              onChange={(e) => {
-                                setPersonalInfo({ ...personalInfo, password: e.target.value });
-                                if (errors.password) setErrors({ ...errors, password: null });
-                              }}
-                              required
-                            />
-                            {errors.password && (
-                              <div className="invalid-feedback d-block">{errors.password}</div>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <div className="mb-3 d-flex flex-column">
-                        <label className="form-label">
-                          Country <span className="text-danger">*</span>
-                        </label>
-                        <select
-                          className={`select form-select ${errors.country_id ? 'is-invalid border-danger' : ''}`}
-                          name="country_id"
-                          id="country_id"
-                          value={personalInfo.country_id}
-                          onChange={(e) => {
-                            handleCountryChange(e);
-                            if (errors.country_id) setErrors({ ...errors, country_id: null });
-                          }}
-                          required
-                        >
-                          <option value="">Select</option>
-                          {countries.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name || c.country || c.country_name}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.country_id && (
-                          <div className="invalid-feedback d-block">{errors.country_id}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          State <span className="text-danger">*</span>
-                        </label>
-                        <select
-                          className={`select state form-select ${errors.state_id ? 'is-invalid border-danger' : ''}`}
-                          name="state_id"
-                          id="state_id"
-                          value={personalInfo.state_id}
-                          onChange={(e) => {
-                            handleStateChange(e);
-                            if (errors.state_id) setErrors({ ...errors, state_id: null });
-                          }}
-                          disabled={!personalInfo.country_id}
-                          required
-                        >
-                          <option value="">Select</option>
-                          {states.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.state_id && (
-                          <div className="invalid-feedback d-block">{errors.state_id}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          City <span className="text-danger">*</span>
-                        </label>
-                        <select
-                          className={`select city form-select ${errors.city ? 'is-invalid border-danger' : ''}`}
-                          name="city"
-                          id="city"
-                          value={personalInfo.city}
-                          onChange={(e) => {
-                            setPersonalInfo({ ...personalInfo, city: e.target.value });
-                            if (errors.city) setErrors({ ...errors, city: null });
-                          }}
-                          disabled={!personalInfo.state_id}
-                          required
-                        >
-                          <option value="">Select</option>
-                          {cities.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.name}
-                            </option>
-                          ))}
-                        </select>
-                        {errors.city && (
-                          <div className="invalid-feedback d-block">{errors.city}</div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          Role <span className="text-danger">*</span>
-                        </label>
-                        {isSuperAdminUser ? (
-                          <div>
-                            <div className="input-group">
-                              <span className="input-group-text bg-light text-muted">
-                                <i className="ti ti-lock"></i>
-                              </span>
-                              <input
-                                type="text"
-                                className="form-control bg-light text-dark fw-medium"
-                                value="Super Admin (System Protected)"
-                                disabled
-                                readOnly
-                              />
-                            </div>
-                            <small className="text-muted mt-1 d-block">
-                              <i className="ti ti-shield-lock me-1 text-warning"></i>
-                              Super Admin accounts have system-level authorization and their role cannot be changed.
-                            </small>
                           </div>
-                        ) : (
-                          <>
-                            <select
-                              className={`select form-select ${errors.role ? 'is-invalid border-danger' : ''}`}
-                              name="role"
-                              id="role"
-                              value={personalInfo.role || ''}
-                              onChange={(e) => {
-                                setPersonalInfo({ ...personalInfo, role: e.target.value });
-                                if (errors.role) setErrors({ ...errors, role: null });
-                              }}
-                              required
-                            >
-                              <option value="">Select Role</option>
-                              {roles.map((r) => (
-                                <option key={r.id} value={String(r.id)}>
-                                  {r.role_name}
-                                </option>
-                              ))}
-                            </select>
-                            {errors.role && (
-                              <div className="invalid-feedback d-block">{errors.role}</div>
-                            )}
-                          </>
-                        )}
-                      </div>
+                        </div>
+                      ) : (
+                        <>
+                          <select
+                            className={`form-select ${errors.role ? 'is-invalid border-danger' : ''}`}
+                            name="role"
+                            value={personalInfo.role || ''}
+                            onChange={(e) => {
+                              setPersonalInfo({ ...personalInfo, role: e.target.value });
+                              if (errors.role) setErrors({ ...errors, role: null });
+                            }}
+                          >
+                            <option value="">Select Role</option>
+                            {roles.map((r) => (
+                              <option key={r.id} value={String(r.id)}>
+                                {r.role_name}
+                              </option>
+                            ))}
+                          </select>
+                          {errors.role && (
+                            <div className="invalid-feedback d-block">{errors.role}</div>
+                          )}
+                        </>
+                      )}
                     </div>
 
-                    <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">
-                          Status <span className="text-danger">*</span>
-                        </label>
-                        <select
-                          className="select form-select"
-                          name="status"
-                          id="status"
-                          value={personalInfo.status}
-                          onChange={(e) =>
-                            setPersonalInfo({ ...personalInfo, status: e.target.value })
-                          }
-                          required
-                        >
-                          <option value="1">Active</option>
-                          <option value="2">Inactive</option>
-                        </select>
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">Gender</label>
+                      <select
+                        className="form-select"
+                        name="gender"
+                        value={personalInfo.gender || ''}
+                        onChange={(e) =>
+                          setPersonalInfo({ ...personalInfo, gender: e.target.value })
+                        }
+                      >
+                        <option value="">Select Gender</option>
+                        {genders.map((g) => (
+                          <option key={g.id} value={String(g.id)}>
+                            {g.gender || g.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">Blood Group</label>
+                      <select
+                        className="form-select"
+                        name="blood_group"
+                        value={personalInfo.blood_group}
+                        onChange={(e) =>
+                          setPersonalInfo({ ...personalInfo, blood_group: e.target.value })
+                        }
+                      >
+                        <option value="">Select Blood Group</option>
+                        {bloodGroups.map((bg) => (
+                          <option key={bg.id} value={String(bg.id)}>
+                            {bg.blood_group || bg.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">
+                        Status <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="form-select"
+                        name="status"
+                        value={personalInfo.status}
+                        onChange={(e) =>
+                          setPersonalInfo({ ...personalInfo, status: e.target.value })
+                        }
+                      >
+                        <option value="1">Active</option>
+                        <option value="2">Inactive</option>
+                      </select>
+                    </div>
+
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">Country</label>
+                      <select
+                        className="form-select"
+                        name="country_id"
+                        value={personalInfo.country_id}
+                        onChange={handleCountryChange}
+                      >
+                        <option value="">Select Country</option>
+                        {countries.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name || c.country || c.country_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">State</label>
+                      <select
+                        className="form-select"
+                        name="state_id"
+                        value={personalInfo.state_id}
+                        onChange={handleStateChange}
+                        disabled={!personalInfo.country_id}
+                      >
+                        <option value="">Select State</option>
+                        {states.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">City</label>
+                      <select
+                        className="form-select"
+                        name="city"
+                        value={personalInfo.city}
+                        onChange={(e) =>
+                          setPersonalInfo({ ...personalInfo, city: e.target.value })
+                        }
+                        disabled={!personalInfo.state_id}
+                      >
+                        <option value="">Select City</option>
+                        {cities.map((c) => (
+                          <option key={c.id} value={c.id}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
 
                 {/* Tab 1 Navigation */}
-                <div className="nextPage d-flex justify-content-end me-5">
-                  <button type="button" className="btn btn-primary nextPageBtn" onClick={handleNext}>
-                    Next
+                <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      disabled={submitting}
+                      onClick={handleSubmit}
+                    >
+                      <i className="ti ti-device-floppy me-1"></i>
+                      {submitting ? 'Updating...' : 'Update User'}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-primary" onClick={handleNext}>
+                    Next <i className="ti ti-arrow-right ms-1"></i>
                   </button>
                 </div>
               </div>
@@ -1203,92 +1098,93 @@ const AddUser = () => {
                 id="BankAccountTab"
                 role="tabpanel"
               >
-                <div className="border-bottom">
-                  <h4 className="mb-2">Bank Account Detail</h4>
+                <div className="border-bottom pb-2 mb-3">
+                  <h4 className="mb-0">Bank Account Detail</h4>
                 </div>
                 <div className="card-body pb-1">
-                  <div className="row">
-                    <div className="col-xxl-4 col-xl-4 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Bank Account Holder Name</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          name="account_name"
-                          id="account_name"
-                          value={bankInfo.account_name}
-                          onChange={(e) =>
-                            setBankInfo({ ...bankInfo, account_name: e.target.value })
-                          }
-                        />
-                      </div>
+                  <div className="row g-3">
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">Bank Account Holder Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="account_name"
+                        placeholder="Enter account holder name"
+                        value={bankInfo.account_name}
+                        onChange={(e) =>
+                          setBankInfo({ ...bankInfo, account_name: e.target.value })
+                        }
+                      />
                     </div>
-                    <div className="col-xxl-4 col-xl-4 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Bank Account Number</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          name="account_number"
-                          id="account_number"
-                          value={bankInfo.account_number}
-                          onChange={(e) =>
-                            setBankInfo({ ...bankInfo, account_number: e.target.value })
-                          }
-                        />
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">Bank Account Number</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="account_number"
+                        placeholder="Enter account number"
+                        value={bankInfo.account_number}
+                        onChange={(e) =>
+                          setBankInfo({ ...bankInfo, account_number: e.target.value })
+                        }
+                      />
                     </div>
-                    <div className="col-xxl-4 col-xl-4 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Bank Name</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          name="bank_name"
-                          id="bank_name"
-                          value={bankInfo.bank_name}
-                          onChange={(e) => setBankInfo({ ...bankInfo, bank_name: e.target.value })}
-                        />
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">Bank Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="bank_name"
+                        placeholder="Enter bank name"
+                        value={bankInfo.bank_name}
+                        onChange={(e) => setBankInfo({ ...bankInfo, bank_name: e.target.value })}
+                      />
                     </div>
-                    <div className="col-xxl-4 col-xl-4 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">IFSC Code</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          name="ifsc_code"
-                          id="ifsc_code"
-                          value={bankInfo.ifsc_code}
-                          onChange={(e) => setBankInfo({ ...bankInfo, ifsc_code: e.target.value })}
-                        />
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">IFSC Code</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="ifsc_code"
+                        placeholder="Enter IFSC code"
+                        value={bankInfo.ifsc_code}
+                        onChange={(e) => setBankInfo({ ...bankInfo, ifsc_code: e.target.value })}
+                      />
                     </div>
-                    <div className="col-xxl-4 col-xl-4 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Branch Name</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          name="branch_name"
-                          id="branch_name"
-                          value={bankInfo.branch_name}
-                          onChange={(e) =>
-                            setBankInfo({ ...bankInfo, branch_name: e.target.value })
-                          }
-                        />
-                      </div>
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label">Branch Name</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="branch_name"
+                        placeholder="Enter bank branch name"
+                        value={bankInfo.branch_name}
+                        onChange={(e) =>
+                          setBankInfo({ ...bankInfo, branch_name: e.target.value })
+                        }
+                      />
                     </div>
                   </div>
                 </div>
 
                 {/* Tab 2 Navigation */}
-                <div className="nextPage d-flex justify-content-end me-5 gap-4">
-                  <button type="button" className="btn btn-secondary prevPageBtn" onClick={handlePrev}>
-                    Prev
+                <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                  <button type="button" className="btn btn-light border" onClick={handlePrev}>
+                    <i className="ti ti-arrow-left me-1"></i>Prev
                   </button>
-                  <button type="button" className="btn btn-primary nextPageBtn" onClick={handleNext}>
-                    Next
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      disabled={submitting}
+                      onClick={handleSubmit}
+                    >
+                      <i className="ti ti-device-floppy me-1"></i>
+                      {submitting ? 'Updating...' : 'Update User'}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-primary" onClick={handleNext}>
+                    Next <i className="ti ti-arrow-right ms-1"></i>
                   </button>
                 </div>
               </div>
@@ -1301,93 +1197,94 @@ const AddUser = () => {
                 id="TransportInformationTab"
                 role="tabpanel"
               >
-                <div className="border-bottom">
-                  <h4 className="mb-2">Transport Information</h4>
+                <div className="border-bottom pb-2 mb-3">
+                  <h4 className="mb-0">Transport Information</h4>
                 </div>
                 <div className="card-body pb-1">
-                  <div className="row">
+                  <div className="row g-3">
                     <div className="col-lg-3 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Route</label>
-                        <select
-                          className="select form-select"
-                          name="route"
-                          id="route"
-                          value={transportInfo.route}
-                          onChange={(e) =>
-                            setTransportInfo({ ...transportInfo, route: e.target.value })
-                          }
-                        >
-                          <option value="">Select</option>
-                          {routes.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.transport_route}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <label className="form-label">Route</label>
+                      <select
+                        className="form-select"
+                        name="route"
+                        value={transportInfo.route}
+                        onChange={(e) =>
+                          setTransportInfo({ ...transportInfo, route: e.target.value })
+                        }
+                      >
+                        <option value="">Select Route</option>
+                        {routes.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.transport_route}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="col-lg-3 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Vehicle Number</label>
-                        <select
-                          className="select form-select"
-                          name="vehicle_number"
-                          id="vehicle_number"
-                          value={transportInfo.vehicle_number}
-                          onChange={(e) =>
-                            setTransportInfo({ ...transportInfo, vehicle_number: e.target.value })
-                          }
-                        >
-                          <option value="">Select</option>
-                          {vehicles.map((v) => (
-                            <option key={v.id} value={v.id}>
-                              {v.vehicle_number}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <label className="form-label">Vehicle Number</label>
+                      <select
+                        className="form-select"
+                        name="vehicle_number"
+                        value={transportInfo.vehicle_number}
+                        onChange={(e) =>
+                          setTransportInfo({ ...transportInfo, vehicle_number: e.target.value })
+                        }
+                      >
+                        <option value="">Select Vehicle</option>
+                        {vehicles.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.vehicle_number}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="col-lg-3 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Pickup Point</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          name="pickup_point"
-                          id="pickup_point"
-                          value={transportInfo.pickup_point}
-                          onChange={(e) =>
-                            setTransportInfo({ ...transportInfo, pickup_point: e.target.value })
-                          }
-                        />
-                      </div>
+                      <label className="form-label">Pickup Point</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="pickup_point"
+                        placeholder="Enter pickup point"
+                        value={transportInfo.pickup_point}
+                        onChange={(e) =>
+                          setTransportInfo({ ...transportInfo, pickup_point: e.target.value })
+                        }
+                      />
                     </div>
                     <div className="col-lg-3 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Drop Point</label>
-                        <input
-                          type="text"
-                          className="form-control"
-                          name="drop_point"
-                          id="drop_point"
-                          value={transportInfo.drop_point}
-                          onChange={(e) =>
-                            setTransportInfo({ ...transportInfo, drop_point: e.target.value })
-                          }
-                        />
-                      </div>
+                      <label className="form-label">Drop Point</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        name="drop_point"
+                        placeholder="Enter drop point"
+                        value={transportInfo.drop_point}
+                        onChange={(e) =>
+                          setTransportInfo({ ...transportInfo, drop_point: e.target.value })
+                        }
+                      />
                     </div>
                   </div>
                 </div>
 
                 {/* Tab 3 Navigation */}
-                <div className="nextPage d-flex justify-content-end me-5 gap-4">
-                  <button type="button" className="btn btn-secondary prevPageBtn" onClick={handlePrev}>
-                    Prev
+                <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                  <button type="button" className="btn btn-light border" onClick={handlePrev}>
+                    <i className="ti ti-arrow-left me-1"></i>Prev
                   </button>
-                  <button type="button" className="btn btn-primary nextPageBtn" onClick={handleNext}>
-                    Next
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      disabled={submitting}
+                      onClick={handleSubmit}
+                    >
+                      <i className="ti ti-device-floppy me-1"></i>
+                      {submitting ? 'Updating...' : 'Update User'}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-primary" onClick={handleNext}>
+                    Next <i className="ti ti-arrow-right ms-1"></i>
                   </button>
                 </div>
               </div>
@@ -1400,62 +1297,67 @@ const AddUser = () => {
                 id="HostelInformationTab"
                 role="tabpanel"
               >
-                <div className="border-bottom">
-                  <h4 className="mb-2">Hostel Information</h4>
+                <div className="border-bottom pb-2 mb-3">
+                  <h4 className="mb-0">Hostel Information</h4>
                 </div>
                 <div className="card-body pb-1">
-                  <div className="row">
+                  <div className="row g-3">
                     <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Hostel</label>
-                        <select
-                          className="select form-select"
-                          name="hostel_name"
-                          id="hostel_name"
-                          value={hostelInfo.hostel_name}
-                          onChange={handleHostelChange}
-                        >
-                          <option value="">Select</option>
-                          {hostels.map((h) => (
-                            <option key={h.id} value={h.id}>
-                              {h.hostel_name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <label className="form-label">Hostel</label>
+                      <select
+                        className="form-select"
+                        name="hostel_name"
+                        value={hostelInfo.hostel_name}
+                        onChange={handleHostelChange}
+                      >
+                        <option value="">Select Hostel</option>
+                        {hostels.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.hostel_name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                     <div className="col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label">Room No</label>
-                        <select
-                          className="select roomno form-select"
-                          name="room_no"
-                          id="room_no"
-                          value={hostelInfo.room_no}
-                          onChange={(e) =>
-                            setHostelInfo({ ...hostelInfo, room_no: e.target.value })
-                          }
-                          disabled={!hostelInfo.hostel_name}
-                        >
-                          <option value="">Select</option>
-                          {rooms.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.room_number}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
+                      <label className="form-label">Room No</label>
+                      <select
+                        className="form-select"
+                        name="room_no"
+                        value={hostelInfo.room_no}
+                        onChange={(e) =>
+                          setHostelInfo({ ...hostelInfo, room_no: e.target.value })
+                        }
+                        disabled={!hostelInfo.hostel_name}
+                      >
+                        <option value="">Select Room</option>
+                        {rooms.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.room_number}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
 
                 {/* Tab 4 Navigation */}
-                <div className="nextPage d-flex justify-content-end me-5 gap-4">
-                  <button type="button" className="btn btn-secondary prevPageBtn" onClick={handlePrev}>
-                    Prev
+                <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                  <button type="button" className="btn btn-light border" onClick={handlePrev}>
+                    <i className="ti ti-arrow-left me-1"></i>Prev
                   </button>
-                  <button type="button" className="btn btn-primary nextPageBtn" onClick={handleNext}>
-                    Next
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      disabled={submitting}
+                      onClick={handleSubmit}
+                    >
+                      <i className="ti ti-device-floppy me-1"></i>
+                      {submitting ? 'Updating...' : 'Update User'}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-primary" onClick={handleNext}>
+                    Next <i className="ti ti-arrow-right ms-1"></i>
                   </button>
                 </div>
               </div>
@@ -1464,80 +1366,74 @@ const AddUser = () => {
             {/* TAB 5: Documents */}
             {activeTab === 'DocumentsTab' && (
               <div className="tab-pane fade show active card p-3" id="DocumentsTab" role="tabpanel">
-                <div className="border-bottom">
-                  <h4 className="mb-2">Documents</h4>
+                <div className="border-bottom pb-2 mb-3">
+                  <h4 className="mb-0">Documents</h4>
                 </div>
                 <div className="card-body pb-1">
-                  <div className="row">
-                    <div className="col-lg-3 col-md-6">
-                      <div className="mb-3">
-                        <label className="form-label" htmlFor="document_type">
-                          Document Type
+                  <div className="row g-3 align-items-end">
+                    <div className="col-lg-4 col-md-6">
+                      <label className="form-label" htmlFor="document_type">
+                        Document Type
+                      </label>
+                      <select
+                        className="form-select"
+                        name="document_type"
+                        id="document_type"
+                        value={currentDocType}
+                        onChange={(e) => setCurrentDocType(e.target.value)}
+                      >
+                        {documentTypes.map((dt) => (
+                          <option key={dt.id} value={dt.id}>
+                            {dt.document_type_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-lg-5 col-md-6">
+                      <label className="form-label d-block">
+                        Attachment <span className="text-muted fs-12">(PDF only, max 4MB)</span>
+                      </label>
+                      <div className="d-flex align-items-center gap-2">
+                        <label className="btn btn-outline-primary cursor-pointer d-inline-flex align-items-center mb-0 flex-shrink-0">
+                          <i className="ti ti-file-upload me-1"></i>
+                          {currentDocFileName ? 'Change PDF' : 'Choose PDF'}
+                          <input
+                            id="docFileInput"
+                            type="file"
+                            className="d-none"
+                            accept="application/pdf"
+                            onChange={handleDocFileChange}
+                          />
                         </label>
-                        <select
-                          className="select form-select"
-                          name="document_type"
-                          id="document_type"
-                          value={currentDocType}
-                          onChange={(e) => setCurrentDocType(e.target.value)}
-                        >
-                          {documentTypes.map((dt) => (
-                            <option key={dt.id} value={dt.id}>
-                              {dt.document_type_name}
-                            </option>
-                          ))}
-                        </select>
+                        <span className="text-muted fs-13 text-truncate">
+                          {currentDocFileName || 'No file chosen'}
+                        </span>
                       </div>
                     </div>
 
-                    <div className="col-lg-6 col-md-6">
-                      <div id="attachmentDiv">
-                        <div className="mb-2 attachment" id="attachment_1">
-                          <div className="mb-3">
-                            <label className="form-label mb-1">Attachment</label>
-                            <p className="mb-0 text-muted fs-13">Upload file up to 4MB — PDF only</p>
-                          </div>
-                          <div className="d-flex align-items-center flex-wrap">
-                            <label className="btn btn-primary drag-upload-btn mb-2 me-2 cursor-pointer d-inline-flex align-items-center">
-                              <i className="ti ti-file-upload me-1"></i>
-                              {currentDocFileName ? 'Change' : 'Upload'}
-                              <input
-                                id="docFileInput"
-                                type="file"
-                                className="form-control d-none docFile"
-                                name="attachment[]"
-                                accept="application/pdf"
-                                onChange={handleDocFileChange}
-                              />
-                            </label>
-                            <p className="mb-2 fileName text-muted fs-13">
-                              {currentDocFileName || 'No file chosen'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="col-lg-3 col-md-12">
+                      <button
+                        type="button"
+                        className="btn btn-primary d-inline-flex align-items-center"
+                        onClick={handleAddDocument}
+                      >
+                        <i className="ti ti-plus me-1"></i>Add Document
+                      </button>
                     </div>
-                  </div>
-
-                  <div className="border-top pt-3">
-                    <button
-                      type="button"
-                      className="btn btn-primary d-inline-flex align-items-center mb-3"
-                      onClick={handleAddDocument}
-                    >
-                      Add Document
-                    </button>
                   </div>
 
                   {/* Document Table */}
-                  <div id="documentTable">
-                    {documentsList.length > 0 && (
-                      <table className="table table-bordered mb-0" id="docTable">
-                        <thead>
+                  {documentsList.length > 0 && (
+                    <div className="table-responsive mt-4">
+                      <table className="table table-bordered align-middle mb-0">
+                        <thead className="table-light">
                           <tr>
                             <th>Document Type</th>
                             <th>File</th>
-                            <th>Action</th>
+                            <th style={{ width: '90px' }} className="text-center">
+                              Action
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -1545,13 +1441,13 @@ const AddUser = () => {
                             <tr key={doc.id || idx}>
                               <td>{doc.document_type_name}</td>
                               <td>
-                                <i className="ti ti-file-text me-1 text-danger"></i>
+                                <i className="ti ti-file-type-pdf me-1 text-danger"></i>
                                 {doc.file_name || doc.attachments}
                               </td>
-                              <td>
+                              <td className="text-center">
                                 <button
                                   type="button"
-                                  className="btn btn-sm btn-danger deleteDocumentRow"
+                                  className="btn btn-sm btn-outline-danger"
                                   onClick={() => handleDeleteDocClick(idx, doc.id)}
                                 >
                                   <i className="ti ti-trash"></i>
@@ -1561,22 +1457,134 @@ const AddUser = () => {
                           ))}
                         </tbody>
                       </table>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Tab 5 Navigation */}
-                <div className="nextPage d-flex justify-content-end me-5 gap-4">
-                  <button type="button" className="btn btn-secondary prevPageBtn" onClick={handlePrev}>
-                    Prev
+                <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                  <button type="button" className="btn btn-light border" onClick={handlePrev}>
+                    <i className="ti ti-arrow-left me-1"></i>Prev
+                  </button>
+                  {isEditMode && (
+                    <button
+                      type="button"
+                      className="btn btn-success"
+                      disabled={submitting}
+                      onClick={handleSubmit}
+                    >
+                      <i className="ti ti-device-floppy me-1"></i>
+                      {submitting ? 'Updating...' : 'Update User'}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-primary" onClick={handleNext}>
+                    Next <i className="ti ti-arrow-right ms-1"></i>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 6: Password */}
+            {activeTab === 'PasswordTab' && (
+              <div className="tab-pane fade show active card p-3" id="PasswordTab" role="tabpanel">
+                <div className="border-bottom pb-2 mb-3">
+                  <h4 className="mb-0">{isEditMode ? 'Change Password' : 'Set Login Password'}</h4>
+                </div>
+                <div className="card-body pb-1">
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label">
+                        {isEditMode ? 'New Password' : 'Password'}{' '}
+                        {!isEditMode && <span className="text-danger">*</span>}
+                      </label>
+                      <div className="input-group">
+                        <input
+                          type={showPassword ? 'text' : 'password'}
+                          className={`form-control ${errors.password ? 'is-invalid border-danger' : ''}`}
+                          placeholder={
+                            isEditMode
+                              ? 'Leave blank to keep existing password'
+                              : 'Enter login password'
+                          }
+                          value={passwordInfo.password}
+                          onChange={(e) => {
+                            setPasswordInfo({ ...passwordInfo, password: e.target.value });
+                            if (errors.password) setErrors({ ...errors, password: null });
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-light border"
+                          onClick={() => setShowPassword((prev) => !prev)}
+                          tabIndex={-1}
+                        >
+                          <i className={`ti ${showPassword ? 'ti-eye-off' : 'ti-eye'}`}></i>
+                        </button>
+                      </div>
+                      {errors.password && (
+                        <div className="invalid-feedback d-block">{errors.password}</div>
+                      )}
+                      {isEditMode && !errors.password && (
+                        <small className="text-muted fs-12">
+                          Leave blank if you do not want to change the user&apos;s current password.
+                        </small>
+                      )}
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label">
+                        Confirm Password {!isEditMode && <span className="text-danger">*</span>}
+                      </label>
+                      <div className="input-group">
+                        <input
+                          type={showConfirmPassword ? 'text' : 'password'}
+                          className={`form-control ${
+                            errors.confirm_password ? 'is-invalid border-danger' : ''
+                          }`}
+                          placeholder="Confirm password"
+                          value={passwordInfo.confirm_password}
+                          onChange={(e) => {
+                            setPasswordInfo({ ...passwordInfo, confirm_password: e.target.value });
+                            if (errors.confirm_password) {
+                              setErrors({ ...errors, confirm_password: null });
+                            }
+                          }}
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-light border"
+                          onClick={() => setShowConfirmPassword((prev) => !prev)}
+                          tabIndex={-1}
+                        >
+                          <i className={`ti ${showConfirmPassword ? 'ti-eye-off' : 'ti-eye'}`}></i>
+                        </button>
+                      </div>
+                      {errors.confirm_password && (
+                        <div className="invalid-feedback d-block">{errors.confirm_password}</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tab 6 Navigation */}
+                <div className="d-flex justify-content-end gap-2 mt-4 pt-3 border-top">
+                  <button type="button" className="btn btn-light border" onClick={handlePrev}>
+                    <i className="ti ti-arrow-left me-1"></i>Prev
                   </button>
                   <button
                     type="submit"
-                    className="btn btn-success nextPageBtn"
+                    className="btn btn-success"
                     disabled={submitting}
                     onClick={handleSubmit}
                   >
-                    {submitting ? 'Submitting...' : 'Submit'}
+                    <i className="ti ti-device-floppy me-1"></i>
+                    {submitting
+                      ? isEditMode
+                        ? 'Updating...'
+                        : 'Submitting...'
+                      : isEditMode
+                      ? 'Update User'
+                      : 'Create User'}
                   </button>
                 </div>
               </div>
@@ -1593,38 +1601,39 @@ const AddUser = () => {
           style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1060 }}
         >
           <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content">
-              <div className="modal-header">
+            <div className="modal-content border-0 shadow">
+              <div className="modal-header border-0 pb-0">
                 <button
                   type="button"
-                  className="btn-close"
+                  className="btn-close custom-btn-close"
                   onClick={() => setDeleteDocModal({ show: false, index: null, docId: null })}
-                ></button>
+                >
+                  <i className="ti ti-x"></i>
+                </button>
               </div>
-              <div className="modal-body">
-                <div className="text-center px-5 pb-0">
-                  <div className="custom-alert-icon mb-3">
-                    <i className="feather-info flex-shrink-0 fs-32 text-warning"></i>
-                  </div>
-                  <h5>Information?</h5>
-                  <p className="text-muted">This alert is created to just show the related information.</p>
-                  <div className="mt-3">
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-danger m-1"
-                      onClick={() => setDeleteDocModal({ show: false, index: null, docId: null })}
-                    >
-                      Decline
-                    </button>
-                    <button
-                      type="button"
-                      id="documentDeleteBtn"
-                      className="btn btn-sm btn-primary m-1"
-                      onClick={confirmDeleteDoc}
-                    >
-                      Accept
-                    </button>
-                  </div>
+              <div className="modal-body text-center pt-0 pb-4">
+                <div className="text-danger mb-3">
+                  <i className="ti ti-trash-x fs-48"></i>
+                </div>
+                <h4 className="mb-2">Remove Document</h4>
+                <p className="text-muted mb-4">
+                  Are you sure you want to remove this document from the user profile?
+                </p>
+                <div className="d-flex justify-content-center gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light px-4"
+                    onClick={() => setDeleteDocModal({ show: false, index: null, docId: null })}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger px-4"
+                    onClick={confirmDeleteDoc}
+                  >
+                    Remove
+                  </button>
                 </div>
               </div>
             </div>

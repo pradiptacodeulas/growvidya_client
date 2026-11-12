@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { useDispatch } from 'react-redux';
+import { useDispatch } from 'react';
+import { useDispatch as useReduxDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
 import {
   fetchUnreadSummaryThunk,
@@ -19,7 +20,7 @@ import { playNotificationChime } from '../utils/notificationAudio';
  * synchronized via Socket.IO and REST API across all portals.
  */
 export const useMessageNotificationSync = () => {
-  const dispatch = useDispatch();
+  const dispatch = useReduxDispatch();
   const socketRef = useRef(null);
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export const useMessageNotificationSync = () => {
       }
     } catch (_) {}
 
-    // Listen for Web Push notifications forwarded by sw.js (e.g. Support Ticket updates)
+    // Listen for Web Push notifications forwarded by sw.js (e.g. Support Ticket or Leave updates)
     const handleSwPushMessage = (event) => {
       if (event.data?.type === 'GROWVIDYA_PUSH_RECEIVED') {
         const payload = event.data.payload || {};
@@ -49,6 +50,31 @@ export const useMessageNotificationSync = () => {
             ? `${payload.title || 'Support Update'}: ${payload.body}`
             : payload.title || 'New Support Ticket Update';
           toast.info(msg);
+        } else if (category === 'leave') {
+          playNotificationChime();
+          const statusNum = Number(payload.data?.status);
+          const msg = payload.body || payload.title || 'Leave application status updated';
+          if (statusNum === 2) {
+            toast.success(msg);
+          } else if (statusNum === 3) {
+            toast.error(msg);
+          } else {
+            toast.info(msg);
+          }
+          try {
+            window.dispatchEvent(new CustomEvent('growvidya:new_notice', { detail: payload }));
+            window.dispatchEvent(new CustomEvent('growvidya:leave_status_updated', { detail: payload.data }));
+          } catch (_) {}
+        } else if (category === 'activity') {
+          playNotificationChime();
+          const msg = payload.body
+            ? `${payload.title || 'New Student Activity'}: ${payload.body}`
+            : payload.title || 'New student activity recorded';
+          toast.info(msg);
+          try {
+            window.dispatchEvent(new CustomEvent('growvidya:new_activity', { detail: payload.data || payload }));
+            window.dispatchEvent(new CustomEvent('growvidya:new_notice', { detail: payload }));
+          } catch (_) {}
         }
       }
     };
@@ -140,9 +166,58 @@ export const useMessageNotificationSync = () => {
       } catch (_) {}
     };
 
+    // 7. Socket event handler for real-time leave approval/rejection (when push quota allows)
+    const handleLeaveStatusUpdated = (leaveEvent) => {
+      if (!leaveEvent) return;
+      playNotificationChime();
+
+      const statusNum = Number(leaveEvent.status);
+      const msg = leaveEvent.message || leaveEvent.title || 'Your leave application status has been updated.';
+      if (statusNum === 2) {
+        toast.success(msg);
+      } else if (statusNum === 3) {
+        toast.error(msg);
+      } else {
+        toast.info(msg);
+      }
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent('growvidya:leave_status_updated', { detail: leaveEvent })
+        );
+        window.dispatchEvent(
+          new CustomEvent('growvidya:new_notice', { detail: leaveEvent })
+        );
+      } catch (_) {}
+    };
+
+    // 8. Socket event handler for real-time student activity logged (when push quota allows)
+    const handleStudentActivityAdded = (activityEvent) => {
+      if (!activityEvent) return;
+      playNotificationChime();
+
+      const msg =
+        activityEvent.message ||
+        activityEvent.activity_description ||
+        activityEvent.title ||
+        'A new student activity has been recorded.';
+      toast.info(msg);
+
+      try {
+        window.dispatchEvent(
+          new CustomEvent('growvidya:new_activity', { detail: activityEvent })
+        );
+        window.dispatchEvent(
+          new CustomEvent('growvidya:new_notice', { detail: activityEvent })
+        );
+      } catch (_) {}
+    };
+
     socket.on('receive_message', handleReceiveMessage);
     socket.on('unread_count_updated', handleUnreadCountUpdated);
     socket.on('new_notice', handleNewNotice);
+    socket.on('leave_status_updated', handleLeaveStatusUpdated);
+    socket.on('student_activity_added', handleStudentActivityAdded);
     window.addEventListener('chat_messages_marked_read', handleLocalMessagesRead);
 
     return () => {
@@ -152,6 +227,8 @@ export const useMessageNotificationSync = () => {
       socket.off('receive_message', handleReceiveMessage);
       socket.off('unread_count_updated', handleUnreadCountUpdated);
       socket.off('new_notice', handleNewNotice);
+      socket.off('leave_status_updated', handleLeaveStatusUpdated);
+      socket.off('student_activity_added', handleStudentActivityAdded);
       window.removeEventListener('chat_messages_marked_read', handleLocalMessagesRead);
     };
   }, [dispatch]);

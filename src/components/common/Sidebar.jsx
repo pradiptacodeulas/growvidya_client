@@ -4,7 +4,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import { logoutAdmin } from '../../store/slices/authSlice';
 import logoDark from '../../assets/logo_dark.png';
 import logoSmall from '../../assets/logo-small.png';
-import schoolLogoDefault from '../../assets/school-logo.png';
 import { resolveImageUrl } from '../../utils/url.util';
 import usePermission from '../../hooks/usePermission';
 import { useSubscription } from '../../context/SubscriptionContext';
@@ -102,9 +101,7 @@ const Sidebar = ({
   const isBillingAdmin = Boolean(
     isSuperAdmin ||
       Number(user?.adminType || user?.admin_type) === 1 ||
-      ['super admin', 'admin'].includes(
-        String(user?.roleName || user?.role_name || '').toLowerCase()
-      )
+      String(user?.roleName || user?.role_name || '').toLowerCase() === 'super admin'
   );
 
   const handleGoToSubscription = () => {
@@ -200,15 +197,25 @@ const Sidebar = ({
     };
   }, [isSuperAdmin]);
 
-  const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogoDefault;
+  const rawSchoolLogo = resolveImageUrl(user?.schoolLogo || user?.school_logo);
+  const [logoError, setLogoError] = useState(false);
+  useEffect(() => {
+    setLogoError(false);
+  }, [rawSchoolLogo]);
+  const schoolLogoSrc = !logoError ? rawSchoolLogo : '';
   const schoolName = user?.schoolName || user?.school_name || '';
   const currentBranchName = activeBranchName || (!isSuperAdmin ? (user?.branchName || user?.branch_name) : '');
   const displayName = currentBranchName || schoolName;
 
+  const isSchoolSuperAdmin = Boolean(
+    isSuperAdmin ||
+      Number(user?.adminType || user?.admin_type) === 1 ||
+      String(user?.roleName || user?.role_name || '').toLowerCase() === 'super admin'
+  );
   const isMultiBranchSuperAdmin =
     String(user?.registrationType || user?.registration_type || '').toLowerCase() === 'multiple' &&
-    (isSuperAdmin || Number(user?.adminType || user?.admin_type) === 1);
-  const homeDashboardPath = isMultiBranchSuperAdmin ? '/admin/super-admin/dashboard' : '/admin/dashboard';
+    isSchoolSuperAdmin;
+  const homeDashboardPath = isSchoolSuperAdmin ? '/admin/super-admin/dashboard' : '/admin/dashboard';
 
   const getActiveMenuFromPath = (path) => {
     if (path.includes('/admin/students') || path.includes('/admin/parents')) return 'ward';
@@ -332,19 +339,20 @@ const Sidebar = ({
                 title={displayName !== schoolName && schoolName ? `${displayName} (${schoolName})` : displayName}
               >
                 <span
-                  className="avatar avatar-md bg-transparent rounded flex-shrink-0 d-inline-flex align-items-center justify-content-center overflow-hidden"
+                  className={`avatar avatar-md ${schoolLogoSrc ? 'bg-transparent' : 'bg-primary-transparent text-primary fw-bold'} rounded flex-shrink-0 d-inline-flex align-items-center justify-content-center overflow-hidden`}
                   style={{ width: '32px', height: '32px', minWidth: '32px' }}
                 >
-                  <img
-                    src={schoolLogoSrc}
-                    alt={displayName}
-                    className="img-fluid rounded"
-                    style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = schoolLogoDefault;
-                    }}
-                  />
+                  {schoolLogoSrc ? (
+                    <img
+                      src={schoolLogoSrc}
+                      alt={displayName}
+                      className="img-fluid rounded"
+                      style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
+                      onError={() => setLogoError(true)}
+                    />
+                  ) : (
+                    <span>{(displayName || 'S').charAt(0).toUpperCase()}</span>
+                  )}
                 </span>
                 <span className="text-dark ms-2 fw-semibold text-truncate">{displayName}</span>
               </a>
@@ -516,7 +524,7 @@ const Sidebar = ({
                         : {}
                     }
                   >
-                    {isMultiBranchSuperAdmin && (
+                    {isSchoolSuperAdmin && (
                       <li>
                         <NavLink
                           to="/admin/super-admin/dashboard"
@@ -532,7 +540,7 @@ const Sidebar = ({
 
                     <li>
                       <NavLink
-                        to={isMultiBranchSuperAdmin ? '/admin/dashboard?view=branch' : '/admin/dashboard'}
+                        to={isSchoolSuperAdmin ? '/admin/dashboard?view=branch' : '/admin/dashboard'}
                         className={({ isActive: navActive }) =>
                           navActive && !location.pathname.includes('/admin/super-admin') ? 'active' : ''
                         }
@@ -621,11 +629,35 @@ const Sidebar = ({
                         </a>
                         <ul className={`sidebar-submenu-list ${openSubmenu.ward ? 'submenu-open' : ''}`}>
                           {can('ward/students', 'view') && (
-                            <li>
-                              <NavLink to="/admin/students" className={({ isActive: navActive }) => (navActive ? 'active' : '')}>
-                                <span>Students</span>
-                              </NavLink>
-                            </li>
+                            <>
+                              <li>
+                                <NavLink
+                                  to="/admin/students"
+                                  end
+                                  className={({ isActive: navActive }) =>
+                                    navActive ||
+                                    (location.pathname.startsWith('/admin/students') &&
+                                      !location.pathname.startsWith('/admin/students/activities'))
+                                      ? 'active'
+                                      : ''
+                                  }
+                                >
+                                  <span>Students</span>
+                                </NavLink>
+                              </li>
+                              <li>
+                                <NavLink
+                                  to="/admin/students/activities"
+                                  className={({ isActive: navActive }) =>
+                                    navActive || location.pathname.startsWith('/admin/students/activities')
+                                      ? 'active'
+                                      : ''
+                                  }
+                                >
+                                  <span>Student Activities</span>
+                                </NavLink>
+                              </li>
+                            </>
                           )}
                           {can('ward/parents', 'view') && (
                             <li>

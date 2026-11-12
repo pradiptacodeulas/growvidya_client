@@ -20,7 +20,6 @@ import { fetchTeacherSalariesApi } from '../../../api/teacherPayroll.api';
 import { numberToWords } from '../../../utils/numberToWords';
 import { resolveImageUrl } from '../../../utils/url.util';
 import { encodeParam } from '../../../utils/idHelper';
-import schoolLogoDefault from '../../../assets/school-logo.png';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import NoData from '../../../components/common/NoData';
 
@@ -569,10 +568,10 @@ const SalaryManagement = () => {
             currentUser?.school_logo ||
             authUser?.schoolLogo ||
             authUser?.school_logo
-        ) || schoolLogoDefault;
+        ) || '';
       element.innerHTML = `
         <div style="text-align: center; border-bottom: 1px solid #000; margin-bottom: 18px; padding-bottom: 8px;">
-          <img src="${dynamicSchoolLogo}" alt="Logo" style="max-height: 48px; max-width: 180px; margin-bottom: 8px; display: inline-block; object-fit: contain;" />
+          ${dynamicSchoolLogo ? `<img src="${dynamicSchoolLogo}" alt="Logo" style="max-height: 48px; max-width: 180px; margin-bottom: 8px; display: inline-block; object-fit: contain;" />` : ''}
           <h3 style="margin: 4px 0 0; font-size: 18px; font-weight: bold; color: #000;">Salary Slip - ${monthYear}</h3>
         </div>
 

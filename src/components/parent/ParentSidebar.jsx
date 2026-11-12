@@ -1,9 +1,9 @@
+import { useState, useEffect } from 'react';
 import { NavLink, Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { logoutParent } from '../../store/slices/parentAuthSlice';
 import logoDark from '../../assets/logo_dark.png';
 import logoSmall from '../../assets/logo-small.png';
-import schoolLogoDefault from '../../assets/school-logo.png';
 import { resolveImageUrl } from '../../utils/url.util';
 
 const ParentSidebar = ({
@@ -20,7 +20,12 @@ const ParentSidebar = ({
   const { parent } = useSelector((state) => state.parentAuth);
   const messageUnreadCount = useSelector((state) => state.messageNotification?.unreadCount || 0);
 
-  const schoolLogoSrc = resolveImageUrl(parent?.schoolLogo || parent?.school_logo) || schoolLogoDefault;
+  const rawSchoolLogo = resolveImageUrl(parent?.schoolLogo || parent?.school_logo);
+  const [logoError, setLogoError] = useState(false);
+  useEffect(() => {
+    setLogoError(false);
+  }, [rawSchoolLogo]);
+  const schoolLogoSrc = !logoError ? rawSchoolLogo : '';
   const schoolName = parent?.schoolName || parent?.school_name || '';
 
   const handleLogout = (e) => {
@@ -98,19 +103,20 @@ const ParentSidebar = ({
                 className="d-flex align-items-center border bg-white rounded p-2 text-decoration-none"
               >
                 <span
-                  className="avatar avatar-md bg-transparent rounded flex-shrink-0 d-inline-flex align-items-center justify-content-center overflow-hidden"
+                  className={`avatar avatar-md ${schoolLogoSrc ? 'bg-transparent' : 'bg-primary-transparent text-primary fw-bold'} rounded flex-shrink-0 d-inline-flex align-items-center justify-content-center overflow-hidden`}
                   style={{ width: '32px', height: '32px', minWidth: '32px' }}
                 >
-                  <img
-                    src={schoolLogoSrc}
-                    alt={schoolName}
-                    className="img-fluid rounded"
-                    style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = schoolLogoDefault;
-                    }}
-                  />
+                  {schoolLogoSrc ? (
+                    <img
+                      src={schoolLogoSrc}
+                      alt={schoolName}
+                      className="img-fluid rounded"
+                      style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
+                      onError={() => setLogoError(true)}
+                    />
+                  ) : (
+                    <span>{(schoolName || 'S').charAt(0).toUpperCase()}</span>
+                  )}
                 </span>
                 <span className="text-dark ms-2 fw-semibold text-truncate">{schoolName}</span>
               </a>

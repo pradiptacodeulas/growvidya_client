@@ -450,7 +450,7 @@ const ApplyLeave = () => {
                           >
                             <option value="">select</option>
                             <option value="1">Teacher</option>
-                            <option value="2">User</option>
+                            <option value="2">Staff</option>
                           </select>
                         </div>
                       </div>
@@ -480,7 +480,7 @@ const ApplyLeave = () => {
                               })
                               .map((st) => (
                                 <option key={st.id} value={st.id}>
-                                  {st.name} {st.code ? `(${st.code})` : ''}
+                                  {st.name} {st.code ? `(${st.code})` : st.role_name && st.role_name !== 'Teacher' ? `(${st.role_name})` : ''}
                                 </option>
                               ))}
                           </select>

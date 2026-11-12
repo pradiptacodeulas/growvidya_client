@@ -7,24 +7,25 @@ import {
 } from '../../../api/adminLeave.api';
 import DataTable from '../../../components/common/DataTable';
 import TableActionMenu from '../../../components/common/TableActionMenu';
+import { confirmAction } from '../../../utils/confirmModal';
 import { encodeParam } from '../../../utils/idHelper';
 
 const LeaveTypes = () => {
   const [types, setTypes] = useState([]);
   const [loading, setLoading] = useState(false);
   const [selectedIds, setSelectedIds] = useState([]);
-  const [deleteModal, setDeleteModal] = useState({ show: false, id: null, processing: false });
-  const [activeBranch, setActiveBranch] = useState(
-    typeof window !== 'undefined' ? localStorage.getItem('active_branch_id') || 'all' : 'all'
-  );
 
   const loadTypes = useCallback(async (branchOverride) => {
     try {
       setLoading(true);
-      const bId = branchOverride !== undefined ? branchOverride : (localStorage.getItem('active_branch_id') || 'all');
-      const params = (bId && bId !== 'all') ? { branch_id: bId } : {};
+      const bId =
+        branchOverride !== undefined
+          ? branchOverride
+          : localStorage.getItem('active_branch_id') || 'all';
+      const params = bId && bId !== 'all' ? { branch_id: bId } : {};
       const res = await fetchLeaveTypesApi(params);
       setTypes(res?.data?.types || res?.types || []);
+      setSelectedIds([]);
     } catch (err) {
       toast.error('Failed to load leave assigns.');
     } finally {
@@ -34,12 +35,10 @@ const LeaveTypes = () => {
 
   useEffect(() => {
     const currentBranch = localStorage.getItem('active_branch_id') || 'all';
-    setActiveBranch(currentBranch);
     loadTypes(currentBranch);
 
     const handleBranchChange = (e) => {
       const newBranch = e?.detail?.branchId ?? localStorage.getItem('active_branch_id') ?? 'all';
-      setActiveBranch(String(newBranch));
       loadTypes(newBranch);
     };
 
@@ -47,21 +46,47 @@ const LeaveTypes = () => {
     return () => window.removeEventListener('branch_changed', handleBranchChange);
   }, [loadTypes]);
 
-  const handleDelete = async () => {
+  const handleDelete = async (id) => {
+    const confirmed = await confirmAction({
+      title: 'Delete Leave Assignment',
+      message: 'Are you sure you want to delete this leave assignment rule?',
+      confirmText: 'Yes, Delete',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
     try {
-      setDeleteModal((prev) => ({ ...prev, processing: true }));
-      await deleteLeaveTypeApi(deleteModal.id);
-      toast.success('Leave assign deleted successfully!');
-      setDeleteModal({ show: false, id: null, processing: false });
+      await deleteLeaveTypeApi(id);
+      toast.success('Leave assignment deleted successfully!');
       loadTypes();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to delete leave assign.');
-      setDeleteModal((prev) => ({ ...prev, processing: false }));
+      toast.error(err.response?.data?.message || 'Failed to delete leave assignment.');
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    const confirmed = await confirmAction({
+      title: 'Delete Selected Leave Assignments',
+      message: `Are you sure you want to delete ${selectedIds.length} selected leave assignment(s)?`,
+      confirmText: 'Yes, Delete All',
+      variant: 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      await Promise.all(selectedIds.map((id) => deleteLeaveTypeApi(id)));
+      toast.success(`${selectedIds.length} leave assignment(s) deleted successfully.`);
+      setSelectedIds([]);
+      loadTypes();
+    } catch (err) {
+      toast.error('Failed to delete some selected leave assignments.');
+      loadTypes();
     }
   };
 
   const handleSelectAll = () => {
-    if (selectedIds.length === types.length) {
+    if (selectedIds.length === types.length && types.length > 0) {
       setSelectedIds([]);
     } else {
       setSelectedIds(types.map((t) => t.id));
@@ -73,6 +98,7 @@ const LeaveTypes = () => {
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
+
   const columns = useMemo(
     () => [
       {
@@ -84,7 +110,7 @@ const LeaveTypes = () => {
       },
       {
         accessorKey: 'role',
-        header: 'Role',
+        header: 'Category',
         sortable: true,
         width: '110px',
         align: 'center',
@@ -111,17 +137,17 @@ const LeaveTypes = () => {
         accessorKey: 'branch_name',
         header: 'Campus / Branch',
         sortable: true,
-        cell: ({ row }) => (
+        cell: ({ row }) =>
           row.branch_name ? (
             <span className="badge bg-primary-transparent text-primary fs-11">
-              <i className="ti ti-building me-1"></i>{row.branch_name}
+              <i className="ti ti-building me-1"></i>
+              {row.branch_name}
             </span>
           ) : (
             <span className="badge bg-secondary-transparent text-secondary fs-11">
               <i className="ti ti-world me-1"></i>All Campuses
             </span>
-          )
-        ),
+          ),
       },
       {
         accessorKey: 'is_paid',
@@ -129,7 +155,7 @@ const LeaveTypes = () => {
         sortable: true,
         width: '110px',
         align: 'center',
-        cell: ({ value }) => (
+        cell: ({ value }) =>
           Number(value) === 0 ? (
             <span className="badge bg-warning-transparent text-warning border border-warning px-2.5 py-1.5 fw-semibold">
               Non-Paid
@@ -138,8 +164,7 @@ const LeaveTypes = () => {
             <span className="badge bg-success-transparent text-success border border-success px-2.5 py-1.5 fw-semibold">
               Paid
             </span>
-          )
-        ),
+          ),
       },
       {
         accessorKey: 'no_leave',
@@ -148,7 +173,9 @@ const LeaveTypes = () => {
         width: '120px',
         align: 'center',
         cell: ({ value }) => (
-          <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-bold">{value || 0}</span>
+          <span className="badge bg-light text-dark border px-2.5 py-1.5 fw-bold">
+            {value || 0}
+          </span>
         ),
       },
       {
@@ -203,9 +230,9 @@ const LeaveTypes = () => {
               },
               {
                 label: 'Delete',
-                icon: 'ti ti-trash-x',
+                icon: 'ti ti-trash-x text-danger',
                 variant: 'danger',
-                onClick: () => setDeleteModal({ show: true, id: row.id, processing: false }),
+                onClick: () => handleDelete(row.id),
               },
             ]}
           />
@@ -234,6 +261,17 @@ const LeaveTypes = () => {
           </nav>
         </div>
         <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          {selectedIds.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-danger d-inline-flex align-items-center"
+              onClick={handleBulkDelete}
+            >
+              <i className="ti ti-trash me-1"></i>
+              Delete Selected ({selectedIds.length})
+            </button>
+          )}
+
           <button
             type="button"
             className="btn btn-outline-light bg-white btn-icon shadow-2xs"
@@ -243,10 +281,7 @@ const LeaveTypes = () => {
             <i className="ti ti-refresh"></i>
           </button>
 
-          <Link
-            to="/admin/leaves/assign/add"
-            className="btn btn-primary d-flex align-items-center"
-          >
+          <Link to="/admin/leaves/assign/add" className="btn btn-primary d-flex align-items-center">
             <i className="ti ti-square-rounded-plus me-2"></i>Add Leave Assign
           </Link>
         </div>
@@ -255,7 +290,7 @@ const LeaveTypes = () => {
       {/* Main DataTable */}
       <DataTable
         title="Leave Types & Quotas"
-        subtitle="Manage leave categories and annual day allocations per role."
+        subtitle="Manage leave categories and annual day allocations per category."
         columns={columns}
         data={types}
         loading={loading}
@@ -263,65 +298,9 @@ const LeaveTypes = () => {
         selectedIds={selectedIds}
         onSelectRow={handleSelectRow}
         onSelectAll={handleSelectAll}
-        searchPlaceholder="Search by leave name or role..."
+        searchPlaceholder="Search by leave name or category..."
         emptyMessage="No leave assignments found in the system."
       />
-
-      {/* Delete Confirmation Modal */}
-      {deleteModal.show && (
-        <div
-          className="modal fade show d-block"
-          tabIndex="-1"
-          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
-        >
-          <div className="modal-dialog modal-dialog-centered">
-            <div className="modal-content border-0">
-              <div className="modal-header border-0 pb-0">
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setDeleteModal({ show: false, id: null, processing: false })}
-                  disabled={deleteModal.processing}
-                ></button>
-              </div>
-              <div className="modal-body text-center pt-0 pb-4">
-                <div className="text-danger mb-3">
-                  <i className="ti ti-trash-x fs-48"></i>
-                </div>
-                <h4 className="mb-2">Delete Leave Assignment</h4>
-                <p className="text-muted mb-4">
-                  Are you sure you want to delete this leave assign rule? This action cannot be undone.
-                </p>
-                <div className="d-flex justify-content-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-light px-4"
-                    onClick={() => setDeleteModal({ show: false, id: null, processing: false })}
-                    disabled={deleteModal.processing}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-danger px-4"
-                    onClick={handleDelete}
-                    disabled={deleteModal.processing}
-                  >
-                    {deleteModal.processing ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-1" role="status"></span>
-                        Deleting...
-                      </>
-                    ) : (
-                      'Delete'
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

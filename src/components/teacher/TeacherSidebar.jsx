@@ -4,7 +4,6 @@ import { useSelector, useDispatch } from 'react-redux';
 import { logoutTeacher } from '../../store/slices/teacherAuthSlice';
 import logoDark from '../../assets/logo_dark.png';
 import logoSmall from '../../assets/logo-small.png';
-import schoolLogoDefault from '../../assets/school-logo.png';
 import { resolveImageUrl } from '../../utils/url.util';
 import Avatar from '../common/Avatar';
 
@@ -22,8 +21,13 @@ const TeacherSidebar = ({
   const { teacher } = useSelector((state) => state.teacherAuth);
   const messageUnreadCount = useSelector((state) => state.messageNotification?.unreadCount || 0);
 
-  const schoolLogoSrc = resolveImageUrl(teacher?.schoolLogo || teacher?.school_logo || teacher?.school?.school_logo) || schoolLogoDefault;
-  const branchName = teacher?.branchName || teacher?.branch_name || '';
+  const rawSchoolLogo = resolveImageUrl(teacher?.schoolLogo || teacher?.school_logo || teacher?.school?.school_logo);
+  const [logoError, setLogoError] = useState(false);
+  useEffect(() => {
+    setLogoError(false);
+  }, [rawSchoolLogo]);
+  const schoolLogoSrc = !logoError ? rawSchoolLogo : '';
+  const branchName = teacher?.branchName || teacher?.branch_name || teacher?.schoolName || teacher?.school_name || '';
 
   // Helper to determine the active submenu key from current URL path
   const getActiveMenuFromPath = (path) => {
@@ -131,19 +135,20 @@ const TeacherSidebar = ({
                 className="d-flex align-items-center border bg-white rounded p-2 text-decoration-none mb-3"
               >
                 <span
-                  className="avatar avatar-md bg-transparent rounded flex-shrink-0 d-inline-flex align-items-center justify-content-center overflow-hidden"
+                  className={`avatar avatar-md ${schoolLogoSrc ? 'bg-transparent' : 'bg-primary-transparent text-primary fw-bold'} rounded flex-shrink-0 d-inline-flex align-items-center justify-content-center overflow-hidden`}
                   style={{ width: '32px', height: '32px', minWidth: '32px' }}
                 >
-                  <img
-                    src={schoolLogoSrc}
-                    alt={branchName}
-                    className="img-fluid rounded"
-                    style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
-                    onError={(e) => {
-                      e.currentTarget.onerror = null;
-                      e.currentTarget.src = schoolLogoDefault;
-                    }}
-                  />
+                  {schoolLogoSrc ? (
+                    <img
+                      src={schoolLogoSrc}
+                      alt={branchName}
+                      className="img-fluid rounded"
+                      style={{ maxHeight: '32px', maxWidth: '32px', objectFit: 'contain' }}
+                      onError={() => setLogoError(true)}
+                    />
+                  ) : (
+                    <span>{(branchName || 'S').charAt(0).toUpperCase()}</span>
+                  )}
                 </span>
                 <span className="text-dark ms-2 fw-semibold text-truncate">{branchName}</span>
               </a>
@@ -183,11 +188,28 @@ const TeacherSidebar = ({
                     <li>
                       <NavLink
                         to="/teacher/students"
+                        end
                         className={({ isActive }) =>
-                          isActive || location.pathname.includes('/teacher/students') ? 'active' : ''
+                          isActive ||
+                          (location.pathname.includes('/teacher/students') &&
+                            !location.pathname.includes('/teacher/students/activities'))
+                            ? 'active'
+                            : ''
                         }
                       >
                         Students
+                      </NavLink>
+                    </li>
+                    <li>
+                      <NavLink
+                        to="/teacher/students/activities"
+                        className={({ isActive }) =>
+                          isActive || location.pathname.includes('/teacher/students/activities')
+                            ? 'active'
+                            : ''
+                        }
+                      >
+                        Student Activities
                       </NavLink>
                     </li>
                   </ul>

@@ -70,6 +70,20 @@ export const getBorderUrl = (borderPath) => {
   return url;
 };
 
+export const appendAuthToken = (url) => {
+  if (!url || typeof url !== 'string' || url.startsWith('data:') || url.startsWith('blob:')) {
+    return url;
+  }
+  if (!url.includes('token=')) {
+    const token = getAuthToken();
+    if (token) {
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}token=${encodeURIComponent(token)}`;
+    }
+  }
+  return url;
+};
+
 /**
  * Universal helper to resolve image & document attachment URLs
  */
@@ -80,13 +94,12 @@ export const resolveImageUrl = (pic, fallback = null) => {
   const clean = String(pic).trim();
   if (clean.includes('female-user.png')) return femaleUserDefault;
   if (clean.includes('male-user.png')) return maleUserDefault;
-  if (clean.startsWith('data:') || clean.startsWith('http://') || clean.startsWith('https://')) {
-    if (clean.includes('/template/') && !clean.includes('token=')) {
-      const token = getAuthToken();
-      if (token) {
-        const sep = clean.includes('?') ? '&' : '?';
-        return `${clean}${sep}token=${encodeURIComponent(token)}`;
-      }
+  if (clean.startsWith('data:')) {
+    return clean;
+  }
+  if (clean.startsWith('http://') || clean.startsWith('https://')) {
+    if (clean.includes('/upload/') || clean.includes('/template/')) {
+      return appendAuthToken(clean);
     }
     return clean;
   }
@@ -99,13 +112,5 @@ export const resolveImageUrl = (pic, fallback = null) => {
   else if (clean.startsWith('/')) fullUrl = `${baseUrl}${clean}`;
   else fullUrl = `${baseUrl}/upload/${clean}`;
 
-  if (fullUrl.includes('/template/') && !fullUrl.includes('token=')) {
-    const token = getAuthToken();
-    if (token) {
-      const sep = fullUrl.includes('?') ? '&' : '?';
-      return `${fullUrl}${sep}token=${encodeURIComponent(token)}`;
-    }
-  }
-
-  return fullUrl;
+  return appendAuthToken(fullUrl);
 };

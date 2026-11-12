@@ -18,6 +18,7 @@ const ParentMedical = lazy(() => import('../pages/parent/ParentMedical'));
 const ParentDocuments = lazy(() => import('../pages/parent/ParentDocuments'));
 const ParentNotices = lazy(() => import('../pages/parent/ParentNotices'));
 const HolidayList = lazy(() => import('../pages/admin/announcement/HolidayList'));
+const ViewHoliday = lazy(() => import('../pages/admin/announcement/ViewHoliday'));
 const ParentProfile = lazy(() => import('../pages/parent/ParentProfile'));
 const ParentMessages = lazy(() => import('../pages/parent/ParentMessages'));
 
@@ -49,6 +50,8 @@ export const parentRoutes = (
       <Route path="notice-board" element={<ParentNotices />} />
       <Route path="holidays" element={<HolidayList />} />
       <Route path="holiday" element={<HolidayList />} />
+      <Route path="holidays/view/:id" element={<ViewHoliday />} />
+      <Route path="holiday/view/:id" element={<ViewHoliday />} />
       <Route path="profile" element={<ParentProfile />} />
       <Route path="edit-profile" element={<ParentProfile />} />
       <Route path="profile-settings" element={<ParentProfile />} />

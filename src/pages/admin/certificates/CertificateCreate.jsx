@@ -10,7 +10,6 @@ import {
   downloadBulkIssuedCertificatesPdfApi,
 } from '../../../api/adminCertificate.api';
 
-import schoolLogo from '../../../assets/school-logo.png';
 import defaultAvatar from '../../../assets/male-user.png';
 import TableActionMenu from '../../../components/common/TableActionMenu';
 import NoData from '../../../components/common/NoData';
@@ -27,7 +26,7 @@ const getTodayDateStr = () => {
 
 const CertificateCreate = () => {
   const { user } = useSelector((state) => state.auth);
-  const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogo;
+  const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || '';
   const schoolName = user?.school_name || user?.schoolName || '';
   const affiliation = user?.affiliation_board
     ? `(Affiliated to ${user.affiliation_board})`
@@ -1224,9 +1223,7 @@ const CertificateCreate = () => {
                                 <div className="d-flex align-items-center justify-content-center">
                                   <span className="avatar avatar-md me-2">
                                     <img
-                                      src={
-                                        cert.picture ? `/upload/students/${cert.picture}` : defaultAvatar
-                                      }
+                                      src={resolveImageUrl(cert.picture, defaultAvatar)}
                                       className="img-fluid rounded-circle"
                                       alt={fullName}
                                       onError={(e) => {

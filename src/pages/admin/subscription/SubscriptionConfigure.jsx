@@ -484,6 +484,10 @@ const SubscriptionConfigure = () => {
         : basePrice;
 
     if (eligibleBase <= 0) return 0;
+    const minOrder = parseFloat(
+      appliedCoupon.minOrderAmount ?? appliedCoupon.min_order_amount ?? 0
+    );
+    if (minOrder > 0 && eligibleBase < minOrder) return 0;
 
     if (appliedCoupon.discountType === 'percentage') {
       const computed = (eligibleBase * parseFloat(appliedCoupon.discountValue || 0)) / 100;
@@ -495,6 +499,13 @@ const SubscriptionConfigure = () => {
     }
     return Math.min(eligibleBase, parseFloat(appliedCoupon.discountValue || 0));
   }, [appliedCoupon, subtotal, basePrice, storageTotal]);
+
+  useEffect(() => {
+    if (appliedCoupon && discountAmount <= 0) {
+      setAppliedCoupon(null);
+      setCouponError('Coupon removed because cart items no longer meet coupon requirements.');
+    }
+  }, [appliedCoupon, discountAmount]);
 
   // Flat Net Grand Total (Zero GST)
   const grandTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
@@ -529,6 +540,7 @@ const SubscriptionConfigure = () => {
         discountType: data.discountType,
         discountValue: parseFloat(data.discountValue),
         discountAmount: parseFloat(data.discountAmount),
+        minOrderAmount: parseFloat(data.min_order_amount ?? data.minOrderAmount ?? 0),
         maxDiscountAmount: data.max_discount_amount || data.maxDiscountAmount || null,
         applicable_scope: data.applicable_scope || 'plan_only',
       });

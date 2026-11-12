@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { Modal } from 'react-bootstrap';
 import { toast } from 'react-toastify';
@@ -106,7 +106,6 @@ const STATUS_BADGE_MAP = {
   ongoing: {
     label: 'Ongoing',
     className: 'badge-soft-success',
-    icon: 'ti-Flame',
     dotIcon: 'ti-circle-check',
   },
   upcoming: {
@@ -123,6 +122,7 @@ const STATUS_BADGE_MAP = {
 
 const HolidayList = () => {
   const { pathname } = useLocation();
+  const navigate = useNavigate();
   const activeChildId = useSelector((state) => state.parentAuth?.activeChild?.id || null);
 
   const isTeacher = pathname.startsWith('/teacher');
@@ -136,6 +136,17 @@ const HolidayList = () => {
     : isParent
     ? '/parent'
     : '/admin';
+
+  const getViewPath = useCallback(
+    (id) => {
+      const encoded = encodeParam(id);
+      if (isTeacher) return `/teacher/announcements/holidays/view/${encoded}`;
+      if (isStudent) return `/student/holidays/view/${encoded}`;
+      if (isParent) return `/parent/holidays/view/${encoded}`;
+      return `/admin/announcement/holiday/view/${encoded}`;
+    },
+    [isTeacher, isStudent, isParent]
+  );
 
   const calendarRef = useRef(null);
 
@@ -153,9 +164,8 @@ const HolidayList = () => {
   });
 
   const [selectedIds, setSelectedIds] = useState([]);
-  const [deleteModal, setDeleteModal] = useState({ show: false, id: null, name: '' });
+  const [deleteModal, setDeleteModal] = useState({ show: false, id: null, ids: [], name: '' });
   const [deleting, setDeleting] = useState(false);
-  const [viewModal, setViewModal] = useState({ show: false, holiday: null });
 
   const fetchHolidaysFromServer = useCallback(async () => {
     let res;
@@ -228,8 +238,8 @@ const HolidayList = () => {
     const todayYmd = formatYmd(new Date());
 
     return holidays.map((h) => {
-      const startParsed = parseLocalDate(h.from_date);
-      const endParsed = parseLocalDate(h.to_date) || startParsed;
+      const startParsed = parseLocalDate(h.from_ymd || h.from_date);
+      const endParsed = parseLocalDate(h.to_ymd || h.to_date) || startParsed;
 
       const effectiveStart = startParsed;
       const effectiveEnd =
@@ -355,15 +365,22 @@ const HolidayList = () => {
     let nextHoliday = null;
 
     normalizedHolidays.forEach((h) => {
+      if (Number(h.status ?? 1) === 2) return;
       totalDays += h.durationDays;
       if (h.timelineStatus === 'ongoing') {
         ongoingCount += 1;
-        if (!nextHoliday || (nextHoliday.timelineStatus !== 'ongoing' && h.fromYmd < nextHoliday.fromYmd)) {
+        if (
+          !nextHoliday ||
+          (nextHoliday.timelineStatus !== 'ongoing' && h.fromYmd < nextHoliday.fromYmd)
+        ) {
           nextHoliday = h;
         }
       } else if (h.timelineStatus === 'upcoming') {
         upcomingCount += 1;
-        if (!nextHoliday || (nextHoliday.timelineStatus === 'upcoming' && h.fromYmd < nextHoliday.fromYmd)) {
+        if (
+          !nextHoliday ||
+          (nextHoliday.timelineStatus === 'upcoming' && h.fromYmd < nextHoliday.fromYmd)
+        ) {
           nextHoliday = h;
         }
       }
@@ -381,7 +398,7 @@ const HolidayList = () => {
   // FullCalendar events mapped from filtered live holidays (FullCalendar all-day end is exclusive -> +1 day)
   const calendarEvents = useMemo(() => {
     return filteredHolidays
-      .filter((h) => Boolean(h.fromParsed && h.toParsed))
+      .filter((h) => Boolean(h.fromParsed && h.toParsed) && Number(h.status ?? 1) !== 2)
       .map((h) => {
         const eventClass =
           h.timelineStatus === 'ongoing'
@@ -450,16 +467,24 @@ const HolidayList = () => {
     (viewMode === 'table' && (statusFilter !== 'all' || monthFilter !== 'all'));
 
   const handleDeleteConfirm = async () => {
-    if (!deleteModal.id) return;
+    const idsToDelete =
+      Array.isArray(deleteModal.ids) && deleteModal.ids.length > 0
+        ? deleteModal.ids
+        : deleteModal.id
+        ? [deleteModal.id]
+        : [];
+    if (idsToDelete.length === 0) return;
+
     try {
       setDeleting(true);
-      await deleteHolidayApi(deleteModal.id);
-      toast.success('Holiday deleted successfully.');
-      const deletedId = deleteModal.id;
-      setDeleteModal({ show: false, id: null, name: '' });
-      if (viewModal.holiday && Number(viewModal.holiday.id) === Number(deletedId)) {
-        setViewModal({ show: false, holiday: null });
-      }
+      await Promise.all(idsToDelete.map((id) => deleteHolidayApi(id)));
+      toast.success(
+        idsToDelete.length > 1
+          ? `${idsToDelete.length} holidays deleted successfully.`
+          : 'Holiday deleted successfully.'
+      );
+      setDeleteModal({ show: false, id: null, ids: [], name: '' });
+      setSelectedIds([]);
       await handleRefresh();
     } catch {
       toast.error('Failed to delete holiday.');
@@ -469,7 +494,7 @@ const HolidayList = () => {
   };
 
   const handleSelectAll = () => {
-    if (selectedIds.length === filteredHolidays.length) {
+    if (selectedIds.length === filteredHolidays.length && filteredHolidays.length > 0) {
       setSelectedIds([]);
     } else {
       setSelectedIds(filteredHolidays.map((h) => h.id));
@@ -536,24 +561,27 @@ const HolidayList = () => {
         header: 'Holiday Title',
         sortable: true,
         cell: ({ value, row }) => (
-          <span
-            onClick={() => setViewModal({ show: true, holiday: row })}
-            className="fw-semibold text-primary text-decoration-none"
-            style={{ cursor: 'pointer' }}
+          <Link
+            to={getViewPath(row.id)}
+            state={{ holiday: row }}
+            className="fw-bold text-primary text-decoration-none d-inline-block"
+            style={{ fontSize: '14px' }}
           >
             {value || '—'}
-          </span>
+          </Link>
         ),
       },
       {
         accessorKey: 'fromYmd',
         header: 'From Date',
         sortable: true,
-        width: '145px',
-        align: 'center',
+        width: '155px',
         cell: ({ row }) => (
-          <span className="badge bg-light text-dark border px-2.5 py-1.5">
-            <i className="ti ti-calendar me-1 text-primary"></i>
+          <span
+            className="text-dark fw-medium d-inline-flex align-items-center"
+            style={{ fontSize: '13.5px' }}
+          >
+            <i className="ti ti-calendar-event me-1.5 text-primary fs-15"></i>
             {row.fromDisplay}
           </span>
         ),
@@ -562,11 +590,13 @@ const HolidayList = () => {
         accessorKey: 'toYmd',
         header: 'To Date',
         sortable: true,
-        width: '145px',
-        align: 'center',
+        width: '155px',
         cell: ({ row }) => (
-          <span className="badge bg-light text-dark border px-2.5 py-1.5">
-            <i className="ti ti-calendar me-1 text-secondary"></i>
+          <span
+            className="text-dark fw-medium d-inline-flex align-items-center"
+            style={{ fontSize: '13.5px' }}
+          >
+            <i className="ti ti-calendar-check me-1.5 text-secondary fs-15"></i>
             {row.toDisplay}
           </span>
         ),
@@ -617,27 +647,25 @@ const HolidayList = () => {
         accessorKey: 'timelineStatus',
         header: 'Status',
         sortable: true,
-        width: '125px',
+        width: '140px',
         align: 'center',
-        cell: ({ value }) => {
+        cell: ({ value, row }) => {
           const meta = STATUS_BADGE_MAP[value] || STATUS_BADGE_MAP.completed;
+          const isInactive = Number(row.status) === 2;
           return (
-            <span className={meta.className}>
-              <i className={`ti ${meta.dotIcon} fs-12`}></i>
-              <span>{meta.label}</span>
-            </span>
+            <div className="d-inline-flex align-items-center flex-wrap justify-content-center gap-1">
+              <span className={meta.className}>
+                <i className={`ti ${meta.dotIcon} fs-12`}></i>
+                <span>{meta.label}</span>
+              </span>
+              {isInactive && (
+                <span className="badge-soft-warning">
+                  <span>Inactive</span>
+                </span>
+              )}
+            </div>
           );
         },
-      },
-      {
-        accessorKey: 'cleanDetails',
-        header: 'Details',
-        sortable: false,
-        cell: ({ value }) => (
-          <span className="text-muted fs-13">
-            {value ? (value.length > 55 ? `${value.substring(0, 55)}...` : value) : '—'}
-          </span>
-        ),
       },
       {
         key: 'actions',
@@ -649,14 +677,14 @@ const HolidayList = () => {
           <TableActionMenu
             items={[
               {
-                label: 'View',
+                label: 'View Holiday',
                 icon: 'ti ti-eye text-info',
-                onClick: () => setViewModal({ show: true, holiday: row }),
+                to: getViewPath(row.id),
               },
               ...(!isReadOnly
                 ? [
                     {
-                      label: 'Edit',
+                      label: 'Edit Holiday',
                       icon: 'ti ti-edit-circle text-primary',
                       to: `/admin/announcement/holiday/edit/${encodeParam(row.id)}`,
                     },
@@ -668,7 +696,8 @@ const HolidayList = () => {
                         setDeleteModal({
                           show: true,
                           id: row.id,
-                          name: row.title || '',
+                          ids: [row.id],
+                          name: row.title || 'this holiday',
                         }),
                     },
                   ]
@@ -680,7 +709,7 @@ const HolidayList = () => {
     );
 
     return cols;
-  }, [hasBranchData, isReadOnly]);
+  }, [hasBranchData, isReadOnly, getViewPath]);
 
   const renderCalendarEventContent = useCallback((eventInfo) => {
     const holiday = eventInfo.event.extendedProps?.holiday;
@@ -808,6 +837,24 @@ const HolidayList = () => {
             </button>
           </div>
 
+          {!isReadOnly && viewMode === 'table' && selectedIds.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-danger d-inline-flex align-items-center"
+              onClick={() =>
+                setDeleteModal({
+                  show: true,
+                  id: null,
+                  ids: selectedIds,
+                  name: `${selectedIds.length} selected holidays`,
+                })
+              }
+            >
+              <i className="ti ti-trash-x me-1.5"></i>
+              Delete ({selectedIds.length})
+            </button>
+          )}
+
           <button
             type="button"
             className="btn btn-outline-light bg-white btn-icon shadow-2xs"
@@ -918,16 +965,14 @@ const HolidayList = () => {
                   </div>
                   {summaryStats.nextHoliday ? (
                     <>
-                      <div
-                        className="fw-bold text-dark text-truncate fs-14"
+                      <Link
+                        to={getViewPath(summaryStats.nextHoliday.id)}
+                        state={{ holiday: summaryStats.nextHoliday }}
+                        className="fw-bold text-dark text-decoration-none text-truncate d-block fs-14"
                         title={summaryStats.nextHoliday.title}
-                        style={{ cursor: 'pointer' }}
-                        onClick={() =>
-                          setViewModal({ show: true, holiday: summaryStats.nextHoliday })
-                        }
                       >
                         {summaryStats.nextHoliday.title}
-                      </div>
+                      </Link>
                       <div className="text-muted fs-11">{summaryStats.nextHoliday.fromDisplay}</div>
                     </>
                   ) : (
@@ -1010,7 +1055,7 @@ const HolidayList = () => {
                     eventClick={(info) => {
                       const holiday = info.event.extendedProps?.holiday;
                       if (holiday) {
-                        setViewModal({ show: true, holiday });
+                        navigate(getViewPath(holiday.id), { state: { holiday } });
                       }
                     }}
                     datesSet={handleDatesSet}
@@ -1066,7 +1111,7 @@ const HolidayList = () => {
                       return (
                         <div
                           key={h.id}
-                          onClick={() => setViewModal({ show: true, holiday: h })}
+                          onClick={() => navigate(getViewPath(h.id), { state: { holiday: h } })}
                           className="p-3 rounded-3 border bg-white transition-all"
                           style={{
                             cursor: 'pointer',
@@ -1102,14 +1147,6 @@ const HolidayList = () => {
                               </span>
                             )}
                           </div>
-
-                          {h.cleanDetails && (
-                            <p className="text-muted fs-12 mb-0 mt-2">
-                              {h.cleanDetails.length > 80
-                                ? `${h.cleanDetails.substring(0, 80)}...`
-                                : h.cleanDetails}
-                            </p>
-                          )}
                         </div>
                       );
                     })}
@@ -1142,125 +1179,10 @@ const HolidayList = () => {
         />
       )}
 
-      {/* View Holiday Details Modal */}
-      <Modal
-        show={viewModal.show && Boolean(viewModal.holiday)}
-        onHide={() => setViewModal({ show: false, holiday: null })}
-        centered
-      >
-        {viewModal.holiday && (
-          <>
-            <Modal.Header closeButton className="px-4 py-3 border-bottom">
-              <div className="overflow-hidden pe-2">
-                <Modal.Title className="fs-17 fw-bold text-dark text-truncate">
-                  {viewModal.holiday.title}
-                </Modal.Title>
-                <div className="d-flex align-items-center flex-wrap gap-2 mt-1">
-                  {(() => {
-                    const meta =
-                      STATUS_BADGE_MAP[viewModal.holiday.timelineStatus] ||
-                      STATUS_BADGE_MAP.completed;
-                    return (
-                      <span className={meta.className}>
-                        <i className={`ti ${meta.dotIcon} fs-12`}></i>
-                        <span>{meta.label}</span>
-                      </span>
-                    );
-                  })()}
-                  {viewModal.holiday.durationDays > 0 && (
-                    <span className="badge bg-light text-dark border fw-semibold">
-                      {viewModal.holiday.durationDays}{' '}
-                      {viewModal.holiday.durationDays === 1 ? 'Day' : 'Days'}
-                    </span>
-                  )}
-                  {viewModal.holiday.branch_name && (
-                    <span className="badge bg-primary-transparent text-primary">
-                      <i className="ti ti-building me-1"></i>
-                      {viewModal.holiday.branch_name}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </Modal.Header>
-
-            <Modal.Body className="p-4">
-              <div className="row g-3 mb-3">
-                <div className="col-6">
-                  <div className="p-3 rounded-3 bg-light border">
-                    <span className="text-muted fs-12 d-block mb-1">From Date</span>
-                    <strong className="text-dark fs-14">
-                      <i className="ti ti-calendar me-1 text-primary"></i>
-                      {viewModal.holiday.fromDisplay}
-                    </strong>
-                  </div>
-                </div>
-                <div className="col-6">
-                  <div className="p-3 rounded-3 bg-light border">
-                    <span className="text-muted fs-12 d-block mb-1">To Date</span>
-                    <strong className="text-dark fs-14">
-                      <i className="ti ti-calendar me-1 text-secondary"></i>
-                      {viewModal.holiday.toDisplay}
-                    </strong>
-                  </div>
-                </div>
-              </div>
-
-              {viewModal.holiday.details && stripHtml(viewModal.holiday.details) ? (
-                <div>
-                  <span className="text-muted fs-12 fw-semibold d-block mb-2">Details</span>
-                  <div
-                    className="p-3 rounded-3 border text-dark fs-13"
-                    style={{ maxHeight: '240px', overflowY: 'auto' }}
-                    dangerouslySetInnerHTML={{ __html: viewModal.holiday.details }}
-                  />
-                </div>
-              ) : null}
-            </Modal.Body>
-
-            <Modal.Footer className="px-4 py-3 border-top d-flex align-items-center justify-content-between">
-              <div>
-                {!isReadOnly && (
-                  <div className="d-inline-flex align-items-center gap-2">
-                    <Link
-                      to={`/admin/announcement/holiday/edit/${encodeParam(viewModal.holiday.id)}`}
-                      className="btn btn-sm btn-outline-primary d-inline-flex align-items-center"
-                    >
-                      <i className="ti ti-edit me-1"></i>Edit
-                    </Link>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-outline-danger d-inline-flex align-items-center"
-                      onClick={() => {
-                        const target = viewModal.holiday;
-                        setViewModal({ show: false, holiday: null });
-                        setDeleteModal({
-                          show: true,
-                          id: target.id,
-                          name: target.title || '',
-                        });
-                      }}
-                    >
-                      <i className="ti ti-trash-x me-1"></i>Delete
-                    </button>
-                  </div>
-                )}
-              </div>
-              <button
-                type="button"
-                className="btn btn-light px-4"
-                onClick={() => setViewModal({ show: false, holiday: null })}
-              >
-                Close
-              </button>
-            </Modal.Footer>
-          </>
-        )}
-      </Modal>
-
       {/* Delete Confirmation Modal */}
       <Modal
         show={deleteModal.show}
-        onHide={() => !deleting && setDeleteModal({ show: false, id: null, name: '' })}
+        onHide={() => !deleting && setDeleteModal({ show: false, id: null, ids: [], name: '' })}
         centered
         size="sm"
       >
@@ -1279,7 +1201,7 @@ const HolidayList = () => {
               type="button"
               className="btn btn-light px-4"
               disabled={deleting}
-              onClick={() => setDeleteModal({ show: false, id: null, name: '' })}
+              onClick={() => setDeleteModal({ show: false, id: null, ids: [], name: '' })}
             >
               Cancel
             </button>

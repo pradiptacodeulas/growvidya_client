@@ -4,7 +4,7 @@ import { useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
 import { getAdminFullProfileApi } from '../../../api/adminAuth.api';
 import { updateUserState } from '../../../store/slices/authSlice';
-import { getServerBaseUrl } from '../../../utils/url.util';
+import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
 import Avatar from '../../../components/common/Avatar';
 import NoData from '../../../components/common/NoData';
 
@@ -62,14 +62,7 @@ const AdminProfile = () => {
   const getDocumentFileUrl = (doc) => {
     const raw = doc?.file_url || doc?.attachments || doc?.file_name || '';
     if (!raw || raw === '#' || String(raw).trim() === '') return '#';
-    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:')) {
-      return raw;
-    }
-    const cleanPath = String(raw).trim().replace(/^\//, '');
-    if (cleanPath.startsWith('upload/')) {
-      return `${SERVER_BASE_URL}/${cleanPath}`;
-    }
-    return `${SERVER_BASE_URL}/upload/${cleanPath}`;
+    return resolveImageUrl(raw, '#');
   };
 
   const handleDownloadFile = async (fileUrl, fileName) => {

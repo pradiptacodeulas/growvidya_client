@@ -10,6 +10,7 @@ import { useSubscription } from '../../context/SubscriptionContext';
 import NoData from './NoData';
 import NavbarNotificationDropdown from './NavbarNotificationDropdown';
 import Avatar from './Avatar';
+import logoDark from '../../assets/logo_dark.png';
 
 const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
@@ -19,7 +20,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const { can, isSuperAdmin } = usePermission();
   const { subscription, isTrial, isExpired, isPending, isActivePaid, isActiveTrial, daysLeft } = useSubscription();
   const [darkMode, setDarkMode] = useState(false);
-  const [currentYearText, setCurrentYearText] = useState('2026');
+  const [currentYearText, setCurrentYearText] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [hasUnread, setHasUnread] = useState(true);
@@ -46,20 +47,38 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
     const loadNotices = async () => {
       try {
         const res = await fetchNoticesApi();
-        const list = Array.isArray(res?.data)
+        const rawList = Array.isArray(res?.data)
           ? res.data
           : Array.isArray(res?.notices)
           ? res.notices
           : Array.isArray(res)
           ? res
           : [];
-        setNotifications(list);
+        const currentUserId = Number(user?.id || user?.userId || 0);
+        const filtered = rawList.filter((n) => {
+          if (Number(n.status ?? 1) !== 1) return false;
+          if (n.target_type === 'specific_users' && Array.isArray(n.target_user_ids) && n.target_user_ids.length > 0) {
+            if (!currentUserId) return isSuperAdmin;
+            return n.target_user_ids.some(
+              (u) =>
+                Number(u?.id ?? u) === currentUserId &&
+                (!u?.role || ['staff', 'admin', 'user'].includes(String(u.role).toLowerCase()))
+            );
+          }
+          return true;
+        });
+        setNotifications(filtered);
       } catch (err) {
         console.error('Failed to load notices for admin navbar:', err);
       }
     };
     loadNotices();
-  }, [isExpired]);
+
+    window.addEventListener('growvidya:new_notice', loadNotices);
+    return () => {
+      window.removeEventListener('growvidya:new_notice', loadNotices);
+    };
+  }, [isExpired, user?.id, user?.userId, isSuperAdmin]);
 
   useEffect(() => {
     if (isExpired) return;
@@ -208,6 +227,18 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
       {/* Header User Navigation Controls */}
       <div className="header-user">
         <div className="nav user-menu">
+          {/* Mobile Logo (visible < 992px when sidebar is closed) */}
+          <Link
+            to={isSuperAdmin ? '/admin/super-admin/dashboard' : '/admin/dashboard'}
+            className="d-flex d-lg-none align-items-center text-decoration-none me-2"
+          >
+            <img
+              src={logoDark}
+              alt="Growvidya Logo"
+              style={{ height: '30px', width: 'auto', maxWidth: '135px', objectFit: 'contain' }}
+            />
+          </Link>
+
           {/* Left Spacer */}
           <div className="me-auto"></div>
 
@@ -215,7 +246,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             {/* Pending Subscription Request (Awaiting Super Admin Approval) */}
             {isPending && (
               <div
-                className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none"
+                className="me-2 d-none d-md-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none"
                 title={subscription?.end_date ? `Valid until ${subscription.end_date} (${daysLeft} days validity once approved)` : 'Plan approval is pending Super Admin review'}
               >
                 <i className="ti ti-clock-hour-4 text-warning-emphasis me-1 fs-14"></i>
@@ -248,7 +279,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   }
                   e.stopPropagation();
                 }}
-                className="me-2 d-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none text-decoration-none"
+                className="me-2 d-none d-md-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none text-decoration-none"
               >
                 <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
                 <span className="d-none d-sm-inline">{subscription?.plan_name ? `${subscription.plan_name}: ` : ''}</span>
@@ -271,7 +302,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   }
                 }}
                 style={{ cursor: 'pointer' }}
-                className="me-2 d-flex align-items-center bg-danger-subtle border border-danger rounded px-3 py-1 text-danger fw-semibold fs-12 shadow-none"
+                className="me-2 d-none d-md-flex align-items-center bg-danger-subtle border border-danger rounded px-3 py-1 text-danger fw-semibold fs-12 shadow-none"
               >
                 <i className="ti ti-alert-triangle me-1 fs-14"></i>
                 <span>
@@ -312,14 +343,14 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                   daysLeft <= 30
                     ? (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
-                          e.preventDefault();
-                          handleNavigateToSubscription(e);
+                           e.preventDefault();
+                           handleNavigateToSubscription(e);
                         }
                       }
                     : undefined
                 }
                 style={daysLeft <= 30 ? { cursor: 'pointer' } : undefined}
-                className={`me-2 d-flex align-items-center rounded px-3 py-1 fw-semibold fs-12 shadow-none border ${
+                className={`me-2 d-none d-md-flex align-items-center rounded px-3 py-1 fw-semibold fs-12 shadow-none border ${
                   daysLeft <= 15
                     ? 'bg-danger-subtle border-danger text-danger'
                     : daysLeft <= 30
@@ -384,8 +415,11 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
               </div>
             )}
 
-            {/* Branch Switcher Dropdown (Super Admin only) */}
-            {!isExpired && isSuperAdmin && branches.length > 0 && (
+            {/* Branch Switcher Dropdown (Multi-Branch Super Admin only) */}
+            {!isExpired &&
+              isSuperAdmin &&
+              String(user?.registrationType || user?.registration_type || '').toLowerCase() === 'multiple' &&
+              branches.length > 0 && (
               <div className="dropdown me-2">
                 <button
                   className="btn btn-sm btn-white border d-flex align-items-center gap-1 px-3 py-1 text-dark fw-medium fs-13 shadow-none dropdown-toggle"
@@ -406,7 +440,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                     <button
                       type="button"
                       className={`dropdown-item rounded py-1.5 fs-12 d-flex align-items-center justify-content-between ${
-                        !activeBranchId ? 'active fw-bold' : ''
+                        !activeBranchId || activeBranchId === 'all' ? 'active fw-bold' : ''
                       }`}
                       onClick={() => handleSelectBranch(null)}
                     >
@@ -414,7 +448,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                         <i className="ti ti-world fs-14 text-muted"></i>
                         <span>All Branches</span>
                       </span>
-                      {!activeBranchId && <i className="ti ti-check text-primary"></i>}
+                      {(!activeBranchId || activeBranchId === 'all') && <i className="ti ti-check text-primary"></i>}
                     </button>
                   </li>
                   <li><hr className="dropdown-divider my-1" /></li>
@@ -455,7 +489,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             )}
 
             {/* Current Academic Year Badge (No Dropdown) */}
-            {!isExpired && (
+            {!isExpired && currentYearText && (
               <div className="me-2 d-none d-sm-flex align-items-center bg-white border rounded px-2 py-1 text-dark fw-medium fs-13 shadow-none">
                 <i className="ti ti-calendar-due me-1 text-primary"></i>
                 <span>Academic Year : <strong className="text-primary">{currentYearText}</strong></span>
@@ -464,7 +498,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
 
             {/* Add New Quick Button */}
             {!isExpired && (isSuperAdmin || can('ward/students', 'add') || can('staff/teachers', 'add')) && (
-              <div className="pe-1">
+              <div className="pe-1 d-none d-md-block">
                 <div className="dropdown">
                   <a href="#" className="btn btn-outline-light bg-white btn-icon me-1" data-bs-toggle="dropdown" aria-expanded="false" title="Add New">
                     <i className="ti ti-square-rounded-plus"></i>

@@ -205,20 +205,18 @@ const StudentDetails = () => {
   const getDocumentFileUrl = (doc) => {
     const raw = doc?.file_url || doc?.attachments || '';
     if (!raw || raw === '#' || String(raw).trim() === '') return '#';
-    if (raw.startsWith('http://') || raw.startsWith('https://') || raw.startsWith('data:') || raw.startsWith('blob:')) {
-      return raw;
-    }
+    if (raw.startsWith('blob:')) return raw;
     const cleanPath = String(raw).trim().replace(/^\//, '');
-    if (cleanPath.startsWith('upload/')) {
-      return `${SERVER_BASE_URL}/${cleanPath}`;
+    if (
+      cleanPath.startsWith('http://') ||
+      cleanPath.startsWith('https://') ||
+      cleanPath.startsWith('data:') ||
+      cleanPath.startsWith('upload/') ||
+      cleanPath.startsWith('student/')
+    ) {
+      return resolveImageUrl(cleanPath, '#');
     }
-    if (cleanPath.startsWith('student/attachment/')) {
-      return `${SERVER_BASE_URL}/upload/${cleanPath}`;
-    }
-    if (cleanPath.startsWith('student/')) {
-      return `${SERVER_BASE_URL}/upload/${cleanPath}`;
-    }
-    return `${SERVER_BASE_URL}/upload/student/attachment/${cleanPath}`;
+    return resolveImageUrl(`upload/student/attachment/${cleanPath}`, '#');
   };
 
   const handleDownloadFile = async (fileUrl, fileName) => {

@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useSelector } from 'react-redux';
+import { toast } from 'react-toastify';
 import { fetchStudentActivitiesApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
@@ -10,23 +11,43 @@ const StudentActivities = () => {
 
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadActivities = async () => {
+  const loadActivities = useCallback(async (isManualRefresh = false) => {
     try {
-      setLoading(true);
+      if (isManualRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
       const res = await fetchStudentActivitiesApi();
       const data = res?.data?.data || res?.data || [];
       setActivities(Array.isArray(data) ? data : []);
+      if (isManualRefresh) {
+        toast.success('Latest activities refreshed.');
+      }
     } catch (err) {
       console.error('Failed to load student activities:', err);
+      if (isManualRefresh) {
+        toast.error('Failed to refresh activities.');
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
-    loadActivities();
-  }, []);
+    loadActivities(false);
+
+    const handleRealtimeActivity = () => {
+      loadActivities(false);
+    };
+    window.addEventListener('growvidya:new_activity', handleRealtimeActivity);
+    return () => {
+      window.removeEventListener('growvidya:new_activity', handleRealtimeActivity);
+    };
+  }, [loadActivities]);
 
   const student = authStudent;
   const studentPhoto = resolveImageUrl(student?.picture) || maleUserDefault;
@@ -34,6 +55,17 @@ const StudentActivities = () => {
     student?.full_name ||
     `${student?.first_name || ''} ${student?.last_name || ''}`.trim() ||
     'Student';
+
+  const formatDate = (dateVal) => {
+    if (!dateVal) return '-';
+    try {
+      const d = new Date(dateVal);
+      if (isNaN(d.getTime())) return dateVal;
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    } catch {
+      return dateVal;
+    }
+  };
 
   return (
     <div className="content content-two">
@@ -58,18 +90,33 @@ const StudentActivities = () => {
               </div>
               <div>
                 <span className="badge bg-primary-subtle text-primary mb-1 fs-12 border">
-                  Co-Curricular & Sports
+                  Co-Curricular &amp; Sports
                 </span>
                 <h3 className="card-title mb-1 fw-bold text-dark">{studentName}</h3>
                 <p className="card-text text-muted fs-13 mb-0">
-                  Class: <strong className="text-dark">{student?.class_name || 'Class'} {student?.section_name ? `(${student.section_name})` : ''}</strong> | Activities, Clubs & Achievements
+                  Class:{' '}
+                  <strong className="text-dark">
+                    {student?.class_name || 'Class'}{' '}
+                    {student?.section_name ? `(${student.section_name})` : ''}
+                  </strong>{' '}
+                  | Activities, Clubs &amp; Achievements
                 </p>
               </div>
             </div>
-            <div className="d-flex align-items-center gap-2">
+            <div className="d-flex align-items-center gap-2 flex-wrap">
               <span className="badge bg-success-subtle text-success fs-12 px-3 py-2 border">
-                <i className="ti ti-trophy me-1"></i>{activities.length} Recorded Activities
+                <i className="ti ti-trophy me-1"></i>
+                {activities.length} Recorded Activities
               </span>
+              <button
+                type="button"
+                onClick={() => loadActivities(true)}
+                disabled={loading || refreshing}
+                className="btn btn-outline-primary btn-sm fw-semibold d-flex align-items-center px-3"
+              >
+                <i className={`ti ti-refresh me-1 ${refreshing ? 'fa-spin' : ''}`}></i>
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
             </div>
           </div>
         </div>
@@ -96,18 +143,25 @@ const StudentActivities = () => {
               <div className="card border shadow-sm rounded-3 h-100 p-4 bg-white">
                 <div className="d-flex align-items-center justify-content-between mb-2">
                   <span className="badge bg-primary-subtle text-primary fs-11">
-                    {act.activity_name || act.name || 'Activity'}
+                    <i className="ti ti-star me-1"></i>
+                    {act.activity_name || act.name || 'Student Activity'}
                   </span>
                   <small className="text-muted fs-11">
-                    {act.date || act.activity_date || (act.created_at ? new Date(act.created_at).toLocaleDateString() : '')}
+                    <i className="ti ti-calendar-event me-1"></i>
+                    {formatDate(act.date || act.activity_date || act.created_at)}
                   </small>
                 </div>
-                <h6 className="fw-bold text-dark fs-14 mb-2">
-                  {act.title || act.activity_name || 'Extracurricular Participation'}
+                <h6 className="fw-bold text-dark fs-14 mb-1">
+                  {act.activity_description ||
+                    act.title ||
+                    act.activity_name ||
+                    'Extracurricular Participation'}
                 </h6>
-                <p className="text-muted fs-12 mb-0">
-                  {act.description || act.remarks || 'Recognized institutional participation in student development activities.'}
-                </p>
+                {(act.description || act.remarks) && (
+                  <p className="text-muted fs-12 mb-0">
+                    {act.description || act.remarks}
+                  </p>
+                )}
               </div>
             </div>
           ))}

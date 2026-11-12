@@ -2,9 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { logoutParent, switchStudent } from '../../store/slices/parentAuthSlice';
-import { fetchParentAcademicYearsApi, fetchParentNoticesApi } from '../../api/parentChild.api';
+import {
+  fetchParentAcademicYearsApi,
+  fetchParentNoticesApi,
+  fetchChildActivitiesApi,
+} from '../../api/parentChild.api';
 import NavbarNotificationDropdown from '../common/NavbarNotificationDropdown';
 import Avatar from '../common/Avatar';
+import logoDark from '../../assets/logo_dark.png';
 
 const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
@@ -60,26 +65,55 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   }, []);
 
   useEffect(() => {
-    const loadNotices = async () => {
+    const loadNoticesAndActivities = async () => {
       try {
-        const res = await fetchParentNoticesApi(activeChild?.id);
-        const list = Array.isArray(res?.data?.data)
-          ? res.data.data
-          : Array.isArray(res?.data?.notices)
-          ? res.data.notices
-          : Array.isArray(res?.data)
-          ? res.data
+        const [noticeRes, actRes] = await Promise.all([
+          fetchParentNoticesApi(activeChild?.id).catch(() => null),
+          activeChild?.id ? fetchChildActivitiesApi(activeChild.id).catch(() => null) : Promise.resolve(null),
+        ]);
+
+        const noticeList = Array.isArray(noticeRes?.data?.data)
+          ? noticeRes.data.data
+          : Array.isArray(noticeRes?.data?.notices)
+          ? noticeRes.data.notices
+          : Array.isArray(noticeRes?.data)
+          ? noticeRes.data
           : [];
-        setNotifications(list);
+
+        const activityList = Array.isArray(actRes?.data?.data)
+          ? actRes.data.data
+          : Array.isArray(actRes?.data)
+          ? actRes.data
+          : [];
+
+        const mappedActivities = activityList.slice(0, 5).map((act) => ({
+          id: `act_${act.id}`,
+          type: 'activity',
+          title: 'Student Activity Logged',
+          message: act.activity_description || act.title || 'New student activity recorded',
+          publish_on: act.date || act.created_at,
+          notice_date: act.date || act.created_at,
+          url: '/parent/activities',
+        }));
+
+        const combined = [...mappedActivities, ...noticeList].sort((a, b) => {
+          const dA = new Date(a.publish_on || a.notice_date || a.created_at || 0).getTime() || 0;
+          const dB = new Date(b.publish_on || b.notice_date || b.created_at || 0).getTime() || 0;
+          return dB - dA;
+        });
+
+        setNotifications(combined);
       } catch (err) {
         console.error('Failed to load notices for parent navbar:', err);
       }
     };
 
-    loadNotices();
-    window.addEventListener('growvidya:new_notice', loadNotices);
+    loadNoticesAndActivities();
+    window.addEventListener('growvidya:new_notice', loadNoticesAndActivities);
+    window.addEventListener('growvidya:new_activity', loadNoticesAndActivities);
     return () => {
-      window.removeEventListener('growvidya:new_notice', loadNotices);
+      window.removeEventListener('growvidya:new_notice', loadNoticesAndActivities);
+      window.removeEventListener('growvidya:new_activity', loadNoticesAndActivities);
     };
   }, [activeChild?.id]);
 
@@ -146,6 +180,18 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
       {/* Header User Navigation Controls */}
       <div className="header-user">
         <div className="nav user-menu">
+          {/* Mobile Logo (visible < 992px when sidebar is closed) */}
+          <Link
+            to="/parent/dashboard"
+            className="d-flex d-lg-none align-items-center text-decoration-none me-2"
+          >
+            <img
+              src={logoDark}
+              alt="Growvidya Logo"
+              style={{ height: '30px', width: 'auto', maxWidth: '135px', objectFit: 'contain' }}
+            />
+          </Link>
+
           {/* Left Spacer (Search bar removed) */}
           <div className="me-auto"></div>
 
@@ -165,7 +211,7 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
               <div className="dropdown me-2">
                 <button
                   type="button"
-                  className="btn btn-outline-primary btn-sm rounded-pill d-flex align-items-center gap-2 px-3 py-1 dropdown-toggle shadow-none bg-white"
+                  className="btn btn-outline-primary btn-sm rounded-pill d-flex align-items-center gap-1.5 px-2.5 py-1 dropdown-toggle shadow-none bg-white"
                   data-bs-toggle="dropdown"
                   aria-expanded="false"
                   disabled={switching}
@@ -177,7 +223,7 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                     rounded={true}
                     className="rounded-circle"
                   />
-                  <span className="fs-13 fw-semibold text-dark text-truncate" style={{ maxWidth: '130px' }}>
+                  <span className="fs-13 fw-semibold text-dark text-truncate d-none d-sm-inline" style={{ maxWidth: '130px' }}>
                     {activeChildName}
                   </span>
                   {activeChild && (
@@ -186,13 +232,13 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                         Number(activeChild.student_status ?? activeChild.status) === 1
                           ? 'badge-soft-success'
                           : 'badge-soft-danger'
-                      } fs-10 px-1 py-0 d-none d-sm-inline`}
+                      } fs-10 px-1 py-0 d-none d-md-inline`}
                     >
                       {Number(activeChild.student_status ?? activeChild.status) === 1 ? 'Active' : 'Inactive'}
                     </span>
                   )}
                   {activeChild?.class_name && (
-                    <span className="badge bg-primary-subtle text-primary fs-10 px-1 py-0 d-none d-sm-inline">
+                    <span className="badge bg-primary-subtle text-primary fs-10 px-1 py-0 d-none d-md-inline">
                       {activeChild.class_name}
                     </span>
                   )}
@@ -250,7 +296,7 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             )}
 
             {/* Dark / Light Toggle */}
-            <div className="pe-1">
+            <div className="pe-1 d-none d-md-block">
               <a
                 href="#"
                 onClick={(e) => {
@@ -274,7 +320,7 @@ const ParentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             />
 
             {/* Fullscreen Button */}
-            <div className="pe-1">
+            <div className="pe-1 d-none d-lg-block">
               <a
                 href="#"
                 onClick={(e) => {

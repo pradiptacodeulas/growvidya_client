@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { getClassReportOptionsApi, getAttendanceReportApi } from '../../../api/adminReport.api';
+import { resolveImageUrl } from '../../../utils/url.util';
 import defaultAvatar from '../../../assets/male-user.png';
 import NoData from '../../../components/common/NoData';
 
@@ -749,11 +750,7 @@ const AttendanceReport = () => {
                                 <div className="d-flex align-items-center">
                                   <span className="avatar avatar-md me-2 flex-shrink-0">
                                     <img
-                                      src={
-                                        item.picture
-                                          ? `/upload/${activeTab === 'student' ? 'students' : activeTab === 'teacher' ? 'teachers' : 'staff'}/${item.picture}`
-                                          : defaultAvatar
-                                      }
+                                      src={resolveImageUrl(item.picture, defaultAvatar)}
                                       className="img-fluid rounded-circle"
                                       alt={item.name}
                                       onError={(e) => {

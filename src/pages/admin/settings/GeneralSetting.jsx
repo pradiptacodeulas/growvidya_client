@@ -10,7 +10,6 @@ import {
 } from '../../../api/adminMiscSetting.api';
 import { uploadFileApi } from '../../../api/upload.api';
 import { resolveImageUrl } from '../../../utils/url.util';
-import schoolLogoDefault from '../../../assets/school-logo.png';
 import { updateUserSchoolInfo } from '../../../store/slices/authSlice';
 
 const DAYS_OF_WEEK = [

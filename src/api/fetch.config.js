@@ -108,17 +108,40 @@ export const apiFetch = async (endpoint, options = {}) => {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    const errCode = data?.errors?.code || data?.code || data?.data?.code || null;
+    const isSubscriptionLocked =
+      response.status === 402 ||
+      (errCode &&
+        [
+          'SUBSCRIPTION_EXPIRED',
+          'SUBSCRIPTION_SUSPENDED',
+          'SUBSCRIPTION_PENDING',
+          'SUBSCRIPTION_REJECTED',
+          'NO_ACTIVE_SUBSCRIPTION',
+        ].includes(String(errCode)));
+
     const isFeatureNotInPlan =
-      data?.errors?.code === 'FEATURE_NOT_IN_PLAN' ||
-      data?.code === 'FEATURE_NOT_IN_PLAN' ||
+      errCode === 'FEATURE_NOT_IN_PLAN' ||
+      errCode === 'FEATURE_NOT_INCLUDED' ||
       (typeof data?.message === 'string' &&
         (data.message.includes('not included in your') ||
-         data.message.includes('upgrade your current plan') ||
-         data.message.includes('upgrade your subscription plan')));
+          data.message.includes('upgrade your current plan') ||
+          data.message.includes('upgrade your subscription plan')));
 
     const errorMsg = isFeatureNotInPlan
       ? 'You are not allow to use this features try to upgrade your current plan'
       : extractUserFriendlyMessage({ response: { status: response.status, data } });
+
+    if (isSubscriptionLocked && typeof window !== 'undefined') {
+      window.dispatchEvent(
+        new CustomEvent('subscription_expired', {
+          detail: {
+            ...(data?.data || data || {}),
+            code: errCode || 'SUBSCRIPTION_EXPIRED',
+          },
+        })
+      );
+    }
 
     const err = new Error(errorMsg);
     err.isFeatureNotInPlan = isFeatureNotInPlan;

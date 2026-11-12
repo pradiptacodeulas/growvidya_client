@@ -21,7 +21,6 @@ import { fetchStudentsApi } from '../../../api/adminStudent.api';
 import { getServerBaseUrl, resolveImageUrl, getBorderUrl } from '../../../utils/url.util';
 import { triggerPdfDownload } from '../../../utils/generateCertificatePdf';
 
-import schoolLogo from '../../../assets/school-logo.png';
 import defaultAvatar from '../../../assets/male-user.png';
 import NoData from '../../../components/common/NoData';
 
@@ -36,7 +35,7 @@ const getTodayDateStr = () => {
 const AddStudentCertificate = () => {
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
-  const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || schoolLogo;
+  const schoolLogoSrc = resolveImageUrl(user?.schoolLogo || user?.school_logo) || '';
   const schoolName = user?.school_name || user?.schoolName || '';
   const affiliation = user?.affiliation_board
     ? `(Affiliated to ${user.affiliation_board})`
@@ -1754,9 +1753,7 @@ const AddStudentCertificate = () => {
                           <div className="d-flex align-items-center">
                             <span className="avatar avatar-md me-2">
                               <img
-                                src={
-                                  std.picture ? `/upload/students/${std.picture}` : defaultAvatar
-                                }
+                                src={resolveImageUrl(std.picture, defaultAvatar)}
                                 className="img-fluid rounded-circle"
                                 alt={fullName}
                                 onError={(e) => {

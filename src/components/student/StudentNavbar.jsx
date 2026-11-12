@@ -2,9 +2,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { Link, useNavigate } from 'react-router-dom';
 import { logoutStudent } from '../../store/slices/studentAuthSlice';
+import { fetchStudentNoticesApi } from '../../api/studentPortal.api';
 import maleUserDefault from '../../assets/male-user.png';
 import { resolveImageUrl } from '../../utils/url.util';
 import NavbarNotificationDropdown from '../common/NavbarNotificationDropdown';
+import logoDark from '../../assets/logo_dark.png';
 
 const StudentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
@@ -12,6 +14,7 @@ const StudentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const { student } = useSelector((state) => state.studentAuth);
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
   const dropdownRef = useRef(null);
 
   useEffect(() => {
@@ -23,6 +26,25 @@ const StudentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  useEffect(() => {
+    const loadStudentNotices = async () => {
+      try {
+        const res = await fetchStudentNoticesApi();
+        const data = res?.data?.data || res?.data || [];
+        setNotifications(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error('Failed to load notices for student navbar:', err);
+      }
+    };
+
+    loadStudentNotices();
+
+    window.addEventListener('growvidya:new_notice', loadStudentNotices);
+    return () => {
+      window.removeEventListener('growvidya:new_notice', loadStudentNotices);
     };
   }, []);
 
@@ -78,6 +100,18 @@ const StudentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
       {/* Header User Menu */}
       <div className="header-user">
         <div className="nav user-menu">
+          {/* Mobile Logo (visible < 992px when sidebar is closed) */}
+          <Link
+            to="/student/dashboard"
+            className="d-flex d-lg-none align-items-center text-decoration-none me-2"
+          >
+            <img
+              src={logoDark}
+              alt="Growvidya Logo"
+              style={{ height: '30px', width: 'auto', maxWidth: '135px', objectFit: 'contain' }}
+            />
+          </Link>
+
           {/* Left spacer to push items to the right */}
           <div className="me-auto"></div>
 
@@ -86,11 +120,11 @@ const StudentNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             <NavbarNotificationDropdown
               messagesPath="/student/messages"
               noticesPath="/student/notices"
-              notices={[]}
+              notices={notifications}
             />
 
             {/* Fullscreen Button */}
-            <div className="pe-1">
+            <div className="pe-1 d-none d-lg-block">
               <a
                 href="#"
                 className="btn btn-outline-light bg-white btn-icon me-1"

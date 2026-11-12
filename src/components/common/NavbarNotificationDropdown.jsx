@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { clearAllUnread } from '../../store/slices/messageNotificationSlice';
 import { resolveImageUrl } from '../../utils/url.util';
+import { encodeParam } from '../../utils/idHelper';
 import {
   isWebPushSupported,
   getNotificationPermission,
@@ -47,6 +48,13 @@ const NavbarNotificationDropdown = ({
   // Default active tab
   const [activeTab, setActiveTab] = useState(() => (messageUnreadCount > 0 ? 'messages' : 'notices'));
 
+  // Re-flag unread dot when new notices arrive
+  useEffect(() => {
+    if (notices.length > 0) {
+      setHasNoticeUnread(true);
+    }
+  }, [notices.length]);
+
   const toggleDropdown = () => {
     setIsOpen((prev) => {
       const next = !prev;
@@ -79,6 +87,20 @@ const NavbarNotificationDropdown = ({
     }
   };
 
+  const handleOpenNotice = (notice) => {
+    setIsOpen(false);
+    setHasNoticeUnread(false);
+    if (notice?.url) {
+      navigate(notice.url);
+    } else if (notice?.type === 'activity' || notice?.category === 'activity') {
+      navigate('/parent/activities');
+    } else if (notice?.id) {
+      navigate(`${noticesPath}/view/${encodeParam(notice.id)}`);
+    } else {
+      navigate(noticesPath);
+    }
+  };
+
   const handleMarkAllRead = () => {
     if (activeTab === 'messages') {
       dispatch(clearAllUnread());
@@ -105,7 +127,7 @@ const NavbarNotificationDropdown = ({
     }
   };
 
-  const hasAnyUnread = messageUnreadCount > 0 || hasNoticeUnread;
+  const hasAnyUnread = messageUnreadCount > 0 || (hasNoticeUnread && notices.length > 0);
 
   return (
     <div
@@ -332,10 +354,12 @@ const NavbarNotificationDropdown = ({
               /* ================= NOTICES TAB ================= */
               notices.length > 0 ? (
                 <div className="d-flex flex-column gap-2">
-                  {notices.slice(0, 5).map((notice, idx) => (
+                  {notices.slice(0, 6).map((notice, idx) => (
                     <div
                       key={notice.id || idx}
                       className="p-2 rounded border-bottom bg-light-300 transition-all hover-bg"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => handleOpenNotice(notice)}
                     >
                       <div className="d-flex align-items-start gap-2">
                         <span className="avatar avatar-sm bg-primary-transparent text-primary rounded-circle flex-shrink-0 mt-1 d-flex align-items-center justify-content-center">
@@ -358,7 +382,7 @@ const NavbarNotificationDropdown = ({
                           )}
                           <span className="fs-11 text-muted d-block">
                             <i className="ti ti-calendar me-1"></i>
-                            {notice.publish_on || notice.notice_date || 'Recent Notice'}
+                            {String(notice.publish_on || notice.notice_date || '').split('T')[0] || 'Recent'}
                           </span>
                         </div>
                       </div>

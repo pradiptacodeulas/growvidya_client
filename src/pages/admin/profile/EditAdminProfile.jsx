@@ -10,7 +10,7 @@ import {
 } from '../../../api/adminStaff.api';
 import apiClient from '../../../api/axios.config';
 import { updateUserState } from '../../../store/slices/authSlice';
-import { getServerBaseUrl } from '../../../utils/url.util';
+import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
 import Avatar from '../../../components/common/Avatar';
 
 const SERVER_BASE_URL = getServerBaseUrl();
@@ -187,14 +187,7 @@ const EditAdminProfile = () => {
         });
 
         if (u.picture) {
-          const cleanPic = String(u.picture).trim();
-          if (cleanPic.startsWith('http') || cleanPic.startsWith('data:')) {
-            setPicturePreview(cleanPic);
-          } else if (cleanPic.startsWith('/upload/') || cleanPic.startsWith('upload/')) {
-            setPicturePreview(`${SERVER_BASE_URL}/${cleanPic.replace(/^\//, '')}`);
-          } else {
-            setPicturePreview(`${SERVER_BASE_URL}/upload/${cleanPic}`);
-          }
+          setPicturePreview(resolveImageUrl(u.picture, ''));
         }
 
         if (u.bank_details) {

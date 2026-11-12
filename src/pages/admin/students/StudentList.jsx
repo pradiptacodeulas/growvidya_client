@@ -275,7 +275,15 @@ const StudentList = () => {
             </ol>
           </nav>
         </div>
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <div className="mb-2">
+            <Link
+              to="/admin/students/activities"
+              className="btn btn-outline-primary bg-white d-flex align-items-center fw-semibold"
+            >
+              <i className="ti ti-activity-heartbeat me-2"></i>Student Activities
+            </Link>
+          </div>
           <div className="mb-2">
             <button
               className="btn btn-primary d-flex align-items-center"

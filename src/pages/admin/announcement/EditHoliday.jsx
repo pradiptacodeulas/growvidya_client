@@ -10,26 +10,46 @@ import RichTextEditor from '../../../components/common/RichTextEditor';
 import DateRangePicker from '../../../components/common/DateRangePicker';
 import { decodeParam } from '../../../utils/idHelper';
 
-const formatDateSlash = (dateStr) => {
-  if (!dateStr) return '';
-  try {
-    const d = new Date(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
-    const day = String(d.getDate()).padStart(2, '0');
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const year = d.getFullYear();
-    return `${day}/${month}/${year}`;
-  } catch {
-    return dateStr;
+// Timezone-safe local Date parser & formatter (prevents UTC -1 day shift)
+const parseLocalDate = (raw) => {
+  if (!raw) return null;
+  if (raw instanceof Date && !isNaN(raw.getTime())) {
+    return new Date(raw.getFullYear(), raw.getMonth(), raw.getDate());
   }
+  const str = String(raw).trim();
+  const ymdMatch = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (ymdMatch) {
+    return new Date(Number(ymdMatch[1]), Number(ymdMatch[2]) - 1, Number(ymdMatch[3]));
+  }
+  const dmyMatch = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmyMatch) {
+    return new Date(Number(dmyMatch[3]), Number(dmyMatch[2]) - 1, Number(dmyMatch[1]));
+  }
+  const parsed = new Date(str);
+  if (isNaN(parsed.getTime())) return null;
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 };
 
-const getTodayDateRange = () => {
-  const d = new Date();
+const toLocalYmd = (raw) => {
+  const d = parseLocalDate(raw);
+  if (!d) return '';
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const formatDateSlash = (raw) => {
+  const d = parseLocalDate(raw);
+  if (!d) return '';
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
-  const todayStr = `${day}/${month}/${year}`;
+  return `${day}/${month}/${year}`;
+};
+
+const getTodayDateRange = () => {
+  const todayStr = formatDateSlash(new Date());
   return `${todayStr} - ${todayStr}`;
 };
 
@@ -39,11 +59,13 @@ const EditHoliday = () => {
   const id = decodeParam(rawId);
   const isEdit = Boolean(id);
 
+  const todayYmd = toLocalYmd(new Date());
+
   const [formData, setFormData] = useState({
     title: '',
     daterange: getTodayDateRange(),
-    from_date: new Date().toISOString().split('T')[0],
-    to_date: new Date().toISOString().split('T')[0],
+    from_date: todayYmd,
+    to_date: todayYmd,
     details: '',
     status: 1,
   });
@@ -59,20 +81,20 @@ const EditHoliday = () => {
           const res = await fetchHolidayByIdApi(id);
           const h = res?.data || res;
           if (h) {
-            let range = getTodayDateRange();
-            if (h.from_date && h.to_date) {
-              range = `${formatDateSlash(h.from_date)} - ${formatDateSlash(h.to_date)}`;
-            } else if (h.from_date) {
-              range = `${formatDateSlash(h.from_date)} - ${formatDateSlash(h.from_date)}`;
-            }
+            const fromYmd = h.from_ymd || toLocalYmd(h.from_date);
+            const toYmd = h.to_ymd || toLocalYmd(h.to_date) || fromYmd;
+            const range =
+              fromYmd && toYmd
+                ? `${formatDateSlash(fromYmd)} - ${formatDateSlash(toYmd)}`
+                : getTodayDateRange();
 
             setFormData({
               title: h.title || '',
               daterange: range,
-              from_date: h.from_date ? h.from_date.split('T')[0] : '',
-              to_date: h.to_date ? h.to_date.split('T')[0] : '',
+              from_date: fromYmd || todayYmd,
+              to_date: toYmd || fromYmd || todayYmd,
               details: h.details || '',
-              status: h.status !== undefined ? h.status : 1,
+              status: Number(h.status) === 2 || Number(h.status) === 0 ? 2 : 1,
             });
           }
         } catch (err) {
@@ -84,11 +106,14 @@ const EditHoliday = () => {
       };
       loadHoliday();
     }
-  }, [id, isEdit]);
+  }, [id, isEdit, todayYmd]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === 'status' ? Number(value) : value,
+    }));
   };
 
   const handleDateRangeChange = ({ startDateFormatted, endDateFormatted, rangeFormatted }) => {
@@ -96,7 +121,7 @@ const EditHoliday = () => {
       ...prev,
       daterange: rangeFormatted,
       from_date: startDateFormatted,
-      to_date: endDateFormatted,
+      to_date: endDateFormatted || startDateFormatted,
     }));
   };
 
@@ -110,7 +135,7 @@ const EditHoliday = () => {
       toast.error('Please enter a holiday title.');
       return;
     }
-    if (!formData.daterange.trim()) {
+    if (!formData.from_date) {
       toast.error('Please select a holiday date or date range.');
       return;
     }
@@ -121,9 +146,9 @@ const EditHoliday = () => {
         title: formData.title.trim(),
         daterange: formData.daterange.trim(),
         from_date: formData.from_date,
-        to_date: formData.to_date,
+        to_date: formData.to_date || formData.from_date,
         details: formData.details,
-        status: formData.status,
+        status: Number(formData.status) === 2 ? 2 : 1,
       };
 
       if (isEdit) {
@@ -165,7 +190,7 @@ const EditHoliday = () => {
                 <Link to="/admin/dashboard">Dashboard</Link>
               </li>
               <li className="breadcrumb-item">
-                <Link to="/admin/announcement/holiday">Holiday</Link>
+                <Link to="/admin/announcement/holiday">Holidays</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
                 {isEdit ? 'Edit Holiday' : 'Add Holiday'}
@@ -174,25 +199,23 @@ const EditHoliday = () => {
           </nav>
         </div>
       </div>
-      {/* /Page Header */}
 
       <div className="row">
         <div className="col-md-12">
           <form onSubmit={handleSubmit}>
-            {/* Holiday Information Card */}
             <div className="card shadow-sm border-0">
               <div className="card-header bg-light border-bottom">
                 <div className="d-flex align-items-center">
-                  <h4 className="text-dark mb-0 fs-16 fw-semibold">Holiday</h4>
+                  <h4 className="text-dark mb-0 fs-16 fw-semibold">Holiday Information</h4>
                 </div>
               </div>
               <div className="card-body pb-3 p-4">
                 <div className="row">
                   {/* Title */}
-                  <div className="col-md-6">
+                  <div className="col-md-5">
                     <div className="mb-3">
                       <label className="form-label fw-semibold text-dark mb-1">
-                        Title <span className="text-danger">*</span>
+                        Holiday Title <span className="text-danger">*</span>
                       </label>
                       <input
                         type="text"
@@ -208,10 +231,10 @@ const EditHoliday = () => {
                   </div>
 
                   {/* Dual Date Range Selection */}
-                  <div className="col-md-6">
+                  <div className="col-md-4">
                     <div className="mb-3">
                       <label className="form-label fw-semibold text-dark mb-1">
-                        Date <span className="text-danger">*</span>
+                        Holiday Date / Range <span className="text-danger">*</span>
                       </label>
                       <DateRangePicker
                         value={formData.daterange}
@@ -221,6 +244,22 @@ const EditHoliday = () => {
                         required
                         placeholder="DD/MM/YYYY - DD/MM/YYYY"
                       />
+                    </div>
+                  </div>
+
+                  {/* Status */}
+                  <div className="col-md-3">
+                    <div className="mb-3">
+                      <label className="form-label fw-semibold text-dark mb-1">Status</label>
+                      <select
+                        name="status"
+                        className="form-select text-dark"
+                        value={formData.status}
+                        onChange={handleChange}
+                      >
+                        <option value={1}>Active</option>
+                        <option value={2}>Inactive</option>
+                      </select>
                     </div>
                   </div>
 
@@ -263,7 +302,6 @@ const EditHoliday = () => {
                 </button>
               </div>
             </div>
-            {/* /Holiday Information Card */}
           </form>
         </div>
       </div>

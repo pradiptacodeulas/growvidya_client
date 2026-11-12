@@ -5,16 +5,15 @@ import { logoutTeacher } from '../../store/slices/teacherAuthSlice';
 import { fetchTeacherAcademicYearsApi } from '../../api/teacherAcademic.api';
 import { fetchTeacherNoticesApi } from '../../api/teacherAnnouncement.api';
 import Avatar from '../common/Avatar';
-import NoData from '../common/NoData';
 import NavbarNotificationDropdown from '../common/NavbarNotificationDropdown';
+import logoDark from '../../assets/logo_dark.png';
 
 const TeacherNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
   const dispatch = useDispatch();
   const { teacher } = useSelector((state) => state.teacherAuth);
-  const [currentYearText, setCurrentYearText] = useState('2026 - 2027');
+  const [currentYearText, setCurrentYearText] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  const [hasUnread, setHasUnread] = useState(true);
   const notificationRef = useRef(null);
 
   useEffect(() => {
@@ -46,6 +45,11 @@ const TeacherNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
       }
     };
     loadTeacherNotices();
+
+    window.addEventListener('growvidya:new_notice', loadTeacherNotices);
+    return () => {
+      window.removeEventListener('growvidya:new_notice', loadTeacherNotices);
+    };
   }, []);
 
   useEffect(() => {
@@ -114,15 +118,29 @@ const TeacherNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
       {/* Header User Navigation Controls */}
       <div className="header-user">
         <div className="nav user-menu">
+          {/* Mobile Logo (visible < 992px when sidebar is closed) */}
+          <Link
+            to="/teacher/dashboard"
+            className="d-flex d-lg-none align-items-center text-decoration-none me-2"
+          >
+            <img
+              src={logoDark}
+              alt="Growvidya Logo"
+              style={{ height: '30px', width: 'auto', maxWidth: '135px', objectFit: 'contain' }}
+            />
+          </Link>
+
           {/* Left Spacer */}
           <div className="me-auto"></div>
 
           <div className="d-flex align-items-center">
             {/* Current Academic Year Badge */}
-            <div className="me-2 d-none d-sm-flex align-items-center bg-white border rounded px-2 py-1 text-dark fw-medium fs-13 shadow-none">
-              <i className="ti ti-calendar-due me-1 text-primary"></i>
-              <span>Academic Year : <strong className="text-primary">{currentYearText}</strong></span>
-            </div>
+            {currentYearText && (
+              <div className="me-2 d-none d-sm-flex align-items-center bg-white border rounded px-2 py-1 text-dark fw-medium fs-13 shadow-none">
+                <i className="ti ti-calendar-due me-1 text-primary"></i>
+                <span>Academic Year : <strong className="text-primary">{currentYearText}</strong></span>
+              </div>
+            )}
 
             {/* Portal Badge */}
             <div className="me-2 d-none d-md-flex align-items-center">
@@ -134,12 +152,12 @@ const TeacherNavbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
             {/* Notifications Dropdown (Notices & Messages) */}
             <NavbarNotificationDropdown
               messagesPath="/teacher/messages"
-              noticesPath="/teacher/dashboard"
+              noticesPath="/teacher/announcements/notices"
               notices={notifications}
             />
 
             {/* Fullscreen Toggle */}
-            <div className="pe-1">
+            <div className="pe-1 d-none d-lg-block">
               <a
                 href="#fullscreen"
                 onClick={(e) => {

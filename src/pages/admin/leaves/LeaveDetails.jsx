@@ -1,17 +1,37 @@
-import { getServerBaseUrl } from '../../../utils/url.util';
+import { getServerBaseUrl, resolveImageUrl, maleUserDefault, femaleUserDefault } from '../../../utils/url.util';
 import { confirmAction } from '../../../utils/confirmModal';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import {
   fetchLeaveByIdApi,
+  updateLeaveStatusApi,
   updateLeaveDateStatusApi,
 } from '../../../api/adminLeave.api';
-import TableActionMenu from '../../../components/common/TableActionMenu';
+import DataTable from '../../../components/common/DataTable';
 import NoData from '../../../components/common/NoData';
 import { decodeParam } from '../../../utils/idHelper';
 
 const SERVER_BASE_URL = getServerBaseUrl();
+
+const formatLocalDate = (dateStr) => {
+  if (!dateStr) return '—';
+  const clean = String(dateStr).split('T')[0];
+  const parts = clean.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts.map(Number);
+    const dt = new Date(y, m - 1, d);
+    if (!isNaN(dt.getTime())) {
+      return dt.toLocaleDateString('en-GB', {
+        weekday: 'short',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    }
+  }
+  return clean;
+};
 
 const LeaveDetails = () => {
   const { id: rawId } = useParams();
@@ -19,9 +39,7 @@ const LeaveDetails = () => {
 
   const [leave, setLeave] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [tableSearch, setTableSearch] = useState('');
-  const [pageSize, setPageSize] = useState(10);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [processing, setProcessing] = useState(false);
 
   const loadLeave = useCallback(async () => {
     try {
@@ -42,6 +60,40 @@ const LeaveDetails = () => {
     }
   }, [id, loadLeave]);
 
+  // Handle overall leave approval/rejection
+  const handleOverallStatusChange = async (targetStatus) => {
+    const isApprove = Number(targetStatus) === 2;
+    const confirmed = await confirmAction({
+      title: isApprove ? 'Approve Entire Leave Application' : 'Reject Entire Leave Application',
+      message: `Are you sure you want to ${isApprove ? 'approve' : 'reject'} all dates for this leave application?`,
+      confirmText: isApprove ? 'Yes, Approve All' : 'Yes, Reject All',
+      variant: isApprove ? 'success' : 'danger',
+    });
+    if (!confirmed) return;
+
+    try {
+      setProcessing(true);
+      const res = await updateLeaveStatusApi(id, targetStatus);
+      const notif = res?.data?.notification;
+      if (notif?.pushSent) {
+        toast.success(
+          `Leave application ${isApprove ? 'approved' : 'rejected'} and push notification sent to applicant.`
+        );
+      } else if (notif?.quotaExhausted) {
+        toast.success(
+          `Leave application ${isApprove ? 'approved' : 'rejected'}. (Push quota exhausted — notice saved for user on reload).`
+        );
+      } else {
+        toast.success(`Leave application ${isApprove ? 'approved' : 'rejected'} successfully.`);
+      }
+      loadLeave();
+    } catch (err) {
+      toast.error(err?.response?.data?.message || 'Failed to update leave status.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   // Handle single date approval/rejection
   const handleDateStatusChange = async (dateId, targetStatus) => {
     const isApprove = Number(targetStatus) === 2;
@@ -52,52 +104,132 @@ const LeaveDetails = () => {
       variant: isApprove ? 'success' : 'danger',
     });
     if (!confirmed) return;
+
     try {
-      await updateLeaveDateStatusApi(dateId, targetStatus);
-      toast.success(
-        `Leave date ${targetStatus === 2 ? 'approved' : 'rejected'} successfully!`
-      );
+      setProcessing(true);
+      const res = await updateLeaveDateStatusApi(dateId, targetStatus);
+      const notif = res?.data?.notification;
+      if (notif?.pushSent) {
+        toast.success(
+          `Leave date ${isApprove ? 'approved' : 'rejected'} and push notification sent to applicant.`
+        );
+      } else if (notif?.quotaExhausted) {
+        toast.success(
+          `Leave date ${isApprove ? 'approved' : 'rejected'}. (Push quota exhausted — notice saved for user on reload).`
+        );
+      } else {
+        toast.success(`Leave date ${isApprove ? 'approved' : 'rejected'} successfully.`);
+      }
       loadLeave();
     } catch (err) {
-      console.error('Error updating leave date status:', err);
       toast.error(err?.response?.data?.message || 'Failed to update date status.');
+    } finally {
+      setProcessing(false);
     }
   };
 
   const datesList = useMemo(() => {
-    return leave?.dates || [];
+    return (leave?.dates || []).map((d) => ({
+      ...d,
+      formatted_date: formatLocalDate(d.date),
+      status_label:
+        Number(d.status) === 2 ? 'Approved' : Number(d.status) === 3 ? 'Rejected' : 'Pending',
+    }));
   }, [leave]);
 
-  // Search & Pagination for Dates
-  const filteredDates = useMemo(() => {
-    if (!tableSearch.trim()) return datesList;
-    const q = tableSearch.toLowerCase();
-    return datesList.filter(
-      (d) =>
-        (d.date && d.date.includes(q)) ||
-        (d.status_label && d.status_label.toLowerCase().includes(q))
-    );
-  }, [datesList, tableSearch]);
-
-  const totalPages = Math.ceil(filteredDates.length / pageSize) || 1;
-  const paginatedDates = useMemo(() => {
-    const start = (currentPage - 1) * pageSize;
-    return filteredDates.slice(start, start + pageSize);
-  }, [filteredDates, currentPage, pageSize]);
-
-  // Helper to format date as DD/MM/YYYY
-  const formatDate = (dateStr) => {
-    if (!dateStr) return '—';
-    try {
-      const d = new Date(dateStr);
-      const day = String(d.getDate()).padStart(2, '0');
-      const month = String(d.getMonth() + 1).padStart(2, '0');
-      const year = d.getFullYear();
-      return `${day}/${month}/${year}`;
-    } catch {
-      return dateStr;
-    }
-  };
+  const dateColumns = useMemo(
+    () => [
+      {
+        key: 'index',
+        header: 'Sl No.',
+        width: '80px',
+        align: 'center',
+        cell: ({ index }) => <span className="text-muted fw-medium">{index + 1}</span>,
+      },
+      {
+        accessorKey: 'formatted_date',
+        header: 'Leave Date',
+        sortable: true,
+        cell: ({ value }) => (
+          <span className="text-dark fw-semibold" style={{ fontSize: '13.5px' }}>
+            {value}
+          </span>
+        ),
+      },
+      {
+        accessorKey: 'status',
+        header: 'Status',
+        width: '150px',
+        align: 'center',
+        sortable: true,
+        cell: ({ value }) => {
+          const s = Number(value);
+          if (s === 2) {
+            return (
+              <span className="badge badge-soft-success d-inline-flex align-items-center">
+                <i className="ti ti-circle-check fs-12 me-1"></i>Approved
+              </span>
+            );
+          }
+          if (s === 3) {
+            return (
+              <span className="badge badge-soft-danger d-inline-flex align-items-center">
+                <i className="ti ti-circle-x fs-12 me-1"></i>Rejected
+              </span>
+            );
+          }
+          return (
+            <span className="badge badge-soft-warning d-inline-flex align-items-center">
+              <i className="ti ti-clock fs-12 me-1"></i>Pending
+            </span>
+          );
+        },
+      },
+      {
+        key: 'actions',
+        header: 'Decision',
+        width: '200px',
+        align: 'center',
+        sortable: false,
+        cell: ({ row }) => {
+          const s = Number(row.status);
+          return (
+            <div className="d-inline-flex align-items-center gap-2">
+              {s !== 2 && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-success d-inline-flex align-items-center px-2.5 py-1"
+                  disabled={processing}
+                  onClick={() => {
+                    if (leave?.is_quota_exceeded) {
+                      toast.warning(
+                        `Cannot approve: Maximum quota of ${leave.total_quota} day(s) for "${leave.leave_name || ''}" has been reached.`
+                      );
+                      return;
+                    }
+                    handleDateStatusChange(row.id, 2);
+                  }}
+                >
+                  <i className="ti ti-check me-1"></i>Approve
+                </button>
+              )}
+              {s !== 3 && (
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline-danger d-inline-flex align-items-center px-2.5 py-1"
+                  disabled={processing}
+                  onClick={() => handleDateStatusChange(row.id, 3)}
+                >
+                  <i className="ti ti-x me-1"></i>Reject
+                </button>
+              )}
+            </div>
+          );
+        },
+      },
+    ],
+    [leave?.is_quota_exceeded, leave?.total_quota, leave?.leave_name, processing]
+  );
 
   if (loading) {
     return (
@@ -130,97 +262,138 @@ const LeaveDetails = () => {
       : `${SERVER_BASE_URL}/${leave.document.replace(/^\//, '')}`
     : null;
 
+  const isFemale = leave.gender === 'Female' || leave.gender === 2 || leave.gender === '2';
+  const defaultAvatar = isFemale ? femaleUserDefault : maleUserDefault;
+  const avatarUrl = resolveImageUrl(leave.person_picture, defaultAvatar);
+  const effectiveStatus = Number(leave.leave_status ?? leave.status);
+
   return (
     <div className="content">
       {/* Page Header */}
       <div className="d-md-flex d-block align-items-center justify-content-between mb-3">
         <div className="my-auto mb-2">
-          <h3 className="page-title mb-1">Applied Leave Dates List</h3>
+          <h3 className="page-title mb-1">Leave Application Details</h3>
           <nav>
             <ol className="breadcrumb mb-0">
               <li className="breadcrumb-item">
                 <Link to="/admin/dashboard">Dashboard</Link>
               </li>
               <li className="breadcrumb-item">
-                <Link to="/admin/leaves">Leave</Link>
+                <Link to="/admin/leaves">Applied Leaves</Link>
               </li>
               <li className="breadcrumb-item active" aria-current="page">
-                All Leave Date
+                Review Application
               </li>
             </ol>
           </nav>
         </div>
-      </div>
-      {/* /Page Header */}
 
-      {/* Main Card */}
-      <div className="card">
-        <div className="card-header d-flex align-items-center justify-content-between flex-wrap pb-0">
-          <h4 className="mb-3">All Applied Leave Date</h4>
+        <div className="d-flex align-items-center flex-wrap gap-2">
+          {effectiveStatus !== 2 && (
+            <button
+              type="button"
+              className="btn btn-success d-inline-flex align-items-center"
+              disabled={processing}
+              onClick={() => handleOverallStatusChange(2)}
+            >
+              <i className="ti ti-circle-check me-1"></i>
+              {datesList.length > 1 ? 'Approve All Dates' : 'Approve Leave'}
+            </button>
+          )}
+          {effectiveStatus !== 3 && (
+            <button
+              type="button"
+              className="btn btn-danger d-inline-flex align-items-center"
+              disabled={processing}
+              onClick={() => handleOverallStatusChange(3)}
+            >
+              <i className="ti ti-circle-x me-1"></i>
+              {datesList.length > 1 ? 'Reject All Dates' : 'Reject Leave'}
+            </button>
+          )}
+          <Link to="/admin/leaves" className="btn btn-light border d-inline-flex align-items-center">
+            <i className="ti ti-arrow-left me-1"></i>Back to List
+          </Link>
         </div>
+      </div>
 
-        {/* Applicant Meta Details */}
-        <div className="p-4 border-bottom">
-          <div className="row mb-2">
-            <div className="col-md-2 col-6" style={{ fontSize: '16px', fontWeight: 500 }}>
-              Applicant Name :
+      {/* Applicant Summary Card */}
+      <div className="card border shadow-2xs mb-4">
+        <div className="card-body p-4">
+          <div className="d-flex align-items-center justify-content-between flex-wrap gap-3 pb-3 mb-3 border-bottom">
+            <div className="d-flex align-items-center gap-3">
+              <img
+                src={avatarUrl}
+                alt=""
+                className="rounded-circle border"
+                style={{ width: '52px', height: '52px', objectFit: 'cover' }}
+                onError={(e) => {
+                  e.target.onerror = null;
+                  e.target.src = defaultAvatar;
+                }}
+              />
+              <div>
+                <h5 className="mb-1 fw-bold text-dark">{leave.person_name || '—'}</h5>
+                <div className="d-flex align-items-center gap-2 flex-wrap">
+                  <span className="badge bg-light text-dark border">
+                    {leave.role_label || (Number(leave.role) === 1 ? 'Teacher' : 'Staff')}
+                  </span>
+                  <span className="text-muted fs-12">
+                    Applied on {formatLocalDate(leave.created_date || leave.created_at)}
+                  </span>
+                </div>
+              </div>
             </div>
-            <div className="col-md-9 col-6 text-dark fw-medium">
-              {leave.person_name || 'N/A'}
-            </div>
-          </div>
 
-          <div className="row mb-2">
-            <div className="col-md-2 col-6" style={{ fontSize: '16px', fontWeight: 500 }}>
-              Leave Type :
-            </div>
-            <div className="col-md-9 col-6 text-dark d-flex align-items-center gap-2">
-              <span>{leave.leave_name || 'General Leave'}</span>
-              {Number(leave.is_paid) === 0 ? (
-                <span className="badge bg-warning-transparent text-warning border border-warning fs-12 px-2 py-1">
-                  Non-Paid
+            <div>
+              {effectiveStatus === 2 ? (
+                <span className="badge badge-soft-success fs-13 px-3 py-2 d-inline-flex align-items-center">
+                  <i className="ti ti-circle-check me-1"></i>Approved
+                </span>
+              ) : effectiveStatus === 3 ? (
+                <span className="badge badge-soft-danger fs-13 px-3 py-2 d-inline-flex align-items-center">
+                  <i className="ti ti-circle-x me-1"></i>Rejected
                 </span>
               ) : (
-                <span className="badge bg-success-transparent text-success border border-success fs-12 px-2 py-1">
-                  Paid
+                <span className="badge badge-soft-warning fs-13 px-3 py-2 d-inline-flex align-items-center">
+                  <i className="ti ti-clock me-1"></i>Pending Review
                 </span>
               )}
             </div>
           </div>
 
-          <div className="row mb-2">
-            <div className="col-md-2 col-6" style={{ fontSize: '16px', fontWeight: 500 }}>
-              Leave Quota :
+          <div className="row g-3">
+            <div className="col-md-4">
+              <span className="text-muted fs-12 d-block mb-1">Leave Type & Category</span>
+              <div className="d-flex align-items-center gap-2">
+                <span className="fw-semibold text-dark fs-14">{leave.leave_name || '—'}</span>
+                {Number(leave.is_paid) === 0 ? (
+                  <span className="badge bg-warning-transparent text-warning border border-warning fs-11">
+                    Non-Paid
+                  </span>
+                ) : (
+                  <span className="badge bg-success-transparent text-success border border-success fs-11">
+                    Paid
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="col-md-9 col-6">
-              <span className="badge bg-light text-dark border me-2">
-                Allowed Quota: <strong>{leave.total_quota ?? 'N/A'}</strong> Days
-              </span>
-              <span className="badge bg-light text-success border border-success me-2">
-                Approved: <strong>{leave.approved_days ?? 0}</strong> Days
-              </span>
-              {Number(leave.pending_days || 0) > 0 && (
-                <span className="badge bg-light text-warning border border-warning me-2">
-                  Pending: <strong>{leave.pending_days}</strong> Days
-                </span>
-              )}
-              <span
-                className={`badge ${
-                  (leave.remaining_quota ?? 0) > 0
-                    ? 'bg-light text-primary border border-primary'
-                    : 'bg-light text-danger border border-danger'
-                }`}
-              >
-                Remaining: <strong>{leave.remaining_quota ?? 0}</strong> Days
-              </span>
-            </div>
-          </div>
 
-          <div className="row mb-2">
-            <div className="col-md-2 col-6" style={{ fontSize: '16px', fontWeight: 500 }}>
-              Document :
+            <div className="col-md-4">
+              <span className="text-muted fs-12 d-block mb-1">Duration</span>
+              <span className="fw-semibold text-dark fs-14">
+                {leave.duration_label ||
+                  (Number(leave.duration) === 1
+                    ? 'Full Day'
+                    : Number(leave.duration) === 2
+                    ? 'Half Day'
+                    : 'Multiple')}
+                {datesList.length > 0 ? ` (${datesList.length} ${datesList.length === 1 ? 'Day' : 'Days'})` : ''}
+              </span>
             </div>
-            <div className="col-md-4 col-6">
+
+            <div className="col-md-4">
+              <span className="text-muted fs-12 d-block mb-1">Supporting Document</span>
               {documentUrl ? (
                 <a
                   href={documentUrl}
@@ -228,20 +401,44 @@ const LeaveDetails = () => {
                   rel="noopener noreferrer"
                   className="btn btn-outline-primary btn-sm d-inline-flex align-items-center"
                 >
-                  <i className="ti ti-file-download me-1"></i>View / Download
+                  <i className="ti ti-file-download me-1"></i>View / Download Document
                 </a>
               ) : (
-                '---'
+                <span className="text-muted fs-13">No document attached</span>
               )}
             </div>
-          </div>
 
-          <div className="row mb-2">
-            <div className="col-md-2 col-6" style={{ fontSize: '16px', fontWeight: 500 }}>
-              Reason for absence :
+            <div className="col-md-12">
+              <span className="text-muted fs-12 d-block mb-1">Leave Balance & Quota</span>
+              <div className="d-flex align-items-center flex-wrap gap-2">
+                <span className="badge bg-light text-dark border px-2.5 py-1.5">
+                  Allowed Quota: <strong>{leave.total_quota ?? 0}</strong> Days
+                </span>
+                <span className="badge bg-light text-success border border-success px-2.5 py-1.5">
+                  Approved: <strong>{leave.approved_days ?? 0}</strong> Days
+                </span>
+                {Number(leave.pending_days || 0) > 0 && (
+                  <span className="badge bg-light text-warning border border-warning px-2.5 py-1.5">
+                    Pending: <strong>{leave.pending_days}</strong> Days
+                  </span>
+                )}
+                <span
+                  className={`badge px-2.5 py-1.5 ${
+                    (leave.remaining_approval_quota ?? leave.remaining_quota ?? 0) > 0
+                      ? 'bg-light text-primary border border-primary'
+                      : 'bg-light text-danger border border-danger'
+                  }`}
+                >
+                  Available for Approval: <strong>{leave.remaining_approval_quota ?? leave.remaining_quota ?? 0}</strong> Days
+                </span>
+              </div>
             </div>
-            <div className="col-md-9 col-6 text-muted">
-              {leave.leave_reason || '---'}
+
+            <div className="col-md-12">
+              <span className="text-muted fs-12 d-block mb-1">Reason for Absence</span>
+              <div className="p-3 bg-light rounded border text-dark fs-13">
+                {leave.leave_reason || 'No reason provided.'}
+              </div>
             </div>
           </div>
 
@@ -249,206 +446,25 @@ const LeaveDetails = () => {
             <div className="alert alert-warning d-flex align-items-center mb-0 mt-3" role="alert">
               <i className="ti ti-alert-triangle fs-4 me-2 text-warning"></i>
               <div>
-                <strong>Quota Limit Reached:</strong> This applicant has reached their maximum quota of {leave.total_quota} approved day(s) for {leave.leave_name || 'this leave type'}. Further approvals are restricted.
+                <strong>Quota Limit Reached:</strong> This applicant has reached their maximum quota of{' '}
+                {leave.total_quota} approved day(s) for {leave.leave_name || 'this leave type'}.
               </div>
             </div>
           )}
         </div>
-
-        {/* Dates Table */}
-        <div className="card-body p-0 py-3">
-          <div className="custom-datatable-filter table-responsivee">
-            <div id="DataTables_Table_0_wrapper" className="dataTables_wrapper dt-bootstrap5 no-footer px-3">
-              {/* Length and Search Bar */}
-              <div className="row mb-3 align-items-center">
-                <div className="col-sm-12 col-md-6 mb-2 mb-md-0">
-                  <div className="dataTables_length" id="DataTables_Table_0_length">
-                    <label className="d-inline-flex align-items-center gap-2 mb-0">
-                      Row Per Page{' '}
-                      <select
-                        name="DataTables_Table_0_length"
-                        aria-controls="DataTables_Table_0"
-                        className="form-select form-select-sm"
-                        style={{ width: '80px', display: 'inline-block' }}
-                        value={pageSize}
-                        onChange={(e) => {
-                          setPageSize(Number(e.target.value));
-                          setCurrentPage(1);
-                        }}
-                      >
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                      </select>{' '}
-                      Entries
-                    </label>
-                  </div>
-                </div>
-                <div className="col-sm-12 col-md-6 text-md-end">
-                  <div id="DataTables_Table_0_filter" className="dataTables_filter d-inline-block">
-                    <label className="d-inline-flex align-items-center gap-2 mb-0">
-                      <input
-                        type="search"
-                        className="form-control form-control-sm"
-                        placeholder="Search"
-                        aria-controls="DataTables_Table_0"
-                        value={tableSearch}
-                        onChange={(e) => {
-                          setTableSearch(e.target.value);
-                          setCurrentPage(1);
-                        }}
-                      />
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Table */}
-              <div className="row dt-row">
-                <div className="col-sm-12 table-responsive">
-                  <table className="table datatable dataTable no-footer" id="DataTables_Table_0">
-                    <thead className="thead-light">
-                      <tr>
-                        <th className="text-center sorting sorting_asc" style={{ width: '20%' }}>
-                          Sl No.
-                        </th>
-                        <th className="text-center sorting" style={{ width: '35%' }}>
-                          Date
-                        </th>
-                        <th className="text-center sorting" style={{ width: '25%' }}>
-                          Status
-                        </th>
-                        <th className="text-center sorting" style={{ width: '20%' }}>
-                          Action
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {paginatedDates.length === 0 ? (
-                        <tr>
-                          <td colSpan="4" className="text-center py-4">
-                            <NoData title="No Leave Dates Found" message="No leave date records found." imageHeight={80} py={2} />
-                          </td>
-                        </tr>
-                      ) : (
-                        paginatedDates.map((d, idx) => {
-                          const globalIdx = (currentPage - 1) * pageSize + idx;
-                          return (
-                            <tr key={d.id || idx} className={idx % 2 === 0 ? 'odd' : 'even'}>
-                              <td className="text-center sorting_1">{globalIdx + 1}</td>
-                              <td className="text-center">{formatDate(d.date)}</td>
-                              <td className="text-center">
-                                {Number(d.status) === 2 ? (
-                                  <span className="badge badge-soft-success d-inline-flex align-items-center">
-                                    <i className="ti ti-circle-filled fs-5 me-1"></i>Approved
-                                  </span>
-                                ) : Number(d.status) === 3 ? (
-                                  <span className="badge badge-soft-danger d-inline-flex align-items-center">
-                                    <i className="ti ti-circle-filled fs-5 me-1"></i>Rejected
-                                  </span>
-                                ) : (
-                                  <span className="badge badge-soft-warning d-inline-flex align-items-center">
-                                    <i className="ti ti-circle-filled fs-5 me-1"></i>Pending
-                                  </span>
-                                )}
-                              </td>
-                              <td className="text-center">
-                                {Number(d.status) !== 2 ? (
-                                  <TableActionMenu
-                                    items={[
-                                      ...(leave.is_quota_exceeded && Number(d.status) === 1
-                                        ? [
-                                            {
-                                              label: 'Quota Limit Reached',
-                                              icon: 'ti ti-alert-triangle text-warning',
-                                              onClick: () =>
-                                                toast.warning(
-                                                  `Cannot approve: Maximum quota of ${leave.total_quota} day(s) for "${leave.leave_name}" has already been reached.`
-                                                ),
-                                            },
-                                          ]
-                                        : [
-                                            {
-                                              label: 'Approve',
-                                              icon: 'ti ti-check text-success',
-                                              onClick: () => handleDateStatusChange(d.id, 2),
-                                            },
-                                          ]),
-                                      {
-                                        label: 'Reject',
-                                        icon: 'ti ti-circle-x text-danger',
-                                        variant: 'danger',
-                                        onClick: () => handleDateStatusChange(d.id, 3),
-                                      },
-                                    ]}
-                                  />
-                                ) : (
-                                  <span className="text-muted">—</span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Pagination */}
-              <div className="row mt-3 align-items-center">
-                <div className="col-sm-12 col-md-5">
-                  <div className="dataTables_info text-muted fs-13">
-                    Showing {(currentPage - 1) * pageSize + (paginatedDates.length > 0 ? 1 : 0)} to{' '}
-                    {Math.min(currentPage * pageSize, filteredDates.length)} of {filteredDates.length} entries
-                  </div>
-                </div>
-                <div className="col-sm-12 col-md-7">
-                  <div className="dataTables_paginate paging_simple_numbers d-flex justify-content-md-end" id="DataTables_Table_0_paginate">
-                    <ul className="pagination mb-0">
-                      <li className={`paginate_button page-item previous ${currentPage === 1 ? 'disabled' : ''}`} id="DataTables_Table_0_previous">
-                        <button
-                          type="button"
-                          className="page-link"
-                          onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
-                          disabled={currentPage === 1}
-                        >
-                          Prev
-                        </button>
-                      </li>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                        <li
-                          key={pageNum}
-                          className={`paginate_button page-item ${currentPage === pageNum ? 'active' : ''}`}
-                        >
-                          <button
-                            type="button"
-                            className="page-link"
-                            onClick={() => setCurrentPage(pageNum)}
-                          >
-                            {pageNum}
-                          </button>
-                        </li>
-                      ))}
-                      <li className={`paginate_button page-item next ${currentPage === totalPages ? 'disabled' : ''}`} id="DataTables_Table_0_next">
-                        <button
-                          type="button"
-                          className="page-link"
-                          onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
-                          disabled={currentPage === totalPages}
-                        >
-                          Next
-                        </button>
-                      </li>
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
+
+      {/* Requested Leave Dates DataTable */}
+      <DataTable
+        title="Requested Leave Dates"
+        subtitle="Approve or reject individual leave dates or use the top buttons to decide all dates at once."
+        columns={dateColumns}
+        data={datesList}
+        loading={false}
+        selectable={false}
+        searchPlaceholder="Search by date or status..."
+        emptyMessage="No individual date rows recorded for this leave application."
+      />
     </div>
   );
 };

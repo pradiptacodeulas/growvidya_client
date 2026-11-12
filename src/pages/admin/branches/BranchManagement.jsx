@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import { Modal } from 'react-bootstrap';
 import { toast } from 'react-toastify';
 import {
@@ -7,6 +8,7 @@ import {
   createBranchApi,
   updateBranchApi,
   setMainBranchApi,
+  requestDeleteBranchOtpApi,
   deleteBranchApi,
   fetchCountriesApi,
   fetchStatesByCountryApi,
@@ -52,6 +54,13 @@ const renderAttendanceLocationBadge = (branch) => {
 };
 
 const BranchManagement = () => {
+  const { user } = useSelector((state) => state.auth || {});
+  const isSuperAdminUser = Boolean(
+    user?.isSuperAdmin || Number(user?.adminType ?? user?.admin_type) === 1
+  );
+  const isMultiBranchSchool =
+    String(user?.registrationType || user?.registration_type || '').toLowerCase() === 'multiple';
+
   const [branches, setBranches] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -101,9 +110,14 @@ const BranchManagement = () => {
   const [loadingLocationModal, setLoadingLocationModal] = useState(false);
   const [savingLocation, setSavingLocation] = useState(false);
 
-  // Delete Modal
+  // Delete Modal (3-Step Super Admin Verification: 'warning' -> 'password' -> 'otp')
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [branchToDelete, setBranchToDelete] = useState(null);
+  const [deleteStep, setDeleteStep] = useState('warning');
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteOtp, setDeleteOtp] = useState('');
+  const [deleteOtpMeta, setDeleteOtpMeta] = useState(null);
+  const [requestingDeleteOtp, setRequestingDeleteOtp] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
   // Load Countries
@@ -532,22 +546,88 @@ const BranchManagement = () => {
     }
   };
 
-  // Open Delete Modal
+  // Open Delete Modal (Step 1: Plain-English Warning)
   const handleOpenDelete = (branch) => {
+    if (!isSuperAdminUser) {
+      toast.error('Only the School Super Admin can delete a branch.');
+      return;
+    }
     setBranchToDelete(branch);
+    setDeleteStep('warning');
+    setDeletePassword('');
+    setDeleteOtp('');
+    setDeleteOtpMeta(null);
     setShowDeleteModal(true);
   };
 
-  // Confirm Delete
-  const handleConfirmDelete = async () => {
+  const handleCloseDeleteModal = () => {
+    if (requestingDeleteOtp || deleting) return;
+    setShowDeleteModal(false);
+    setBranchToDelete(null);
+    setDeleteStep('warning');
+    setDeletePassword('');
+    setDeleteOtp('');
+    setDeleteOtpMeta(null);
+  };
+
+  // Step 2: Verify Super Admin Password & Request 6-Digit OTP
+  const handleRequestDeleteOtp = async (e) => {
+    if (e) e.preventDefault();
     if (!branchToDelete) return;
+    if (!deletePassword.trim()) {
+      toast.warning('Please enter your Super Admin account password.');
+      return;
+    }
+    try {
+      setRequestingDeleteOtp(true);
+      const res = await requestDeleteBranchOtpApi(branchToDelete.id, deletePassword);
+      if (res?.success) {
+        setDeleteOtpMeta(res?.data || {});
+        setDeleteStep('otp');
+        toast.success(res.message || 'Password verified! Please enter the 6-digit OTP.');
+      } else {
+        toast.error(res?.message || 'Password verification failed.');
+      }
+    } catch (err) {
+      toast.error(err.message || 'Password verification failed.');
+    } finally {
+      setRequestingDeleteOtp(false);
+    }
+  };
+
+  // Step 3: Verify 6-Digit OTP & Permanently Delete Branch + All Associated Data
+  const handleConfirmDelete = async (e) => {
+    if (e) e.preventDefault();
+    if (!branchToDelete) return;
+    const cleanOtp = String(deleteOtp || '').trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      toast.warning('Please enter the 6-digit confirmation OTP.');
+      return;
+    }
     try {
       setDeleting(true);
-      const res = await deleteBranchApi(branchToDelete.id);
+      const res = await deleteBranchApi(branchToDelete.id, cleanOtp);
       if (res?.success) {
-        toast.success('Branch deleted successfully.');
+        toast.success(
+          res.message ||
+            'Branch and all its students, teachers, and campus data have been permanently deleted.'
+        );
+        if (
+          typeof window !== 'undefined' &&
+          String(localStorage.getItem('active_branch_id')) === String(branchToDelete.id)
+        ) {
+          localStorage.setItem('active_branch_id', 'all');
+          localStorage.removeItem('active_branch_name');
+          window.dispatchEvent(
+            new CustomEvent('branch_changed', { detail: { branchId: null, branchName: null } })
+          );
+        }
         setShowDeleteModal(false);
         setBranchToDelete(null);
+        setDeleteStep('warning');
+        setDeletePassword('');
+        setDeleteOtp('');
+        setDeleteOtpMeta(null);
         loadBranches();
         window.dispatchEvent(new CustomEvent('branch_list_updated'));
       } else {
@@ -578,7 +658,7 @@ const BranchManagement = () => {
 
   // Calculate Metrics (only non-deleted branches: status 1 or 2)
   const displayableBranches = branches.filter(
-    (b) => Number(b.status) === 1 || Number(b.status) === 2 || Number(b.status) === 0
+    (b) => Number(b.status) === 1 || Number(b.status) === 2
   );
   const totalBranches = displayableBranches.length;
   const mainCampus =
@@ -598,14 +678,11 @@ const BranchManagement = () => {
   // Filtered branches: status 1 or 2 are displayed; status 4 (soft-deleted) is NOT displayed
   const filteredBranches = branches.filter((b) => {
     const bStatus = Number(b.status);
-    if (bStatus === 4) return false;
-    if (bStatus !== 1 && bStatus !== 2 && bStatus !== 0) return false;
+    if (bStatus !== 1 && bStatus !== 2) return false;
 
     if (statusFilter !== 'all') {
       const filterVal = Number(statusFilter);
-      if (filterVal === 2) {
-        if (bStatus !== 2 && bStatus !== 0) return false;
-      } else if (bStatus !== filterVal) {
+      if (bStatus !== filterVal) {
         return false;
       }
     }
@@ -641,16 +718,18 @@ const BranchManagement = () => {
             </ol>
           </nav>
         </div>
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn btn-primary d-flex align-items-center gap-1 shadow-sm"
-            onClick={handleOpenAdd}
-          >
-            <i className="ti ti-plus fs-16"></i>
-            <span>Add New Campus</span>
-          </button>
-        </div>
+        {isMultiBranchSchool && (
+          <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+            <button
+              type="button"
+              className="btn btn-primary d-flex align-items-center gap-1 shadow-sm"
+              onClick={handleOpenAdd}
+            >
+              <i className="ti ti-plus fs-16"></i>
+              <span>Add New Campus</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Overview Stat Cards */}
@@ -977,13 +1056,14 @@ const BranchManagement = () => {
                         <TableActionMenu
                           menuWidth="205px"
                           items={[
-                            branch.is_main_branch !== 1 && {
-                              key: 'set-main',
-                              label: 'Set as Main Campus',
-                              icon: 'ti ti-crown',
-                              variant: 'success',
-                              onClick: () => handleSetMain(branch),
-                            },
+                            isMultiBranchSchool &&
+                              branch.is_main_branch !== 1 && {
+                                key: 'set-main',
+                                label: 'Set as Main Campus',
+                                icon: 'ti ti-crown',
+                                variant: 'success',
+                                onClick: () => handleSetMain(branch),
+                              },
                             {
                               key: 'edit',
                               label: 'Edit Campus',
@@ -997,13 +1077,15 @@ const BranchManagement = () => {
                               variant: 'primary',
                               onClick: () => handleOpenLocation(branch),
                             },
-                            branch.is_main_branch !== 1 && {
-                              key: 'delete',
-                              label: 'Delete Campus',
-                              icon: 'ti ti-trash',
-                              variant: 'danger',
-                              onClick: () => handleOpenDelete(branch),
-                            },
+                            isSuperAdminUser &&
+                              isMultiBranchSchool &&
+                              branch.is_main_branch !== 1 && {
+                                key: 'delete',
+                                label: 'Delete Campus',
+                                icon: 'ti ti-trash',
+                                variant: 'danger',
+                                onClick: () => handleOpenDelete(branch),
+                              },
                           ]}
                         />
                       </td>
@@ -1420,39 +1502,193 @@ const BranchManagement = () => {
         </Modal.Footer>
       </Modal>
 
-      {/* Delete Confirmation Modal */}
-      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered size="sm">
-        <Modal.Body className="text-center p-4">
-          <div
-            className="rounded-circle bg-danger bg-opacity-10 text-danger d-inline-flex align-items-center justify-content-center mb-3"
-            style={{ width: '56px', height: '56px' }}
-          >
-            <i className="ti ti-trash fs-28"></i>
-          </div>
-          <h5 className="fw-bold text-dark mb-1">Delete Campus?</h5>
-          <p className="fs-12 text-muted mb-4">
-            Are you sure you want to delete{' '}
-            <strong className="text-dark">"{branchToDelete?.branch_name}"</strong>? This will mark
-            the campus as deleted (Soft Delete). It can be restored at any time.
-          </p>
-          <div className="d-flex gap-2 justify-content-center">
-            <button
-              type="button"
-              className="btn btn-sm btn-light px-3"
-              onClick={() => setShowDeleteModal(false)}
-              disabled={deleting}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-sm btn-danger px-3"
-              onClick={handleConfirmDelete}
-              disabled={deleting}
-            >
-              {deleting ? 'Deleting...' : 'Soft Delete'}
-            </button>
-          </div>
+      {/* 3-Step Super Admin Permanent Branch Deletion Modal */}
+      <Modal show={showDeleteModal} onHide={handleCloseDeleteModal} centered>
+        <Modal.Header closeButton={!requestingDeleteOtp && !deleting} className="border-bottom py-3 px-4">
+          <Modal.Title className="fs-16 fw-bold text-danger d-flex align-items-center gap-2">
+            <i className="ti ti-alert-triangle fs-20"></i>
+            <span>
+              {deleteStep === 'warning'
+                ? 'Permanent Branch Deletion Warning'
+                : deleteStep === 'password'
+                ? 'Step 1 of 2: Verify Super Admin Password'
+                : 'Step 2 of 2: Enter 6-Digit Confirmation OTP'}
+            </span>
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-4">
+          {deleteStep === 'warning' && (
+            <div>
+              <div className="p-3 rounded-3 bg-danger bg-opacity-10 border border-danger border-opacity-25 mb-3">
+                <h6 className="fw-bold text-danger mb-1">
+                  You are about to permanently delete "{branchToDelete?.branch_name}" (
+                  {branchToDelete?.branch_code})
+                </h6>
+                <p className="fs-13 text-dark mb-0">
+                  Deleting this branch will <strong>permanently delete</strong> the branch along with{' '}
+                  <strong>all students, teachers, staff, classes, fee records, attendance records, and all campus data</strong>{' '}
+                  belonging to this branch. This action cannot be undone.
+                </p>
+              </div>
+
+              <div className="row g-2 mb-4 text-center">
+                <div className="col-4">
+                  <div className="p-2 rounded bg-light border">
+                    <div className="fs-18 fw-bold text-dark">{branchToDelete?.student_count || 0}</div>
+                    <div className="fs-11 text-muted">Students</div>
+                  </div>
+                </div>
+                <div className="col-4">
+                  <div className="p-2 rounded bg-light border">
+                    <div className="fs-18 fw-bold text-dark">{branchToDelete?.teacher_count || 0}</div>
+                    <div className="fs-11 text-muted">Teachers</div>
+                  </div>
+                </div>
+                <div className="col-4">
+                  <div className="p-2 rounded bg-light border">
+                    <div className="fs-18 fw-bold text-dark">{branchToDelete?.class_count || 0}</div>
+                    <div className="fs-11 text-muted">Classes</div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="d-flex justify-content-end gap-2">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light border px-3"
+                  onClick={handleCloseDeleteModal}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-danger px-3 fw-semibold"
+                  onClick={() => setDeleteStep('password')}
+                >
+                  I Understand, Continue
+                </button>
+              </div>
+            </div>
+          )}
+
+          {deleteStep === 'password' && (
+            <form onSubmit={handleRequestDeleteOtp}>
+              <p className="fs-13 text-muted mb-3">
+                To confirm permanent deletion of{' '}
+                <strong className="text-dark">"{branchToDelete?.branch_name}"</strong> and all its records,
+                please enter your <strong>Super Admin account password</strong>. We will send a 6-digit
+                confirmation OTP to your registered email address.
+              </p>
+
+              <div className="mb-3">
+                <label className="form-label fs-12 fw-semibold text-dark">
+                  Super Admin Password <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="password"
+                  className="form-control"
+                  placeholder="Enter your account password"
+                  value={deletePassword}
+                  onChange={(e) => setDeletePassword(e.target.value)}
+                  disabled={requestingDeleteOtp}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="d-flex justify-content-between align-items-center pt-2">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light border px-3"
+                  onClick={() => setDeleteStep('warning')}
+                  disabled={requestingDeleteOtp}
+                >
+                  Back
+                </button>
+                <div className="d-flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-light border px-3"
+                    onClick={handleCloseDeleteModal}
+                    disabled={requestingDeleteOtp}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-sm btn-danger px-3 fw-semibold"
+                    disabled={requestingDeleteOtp}
+                  >
+                    {requestingDeleteOtp ? 'Verifying & Sending OTP...' : 'Verify Password & Send OTP'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
+
+          {deleteStep === 'otp' && (
+            <form onSubmit={handleConfirmDelete}>
+              <div className="p-3 rounded-3 bg-light border mb-3">
+                <p className="fs-13 text-dark mb-1">
+                  A 6-digit confirmation OTP has been sent to{' '}
+                  <strong>{deleteOtpMeta?.maskedEmail || 'your registered email'}</strong>.
+                </p>
+                {deleteOtpMeta?.testPasscode && (
+                  <div className="mt-2 p-2 rounded bg-warning bg-opacity-10 border border-warning text-dark fs-12">
+                    <strong>Test Mode OTP:</strong>{' '}
+                    <span className="font-monospace fw-bold fs-14">{deleteOtpMeta.testPasscode}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-3">
+                <label className="form-label fs-12 fw-semibold text-dark">
+                  Enter 6-Digit OTP <span className="text-danger">*</span>
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={6}
+                  className="form-control font-monospace text-center fs-18 fw-bold"
+                  style={{ letterSpacing: '6px' }}
+                  placeholder="••••••"
+                  value={deleteOtp}
+                  onChange={(e) => setDeleteOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  disabled={deleting}
+                  autoFocus
+                  required
+                />
+              </div>
+
+              <div className="d-flex justify-content-between align-items-center pt-2">
+                <button
+                  type="button"
+                  className="btn btn-sm btn-light border px-3"
+                  onClick={() => setDeleteStep('password')}
+                  disabled={deleting}
+                >
+                  Back
+                </button>
+                <div className="d-flex gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-sm btn-light border px-3"
+                    onClick={handleCloseDeleteModal}
+                    disabled={deleting}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-sm btn-danger px-3 fw-semibold"
+                    disabled={deleting || deleteOtp.length !== 6}
+                  >
+                    {deleting ? 'Permanently Deleting...' : 'Verify OTP & Delete Branch'}
+                  </button>
+                </div>
+              </div>
+            </form>
+          )}
         </Modal.Body>
       </Modal>
     </div>

@@ -6,6 +6,7 @@ import TeacherLayout from '../layouts/TeacherLayout';
 const TeacherDashboard = lazy(() => import('../pages/teacher/TeacherDashboard'));
 const TeacherStudentList = lazy(() => import('../pages/teacher/students/TeacherStudentList'));
 const StudentDetails = lazy(() => import('../pages/admin/students/StudentDetails'));
+const StudentActivitiesManage = lazy(() => import('../pages/admin/students/StudentActivitiesManage'));
 const TeacherRoutine = lazy(() => import('../pages/teacher/academics/TeacherRoutine'));
 const SyllabusList = lazy(() => import('../pages/admin/academics/SyllabusList'));
 const AddSyllabus = lazy(() => import('../pages/admin/academics/AddSyllabus'));
@@ -35,8 +36,11 @@ const TeacherMyTransport = lazy(() => import('../pages/teacher/transport/Teacher
 const TeacherMyHostel = lazy(() => import('../pages/teacher/hostel/TeacherMyHostel'));
 const TeacherMessages = lazy(() => import('../pages/teacher/messages/TeacherMessages'));
 const NoticeList = lazy(() => import('../pages/admin/announcement/NoticeList'));
+const ViewNotice = lazy(() => import('../pages/admin/announcement/ViewNotice'));
 const EventList = lazy(() => import('../pages/admin/announcement/EventList'));
+const ViewEvent = lazy(() => import('../pages/admin/announcement/ViewEvent'));
 const HolidayList = lazy(() => import('../pages/admin/announcement/HolidayList'));
+const ViewHoliday = lazy(() => import('../pages/admin/announcement/ViewHoliday'));
 
 export const teacherRoutes = (
   <Route element={<TeacherProtectedRoute />}>
@@ -44,6 +48,7 @@ export const teacherRoutes = (
       <Route index element={<Navigate to="/teacher/dashboard" replace />} />
       <Route path="dashboard" element={<TeacherDashboard />} />
       <Route path="students" element={<TeacherStudentList />} />
+      <Route path="students/activities" element={<StudentActivitiesManage />} />
       <Route path="students/:id" element={<StudentDetails />} />
       <Route path="students/details/:id" element={<StudentDetails />} />
       <Route path="ward" element={<Navigate to="/teacher/students" replace />} />
@@ -106,8 +111,14 @@ export const teacherRoutes = (
 
       {/* Announcements */}
       <Route path="announcements/notices" element={<NoticeList />} />
+      <Route path="announcements/notices/view/:id" element={<ViewNotice />} />
+      <Route path="announcement/notice/view/:id" element={<ViewNotice />} />
       <Route path="announcements/events" element={<EventList />} />
+      <Route path="announcements/events/view/:id" element={<ViewEvent />} />
+      <Route path="announcement/event/view/:id" element={<ViewEvent />} />
       <Route path="announcements/holidays" element={<HolidayList />} />
+      <Route path="announcements/holidays/view/:id" element={<ViewHoliday />} />
+      <Route path="announcement/holiday/view/:id" element={<ViewHoliday />} />
     </Route>
   </Route>
 );

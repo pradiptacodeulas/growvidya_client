@@ -229,6 +229,10 @@ const SubscriptionConfigurePublic = () => {
         : basePrice;
 
     if (eligibleBase <= 0) return 0;
+    const minOrder = parseFloat(
+      appliedCoupon.minOrderAmount ?? appliedCoupon.min_order_amount ?? 0
+    );
+    if (minOrder > 0 && eligibleBase < minOrder) return 0;
 
     if (appliedCoupon.discountType === 'percentage') {
       const raw = (eligibleBase * parseFloat(appliedCoupon.discountValue || 0)) / 100;
@@ -263,6 +267,7 @@ const SubscriptionConfigurePublic = () => {
         discountType: data.discountType,
         discountValue: parseFloat(data.discountValue),
         discountAmount: parseFloat(data.discountAmount),
+        minOrderAmount: parseFloat(data.min_order_amount ?? data.minOrderAmount ?? 0),
         maxDiscountAmount: data.max_discount_amount || data.maxDiscountAmount || null,
         applicable_scope: data.applicable_scope || 'plan_only',
       });
