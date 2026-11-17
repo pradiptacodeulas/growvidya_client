@@ -8,6 +8,9 @@ import {
   createTeacherApi,
   updateTeacherApi,
   deleteTeacherApi,
+  downloadTeacherTemplateApi,
+  uploadTeachersCsvApi,
+  downloadFailedTeachersCsvApi,
 } from '../../../api/adminTeacher.api';
 import { fetchClassesApi, fetchSectionsApi, fetchSubjectsApi } from '../../../api/adminAcademic.api';
 import maleUser from '../../../assets/male-user.png';
@@ -52,6 +55,14 @@ const TeacherList = () => {
   const [editingTeacherId, setEditingTeacherId] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState(null);
+
+  // Import Modal State
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
+  const [downloadingFailed, setDownloadingFailed] = useState(false);
+  const [importResult, setImportResult] = useState(null);
 
   // Form State
   const [imageFile, setImageFile] = useState(null);
@@ -255,13 +266,6 @@ const TeacherList = () => {
     setImageFile(null);
     setImagePreview(t.picture ? getTeacherAvatarUrl(t) : '');
 
-    const rawGender = t.gender_id !== undefined ? t.gender_id : t.gender;
-    const genderVal = (rawGender === '2' || rawGender === 2 || String(rawGender).toLowerCase().includes('fem'))
-      ? '2'
-      : (rawGender === '3' || rawGender === 3 || String(rawGender).toLowerCase().includes('oth'))
-      ? '3'
-      : '1';
-
     setFormData({
       first_name: t.first_name || '',
       last_name: t.last_name || '',
@@ -272,7 +276,7 @@ const TeacherList = () => {
       section_id: t.section ? String(t.section) : '',
       subject_id: t.subject ? String(t.subject) : '',
       qualification: t.qualification || '',
-      gender: genderVal,
+      gender: t.gender ? String(t.gender) : '',
       status: t.status !== undefined ? t.status : 1,
     });
     setShowModal(true);
@@ -345,6 +349,85 @@ const TeacherList = () => {
     }
   };
 
+  const handleOpenImportModal = () => {
+    setImportFile(null);
+    setImportResult(null);
+    setShowImportModal(true);
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      setDownloadingTemplate(true);
+      const blob = await downloadTeacherTemplateApi();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'teacher_bulk_upload_template.xlsx';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Template downloaded successfully');
+    } catch (err) {
+      console.error('Failed to download template:', err);
+      toast.error('Failed to download template');
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  };
+
+  const handleUploadCsv = async (e) => {
+    e.preventDefault();
+    if (!importFile) {
+      return toast.warning('Please select an Excel or CSV file to upload');
+    }
+
+    try {
+      setImporting(true);
+      setImportResult(null);
+      const formData = new FormData();
+      formData.append('file', importFile);
+
+      const activeBranchId = localStorage.getItem('active_branch_id') || localStorage.getItem('selected_branch_id');
+      if (activeBranchId && activeBranchId !== 'all' && activeBranchId !== 'null') {
+        formData.append('branch_id', activeBranchId);
+      }
+
+      const res = await uploadTeachersCsvApi(formData);
+      const data = res?.data || {};
+      setImportResult(data);
+
+      if (Number(data.successfully_uploaded) > 0) {
+        toast.success(res?.message || `${data.successfully_uploaded} teacher(s) imported successfully`);
+        fetchTeacherBatch(1, appliedFilters, limit);
+      } else {
+        toast.warning(res?.message || 'Upload completed with failed records');
+      }
+    } catch (err) {
+      console.error('Failed to upload teachers file:', err);
+      toast.error(err.response?.data?.message || 'Failed to upload file');
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleDownloadFailedCsv = async () => {
+    try {
+      setDownloadingFailed(true);
+      const blob = await downloadFailedTeachersCsvApi(importResult?.failed_batch_id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'failed_teachers_records.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success('Failed records CSV downloaded');
+    } catch (err) {
+      console.error('Failed to download failed records CSV:', err);
+      toast.error('Failed to download failed records CSV');
+    } finally {
+      setDownloadingFailed(false);
+    }
+  };
+
   return (
     <div className="content content-two">
       {/* Page Header */}
@@ -364,7 +447,16 @@ const TeacherList = () => {
           </nav>
         </div>
 
-        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap">
+        <div className="d-flex my-xl-auto right-content align-items-center flex-wrap gap-2">
+          <div className="mb-2">
+            <button
+              type="button"
+              className="btn btn-light fw-medium d-inline-flex align-items-center"
+              onClick={handleOpenImportModal}
+            >
+              <i className="ti ti-file-import me-2"></i>Import
+            </button>
+          </div>
           <div className="mb-2">
             <Link
               to="/admin/teachers/add"
@@ -1041,7 +1133,7 @@ const TeacherList = () => {
                   <div className="col-6">
                     <small className="text-muted d-block">Gender</small>
                     <p className="fw-semibold mb-0">
-                      {selectedTeacher.gender_name || (selectedTeacher.gender === '2' || selectedTeacher.gender === 2 ? 'Female' : selectedTeacher.gender === '3' || selectedTeacher.gender === 3 ? 'Others' : 'Male')}
+                      {selectedTeacher.gender_name || 'N/A'}
                     </p>
                   </div>
                 </div>
@@ -1069,6 +1161,141 @@ const TeacherList = () => {
                   <i className="ti ti-edit me-1"></i>Edit Full Details
                 </Link>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Teachers Modal */}
+      {showImportModal && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1055 }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow">
+              <div className="modal-header">
+                <h5 className="modal-title fw-bold">Import Teachers</h5>
+                <button
+                  type="button"
+                  className="btn-close custom-btn-close"
+                  onClick={() => setShowImportModal(false)}
+                >
+                  <i className="ti ti-x"></i>
+                </button>
+              </div>
+              <form onSubmit={handleUploadCsv}>
+                <div className="modal-body p-4">
+                  <div className="d-flex align-items-center justify-content-between gap-3 bg-light border p-3 rounded-2 mb-3">
+                    <div>
+                      <h6 className="mb-1 fw-semibold">Download Sample Template</h6>
+                      <p className="text-muted fs-12 mb-0">
+                        Download the Excel template to see required columns.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn btn-outline-primary btn-sm d-inline-flex align-items-center flex-shrink-0 text-nowrap"
+                      onClick={handleDownloadTemplate}
+                      disabled={downloadingTemplate}
+                    >
+                      <i className="ti ti-download me-1"></i>
+                      {downloadingTemplate ? 'Downloading...' : 'Download Template'}
+                    </button>
+                  </div>
+
+                  <div className="mb-2">
+                    <label className="form-label fw-semibold">
+                      Upload Excel / CSV File <span className="text-danger">*</span>
+                    </label>
+                    <label
+                      htmlFor="import-teachers-file-input"
+                      className="d-flex flex-column align-items-center justify-content-center border rounded-2 p-4 text-center bg-light w-100 mb-0"
+                      style={{ borderStyle: 'dashed', cursor: 'pointer' }}
+                    >
+                      <i className="ti ti-cloud-upload fs-28 text-primary mb-2"></i>
+                      {importFile ? (
+                        <div>
+                          <span className="fw-semibold text-dark d-block">{importFile.name}</span>
+                          <span className="text-muted fs-12">
+                            {(importFile.size / 1024).toFixed(1)} KB — Click to change file
+                          </span>
+                        </div>
+                      ) : (
+                        <div>
+                          <span className="fw-semibold text-dark d-block">
+                            Click to choose a file
+                          </span>
+                          <span className="text-muted fs-12">
+                            Supports .xlsx, .xls, or .csv files
+                          </span>
+                        </div>
+                      )}
+                      <input
+                        id="import-teachers-file-input"
+                        type="file"
+                        className="d-none"
+                        accept=".xlsx,.xls,.csv"
+                        onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                      />
+                    </label>
+                  </div>
+
+                  {importResult && (
+                    <div className="border rounded-2 p-3 bg-light mt-3">
+                      <div className="d-flex justify-content-around text-center">
+                        <div>
+                          <span className="text-muted fs-12 d-block">Total</span>
+                          <strong className="fs-15">{importResult.total_teachers ?? 0}</strong>
+                        </div>
+                        <div>
+                          <span className="text-muted fs-12 d-block">Uploaded</span>
+                          <strong className="text-success fs-15">
+                            {importResult.successfully_uploaded ?? 0}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-muted fs-12 d-block">Failed</span>
+                          <strong className="text-danger fs-15">
+                            {importResult.remaining_failed ?? 0}
+                          </strong>
+                        </div>
+                      </div>
+
+                      {Number(importResult.remaining_failed) > 0 && (
+                        <div className="text-end mt-3 pt-2 border-top">
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline-danger d-inline-flex align-items-center text-nowrap"
+                            onClick={handleDownloadFailedCsv}
+                            disabled={downloadingFailed}
+                          >
+                            <i className="ti ti-file-alert me-1"></i>
+                            {downloadingFailed ? 'Downloading...' : 'Download Failed CSV'}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="modal-footer gap-2">
+                  <button
+                    type="button"
+                    className="btn btn-light"
+                    onClick={() => setShowImportModal(false)}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary"
+                    disabled={importing || !importFile}
+                  >
+                    {importing ? 'Uploading...' : 'Upload & Import'}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

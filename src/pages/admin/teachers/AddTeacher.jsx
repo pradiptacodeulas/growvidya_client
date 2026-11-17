@@ -379,16 +379,6 @@ const AddTeacher = () => {
         await loadOptionsForBranch(teacherBranchStr);
       }
 
-      const rawGender = t.gender_id !== undefined ? t.gender_id : t.gender;
-      let normGender = '1';
-      if (rawGender === '2' || rawGender === 2 || String(rawGender).toLowerCase().includes('fem')) {
-        normGender = '2';
-      } else if (rawGender === '3' || rawGender === 3 || String(rawGender).toLowerCase().includes('oth')) {
-        normGender = '3';
-      } else {
-        normGender = '1';
-      }
-
       setPersonalInfo({
         branch_id: teacherBranchStr,
         academic_year: t.academic_year ? String(t.academic_year) : '',
@@ -397,7 +387,7 @@ const AddTeacher = () => {
         last_name: t.last_name || '',
         class: t.class ? String(t.class) : '',
         section_student: t.section ? String(t.section) : '',
-        gender: normGender,
+        gender: t.gender ? String(t.gender) : '',
         primary_contact_number: t.primary_contact_number || '',
         email_address: t.email_address || '',
         blood_group: t.blood_group ? String(t.blood_group) : '',

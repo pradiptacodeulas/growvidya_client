@@ -1,5 +1,13 @@
+import axios from 'axios';
 import apiClient from './axios.config';
 import { sortDropdownDesc } from '../utils/dropdownSort.util';
+
+const CSV_API_BASE_URL = import.meta.env.VITE_CSV_API_BASE_URL;
+
+const getAdminAuthHeaders = () => {
+  const token = localStorage.getItem('admin_token') || localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
 
 export const fetchTeachersApi = async (params = {}) => {
   const res = await apiClient.get('/admin/teachers', { params });
@@ -72,4 +80,45 @@ export const checkTeacherDuplicateApi = async ({ email, phone, branch_id = null 
 export const deleteTeacherApi = async (id, params = {}) => {
   const res = await apiClient.delete(`/admin/teachers/${id}`, { params });
   return res.data;
+};
+
+/**
+ * Download Teacher Excel/CSV upload template from CSV server
+ */
+export const downloadTeacherTemplateApi = async () => {
+  const response = await axios.get(`${CSV_API_BASE_URL}/admin/teachers/csv/template.xlsx`, {
+    headers: getAdminAuthHeaders(),
+    responseType: 'blob',
+    withCredentials: true,
+  });
+  return response.data;
+};
+
+/**
+ * Upload Teacher Excel/CSV file to CSV server
+ */
+export const uploadTeachersCsvApi = async (formData) => {
+  const response = await axios.post(`${CSV_API_BASE_URL}/admin/teachers/csv/upload`, formData, {
+    headers: {
+      ...getAdminAuthHeaders(),
+    },
+    withCredentials: true,
+  });
+  return response.data;
+};
+
+/**
+ * Download Failed Teacher records CSV from CSV server
+ */
+export const downloadFailedTeachersCsvApi = async (batchId) => {
+  const cleanBatchId = String(batchId || '').replace(/\.csv$/i, '').trim();
+  const url = cleanBatchId
+    ? `${CSV_API_BASE_URL}/admin/teachers/csv/failed-download/${cleanBatchId}`
+    : `${CSV_API_BASE_URL}/admin/teachers/csv/failed-download`;
+  const response = await axios.get(url, {
+    headers: getAdminAuthHeaders(),
+    responseType: 'blob',
+    withCredentials: true,
+  });
+  return response.data;
 };

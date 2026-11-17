@@ -277,7 +277,7 @@ const TeacherDetails = () => {
 
                   <dt className="col-6 fw-medium text-dark mb-3">Gender</dt>
                   <dd className="col-6 mb-3 text-dark">
-                    {teacher.gender_name || (teacher.gender_id === 2 || teacher.gender === '2' || teacher.gender === 2 ? 'Female' : teacher.gender_id === 3 || teacher.gender === '3' || teacher.gender === 3 ? 'Others' : 'Male')}
+                    {teacher.gender_name || 'N/A'}
                   </dd>
 
                   <dt className="col-6 fw-medium text-dark mb-3">Blood Group</dt>
