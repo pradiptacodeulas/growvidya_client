@@ -1,5 +1,6 @@
 import React, { lazy } from 'react';
 import { Route, Navigate, useLocation } from 'react-router-dom';
+import { getOnboardingBaseUrl } from '../utils/url.util';
 
 const PortalSelection = lazy(() => import('../pages/PortalSelection'));
 const PricingPlans = lazy(() => import('../pages/saas/PricingPlans'));
@@ -12,14 +13,17 @@ const StudentLogin = lazy(() => import('../pages/student/StudentLogin'));
 
 const OnboardingRedirect = () => {
   const location = useLocation();
+  const onboardingUrl = getOnboardingBaseUrl();
+
   React.useEffect(() => {
-    const onboardingUrl =
-      import.meta.env.VITE_ONBOARDING_URL ||
-      (typeof window !== 'undefined'
-        ? `${window.location.protocol}//${window.location.hostname}:3000`
-        : 'http://localhost:3000');
-    window.location.replace(`${onboardingUrl}/register${location.search || ''}`);
-  }, [location.search]);
+    if (onboardingUrl) {
+      window.location.replace(`${onboardingUrl}/register${location.search || ''}`);
+    }
+  }, [onboardingUrl, location.search]);
+
+  if (!onboardingUrl) {
+    return <Navigate to="/pricing" replace />;
+  }
   return null;
 };
 

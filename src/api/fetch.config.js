@@ -3,6 +3,16 @@ import { encodeParam } from '../utils/idHelper';
 import { sortResponseDropdowns } from '../utils/dropdownSort.util';
 import { extractUserFriendlyMessage } from '../utils/customToast';
 
+const SUBSCRIPTION_LOCK_CODES = new Set([
+  'SUBSCRIPTION_EXPIRED',
+  'SUBSCRIPTION_SUSPENDED',
+  'SUBSCRIPTION_PENDING_APPROVAL',
+  'SUBSCRIPTION_PENDING',
+  'SUBSCRIPTION_REJECTED',
+  'SUBSCRIPTION_REQUIRED',
+  'NO_ACTIVE_SUBSCRIPTION',
+]);
+
 /**
  * Fetch API Client configured for Secure HTTP-Only Cookie + Bearer Token Authentication
  * Supports localhost and LAN/WiFi multi-device access.
@@ -84,10 +94,19 @@ export const apiFetch = async (endpoint, options = {}) => {
     }
   }
 
+  let portalTypeHeader = null;
+  if (typeof window !== 'undefined') {
+    const p = window.location.pathname || '';
+    if (p.startsWith('/teacher')) portalTypeHeader = 'TeacherPortal';
+    else if (p.startsWith('/parent')) portalTypeHeader = 'ParentPortal';
+    else if (p.startsWith('/student')) portalTypeHeader = 'StudentPortal';
+  }
+
   const headers = {
     'Content-Type': 'application/json',
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(activeBranchId ? { 'X-Branch-Id': activeBranchId } : {}),
+    ...(portalTypeHeader ? { 'X-Portal-Type': portalTypeHeader } : {}),
     ...(options.headers || {}),
   };
 
@@ -97,9 +116,13 @@ export const apiFetch = async (endpoint, options = {}) => {
     credentials: 'include',
   };
 
-  // Automatically encode numeric route ID parameters (e.g. /teacher/leaves/my-leaves/12 -> /teacher/leaves/my-leaves/MTI=)
+  // Automatically encode numeric route ID parameters (skipping order/invoice reference routes)
   let processedEndpoint = endpoint;
-  if (typeof processedEndpoint === 'string') {
+  if (
+    typeof processedEndpoint === 'string' &&
+    !processedEndpoint.includes('/subscription/orders/') &&
+    !processedEndpoint.includes('/saas/orders/')
+  ) {
     processedEndpoint = processedEndpoint.replace(/\/(\d+)(?=(\/|\?|$))/g, (match, p1) => `/${encodeParam(p1)}`);
   }
 
@@ -108,17 +131,16 @@ export const apiFetch = async (endpoint, options = {}) => {
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    const currentPath = typeof window !== 'undefined' ? (window.location.pathname || '') : '';
+    const isNonAdminPortal =
+      currentPath.startsWith('/teacher') ||
+      currentPath.startsWith('/parent') ||
+      currentPath.startsWith('/student');
+
     const errCode = data?.errors?.code || data?.code || data?.data?.code || null;
     const isSubscriptionLocked =
       response.status === 402 ||
-      (errCode &&
-        [
-          'SUBSCRIPTION_EXPIRED',
-          'SUBSCRIPTION_SUSPENDED',
-          'SUBSCRIPTION_PENDING',
-          'SUBSCRIPTION_REJECTED',
-          'NO_ACTIVE_SUBSCRIPTION',
-        ].includes(String(errCode)));
+      (errCode && SUBSCRIPTION_LOCK_CODES.has(String(errCode)));
 
     const isFeatureNotInPlan =
       errCode === 'FEATURE_NOT_IN_PLAN' ||
@@ -128,11 +150,22 @@ export const apiFetch = async (endpoint, options = {}) => {
           data.message.includes('upgrade your current plan') ||
           data.message.includes('upgrade your subscription plan')));
 
-    const errorMsg = isFeatureNotInPlan
-      ? 'You are not allow to use this features try to upgrade your current plan'
-      : extractUserFriendlyMessage({ response: { status: response.status, data } });
+    let errorMsg;
+    if (isSubscriptionLocked && isNonAdminPortal) {
+      errorMsg = 'School portal services are temporarily paused. Please contact your School Administration.';
+    } else if (isFeatureNotInPlan && isNonAdminPortal) {
+      errorMsg = 'This module is currently unavailable for your school. Please contact your School Administration.';
+    } else if (errCode === 'STORAGE_QUOTA_EXCEEDED' && isNonAdminPortal) {
+      errorMsg = 'School cloud storage capacity has been reached. Please contact your School Administration.';
+    } else if (isFeatureNotInPlan) {
+      errorMsg =
+        data?.message ||
+        'This module is not included in your current subscription plan. Please upgrade your plan to unlock it.';
+    } else {
+      errorMsg = extractUserFriendlyMessage({ response: { status: response.status, data } });
+    }
 
-    if (isSubscriptionLocked && typeof window !== 'undefined') {
+    if (isSubscriptionLocked && !isNonAdminPortal && typeof window !== 'undefined') {
       window.dispatchEvent(
         new CustomEvent('subscription_expired', {
           detail: {

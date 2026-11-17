@@ -809,7 +809,11 @@ const SuperAdminDashboard = () => {
                   <i className="ti ti-circle-check me-1"></i> Active: {students.active}
                 </span>
                 <span className="text-muted">
-                  Capacity: {students.allowed > 0 ? students.allowed : 'Unlimited'}
+                  {students.allowed > 0
+                    ? students.isBranchFiltered || selectedBranch !== 'all'
+                      ? `Plan Seats: ${students.schoolTotal ?? students.total}/${students.allowed} (School)`
+                      : `Plan Seats: ${students.total}/${students.allowed}`
+                    : 'Capacity: Unlimited'}
                 </span>
               </div>
             </div>

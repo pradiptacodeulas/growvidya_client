@@ -3,10 +3,32 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import saasApi from '../../api/saas.api';
 import logoDark from '../../assets/logo_dark.png';
-import { resolveImageUrl } from '../../utils/url.util';
+import { resolveImageUrl, getOnboardingBaseUrl } from '../../utils/url.util';
 import { loadRazorpayScript } from '../../utils/loadRazorpay';
 
 const NO_IMAGE_PLACEHOLDER = '/assets_admin/no_iamge.webp';
+
+const computeScopedDiscount = (coupon, planAmt, storageAmt, totalAmt) => {
+  if (!coupon || totalAmt <= 0) return 0;
+  const scope = String(coupon.applicable_scope || 'plan_only').toLowerCase();
+  const eligibleBase =
+    scope === 'all'
+      ? totalAmt
+      : scope === 'software_and_storage'
+      ? planAmt + storageAmt
+      : planAmt;
+
+  if (eligibleBase <= 0) return 0;
+  const minOrder = parseFloat(coupon.minOrderAmount ?? coupon.min_order_amount ?? 0);
+  if (minOrder > 0 && eligibleBase < minOrder) return 0;
+
+  if (coupon.discountType === 'percentage') {
+    const raw = (eligibleBase * parseFloat(coupon.discountValue || 0)) / 100;
+    const cap = coupon.maxDiscountAmount ? parseFloat(coupon.maxDiscountAmount) : null;
+    return Math.min(eligibleBase, Math.round((cap ? Math.min(raw, cap) : raw) * 100) / 100);
+  }
+  return Math.min(eligibleBase, parseFloat(coupon.discountValue || 0));
+};
 
 const SubscriptionConfigurePublic = () => {
   const navigate = useNavigate();
@@ -22,13 +44,20 @@ const SubscriptionConfigurePublic = () => {
   const [submitting, setSubmitting] = useState(false);
 
   const searchParams = new URLSearchParams(location.search);
-  const planIdParam = searchParams.get('planId');
-  const billingParam = searchParams.get('billing');
+  const planIdParam = searchParams.get('planId') || searchParams.get('plan_id');
+  const billingParam = searchParams.get('billing') || searchParams.get('cycle');
+  const trialParam = searchParams.get('trial');
 
+  const [plans, setPlans] = useState([]);
   const [billingCycle, setBillingCycle] = useState(
-    location.state?.billingCycle || billingParam || 'annual'
+    location.state?.billingCycle || billingParam || ''
   );
   const [selectedPlan, setSelectedPlan] = useState(location.state?.plan || null);
+  const [isTrialMode, setIsTrialMode] = useState(() => {
+    if (location.state?.isTrial !== undefined) return Boolean(location.state.isTrial);
+    if (trialParam !== null) return trialParam === '1';
+    return false;
+  });
 
   const storedRegData = useMemo(() => {
     try {
@@ -80,6 +109,7 @@ const SubscriptionConfigurePublic = () => {
 
         const fetchedPlans = plansRes?.data || [];
         const fetchedCatalog = catalogRes?.data || {};
+        setPlans(fetchedPlans);
 
         setCatalog({
           storage_plans: fetchedCatalog.storage_plans || [],
@@ -114,6 +144,13 @@ const SubscriptionConfigurePublic = () => {
           if (matched.billing_cycle) {
             setBillingCycle(String(matched.billing_cycle).toLowerCase());
           }
+          if (location.state?.isTrial === undefined && trialParam === null) {
+            const matchedHasTrial =
+              String(matched.billing_cycle || '').toLowerCase() === 'trial' ||
+              parseFloat(matched.price) <= 0 ||
+              parseInt(matched.free_trial_days, 10) > 0;
+            setIsTrialMode(Boolean(matchedHasTrial));
+          }
         }
       } catch (err) {
         console.error('Failed to load configuration data:', err);
@@ -127,22 +164,49 @@ const SubscriptionConfigurePublic = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const isSelectedTrial = Boolean(
+  const availablePaidCycles = useMemo(() => {
+    const cycleMap = new Map();
+    for (const p of plans) {
+      const cyc = String(p?.billing_cycle || '').toLowerCase();
+      if (cyc && cyc !== 'trial' && !cycleMap.has(cyc)) {
+        cycleMap.set(cyc, p.cycle_meta?.months ?? 0);
+      }
+    }
+    return Array.from(cycleMap.entries())
+      .sort((a, b) => a[1] - b[1])
+      .map(([cyc]) => cyc);
+  }, [plans]);
+
+  const planTrialDays = Math.max(
+    0,
+    parseInt(selectedPlan?.free_trial_days || selectedPlan?.duration_days, 10) || 0
+  );
+  const isPureTrialPlan = Boolean(
     selectedPlan &&
       (String(selectedPlan.billing_cycle || '').toLowerCase() === 'trial' ||
         parseFloat(selectedPlan.price) <= 0)
   );
+  const hasTrialOption = Boolean(selectedPlan && (isPureTrialPlan || planTrialDays > 0));
+  const isSelectedTrial = Boolean(hasTrialOption && (isPureTrialPlan || isTrialMode));
 
-  const effectiveStorageCycle = isSelectedTrial ? 'annual' : billingCycle || 'annual';
+  const effectiveStorageCycle = useMemo(() => {
+    const planCycle = String(selectedPlan?.billing_cycle || '').toLowerCase();
+    if (planCycle && planCycle !== 'trial') return planCycle;
+    const cleanCycle = String(billingCycle || '').toLowerCase();
+    if (cleanCycle && cleanCycle !== 'trial') return cleanCycle;
+    return availablePaidCycles[0] || '';
+  }, [selectedPlan?.billing_cycle, billingCycle, availablePaidCycles]);
+
   const cycleMeta = selectedPlan?.cycle_meta || {
-    cycle: isSelectedTrial ? 'trial' : billingCycle,
+    cycle: isPureTrialPlan ? 'trial' : billingCycle,
     label: selectedPlan?.billing_cycle || billingCycle,
     shortLabel: selectedPlan?.billing_cycle || billingCycle,
   };
 
-  const basePrice = isSelectedTrial
+  const paidPlanPrice = isPureTrialPlan
     ? 0
     : Math.round((parseFloat(selectedPlan?.price || 0) || 0) * 100) / 100;
+  const basePrice = isSelectedTrial ? 0 : paidPlanPrice;
 
   const selectedStoragePlan = useMemo(
     () => catalog.storage_plans.find((s) => Number(s.id) === Number(selectedStorageId)) || null,
@@ -212,39 +276,64 @@ const SubscriptionConfigurePublic = () => {
   );
 
   const hasPhysicalHardware = selectedMachinesList.length > 0 || selectedCardsList.length > 0;
+  const addonsTotal =
+    Math.round((storageTotal + machinesTotal + cardsTotal + notificationsTotal) * 100) / 100;
 
-  const subtotal =
-    Math.round(
-      (basePrice + storageTotal + machinesTotal + cardsTotal + notificationsTotal) * 100
-    ) / 100;
+  const subtotal = Math.round((basePrice + addonsTotal) * 100) / 100;
 
-  const discountAmount = useMemo(() => {
-    if (!appliedCoupon || subtotal <= 0) return 0;
-    const scope = String(appliedCoupon.applicable_scope || 'plan_only').toLowerCase();
-    const eligibleBase =
-      scope === 'all'
-        ? subtotal
-        : scope === 'software_and_storage'
-        ? basePrice + storageTotal
-        : basePrice;
-
-    if (eligibleBase <= 0) return 0;
-    const minOrder = parseFloat(
-      appliedCoupon.minOrderAmount ?? appliedCoupon.min_order_amount ?? 0
-    );
-    if (minOrder > 0 && eligibleBase < minOrder) return 0;
-
-    if (appliedCoupon.discountType === 'percentage') {
-      const raw = (eligibleBase * parseFloat(appliedCoupon.discountValue || 0)) / 100;
-      const cap = appliedCoupon.maxDiscountAmount
-        ? parseFloat(appliedCoupon.maxDiscountAmount)
-        : null;
-      return Math.min(eligibleBase, Math.round((cap ? Math.min(raw, cap) : raw) * 100) / 100);
-    }
-    return Math.min(eligibleBase, parseFloat(appliedCoupon.discountValue || 0));
-  }, [appliedCoupon, subtotal, basePrice, storageTotal]);
+  const discountAmount = useMemo(
+    () => computeScopedDiscount(appliedCoupon, basePrice, storageTotal, subtotal),
+    [appliedCoupon, basePrice, storageTotal, subtotal]
+  );
 
   const grandTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+
+  // Parallel totals for dual Free Trial vs Paid Plan CTA when hasRegistrationData && hasTrialOption
+  const trialDiscountAmount = useMemo(
+    () => computeScopedDiscount(appliedCoupon, 0, storageTotal, addonsTotal),
+    [appliedCoupon, storageTotal, addonsTotal]
+  );
+  const trialGrandTotal = Math.max(0, Math.round((addonsTotal - trialDiscountAmount) * 100) / 100);
+
+  const paidSubtotal = Math.round((paidPlanPrice + addonsTotal) * 100) / 100;
+  const paidDiscountAmount = useMemo(
+    () => computeScopedDiscount(appliedCoupon, paidPlanPrice, storageTotal, paidSubtotal),
+    [appliedCoupon, paidPlanPrice, storageTotal, paidSubtotal]
+  );
+  const paidGrandTotal = Math.max(0, Math.round((paidSubtotal - paidDiscountAmount) * 100) / 100);
+
+  const handleRemoveCoupon = () => {
+    if (appliedCoupon?.code) {
+      saasApi
+        .removeCoupon(appliedCoupon.code, {
+          email: pendingAdmin?.email || pendingCampus?.email,
+          phone: pendingAdmin?.phone || pendingCampus?.phone_number,
+        })
+        .catch(() => {});
+    }
+    setAppliedCoupon(null);
+    setCouponError(null);
+    if (hasTrialOption) {
+      setIsTrialMode(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!appliedCoupon) return;
+    if (discountAmount <= 0) {
+      saasApi
+        .removeCoupon(appliedCoupon.code, {
+          email: pendingAdmin?.email || pendingCampus?.email,
+          phone: pendingAdmin?.phone || pendingCampus?.phone_number,
+        })
+        .catch(() => {});
+      setAppliedCoupon(null);
+      if (hasTrialOption) {
+        setIsTrialMode(true);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [discountAmount]);
 
   const handleApplyCoupon = async (e) => {
     if (e) e.preventDefault();
@@ -254,12 +343,43 @@ const SubscriptionConfigurePublic = () => {
     setIsValidatingCoupon(true);
     setCouponError(null);
     try {
-      const data = await saasApi.validateCoupon(cleanCode, subtotal, {
-        planAmount: basePrice,
-        storageAmount: storageTotal,
-        email: pendingAdmin?.email || pendingCampus?.email,
-        phone: pendingAdmin?.phone || pendingCampus?.phone_number,
-      });
+      let data = null;
+      let nextTrialMode = isSelectedTrial;
+
+      if (isSelectedTrial && addonsTotal > 0) {
+        try {
+          const trialData = await saasApi.validateCoupon(cleanCode, addonsTotal, {
+            planAmount: 0,
+            storageAmount: storageTotal,
+            email: pendingAdmin?.email || pendingCampus?.email,
+            phone: pendingAdmin?.phone || pendingCampus?.phone_number,
+          });
+          const scope = String(trialData?.applicable_scope || 'plan_only').toLowerCase();
+          if (scope === 'all' || (scope === 'software_and_storage' && storageTotal > 0)) {
+            data = trialData;
+            nextTrialMode = true;
+          }
+        } catch (trialErr) {
+          if (isPureTrialPlan || paidPlanPrice <= 0) {
+            throw trialErr;
+          }
+        }
+      }
+
+      if (!data) {
+        if (paidSubtotal <= 0) {
+          throw new Error('Select a paid plan or eligible add-on before applying a coupon.');
+        }
+        data = await saasApi.validateCoupon(cleanCode, paidSubtotal, {
+          planAmount: paidPlanPrice,
+          storageAmount: storageTotal,
+          email: pendingAdmin?.email || pendingCampus?.email,
+          phone: pendingAdmin?.phone || pendingCampus?.phone_number,
+        });
+        nextTrialMode = false;
+      }
+
+      setIsTrialMode(nextTrialMode);
       setAppliedCoupon({
         id: data.id,
         code: data.code,
@@ -286,7 +406,7 @@ const SubscriptionConfigurePublic = () => {
     const configurationPayload = {
       plan: selectedPlan,
       isTrial: isSelectedTrial,
-      billingCycle: isSelectedTrial ? 'trial' : billingCycle,
+      billingCycle: isPureTrialPlan ? 'trial' : billingCycle,
       storage_plan_id: selectedStorageId || null,
       storage_qty: selectedStorageId ? 1 : 0,
       storage_billing_cycle: effectiveStorageCycle,
@@ -309,16 +429,40 @@ const SubscriptionConfigurePublic = () => {
 
     const params = new URLSearchParams();
     if (selectedPlan?.id) params.set('plan_id', String(selectedPlan.id));
-    const resolvedCycle = String(selectedPlan?.billing_cycle || billingCycle || 'monthly').toLowerCase();
+    const resolvedCycle = String(selectedPlan?.billing_cycle || effectiveStorageCycle || '').toLowerCase();
     if (resolvedCycle) params.set('cycle', resolvedCycle);
-    const hasTrial = appliedCoupon ? false : true;
-    params.set('trial', hasTrial ? '1' : '0');
+    params.set('trial', isSelectedTrial ? '1' : '0');
+    if (selectedStorageId) params.set('storage_id', String(selectedStorageId));
+    if (selectedMachinesList.length > 0) {
+      params.set(
+        'machines',
+        JSON.stringify(selectedMachinesList.map((m) => ({ id: m.id, quantity: m.quantity })))
+      );
+    }
+    if (selectedCardsList.length > 0) {
+      params.set(
+        'cards',
+        JSON.stringify(selectedCardsList.map((c) => ({ id: c.id, quantity: c.quantity })))
+      );
+    }
+    if (selectedNotificationsList.length > 0) {
+      params.set(
+        'notifications',
+        JSON.stringify(
+          selectedNotificationsList.map((n) => ({
+            id: n.id,
+            type: n.type || n.channel,
+            quantity: n.quantity,
+          }))
+        )
+      );
+    }
+    if (appliedCoupon?.code) params.set('coupon', appliedCoupon.code);
+    if (hasPhysicalHardware && shippingAddress.trim()) {
+      params.set('shipping_address', shippingAddress.trim());
+    }
 
-    const onboardingUrl =
-      import.meta.env.VITE_ONBOARDING_URL ||
-      (typeof window !== 'undefined'
-        ? `${window.location.protocol}//${window.location.hostname}:3000`
-        : '');
+    const onboardingUrl = getOnboardingBaseUrl();
     if (onboardingUrl && !hasRegistrationData) {
       window.location.href = `${onboardingUrl}/register?${params.toString()}`;
       return;
@@ -329,29 +473,43 @@ const SubscriptionConfigurePublic = () => {
         configuration: configurationPayload,
         plan: selectedPlan,
         isTrial: isSelectedTrial,
-        billingCycle: isSelectedTrial ? 'trial' : billingCycle,
+        billingCycle: isPureTrialPlan ? 'trial' : billingCycle,
       },
     });
   };
 
-  const completeHandoverOrLogin = (_resData, fallbackEmail) => {
+  const completeHandoverOrLogin = (resData, fallbackEmail) => {
     sessionStorage.removeItem('pending_registration_data');
     sessionStorage.removeItem('configured_subscription');
+    const handoverToken = resData?.data?.handover_token || resData?.handover_token;
+    if (handoverToken) {
+      navigate(`/auth/callback?token=${encodeURIComponent(handoverToken)}`, { replace: true });
+      return;
+    }
     navigate('/account/login/adminlogin', {
       state: { registeredEmail: fallbackEmail, registrationSuccess: true },
     });
   };
 
-  const handleCompleteRegistrationWithConfig = async () => {
+  const handleCompleteRegistrationWithConfig = async (overrideTrialMode = null) => {
     if (!selectedPlan) return;
     if (hasPhysicalHardware && (!shippingAddress || shippingAddress.trim().length < 6)) {
       toast.error('Please enter a complete Campus Delivery / Shipping Address for hardware dispatch.');
       return;
     }
 
+    const checkoutAsTrial =
+      typeof overrideTrialMode === 'boolean' ? overrideTrialMode : isSelectedTrial;
+    const activeGrandTotal = checkoutAsTrial ? trialGrandTotal : paidGrandTotal;
+    const activeCouponCode =
+      appliedCoupon?.code &&
+      (checkoutAsTrial ? trialDiscountAmount > 0 : paidDiscountAmount > 0)
+        ? appliedCoupon.code
+        : null;
+
     const bundleFields = {
       plan_id: selectedPlan.id,
-      is_trial: isSelectedTrial,
+      is_trial: checkoutAsTrial,
       storage_plan_id: selectedStorageId || null,
       storage_qty: selectedStorageId ? 1 : 0,
       storage_billing_cycle: effectiveStorageCycle,
@@ -362,7 +520,7 @@ const SubscriptionConfigurePublic = () => {
         type: n.type || n.channel,
         quantity: Number(n.quantity),
       })),
-      coupon_code: appliedCoupon?.code || null,
+      coupon_code: activeCouponCode,
       shipping_address: hasPhysicalHardware ? shippingAddress.trim() : null,
     };
 
@@ -377,7 +535,7 @@ const SubscriptionConfigurePublic = () => {
         address: pendingCampus?.address || shippingAddress || '',
         city: pendingCampus?.city || '',
         state: pendingCampus?.state || '',
-        country: pendingCampus?.country || '101',
+        country: pendingCampus?.country || null,
         postal_code: pendingCampus?.postal_code || '',
         footer: pendingCampus?.footer || '',
       },
@@ -390,7 +548,7 @@ const SubscriptionConfigurePublic = () => {
         phone: pendingAdmin.phone,
         gender: pendingAdmin.gender,
         picture: pendingAdmin.picture || null,
-        country_id: pendingCampus?.country || '101',
+        country_id: pendingCampus?.country || null,
         state_id: pendingCampus?.state || null,
         city: pendingCampus?.city || null,
         role: 0,
@@ -401,8 +559,8 @@ const SubscriptionConfigurePublic = () => {
     try {
       setSubmitting(true);
 
-      // Pure ₹0 Free Trial (with no paid add-ons)
-      if (isSelectedTrial && grandTotal <= 0) {
+      // Pure ₹0 Free Trial (with no paid add-ons and no coupon order required)
+      if (checkoutAsTrial && activeGrandTotal <= 0 && !activeCouponCode) {
         const res = await saasApi.registerSchool({
           ...basePayload,
           isTrial: true,
@@ -424,9 +582,10 @@ const SubscriptionConfigurePublic = () => {
       if (orderData?.zero_amount_ready) {
         const res = await saasApi.registerSchool({
           ...basePayload,
+          isTrial: checkoutAsTrial,
           order_no: orderData.order_no,
           payment_order_id: orderData.payment_order_id,
-          paymentGateway: isSelectedTrial ? 'free_trial' : 'coupon_100',
+          paymentGateway: checkoutAsTrial ? 'free_trial' : 'coupon_100',
         });
         toast.success('School & Subscription activated immediately!');
         completeHandoverOrLogin(res, pendingAdmin.email);
@@ -462,6 +621,7 @@ const SubscriptionConfigurePublic = () => {
             setSubmitting(true);
             const res = await saasApi.registerSchool({
               ...basePayload,
+              isTrial: checkoutAsTrial,
               order_no: orderData.order_no,
               payment_order_id: orderData.payment_order_id,
               paymentGateway: 'razorpay',
@@ -507,6 +667,8 @@ const SubscriptionConfigurePublic = () => {
   };
 
   const includedStorageGb = Math.max(0, parseInt(selectedPlan?.included_storage_gb, 10) || 0);
+  const includedSmsCredits = Math.max(0, parseInt(selectedPlan?.included_sms_credits, 10) || 0);
+  const includedPushCredits = Math.max(0, parseInt(selectedPlan?.included_push_credits, 10) || 0);
 
   return (
     <div className="bg-light min-vh-100 d-flex flex-column">
@@ -611,6 +773,18 @@ const SubscriptionConfigurePublic = () => {
                       <i className="ti ti-cloud text-info me-1"></i>
                       <strong>{includedStorageGb} GB</strong> Cloud Storage Included
                     </span>
+                    {includedSmsCredits > 0 && (
+                      <span>
+                        <i className="ti ti-message text-warning me-1"></i>
+                        <strong>{includedSmsCredits.toLocaleString('en-IN')}</strong> SMS Credits Included
+                      </span>
+                    )}
+                    {includedPushCredits > 0 && (
+                      <span>
+                        <i className="ti ti-bell text-warning me-1"></i>
+                        <strong>{includedPushCredits.toLocaleString('en-IN')}</strong> Push Credits Included
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -964,7 +1138,7 @@ const SubscriptionConfigurePublic = () => {
                     ))}
 
                     {/* Promo Coupon */}
-                    {subtotal > 0 && (
+                    {(subtotal > 0 || paidSubtotal > 0) && (
                       <div className="border-top pt-3 mt-3">
                         {!appliedCoupon ? (
                           <form onSubmit={handleApplyCoupon} className="input-group input-group-sm">
@@ -994,7 +1168,7 @@ const SubscriptionConfigurePublic = () => {
                             <button
                               type="button"
                               className="btn btn-sm btn-link text-danger p-0 text-decoration-none fs-11"
-                              onClick={() => setAppliedCoupon(null)}
+                              onClick={handleRemoveCoupon}
                             >
                               Remove
                             </button>
@@ -1027,26 +1201,74 @@ const SubscriptionConfigurePublic = () => {
                         </span>
                       </div>
 
-                      <button
-                        type="button"
-                        className="btn btn-primary w-100 py-2 px-3 fw-bold fs-14 shadow-sm"
-                        disabled={submitting}
-                        onClick={
-                          hasRegistrationData
-                            ? handleCompleteRegistrationWithConfig
-                            : handleProceedToRegistration
-                        }
-                      >
-                        {submitting
-                          ? 'Setting Up School Portal...'
-                          : hasRegistrationData
-                          ? grandTotal <= 0
-                            ? `Activate ${selectedPlan.plan_name} & Setup Portal`
-                            : `Pay ₹${grandTotal.toLocaleString('en-IN')} & Complete Setup`
-                          : isSelectedTrial && grandTotal <= 0
-                          ? `Start ${selectedPlan.plan_name} — Register School`
-                          : 'Proceed to School Registration'}
-                      </button>
+                      {hasRegistrationData ? (
+                        hasTrialOption && !isPureTrialPlan ? (
+                          <div className="d-flex flex-column gap-2">
+                            {(!appliedCoupon || trialDiscountAmount > 0) && (
+                              <button
+                                type="button"
+                                className="btn btn-success w-100 py-2 px-3 fw-bold fs-14 shadow-sm"
+                                disabled={submitting}
+                                onClick={() => handleCompleteRegistrationWithConfig(true)}
+                              >
+                                {submitting
+                                  ? 'Setting Up School Portal...'
+                                  : trialGrandTotal <= 0
+                                  ? `Start ${planTrialDays}-Day Free Trial (₹0)`
+                                  : `Start ${planTrialDays}-Day Free Trial (Pay ₹${trialGrandTotal.toLocaleString('en-IN')} Add-ons)`}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              className={`btn w-100 py-2 px-3 fw-bold fs-13 ${
+                                appliedCoupon && trialDiscountAmount <= 0
+                                  ? 'btn-primary shadow-sm fs-14'
+                                  : 'btn-outline-primary'
+                              }`}
+                              disabled={submitting}
+                              onClick={() => handleCompleteRegistrationWithConfig(false)}
+                            >
+                              {submitting
+                                ? 'Processing...'
+                                : paidGrandTotal <= 0
+                                ? `Activate Full ${selectedPlan.plan_name} (₹0)`
+                                : `Pay ₹${paidGrandTotal.toLocaleString('en-IN')} & Activate Full Plan`}
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            type="button"
+                            className={`btn w-100 py-2 px-3 fw-bold fs-14 shadow-sm ${
+                              isPureTrialPlan ? 'btn-success' : 'btn-primary'
+                            }`}
+                            disabled={submitting}
+                            onClick={() => handleCompleteRegistrationWithConfig(isPureTrialPlan)}
+                          >
+                            {submitting
+                              ? 'Setting Up School Portal...'
+                              : grandTotal <= 0
+                              ? isPureTrialPlan
+                                ? `Start ${planTrialDays > 0 ? `${planTrialDays}-Day Free Trial` : selectedPlan.plan_name} (₹0)`
+                                : `Activate ${selectedPlan.plan_name} & Setup Portal`
+                              : `Pay ₹${grandTotal.toLocaleString('en-IN')} & Complete Setup`}
+                          </button>
+                        )
+                      ) : (
+                        <button
+                          type="button"
+                          className={`btn w-100 py-2 px-3 fw-bold fs-14 shadow-sm ${
+                            isSelectedTrial ? 'btn-success' : 'btn-primary'
+                          }`}
+                          disabled={submitting}
+                          onClick={handleProceedToRegistration}
+                        >
+                          {isSelectedTrial
+                            ? grandTotal <= 0
+                              ? `Start ${planTrialDays > 0 ? `${planTrialDays}-Day Free Trial` : selectedPlan.plan_name} — Register School`
+                              : `Continue with Free Trial + ₹${grandTotal.toLocaleString('en-IN')} Add-ons`
+                            : `Continue with ₹${grandTotal.toLocaleString('en-IN')} — Register School`}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>

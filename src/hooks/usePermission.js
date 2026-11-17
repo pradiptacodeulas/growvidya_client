@@ -3,15 +3,8 @@ import { useSelector } from 'react-redux';
 export const usePermission = () => {
   const { user } = useSelector((state) => state.auth || {});
 
-  const adminType = Number(user?.adminType ?? user?.admin_type);
-  const roleName = String(user?.roleName || user?.role_name || '').trim();
-
-  const isSuperAdmin = Boolean(
-    user?.isSuperAdmin ||
-    adminType === 1 ||
-    roleName.toLowerCase() === 'super admin' ||
-    roleName.toLowerCase() === 'superadmin'
-  );
+  const isSuperAdmin = Number(user?.admin_type) === 1;
+  const roleName = String(user?.roleName || '').trim();
 
   const permissions = user?.permissions || {};
 

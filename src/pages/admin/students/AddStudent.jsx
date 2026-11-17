@@ -4,6 +4,7 @@ import { useNavigate, useParams, Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import apiClient from '../../../api/axios.config';
 import { decodeParam } from '../../../utils/idHelper';
+import { useSubscription } from '../../../context/SubscriptionContext';
 
 const SERVER_BASE_URL = getServerBaseUrl();
 
@@ -14,6 +15,12 @@ const AddStudent = () => {
   const { id: rawId } = useParams();
   const id = decodeParam(rawId);
   const isEditMode = Boolean(id);
+  const { subscription, refreshSubscription } = useSubscription();
+
+  const maxStudentSeats = Number(subscription?.max_students) || 0;
+  const currentEnrolledStudents = Number(subscription?.active_student_count) || 0;
+  const isStudentSeatQuotaFull =
+    !isEditMode && maxStudentSeats > 0 && currentEnrolledStudents >= maxStudentSeats;
 
   // Tab State
   const tabList = [
@@ -783,13 +790,14 @@ const AddStudent = () => {
     }
   };
 
-  // Image Upload Previews (Restricted to max 5 MB)
-  const MAX_IMAGE_SIZE = 5 * 1024 * 1024; // 5 MB
+  // Image & Document Upload Limits (Aligned with UI labels & backend validation)
+  const MAX_IMAGE_SIZE = 100 * 1024; // 100 KB
+  const MAX_DOC_SIZE = 4 * 1024 * 1024; // 4 MB
   const handleImageUpload = (e, setFileFn, setPreviewFn) => {
     const file = e.target.files[0];
     if (file) {
       if (file.size > MAX_IMAGE_SIZE) {
-        toast.error('Image size must be less than 5 MB. Please choose a smaller image.');
+        toast.error('Image size must not exceed 100 KB. Please choose a smaller image.');
         e.target.value = '';
         return;
       }
@@ -1155,6 +1163,18 @@ const AddStudent = () => {
       return;
     }
 
+    const isPdf = docFile.type === 'application/pdf' || /\.pdf$/i.test(docFile.name || '');
+    if (!isPdf) {
+      toast.error('Only PDF files are allowed for student documents.');
+      setErrors((prev) => ({ ...prev, doc_file: true }));
+      return;
+    }
+    if (docFile.size > MAX_DOC_SIZE) {
+      toast.error('Document file size must not exceed 4 MB.');
+      setErrors((prev) => ({ ...prev, doc_file: true }));
+      return;
+    }
+
     const typeObj = documentTypes.find((d) => String(d.id) === String(docTypeInput));
     const capturedDocType = docTypeInput;
     const capturedDocFile = docFile;
@@ -1374,17 +1394,17 @@ const AddStudent = () => {
     if (!validateAllTabs()) return;
 
     if (personalImgFile && personalImgFile.size > MAX_IMAGE_SIZE) {
-      toast.error('Student profile picture exceeds 5 MB. Please upload an image under 5 MB.');
+      toast.error('Student profile picture must not exceed 100 KB.');
       setActiveTab('personal');
       return;
     }
     if (fatherImgFile && fatherImgFile.size > MAX_IMAGE_SIZE) {
-      toast.error("Father's profile picture exceeds 5 MB. Please upload an image under 5 MB.");
+      toast.error("Father's profile picture must not exceed 100 KB.");
       setActiveTab('parents');
       return;
     }
     if (motherImgFile && motherImgFile.size > MAX_IMAGE_SIZE) {
-      toast.error("Mother's profile picture exceeds 5 MB. Please upload an image under 5 MB.");
+      toast.error("Mother's profile picture must not exceed 100 KB.");
       setActiveTab('parents');
       return;
     }
@@ -1439,14 +1459,25 @@ const AddStudent = () => {
       if (isEditMode) {
         const res = await apiClient.put(`/admin/students/${id}`, payload);
         if (res.data?.success) {
+          if (refreshSubscription) refreshSubscription();
           toast.success('Student updated successfully!');
           navigate(`/admin/students/${id}`);
         } else {
           toast.error(res.data?.message || 'Failed to update student');
         }
       } else {
+        if (isStudentSeatQuotaFull) {
+          toast.error(
+            `Student enrollment limit reached (${currentEnrolledStudents}/${maxStudentSeats}) for your ${
+              subscription?.plan_name || 'current plan'
+            }. Please upgrade your subscription plan.`
+          );
+          setSubmitting(false);
+          return;
+        }
         const res = await apiClient.post('/admin/students', payload);
         if (res.data?.success) {
+          if (refreshSubscription) refreshSubscription();
           toast.success('Student added successfully!');
           navigate('/admin/students');
         } else {
@@ -1491,6 +1522,25 @@ const AddStudent = () => {
           </nav>
         </div>
       </div>
+
+      {isStudentSeatQuotaFull && (
+        <div className="alert alert-danger border-danger d-flex flex-wrap align-items-center justify-content-between gap-3 mb-4 shadow-sm">
+          <div className="d-flex align-items-center gap-2">
+            <i className="ti ti-alert-triangle fs-22 text-danger"></i>
+            <div>
+              <strong className="d-block">
+                Student Seat Quota Reached ({currentEnrolledStudents} / {maxStudentSeats} students)
+              </strong>
+              <span className="fs-13">
+                Your active plan ({subscription?.plan_name || 'Subscription Plan'}) has no remaining student seats across all campuses. Upgrade your plan before enrolling new students.
+              </span>
+            </div>
+          </div>
+          <Link to="/admin/subscription" className="btn btn-danger btn-sm fw-semibold px-3">
+            <i className="ti ti-arrow-up-circle me-1"></i> Upgrade Plan
+          </Link>
+        </div>
+      )}
 
       <div className="row">
         <div className="col-md-12">
@@ -3177,6 +3227,17 @@ const AddStudent = () => {
                                   onChange={(e) => {
                                     const f = e.target.files[0];
                                     if (f) {
+                                      const isPdf = f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '');
+                                      if (!isPdf) {
+                                        toast.error('Only PDF files are allowed for student documents.');
+                                        e.target.value = '';
+                                        return;
+                                      }
+                                      if (f.size > MAX_DOC_SIZE) {
+                                        toast.error('Document file size must not exceed 4 MB.');
+                                        e.target.value = '';
+                                        return;
+                                      }
                                       setDocFile(f);
                                       setDocFileName(f.name);
                                       clearError('doc_file');

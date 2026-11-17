@@ -98,11 +98,7 @@ const Sidebar = ({
     daysLeft,
   } = useSubscription();
 
-  const isBillingAdmin = Boolean(
-    isSuperAdmin ||
-      Number(user?.adminType || user?.admin_type) === 1 ||
-      String(user?.roleName || user?.role_name || '').toLowerCase() === 'super admin'
-  );
+  const isBillingAdmin = isSuperAdmin;
 
   const handleGoToSubscription = () => {
     if (location.pathname !== '/admin/subscription' || location.search) {

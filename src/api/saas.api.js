@@ -101,6 +101,17 @@ export const saasApi = {
     const res = await apiClient.post('/saas/validate-coupon', payload);
     return res.data?.data || res.data;
   },
+
+  /**
+   * Release / log coupon removal on public checkout
+   */
+  removeCoupon: async (code, options = {}) => {
+    const payload = { code };
+    if (options.email) payload.email = options.email;
+    if (options.phone) payload.phone = options.phone;
+    const res = await apiClient.post('/saas/remove-coupon', payload);
+    return res.data?.data || res.data;
+  },
 };
 
 export default saasApi;

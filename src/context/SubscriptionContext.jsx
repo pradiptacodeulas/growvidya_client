@@ -11,6 +11,7 @@ export const useSubscription = () => {
     return {
       subscription: null,
       storageQuota: null,
+      hardwareOrders: { attendance_machines: [], rfid_cards: [] },
       notificationWallet: null,
       upgradePlans: [],
       activeCycles: [],
@@ -41,13 +42,18 @@ export const SubscriptionProvider = ({ children }) => {
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth || {});
   const [subscription, setSubscription] = useState(null);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [storageQuota, setStorageQuota] = useState(null);
+  const [hardwareOrders, setHardwareOrders] = useState({
+    attendance_machines: [],
+    rfid_cards: [],
+  });
   const [upgradePlans, setUpgradePlans] = useState([]);
   const [activeCycles, setActiveCycles] = useState([]);
   const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const activeSubscription = subscription || user?.subscription || null;
+  const activeSubscription = hasLoaded ? subscription : (subscription || user?.subscription || null);
 
   const hasSubscription = Boolean(
     activeSubscription &&
@@ -125,7 +131,9 @@ export const SubscriptionProvider = ({ children }) => {
         )
       : false;
 
-  const isLockedOut = Boolean(isExpired || isSuspended || isPending);
+  const isLockedOut = Boolean(
+    isExpired || isSuspended || isPending || (hasLoaded && !hasSubscription)
+  );
   const isActive = Boolean(hasSubscription && !isLockedOut);
   const isActivePaid = Boolean(isActive && !isTrial);
   const isActiveTrial = Boolean(isActive && isTrial);
@@ -133,6 +141,22 @@ export const SubscriptionProvider = ({ children }) => {
   const notificationWallet = activeSubscription?.notification_wallet || null;
 
   const hasFeature = useCallback(() => true, []);
+
+  // Reset cached subscription state immediately on logout so another school/session never inherits stale data
+  useEffect(() => {
+    const hasAdminToken =
+      typeof window !== 'undefined' &&
+      Boolean(localStorage.getItem('admin_token') || localStorage.getItem('token'));
+    if (!user && !hasAdminToken) {
+      setSubscription(null);
+      setHasLoaded(false);
+      setStorageQuota(null);
+      setHardwareOrders({ attendance_machines: [], rfid_cards: [] });
+      setUpgradePlans([]);
+      setActiveCycles([]);
+      setCatalog(null);
+    }
+  }, [user]);
 
   const refreshSubscription = useCallback(async () => {
     const hasAdminToken =
@@ -149,11 +173,25 @@ export const SubscriptionProvider = ({ children }) => {
     try {
       setLoading(true);
       const data = await getSubscriptionStatus();
-      if (data?.subscription) {
+      if (data && Object.prototype.hasOwnProperty.call(data, 'subscription')) {
+        setSubscription(data.subscription || null);
+        setHasLoaded(true);
+      } else if (data?.subscription) {
         setSubscription(data.subscription);
+        setHasLoaded(true);
       }
       if (data?.storage_quota) {
         setStorageQuota(data.storage_quota);
+      }
+      if (data?.hardware_orders) {
+        setHardwareOrders({
+          attendance_machines: Array.isArray(data.hardware_orders.attendance_machines)
+            ? data.hardware_orders.attendance_machines
+            : [],
+          rfid_cards: Array.isArray(data.hardware_orders.rfid_cards)
+            ? data.hardware_orders.rfid_cards
+            : [],
+        });
       }
       if (Array.isArray(data?.upgrade_plans)) {
         setUpgradePlans(data.upgrade_plans);
@@ -179,8 +217,9 @@ export const SubscriptionProvider = ({ children }) => {
   useEffect(() => {
     const handleSubscriptionExpired = (event) => {
       const code = event?.detail?.code || 'SUBSCRIPTION_EXPIRED';
-      console.warn('[SubscriptionContext] 402 Subscription lock event captured:', code, event.detail);
+      console.warn('[SubscriptionContext] 402/403 Subscription lock event captured:', code, event.detail);
 
+      setHasLoaded(true);
       setSubscription((prev) => {
         if (code === 'SUBSCRIPTION_SUSPENDED') {
           return {
@@ -191,13 +230,38 @@ export const SubscriptionProvider = ({ children }) => {
             status: 'suspended',
           };
         }
-        if (code === 'SUBSCRIPTION_PENDING_APPROVAL') {
+        if (code === 'SUBSCRIPTION_PENDING_APPROVAL' || code === 'SUBSCRIPTION_PENDING') {
           return {
             ...(prev || {}),
             isExpired: false,
             isPending: true,
             liveStatus: 'pending',
             status: 'pending',
+          };
+        }
+        if (code === 'SUBSCRIPTION_REQUIRED' || code === 'NO_ACTIVE_SUBSCRIPTION') {
+          return prev
+            ? {
+                ...prev,
+                subscription_id: null,
+                isExpired: true,
+                isPending: false,
+                liveStatus: 'expired',
+                status: 'expired',
+                days_left: 0,
+                actual_days_left: -1,
+              }
+            : null;
+        }
+        if (code === 'SUBSCRIPTION_REJECTED') {
+          return {
+            ...(prev || {}),
+            isExpired: true,
+            isPending: false,
+            liveStatus: 'rejected',
+            status: 'rejected',
+            days_left: 0,
+            actual_days_left: -1,
           };
         }
         return {
@@ -232,8 +296,10 @@ export const SubscriptionProvider = ({ children }) => {
   return (
     <SubscriptionContext.Provider
       value={{
-        subscription,
+        subscription: activeSubscription,
+        hasSubscription,
         storageQuota,
+        hardwareOrders,
         notificationWallet,
         upgradePlans,
         activeCycles,

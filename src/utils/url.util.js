@@ -25,8 +25,16 @@ export const getApiBaseUrl = () => {
   return `${getServerBaseUrl()}/api/v1`;
 };
 
+export const getOnboardingBaseUrl = () => {
+  const hostname = typeof window !== 'undefined' && window.location?.hostname ? window.location.hostname : '';
+  const raw = String(import.meta.env?.VITE_ONBOARDING_URL || '').trim();
+  if (!raw) return '';
+  return (hostname ? raw.replace('localhost', hostname) : raw).replace(/\/+$/, '');
+};
+
 export const SERVER_BASE_URL = getServerBaseUrl();
 export const API_BASE_URL = getApiBaseUrl();
+export const ONBOARDING_BASE_URL = getOnboardingBaseUrl();
 
 import maleUserDefault from '../assets/male-user.png';
 import femaleUserDefault from '../assets/female-user.png';

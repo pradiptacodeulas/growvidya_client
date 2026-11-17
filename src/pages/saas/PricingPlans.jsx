@@ -9,7 +9,7 @@ const PricingPlans = () => {
 
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [billingCycle, setBillingCycle] = useState('annual');
+  const [billingCycle, setBillingCycle] = useState('');
 
   useEffect(() => {
     const fetchPlans = async () => {
@@ -44,23 +44,20 @@ const PricingPlans = () => {
 
   useEffect(() => {
     if (availableCycles.length === 0) return;
-    if (!availableCycles.some((c) => c.cycle === billingCycle)) {
-      if (availableCycles.some((c) => c.cycle === 'annual')) {
-        setBillingCycle('annual');
-      } else {
-        setBillingCycle(availableCycles[0].cycle);
-      }
+    if (!billingCycle || !availableCycles.some((c) => c.cycle === billingCycle)) {
+      setBillingCycle(availableCycles[0].cycle);
     }
   }, [availableCycles, billingCycle]);
 
-  const handleSelectPlan = (plan, isTrial = true) => {
+  const handleSelectPlan = (plan, isTrial = false) => {
     if (!plan) return;
-    const cycle = String(plan.billing_cycle || billingCycle || 'monthly').toLowerCase();
+    const cycle = String(plan.billing_cycle || billingCycle || '').toLowerCase();
+    const planTrialDays = Math.max(0, parseInt(plan.free_trial_days, 10) || 0);
     const hasTrial = Boolean(
       isTrial ||
         cycle === 'trial' ||
         parseFloat(plan.price) <= 0 ||
-        parseInt(plan.free_trial_days, 10) > 0
+        planTrialDays > 0
     );
     sessionStorage.setItem('selected_subscription_plan', JSON.stringify(plan));
     sessionStorage.setItem('selected_billing_cycle', cycle);
@@ -260,6 +257,22 @@ const PricingPlans = () => {
                                 </span>
                               </li>
                             )}
+                            {Math.max(0, parseInt(trialPlan.included_sms_credits, 10) || 0) > 0 && (
+                              <li className="d-flex align-items-center">
+                                <i className="ti ti-message text-warning me-2 fs-16"></i>
+                                <span>
+                                  <strong>{Number(trialPlan.included_sms_credits).toLocaleString('en-IN')}</strong> SMS Credits Included
+                                </span>
+                              </li>
+                            )}
+                            {Math.max(0, parseInt(trialPlan.included_push_credits, 10) || 0) > 0 && (
+                              <li className="d-flex align-items-center">
+                                <i className="ti ti-bell text-warning me-2 fs-16"></i>
+                                <span>
+                                  <strong>{Number(trialPlan.included_push_credits).toLocaleString('en-IN')}</strong> Push Credits Included
+                                </span>
+                              </li>
+                            )}
                             {(trialPlan.items || []).map((it) => (
                               <li key={it.id} className="d-flex align-items-center">
                                 <i className="ti ti-check text-success me-2 fs-16"></i>
@@ -273,9 +286,13 @@ const PricingPlans = () => {
                           <button
                             type="button"
                             onClick={() => handleSelectPlan(trialPlan, true)}
-                            className="btn btn-outline-success py-2 px-3 fw-semibold d-flex align-items-center justify-content-center shadow-sm w-100"
+                            className="btn btn-success py-2 px-3 fw-semibold d-flex align-items-center justify-content-center shadow-sm w-100"
                           >
-                            <span>Start {trialPlan.plan_name}</span>
+                            <span>
+                              {Number(trialPlan.free_trial_days || trialPlan.duration_days) > 0
+                                ? `Start ${Number(trialPlan.free_trial_days || trialPlan.duration_days)}-Day Free Trial`
+                                : `Start ${trialPlan.plan_name}`}
+                            </span>
                             <i className="ti ti-arrow-right ms-2 fs-15"></i>
                           </button>
                           <div className="text-center text-muted fs-11 mt-1">
@@ -292,6 +309,9 @@ const PricingPlans = () => {
                   const isPopular = Number(plan.is_popular) === 1;
                   const cMeta = plan.cycle_meta || activeCycleMeta;
                   const includedStorage = Math.max(0, parseInt(plan.included_storage_gb, 10) || 0);
+                  const includedSms = Math.max(0, parseInt(plan.included_sms_credits, 10) || 0);
+                  const includedPush = Math.max(0, parseInt(plan.included_push_credits, 10) || 0);
+                  const planTrialDays = Math.max(0, parseInt(plan.free_trial_days, 10) || 0);
                   const customItems = plan.items || [];
 
                   return (
@@ -362,7 +382,13 @@ const PricingPlans = () => {
                                 / {cMeta.shortLabel || cMeta.label}
                               </span>
                             </div>
-                            <div className="mt-1">
+                            <div className="mt-1 d-flex flex-wrap gap-1">
+                              {planTrialDays > 0 && (
+                                <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-1 fs-11 fw-semibold">
+                                  <i className="ti ti-sparkles me-1"></i>
+                                  {planTrialDays}-Day Free Trial
+                                </span>
+                              )}
                               <span
                                 className={`badge border rounded-pill px-3 py-1 fs-11 fw-semibold ${
                                   isPopular
@@ -406,6 +432,22 @@ const PricingPlans = () => {
                                   </span>
                                 </li>
                               )}
+                              {includedSms > 0 && (
+                                <li className="d-flex align-items-center">
+                                  <i className="ti ti-message text-warning me-2 fs-16"></i>
+                                  <span>
+                                    <strong>{includedSms.toLocaleString('en-IN')}</strong> SMS Credits Included
+                                  </span>
+                                </li>
+                              )}
+                              {includedPush > 0 && (
+                                <li className="d-flex align-items-center">
+                                  <i className="ti ti-bell text-warning me-2 fs-16"></i>
+                                  <span>
+                                    <strong>{includedPush.toLocaleString('en-IN')}</strong> Push Credits Included
+                                  </span>
+                                </li>
+                              )}
                               {customItems.map((it) => (
                                 <li key={it.id} className="d-flex align-items-center">
                                   <i className="ti ti-check text-success me-2 fs-16"></i>
@@ -416,19 +458,37 @@ const PricingPlans = () => {
                           </div>
 
                           <div className="d-flex flex-column mt-auto pt-2">
-                            <button
-                              type="button"
-                              onClick={() => handleSelectPlan(plan, false)}
-                              className={`btn py-2 px-3 fw-semibold d-flex align-items-center justify-content-center shadow-sm w-100 ${
-                                isPopular ? 'btn-primary' : 'btn-outline-primary'
-                              }`}
-                            >
-                              <span>Choose {plan.plan_name}</span>
-                              <i className="ti ti-arrow-right ms-2 fs-15"></i>
-                            </button>
-                            <div className="text-center text-muted fs-11 mt-1">
-                              {cMeta.label} • Configurable Add-ons
-                            </div>
+                            {planTrialDays > 0 ? (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectPlan(plan, true)}
+                                  className="btn btn-success py-2 px-3 fw-semibold d-flex align-items-center justify-content-center shadow-sm w-100"
+                                >
+                                  <span>Start {planTrialDays}-Day Free Trial</span>
+                                  <i className="ti ti-arrow-right ms-2 fs-15"></i>
+                                </button>
+                                <div className="text-center text-muted fs-11 mt-1">
+                                  {planTrialDays} Days Free • Then ₹{Number(plan.price).toLocaleString('en-IN')}/{cMeta.shortLabel || cMeta.label}
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => handleSelectPlan(plan, false)}
+                                  className={`btn py-2 px-3 fw-semibold d-flex align-items-center justify-content-center shadow-sm w-100 ${
+                                    isPopular ? 'btn-primary' : 'btn-outline-primary'
+                                  }`}
+                                >
+                                  <span>Select {plan.plan_name}</span>
+                                  <i className="ti ti-arrow-right ms-2 fs-15"></i>
+                                </button>
+                                <div className="text-center text-muted fs-11 mt-1">
+                                  {cMeta.label} • Configurable Add-ons
+                                </div>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

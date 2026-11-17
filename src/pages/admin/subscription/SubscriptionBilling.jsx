@@ -40,6 +40,7 @@ const SubscriptionBilling = () => {
   const {
     subscription,
     storageQuota,
+    hardwareOrders: contextHardwareOrders,
     notificationWallet,
     upgradePlans,
     activeCycles,
@@ -119,10 +120,7 @@ const SubscriptionBilling = () => {
     if (subCycle && subCycle !== 'trial' && availableCycles.some((c) => c.cycle === subCycle)) {
       return subCycle;
     }
-    if (availableCycles.some((c) => c.cycle === 'annual')) {
-      return 'annual';
-    }
-    return availableCycles[0]?.cycle || 'annual';
+    return availableCycles[0]?.cycle || '';
   }, [
     selectedBillingCycle,
     availableCycles,
@@ -132,14 +130,33 @@ const SubscriptionBilling = () => {
 
   // Billing History & Orders State
   const [orders, setOrders] = useState([]);
+  const [fetchedHardwareOrders, setFetchedHardwareOrders] = useState(null);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [legacyReceiptModalOrder, setLegacyReceiptModalOrder] = useState(null);
+
+  const hardwareOrders = fetchedHardwareOrders || contextHardwareOrders || {
+    attendance_machines: [],
+    rfid_cards: [],
+  };
+  const totalHardwareOrderItems =
+    (hardwareOrders?.attendance_machines?.length || 0) +
+    (hardwareOrders?.rfid_cards?.length || 0);
 
   const loadBillingOrders = async () => {
     try {
       setOrdersLoading(true);
       const data = await getSubscriptionOrders();
       setOrders(Array.isArray(data?.orders) ? data.orders : Array.isArray(data) ? data : []);
+      if (data?.hardware_orders) {
+        setFetchedHardwareOrders({
+          attendance_machines: Array.isArray(data.hardware_orders.attendance_machines)
+            ? data.hardware_orders.attendance_machines
+            : [],
+          rfid_cards: Array.isArray(data.hardware_orders.rfid_cards)
+            ? data.hardware_orders.rfid_cards
+            : [],
+        });
+      }
     } catch (err) {
       console.warn('Could not load billing history:', err?.response?.data || err.message);
     } finally {
@@ -153,6 +170,14 @@ const SubscriptionBilling = () => {
     }
   }, [activeTab]);
 
+  const adminDisplayName = useMemo(() => {
+    const fullName = [user?.firstName || user?.first_name, user?.lastName || user?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    return fullName || user?.name || '';
+  }, [user]);
+
   // =========================================================================
   // Standalone Mid-Cycle Add-on Store State (Tab 2)
   // =========================================================================
@@ -161,8 +186,27 @@ const SubscriptionBilling = () => {
   const [addonCards, setAddonCards] = useState({});
   const [addonNotifications, setAddonNotifications] = useState({});
   const [addonShippingAddress, setAddonShippingAddress] = useState(
-    () => user?.address || user?.schoolAddress || ''
+    () =>
+      user?.address ||
+      user?.schoolAddress ||
+      user?.school_address ||
+      subscription?.school_address ||
+      subscription?.address ||
+      ''
   );
+
+  useEffect(() => {
+    const fallbackAddr =
+      user?.address ||
+      user?.schoolAddress ||
+      user?.school_address ||
+      subscription?.school_address ||
+      subscription?.address ||
+      '';
+    if (fallbackAddr) {
+      setAddonShippingAddress((prev) => (prev && prev.trim() ? prev : fallbackAddr));
+    }
+  }, [user, subscription?.school_address, subscription?.address]);
   const [addonGateway, setAddonGateway] = useState(() =>
     gatewayParam === 'bank_transfer' ? 'bank_transfer' : 'razorpay'
   );
@@ -180,9 +224,15 @@ const SubscriptionBilling = () => {
   }, [gatewayParam]);
 
   const effectiveAddonStorageCycle = useMemo(() => {
-    const subCyc = String(subscription?.billing_cycle || '').toLowerCase();
-    return subCyc && subCyc !== 'trial' ? subCyc : 'annual';
-  }, [subscription?.billing_cycle]);
+    const subCyc = String(
+      subscription?.billing_cycle || subscription?.last_paid_subscription?.billing_cycle || ''
+    ).toLowerCase();
+    return subCyc && subCyc !== 'trial' ? subCyc : billingCycle;
+  }, [
+    subscription?.billing_cycle,
+    subscription?.last_paid_subscription?.billing_cycle,
+    billingCycle,
+  ]);
 
   const selectedAddonStoragePlan = useMemo(() => {
     if (!addonStorageId || !catalog?.storage_plans) return null;
@@ -300,15 +350,34 @@ const SubscriptionBilling = () => {
   );
 
   const eligibleBankAccounts = useMemo(() => {
-    const raw = catalog?.bank_accounts || [];
-    return raw.filter((acc) => {
-      const isDef = Number(acc.is_default) === 1 || acc.is_default === true;
-      const isAct = acc.status === undefined || Number(acc.status) === 1 || acc.status === true;
-      return isDef && isAct;
-    });
+    const raw = Array.isArray(catalog?.bank_accounts) ? catalog.bank_accounts : [];
+    return raw
+      .filter((acc) => Number(acc.status) === 1)
+      .sort((a, b) => Number(b.is_default) - Number(a.is_default));
   }, [catalog?.bank_accounts]);
 
-  const activeBankAccount = eligibleBankAccounts[0] || null;
+  const [selectedAddonBankAccountId, setSelectedAddonBankAccountId] = useState(null);
+
+  useEffect(() => {
+    if (eligibleBankAccounts.length > 0) {
+      if (
+        !selectedAddonBankAccountId ||
+        !eligibleBankAccounts.some((acc) => Number(acc.id) === Number(selectedAddonBankAccountId))
+      ) {
+        setSelectedAddonBankAccountId(eligibleBankAccounts[0].id);
+      }
+    } else {
+      setSelectedAddonBankAccountId(null);
+    }
+  }, [eligibleBankAccounts, selectedAddonBankAccountId]);
+
+  const activeBankAccount = useMemo(() => {
+    if (eligibleBankAccounts.length === 0) return null;
+    return (
+      eligibleBankAccounts.find((acc) => Number(acc.id) === Number(selectedAddonBankAccountId)) ||
+      eligibleBankAccounts[0]
+    );
+  }, [eligibleBankAccounts, selectedAddonBankAccountId]);
 
   const handleApplyAddonCoupon = async (e) => {
     if (e) e.preventDefault();
@@ -361,22 +430,27 @@ const SubscriptionBilling = () => {
       handleSwitchTab('plans');
       return;
     }
-    if (addonSubtotal <= 0) {
-      toast.warning('Please select at least one Cloud Storage pack, Hardware item, or Notification credit pack.');
-      return;
-    }
     if (addonHasPhysicalHardware && (!addonShippingAddress || addonShippingAddress.trim().length < 6)) {
       toast.error('Please enter a complete delivery / shipping address for physical hardware dispatch.');
       return;
     }
 
-    // Validate minimum notification quantities
-    for (const n of selectedAddonNotificationsList) {
-      const minQty = Math.max(1, parseInt(n.min_qty, 10) || 1);
-      if (n.quantity < minQty) {
-        toast.error(`Minimum purchase quantity for ${n.pack_name || n.name} is ${minQty} credits.`);
-        return;
+    // Validate minimum notification quantities across all selected packs (including 0-qty inputs)
+    for (const rec of catalog?.notification_records || []) {
+      const cfg = addonNotifications[rec.id];
+      if (cfg?.selected) {
+        const minQty = Math.max(1, parseInt(rec.min_qty, 10) || 1);
+        const qty = parseInt(cfg.quantity, 10) || 0;
+        if (qty < minQty) {
+          toast.error(`Minimum purchase quantity for ${rec.pack_name || rec.name} is ${minQty} credits.`);
+          return;
+        }
       }
+    }
+
+    if (addonSubtotal <= 0) {
+      toast.warning('Please select at least one Cloud Storage pack, Hardware item, or Notification credit pack.');
+      return;
     }
 
     const payload = {
@@ -437,7 +511,7 @@ const SubscriptionBilling = () => {
           description: 'Add-on Expansion (Storage / Hardware / Notification Credits)',
           order_id: orderData.order_id,
           prefill: {
-            name: user?.name || user?.schoolName || 'School Administrator',
+            name: adminDisplayName || user?.schoolName || user?.school_name || 'School Administrator',
             email: user?.email || '',
             contact: user?.phone || user?.mobile || '',
           },
@@ -515,6 +589,7 @@ const SubscriptionBilling = () => {
           ...payload,
           payment_gateway: 'bank_transfer',
           payment_transaction_id: addonUtr.trim(),
+          bank_account_id: activeBankAccount.id,
         });
 
         toast.info('Offline add-on bank transfer submitted for Super Admin verification.');
@@ -828,7 +903,7 @@ const SubscriptionBilling = () => {
           style={{
             background: isPending
               ? 'linear-gradient(135deg, #d97706 0%, #b45309 100%)'
-              : isExpired || isSuspended
+              : isExpired || isSuspended || !(subscription?.subscription_id || subscription?.id || subscription?.plan_id)
               ? 'linear-gradient(135deg, #b91c1c 0%, #991b1b 100%)'
               : isTrial
               ? 'linear-gradient(135deg, #4338ca 0%, #312e81 100%)'
@@ -843,6 +918,8 @@ const SubscriptionBilling = () => {
                     ? `${planName} — Pending Verification`
                     : isSuspended
                     ? `${planName} — Suspended`
+                    : !(subscription?.subscription_id || subscription?.id || subscription?.plan_id)
+                    ? 'No Active Subscription'
                     : isExpired
                     ? `${planName} — Expired`
                     : isTrial
@@ -1636,6 +1713,17 @@ const SubscriptionBilling = () => {
                                           },
                                         }))
                                       }
+                                      onBlur={() => {
+                                        if (qty < minQty) {
+                                          setAddonNotifications((prev) => ({
+                                            ...prev,
+                                            [rec.id]: {
+                                              selected: true,
+                                              quantity: minQty,
+                                            },
+                                          }));
+                                        }
+                                      }}
                                     />
                                     <button
                                       type="button"
@@ -1989,12 +2077,79 @@ const SubscriptionBilling = () => {
 
                         {addonGateway === 'bank_transfer' && (
                           <div className="mt-3 p-3 rounded bg-light border fs-11">
-                            {activeBankAccount ? (
+                            {eligibleBankAccounts.length > 0 && activeBankAccount ? (
                               <>
+                                {eligibleBankAccounts.length > 1 && (
+                                  <div className="mb-2">
+                                    <label className="form-label fs-11 fw-semibold text-dark mb-1">
+                                      Select Official Bank Account:
+                                    </label>
+                                    <div className="d-flex flex-wrap gap-1">
+                                      {eligibleBankAccounts.map((acc) => {
+                                        const isAccSelected = Number(acc.id) === Number(activeBankAccount.id);
+                                        return (
+                                          <button
+                                            key={acc.id}
+                                            type="button"
+                                            className={`btn btn-sm text-start py-1 px-2 rounded-2 border ${
+                                              isAccSelected
+                                                ? 'btn-primary text-white border-primary shadow-sm'
+                                                : 'btn-light bg-white text-dark'
+                                            }`}
+                                            onClick={() => setSelectedAddonBankAccountId(acc.id)}
+                                          >
+                                            <span className="fw-bold d-block fs-11">
+                                              {acc.account_title || acc.bank_name}
+                                            </span>
+                                            <span className="fs-10 opacity-75">
+                                              {acc.bank_name} ••••{String(acc.account_number).slice(-4)}
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {activeBankAccount.qr_code_image && (
+                                  <div className="mb-2 p-2 bg-white rounded-2 border d-flex align-items-center gap-2">
+                                    <img
+                                      src={resolveImageUrl(activeBankAccount.qr_code_image, NO_IMAGE_PLACEHOLDER)}
+                                      alt="Payment QR Code"
+                                      className="rounded border"
+                                      style={{ width: '64px', height: '64px', objectFit: 'contain' }}
+                                      onError={(e) => {
+                                        e.currentTarget.style.display = 'none';
+                                      }}
+                                    />
+                                    <div>
+                                      <div className="fw-semibold text-dark fs-11">Scan Official UPI QR Code</div>
+                                      {activeBankAccount.upi_id && (
+                                        <div className="font-monospace text-primary fs-10 mt-1">
+                                          UPI ID: {activeBankAccount.upi_id}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+
                                 <div className="mb-2 text-muted">
-                                  <strong className="text-dark d-block">{activeBankAccount.bank_name}</strong>
-                                  A/C: <span className="font-monospace text-dark">{activeBankAccount.account_number}</span> • IFSC:{' '}
-                                  <span className="font-monospace text-dark">{activeBankAccount.ifsc_code}</span>
+                                  <strong className="text-dark d-block">
+                                    {activeBankAccount.account_title || activeBankAccount.bank_name}
+                                  </strong>
+                                  {activeBankAccount.beneficiary_name && (
+                                    <div>
+                                      Beneficiary: <span className="text-dark fw-semibold">{activeBankAccount.beneficiary_name}</span>
+                                    </div>
+                                  )}
+                                  <div>
+                                    Bank: <span className="text-dark">{activeBankAccount.bank_name}</span>
+                                    {activeBankAccount.branch_name ? `, ${activeBankAccount.branch_name}` : ''}
+                                  </div>
+                                  <div>
+                                    A/C: <span className="font-monospace text-dark fw-semibold">{activeBankAccount.account_number}</span> • IFSC:{' '}
+                                    <span className="font-monospace text-dark fw-semibold">{activeBankAccount.ifsc_code}</span>
+                                  </div>
                                 </div>
                                 <input
                                   type="text"
@@ -2060,6 +2215,152 @@ const SubscriptionBilling = () => {
           TAB 3: BILLING HISTORY & ZERO-GST INVOICES
       ===================================================================== */}
       {activeTab === 'history' && (
+        <>
+          {totalHardwareOrderItems > 0 && (
+            <div className="card border-0 shadow-sm rounded-3 mb-4">
+              <div className="card-header bg-white border-bottom p-3 p-md-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
+                <div>
+                  <h5 className="fw-bold text-dark mb-1 fs-16">
+                    <i className="ti ti-truck-delivery text-primary me-2"></i>
+                    Hardware &amp; Smart RFID Card Dispatch Status
+                  </h5>
+                  <p className="text-muted fs-12 mb-0">
+                    Live fulfillment and courier dispatch status for your purchased Biometric Attendance Terminals and RFID Cards.
+                  </p>
+                </div>
+                <span className="badge bg-primary-subtle text-primary border border-primary-subtle px-3 py-1 fs-12">
+                  {totalHardwareOrderItems} Item{totalHardwareOrderItems === 1 ? '' : 's'}
+                </span>
+              </div>
+              <div className="card-body p-0 bg-white">
+                <div className="table-responsive">
+                  <table className="table table-hover align-middle mb-0">
+                    <thead className="table-light">
+                      <tr className="fs-11 text-uppercase text-muted">
+                        <th className="ps-4">Order Ref</th>
+                        <th>Hardware Item</th>
+                        <th className="text-center">Qty</th>
+                        <th>Serial / Spec</th>
+                        <th>Delivery Address &amp; Remarks</th>
+                        <th className="text-center pe-4">Dispatch Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="fs-13">
+                      {(hardwareOrders?.attendance_machines || []).map((m) => {
+                        const st = String(m.order_status || 'pending').toLowerCase();
+                        const badgeCls =
+                          st === 'delivered'
+                            ? 'bg-success-subtle text-success border border-success-subtle'
+                            : st === 'dispatched'
+                            ? 'bg-info-subtle text-info border border-info-subtle'
+                            : st === 'approved'
+                            ? 'bg-primary-subtle text-primary border border-primary-subtle'
+                            : st === 'cancelled'
+                            ? 'bg-danger-subtle text-danger border border-danger-subtle'
+                            : 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                        return (
+                          <tr key={`mach-${m.id}`}>
+                            <td className="ps-4">
+                              <div className="fw-bold text-dark font-monospace fs-12">
+                                {m.order_no || m.payment_order_no || `#${m.id}`}
+                              </div>
+                              <div className="text-muted fs-11">
+                                {formatDateDisplay(m.created_at)}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="fw-semibold text-dark">{m.machine_name}</div>
+                              <div className="text-muted fs-11">
+                                Biometric Terminal • {m.brand} ({m.model_number})
+                              </div>
+                            </td>
+                            <td className="text-center fw-bold">{m.quantity || 1}</td>
+                            <td className="fs-12 font-monospace text-dark">
+                              {m.device_serial_number && !String(m.device_serial_number).startsWith('PENDING-')
+                                ? m.device_serial_number
+                                : <span className="text-muted fst-italic">Assigned on dispatch</span>}
+                            </td>
+                            <td className="fs-12 text-muted" style={{ maxWidth: '280px' }}>
+                              {m.shipping_address && (
+                                <div className="text-truncate" title={m.shipping_address}>
+                                  {m.shipping_address}
+                                </div>
+                              )}
+                              {m.remarks && (
+                                <div className="text-primary fs-11 mt-1" title={m.remarks}>
+                                  Note: {m.remarks}
+                                </div>
+                              )}
+                            </td>
+                            <td className="text-center pe-4">
+                              <span className={`badge rounded-pill px-3 py-1 fs-10 fw-bold text-uppercase ${badgeCls}`}>
+                                {st}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {(hardwareOrders?.rfid_cards || []).map((c) => {
+                        const st = String(c.order_status || 'pending').toLowerCase();
+                        const badgeCls =
+                          st === 'delivered'
+                            ? 'bg-success-subtle text-success border border-success-subtle'
+                            : st === 'dispatched'
+                            ? 'bg-info-subtle text-info border border-info-subtle'
+                            : st === 'approved'
+                            ? 'bg-primary-subtle text-primary border border-primary-subtle'
+                            : st === 'cancelled'
+                            ? 'bg-danger-subtle text-danger border border-danger-subtle'
+                            : 'bg-warning-subtle text-warning-emphasis border border-warning-subtle';
+                        return (
+                          <tr key={`rfid-${c.id}`}>
+                            <td className="ps-4">
+                              <div className="fw-bold text-dark font-monospace fs-12">
+                                {c.order_no || c.payment_order_no || `#${c.id}`}
+                              </div>
+                              <div className="text-muted fs-11">
+                                {formatDateDisplay(c.created_at)}
+                              </div>
+                            </td>
+                            <td>
+                              <div className="fw-semibold text-dark">{c.card_name}</div>
+                              <div className="text-muted fs-11">
+                                RFID Smart Cards • {c.card_code}
+                              </div>
+                            </td>
+                            <td className="text-center fw-bold">
+                              {Number(c.quantity || 0).toLocaleString('en-IN')}
+                            </td>
+                            <td className="fs-12 text-muted">
+                              {c.frequency || c.card_type || 'RFID'}
+                            </td>
+                            <td className="fs-12 text-muted" style={{ maxWidth: '280px' }}>
+                              {c.shipping_address && (
+                                <div className="text-truncate" title={c.shipping_address}>
+                                  {c.shipping_address}
+                                </div>
+                              )}
+                              {c.remarks && (
+                                <div className="text-primary fs-11 mt-1" title={c.remarks}>
+                                  Note: {c.remarks}
+                                </div>
+                              )}
+                            </td>
+                            <td className="text-center pe-4">
+                              <span className={`badge rounded-pill px-3 py-1 fs-10 fw-bold text-uppercase ${badgeCls}`}>
+                                {st}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
         <div className="card border-0 shadow-sm rounded-3 mb-5">
           <div className="card-header bg-white border-bottom p-3 p-md-4 d-flex flex-wrap align-items-center justify-content-between gap-2">
             <div>
@@ -2217,6 +2518,7 @@ const SubscriptionBilling = () => {
             )}
           </div>
         </div>
+        </>
       )}
 
       {/* Legacy Subscription Receipt Quick Modal (Zero GST) */}

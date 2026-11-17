@@ -190,6 +190,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
 
   const handleNavigateToSubscription = (e) => {
     if (e) e.stopPropagation();
+    if (!isSuperAdmin) return;
     if (location.pathname !== '/admin/subscription' || location.search) {
       navigate('/admin/subscription');
     } else {
@@ -257,51 +258,67 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                 {daysLeft > 0 && (
                   <span className="text-muted fs-11 me-2">({daysLeft}d validity)</span>
                 )}
-                <Link
-                  to="/admin/subscription"
-                  className="btn btn-sm btn-outline-warning text-dark fw-bold py-0 px-2 fs-11 rounded-pill"
-                >
-                  View
-                </Link>
+                {isSuperAdmin && (
+                  <Link
+                    to="/admin/subscription"
+                    className="btn btn-sm btn-outline-warning text-dark fw-bold py-0 px-2 fs-11 rounded-pill"
+                  >
+                    View
+                  </Link>
+                )}
               </div>
             )}
 
             {/* Free Trial Countdown (Active Trial) */}
             {isActiveTrial && (
-              <Link
-                to="/admin/subscription"
-                onClick={(e) => {
-                  if (location.pathname === '/admin/subscription' && !location.search) {
-                    const plansSection = document.getElementById('plans-selection-section');
-                    if (plansSection) {
-                      plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+              isSuperAdmin ? (
+                <Link
+                  to="/admin/subscription"
+                  onClick={(e) => {
+                    if (location.pathname === '/admin/subscription' && !location.search) {
+                      const plansSection = document.getElementById('plans-selection-section');
+                      if (plansSection) {
+                        plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
                     }
-                  }
-                  e.stopPropagation();
-                }}
-                className="me-2 d-none d-md-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none text-decoration-none"
-              >
-                <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
-                <span className="d-none d-sm-inline">{subscription?.plan_name ? `${subscription.plan_name}: ` : ''}</span>
-                <strong className="text-danger">
-                  {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
-                </strong>
-              </Link>
+                    e.stopPropagation();
+                  }}
+                  className="me-2 d-none d-md-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none text-decoration-none"
+                >
+                  <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
+                  <span className="d-none d-sm-inline">{subscription?.plan_name ? `${subscription.plan_name}: ` : ''}</span>
+                  <strong className="text-danger">
+                    {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
+                  </strong>
+                </Link>
+              ) : (
+                <div className="me-2 d-none d-md-flex align-items-center bg-warning-subtle border border-warning rounded px-3 py-1 text-dark fw-semibold fs-12 shadow-none">
+                  <i className="ti ti-bolt text-warning-emphasis me-1 fs-14"></i>
+                  <span className="d-none d-sm-inline">{subscription?.plan_name ? `${subscription.plan_name}: ` : ''}</span>
+                  <strong className="text-danger">
+                    {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
+                  </strong>
+                </div>
+              )
             )}
 
             {/* Expired Status (Paid Plan or Trial) */}
             {isExpired && !isPending && (
               <div
-                onClick={handleNavigateToSubscription}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    handleNavigateToSubscription(e);
-                  }
-                }}
-                style={{ cursor: 'pointer' }}
+                onClick={isSuperAdmin ? handleNavigateToSubscription : undefined}
+                role={isSuperAdmin ? 'button' : undefined}
+                tabIndex={isSuperAdmin ? 0 : undefined}
+                onKeyDown={
+                  isSuperAdmin
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          handleNavigateToSubscription(e);
+                        }
+                      }
+                    : undefined
+                }
+                style={isSuperAdmin ? { cursor: 'pointer' } : undefined}
                 className="me-2 d-none d-md-flex align-items-center bg-danger-subtle border border-danger rounded px-3 py-1 text-danger fw-semibold fs-12 shadow-none"
               >
                 <i className="ti ti-alert-triangle me-1 fs-14"></i>
@@ -312,44 +329,46 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                     ? 'Trial Expired'
                     : 'Subscription Expired'}
                 </span>
-                <div className="d-flex align-items-center gap-1 ms-2">
-                  <Link
-                    to="/admin/subscription"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (location.pathname === '/admin/subscription' && !location.search) {
-                        const plansSection = document.getElementById('plans-selection-section');
-                        if (plansSection) {
-                          plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                {isSuperAdmin && (
+                  <div className="d-flex align-items-center gap-1 ms-2">
+                    <Link
+                      to="/admin/subscription"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (location.pathname === '/admin/subscription' && !location.search) {
+                          const plansSection = document.getElementById('plans-selection-section');
+                          if (plansSection) {
+                            plansSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          }
                         }
-                      }
-                    }}
-                    className="btn btn-sm btn-danger py-0 px-2 fs-11 rounded-pill"
-                    title="Renew Current Plan"
-                  >
-                    <i className="ti ti-refresh me-1"></i> Renew Plan
-                  </Link>
-                </div>
+                      }}
+                      className="btn btn-sm btn-danger py-0 px-2 fs-11 rounded-pill"
+                      title="Renew Current Plan"
+                    >
+                      <i className="ti ti-refresh me-1"></i> Renew Plan
+                    </Link>
+                  </div>
+                )}
               </div>
             )}
 
             {/* Active Paid License with Countdown */}
             {isActivePaid && (
               <div
-                onClick={daysLeft <= 30 ? handleNavigateToSubscription : undefined}
-                role={daysLeft <= 30 ? 'button' : undefined}
-                tabIndex={daysLeft <= 30 ? 0 : undefined}
+                onClick={isSuperAdmin && daysLeft <= 30 ? handleNavigateToSubscription : undefined}
+                role={isSuperAdmin && daysLeft <= 30 ? 'button' : undefined}
+                tabIndex={isSuperAdmin && daysLeft <= 30 ? 0 : undefined}
                 onKeyDown={
-                  daysLeft <= 30
+                  isSuperAdmin && daysLeft <= 30
                     ? (e) => {
                         if (e.key === 'Enter' || e.key === ' ') {
-                           e.preventDefault();
-                           handleNavigateToSubscription(e);
+                          e.preventDefault();
+                          handleNavigateToSubscription(e);
                         }
                       }
                     : undefined
                 }
-                style={daysLeft <= 30 ? { cursor: 'pointer' } : undefined}
+                style={isSuperAdmin && daysLeft <= 30 ? { cursor: 'pointer' } : undefined}
                 className={`me-2 d-none d-md-flex align-items-center rounded px-3 py-1 fw-semibold fs-12 shadow-none border ${
                   daysLeft <= 15
                     ? 'bg-danger-subtle border-danger text-danger'
@@ -378,7 +397,7 @@ const Navbar = ({ onToggleMobileMenu, isMobileMenuOpen }) => {
                 >
                   {daysLeft <= 0 ? 'Expires today' : `${daysLeft} days remaining`}
                 </strong>
-                {daysLeft <= 30 && (
+                {isSuperAdmin && daysLeft <= 30 && (
                   <div className="d-flex align-items-center gap-1 ms-2">
                     <Link
                       to="/admin/subscription"

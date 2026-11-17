@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
-import { useSelector } from 'react-redux';
 import Navbar from '../components/common/Navbar';
 import Sidebar from '../components/common/Sidebar';
 import Footer from '../components/common/Footer';
 import PageLoader from '../components/common/PageLoader';
 import NotificationPermissionBanner from '../components/common/NotificationPermissionBanner';
 import { useSubscription } from '../context/SubscriptionContext';
+import usePermission from '../hooks/usePermission';
 import { useMessageNotificationSync } from '../hooks/useMessageNotificationSync';
 
 const AdminLayout = () => {
   useMessageNotificationSync();
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useSelector((state) => state.auth || {});
+  const { isSuperAdmin } = usePermission();
   const {
     isExpired,
     isSuspended,
@@ -24,13 +24,7 @@ const AdminLayout = () => {
     loading,
   } = useSubscription();
 
-  const isBillingAdmin = Boolean(
-    user?.isSuperAdmin ||
-      Number(user?.adminType || user?.admin_type) === 1 ||
-      ['super admin', 'admin'].includes(
-        String(user?.roleName || user?.role_name || '').toLowerCase()
-      )
-  );
+  const isBillingAdmin = isSuperAdmin;
 
   // If subscription is expired, suspended, or pending initial approval, only subscription/billing and help-support pages are allowed
   const isAllowedLockedPath =

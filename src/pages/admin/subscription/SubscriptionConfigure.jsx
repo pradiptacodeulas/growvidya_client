@@ -64,6 +64,13 @@ const SubscriptionConfigure = () => {
     return rawSelectedPlan;
   }, [rawSelectedPlan, upgradePlans]);
 
+  const fallbackCycle = useMemo(() => {
+    const firstPaid = (upgradePlans || []).find(
+      (p) => p?.billing_cycle && String(p.billing_cycle).toLowerCase() !== 'trial'
+    );
+    return String(firstPaid?.billing_cycle || '').toLowerCase();
+  }, [upgradePlans]);
+
   const billingCycle = useMemo(() => {
     if (selectedPlan?.billing_cycle) {
       return String(selectedPlan.billing_cycle).toLowerCase();
@@ -71,8 +78,8 @@ const SubscriptionConfigure = () => {
     if (location.state?.billingCycle) {
       return String(location.state.billingCycle).toLowerCase();
     }
-    return String(sessionStorage.getItem('selected_billing_cycle') || 'annual').toLowerCase();
-  }, [selectedPlan?.billing_cycle, location.state?.billingCycle]);
+    return String(sessionStorage.getItem('selected_billing_cycle') || fallbackCycle).toLowerCase();
+  }, [selectedPlan?.billing_cycle, location.state?.billingCycle, fallbackCycle]);
 
   const cycleMeta = useMemo(
     () => selectedPlan?.cycle_meta || { cycle: billingCycle, label: billingCycle, shortLabel: billingCycle },
@@ -91,7 +98,7 @@ const SubscriptionConfigure = () => {
       if (matched) {
         setRawSelectedPlan(matched);
         sessionStorage.setItem('selected_subscription_plan', JSON.stringify(matched));
-        sessionStorage.setItem('selected_billing_cycle', matched.billing_cycle || 'annual');
+        sessionStorage.setItem('selected_billing_cycle', matched.billing_cycle || '');
       }
     }
   }, [rawSelectedPlan, upgradePlans, billingCycle]);
@@ -130,11 +137,9 @@ const SubscriptionConfigure = () => {
         const data = await getConfigurationCatalog();
         if (data) {
           const rawAccounts = Array.isArray(data.bank_accounts) ? data.bank_accounts : [];
-          const eligibleAccounts = rawAccounts.filter((acc) => {
-            const isDefault = Number(acc.is_default) === 1 || acc.is_default === true;
-            const isActive = acc.status === undefined || Number(acc.status) === 1 || acc.status === true;
-            return isDefault && isActive;
-          });
+          const eligibleAccounts = rawAccounts
+            .filter((acc) => Number(acc.status) === 1)
+            .sort((a, b) => Number(b.is_default) - Number(a.is_default));
 
           setCatalog({
             storage_plans: data.storage_plans || [],
@@ -154,12 +159,10 @@ const SubscriptionConfigure = () => {
   }, []);
 
   const eligibleBankAccounts = useMemo(() => {
-    if (!catalog.bank_accounts || !Array.isArray(catalog.bank_accounts)) return [];
-    return catalog.bank_accounts.filter((acc) => {
-      const isDefault = Number(acc.is_default) === 1 || acc.is_default === true;
-      const isActive = acc.status === undefined || Number(acc.status) === 1 || acc.status === true;
-      return isDefault && isActive;
-    });
+    if (!Array.isArray(catalog.bank_accounts)) return [];
+    return catalog.bank_accounts
+      .filter((acc) => Number(acc.status) === 1)
+      .sort((a, b) => Number(b.is_default) - Number(a.is_default));
   }, [catalog.bank_accounts]);
 
   const [selectedBankAccountId, setSelectedBankAccountId] = useState(null);
@@ -185,14 +188,41 @@ const SubscriptionConfigure = () => {
     );
   }, [eligibleBankAccounts, selectedBankAccountId]);
 
+  const adminDisplayName = useMemo(() => {
+    const fullName = [user?.firstName || user?.first_name, user?.lastName || user?.last_name]
+      .filter(Boolean)
+      .join(' ')
+      .trim();
+    return fullName || user?.name || '';
+  }, [user]);
+
   // Add-on Selections
   const [selectedStorageId, setSelectedStorageId] = useState(null);
   const [selectedMachines, setSelectedMachines] = useState({});
   const [selectedCards, setSelectedCards] = useState({});
   const [selectedNotifications, setSelectedNotifications] = useState({});
   const [shippingAddress, setShippingAddress] = useState(
-    () => user?.address || user?.schoolAddress || ''
+    () =>
+      user?.address ||
+      user?.schoolAddress ||
+      user?.school_address ||
+      subscription?.school_address ||
+      subscription?.address ||
+      ''
   );
+
+  useEffect(() => {
+    const fallbackAddr =
+      user?.address ||
+      user?.schoolAddress ||
+      user?.school_address ||
+      subscription?.school_address ||
+      subscription?.address ||
+      '';
+    if (fallbackAddr) {
+      setShippingAddress((prev) => (prev && prev.trim() ? prev : fallbackAddr));
+    }
+  }, [user, subscription?.school_address, subscription?.address]);
 
   // Collapsible sections
   const [collapsedSections, setCollapsedSections] = useState({
@@ -580,11 +610,17 @@ const SubscriptionConfigure = () => {
         return;
       }
     }
-    for (const n of selectedNotificationsList) {
-      const minQty = Math.max(1, parseInt(n.min_qty, 10) || 1);
-      if (n.quantity < minQty) {
-        toast.error(`Minimum purchase quantity for "${n.pack_name || n.name}" is ${minQty} credits.`);
-        return;
+    for (const record of catalog.notification_records || []) {
+      const cfg = selectedNotifications[record.id];
+      if (cfg?.selected) {
+        const minQty = Math.max(1, parseInt(record.min_qty, 10) || 1);
+        const qty = parseInt(cfg.quantity, 10) || 0;
+        if (qty < minQty) {
+          toast.error(
+            `Minimum purchase quantity for "${record.pack_name || record.name}" is ${minQty} credits.`
+          );
+          return;
+        }
       }
     }
 
@@ -656,7 +692,7 @@ const SubscriptionConfigure = () => {
           description: `${isCurrentPlan ? 'License Renewal' : 'Subscription'}: ${selectedPlan.plan_name} (${cycleMeta.label})`,
           order_id: orderData.order_id,
           prefill: {
-            name: user?.name || user?.schoolName || user?.school_name || 'School Administrator',
+            name: adminDisplayName || user?.schoolName || user?.school_name || 'School Administrator',
             email: user?.email || '',
             contact: user?.phone || user?.mobile || '',
           },
@@ -758,6 +794,7 @@ const SubscriptionConfigure = () => {
           ...orderPayload,
           payment_gateway: 'bank_transfer',
           payment_transaction_id: String(utrNumber).trim(),
+          bank_account_id: activeBankAccount.id,
         });
 
         toast.info(
@@ -1362,6 +1399,11 @@ const SubscriptionConfigure = () => {
                                           style={{ width: '88px', height: '30px' }}
                                           value={currentQty}
                                           onChange={(e) => handleSetNotificationQty(record, e.target.value)}
+                                          onBlur={() => {
+                                            if (currentQty < minQty) {
+                                              handleSetNotificationQty(record, minQty);
+                                            }
+                                          }}
                                         />
                                         <button
                                           type="button"
@@ -1777,7 +1819,7 @@ const SubscriptionConfigure = () => {
                 </div>
                 <div className="col-12 col-sm-6">
                   <label className="text-muted fs-12 mb-1 d-block">Authorized Admin</label>
-                  <div className="fw-bold text-dark">{user?.name || '—'}</div>
+                  <div className="fw-bold text-dark">{adminDisplayName || '—'}</div>
                 </div>
                 <div className="col-12 col-sm-6">
                   <label className="text-muted fs-12 mb-1 d-block">Registered Email</label>
