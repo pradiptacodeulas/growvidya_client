@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { loginAdmin, loginAdminWithOtp, clearAuthError } from '../../store/slices/authSlice';
-import { requestAdminOtpApi } from '../../api/adminAuth.api';
+import {
+  requestAdminOtpApi,
+  requestAdminForgotPasswordOtpApi,
+  verifyAdminForgotPasswordOtpApi,
+  resetAdminPasswordApi,
+} from '../../api/adminAuth.api';
 import { toast } from 'react-toastify';
 import LoadingScreen from '../../components/common/LoadingScreen';
 import logoDark from '../../assets/logo_dark.png';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const AdminLogin = () => {
   const location = useLocation();
@@ -13,9 +20,9 @@ const AdminLogin = () => {
   const registeredFromQuery = searchParams.get('registered') === '1';
   const emailFromQuery = searchParams.get('email');
 
-  // Mode: 'otp' (default) or 'password'
+  // Mode: 'otp' (default), 'password', or 'forgot'
   const [authMethod, setAuthMethod] = useState('otp');
-  // OTP flow step: 1 (Identifier) or 2 (6-digit OTP)
+  // OTP flow step: 1 (Email) or 2 (6-digit OTP)
   const [step, setStep] = useState(1);
 
   const [email, setEmail] = useState(location.state?.registeredEmail || emailFromQuery || '');
@@ -25,13 +32,21 @@ const AdminLogin = () => {
 
   // OTP states
   const [otp, setOtp] = useState('');
-  const [testOtp, setTestOtp] = useState(null);
   const [maskedIdentifier, setMaskedIdentifier] = useState('');
   const [requestingOtp, setRequestingOtp] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
 
+  // Forgot Password states (Step 1: Email -> Step 2: Verify OTP -> Step 3: Set New Password)
+  const [forgotStep, setForgotStep] = useState(1);
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
+
   const dispatch = useDispatch();
-  const navigate = useNavigate();
   const { user, isAuthenticated, loading, checkingAuth, error } = useSelector((state) => state.auth);
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('admin_token') : null;
@@ -83,28 +98,38 @@ const AdminLogin = () => {
     return <LoadingScreen message="Checking session..." />;
   }
 
-  // Step 1: Request 6-Digit OTP
+  const validateEmailField = (val) => {
+    const clean = String(val || '').trim();
+    if (!clean) {
+      toast.warning('Please enter your registered email address.');
+      return null;
+    }
+    if (!EMAIL_REGEX.test(clean)) {
+      toast.warning('Please enter a valid email address. Phone number login is not supported.');
+      return null;
+    }
+    return clean;
+  };
+
+  // Step 1: Request 6-Digit Sign-In OTP
   const handleRequestOtp = async (e) => {
     if (e) e.preventDefault();
-    if (!email.trim()) {
-      toast.warning('Please enter your registered email address or phone number.');
-      return;
-    }
+    const cleanEmail = validateEmailField(email);
+    if (!cleanEmail) return;
 
     setRequestingOtp(true);
     try {
-      const res = await requestAdminOtpApi(email.trim());
+      const res = await requestAdminOtpApi(cleanEmail);
       const resData = res.data || res || {};
 
       setPendingApprovalMsg(null);
-      setMaskedIdentifier(resData.maskedIdentifier || email.trim());
-      setTestOtp(resData.testPasscode || null);
+      setMaskedIdentifier(resData.maskedIdentifier || cleanEmail);
       setOtp('');
       setStep(2);
       setResendCooldown(30);
-      toast.success(res.message || '6-digit OTP sent successfully!');
+      toast.success(res.message || '6-digit OTP sent to your registered email address!');
     } catch (err) {
-      const errMsg = err.response?.data?.message || 'Failed to send OTP. Please check your credentials.';
+      const errMsg = err.response?.data?.message || 'Failed to send OTP. Please check your email address.';
       if (errMsg.toLowerCase().includes('pending') || errMsg.toLowerCase().includes('approval')) {
         setPendingApprovalMsg(errMsg);
       } else {
@@ -119,13 +144,16 @@ const AdminLogin = () => {
   // Step 2: Verify 6-Digit OTP & Sign In
   const handleVerifyOtp = async (e) => {
     e.preventDefault();
+    const cleanEmail = validateEmailField(email);
+    if (!cleanEmail) return;
+
     const cleanOtp = otp.trim();
     if (!cleanOtp || cleanOtp.length !== 6) {
       toast.warning('Please enter the full 6-digit OTP.');
       return;
     }
 
-    const res = await dispatch(loginAdminWithOtp({ identifier: email.trim(), otp: cleanOtp }));
+    const res = await dispatch(loginAdminWithOtp({ identifier: cleanEmail, otp: cleanOtp }));
     if (loginAdminWithOtp.fulfilled.match(res)) {
       setPendingApprovalMsg(null);
       toast.success('Signed in successfully!');
@@ -140,14 +168,16 @@ const AdminLogin = () => {
     }
   };
 
-  // Password-based Sign In fallback
+  // Password-based Sign In
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
-    if (!email.trim() || !password.trim()) {
-      toast.warning('Please enter both email address and password.');
+    const cleanEmail = validateEmailField(email);
+    if (!cleanEmail) return;
+    if (!password.trim()) {
+      toast.warning('Please enter your password.');
       return;
     }
-    const res = await dispatch(loginAdmin({ email: email.trim(), password }));
+    const res = await dispatch(loginAdmin({ email: cleanEmail, password }));
     if (loginAdmin.fulfilled.match(res)) {
       setPendingApprovalMsg(null);
       toast.success('Signed in successfully!');
@@ -159,6 +189,87 @@ const AdminLogin = () => {
       } else {
         setPendingApprovalMsg(null);
       }
+    }
+  };
+
+  // Forgot Password Step 1: Request Reset OTP
+  const handleRequestForgotOtp = async (e) => {
+    if (e) e.preventDefault();
+    const cleanEmail = validateEmailField(email);
+    if (!cleanEmail) return;
+
+    setForgotLoading(true);
+    try {
+      const res = await requestAdminForgotPasswordOtpApi(cleanEmail);
+      const resData = res.data || res || {};
+      setMaskedIdentifier(resData.maskedIdentifier || cleanEmail);
+      setForgotOtp('');
+      setForgotStep(2);
+      setResendCooldown(30);
+      toast.success(res.message || 'Password reset OTP sent to your registered email!');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to send password reset OTP.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // Forgot Password Step 2: Verify Reset OTP
+  const handleVerifyForgotOtp = async (e) => {
+    e.preventDefault();
+    const cleanEmail = validateEmailField(email);
+    if (!cleanEmail) return;
+
+    const cleanOtp = forgotOtp.trim();
+    if (!cleanOtp || cleanOtp.length !== 6) {
+      toast.warning('Please enter the full 6-digit OTP.');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const res = await verifyAdminForgotPasswordOtpApi(cleanEmail, cleanOtp);
+      const resData = res.data || res || {};
+      setResetToken(resData.resetToken || '');
+      setNewPassword('');
+      setConfirmPassword('');
+      setForgotStep(3);
+      toast.success(res.message || 'OTP verified! Please set your new password.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Invalid or expired OTP.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  // Forgot Password Step 3: Save New Password
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!newPassword.trim() || newPassword.trim().length < 6) {
+      toast.warning('New password must be at least 6 characters long.');
+      return;
+    }
+    if (newPassword.trim() !== confirmPassword.trim()) {
+      toast.warning('New password and confirm password do not match.');
+      return;
+    }
+
+    setForgotLoading(true);
+    try {
+      const res = await resetAdminPasswordApi({
+        resetToken,
+        newPassword: newPassword.trim(),
+        confirmPassword: confirmPassword.trim(),
+      });
+      toast.success(res.message || 'Password reset successfully! Please sign in.');
+      setPassword('');
+      setResetToken('');
+      setForgotStep(1);
+      setAuthMethod('password');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reset password.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -206,14 +317,20 @@ const AdminLogin = () => {
                       <i className="ti ti-shield-lock me-1"></i>School Admin Portal
                     </span>
                     <h3 className="fw-bold mb-1" style={{ color: '#0a2d52' }}>
-                      Admin Login
+                      {authMethod === 'forgot' ? 'Reset Admin Password' : 'Admin Login'}
                     </h3>
                     <p className="text-muted fs-13 mb-0">
                       {authMethod === 'otp'
                         ? step === 1
-                          ? 'Enter your registered email or phone to receive a 6-digit OTP.'
+                          ? 'Enter your registered email address to receive a 6-digit OTP.'
                           : `Enter the 6-digit OTP sent to ${maskedIdentifier || email}.`
-                        : 'Please enter your credentials to sign in to the Admin dashboard.'}
+                        : authMethod === 'forgot'
+                          ? forgotStep === 1
+                            ? 'Enter your registered email address to receive a password reset OTP.'
+                            : forgotStep === 2
+                              ? `Enter the 6-digit OTP sent to ${maskedIdentifier || email}.`
+                              : 'Create a strong new password for your Admin account.'
+                          : 'Enter your registered email address and password to sign in.'}
                     </p>
                   </div>
 
@@ -223,22 +340,21 @@ const AdminLogin = () => {
                   {authMethod === 'otp' && (
                     <>
                       {step === 1 ? (
-                        /* Step 1: Identifier Form */
                         <form onSubmit={handleRequestOtp}>
                           <div className="mb-4">
                             <label className="form-label fs-13 fw-semibold text-dark">
-                              Email Address / Phone <span className="text-danger">*</span>
+                              Email Address <span className="text-danger">*</span>
                             </label>
                             <div className="input-group">
                               <span className="input-group-text bg-light border-end-0">
                                 <i className="ti ti-mail text-muted"></i>
                               </span>
                               <input
-                                type="text"
+                                type="email"
                                 name="email"
                                 id="email"
                                 className="form-control border-start-0 ps-0"
-                                placeholder="Enter email or phone number"
+                                placeholder="Enter registered email address"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
@@ -256,7 +372,7 @@ const AdminLogin = () => {
                               {requestingOtp ? (
                                 <>
                                   <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                  Sending OTP...
+                                  Sending OTP to Email...
                                 </>
                               ) : (
                                 <>
@@ -267,39 +383,10 @@ const AdminLogin = () => {
                           </div>
                         </form>
                       ) : (
-                        /* Step 2: OTP Verification Form */
                         <form onSubmit={handleVerifyOtp}>
-                          {/* Test Mode Highlight Banner */}
-                          {testOtp && (
-                            <div className="alert alert-warning border border-warning-subtle rounded-3 p-3 mb-4 shadow-xs">
-                              <div className="d-flex align-items-center justify-content-between mb-1">
-                                <span className="badge bg-warning text-dark fw-bold px-2 py-1 fs-11">
-                                  <i className="ti ti-test-pipe me-1"></i>Test Mode Active
-                                </span>
-                                <span className="small text-muted fs-11">Valid for 10 mins</span>
-                              </div>
-                              <div className="d-flex align-items-center justify-content-between mt-2 pt-1 border-top border-warning-subtle">
-                                <span className="fs-13 text-dark fw-medium">Your 6-Digit OTP:</span>
-                                <strong
-                                  className="fs-18 text-primary fw-bold px-2 py-0 bg-white rounded border border-primary-subtle"
-                                  style={{ letterSpacing: '2px' }}
-                                >
-                                  {testOtp}
-                                </strong>
-                              </div>
-                              <button
-                                type="button"
-                                className="btn btn-sm btn-outline-primary w-100 fw-semibold mt-2"
-                                onClick={() => setOtp(testOtp)}
-                              >
-                                <i className="ti ti-copy me-1"></i>Click to Autofill OTP
-                              </button>
-                            </div>
-                          )}
-
                           <div className="mb-4">
                             <label className="form-label fs-13 fw-semibold text-dark text-center d-block">
-                              Enter 6-Digit OTP <span className="text-danger">*</span>
+                              Enter 6-Digit Email OTP <span className="text-danger">*</span>
                             </label>
                             <input
                               type="text"
@@ -323,7 +410,7 @@ const AdminLogin = () => {
                                   setOtp('');
                                 }}
                               >
-                                <i className="ti ti-pencil me-1"></i>Change Email/Phone
+                                <i className="ti ti-pencil me-1"></i>Change Email
                               </button>
                               <button
                                 type="button"
@@ -349,11 +436,11 @@ const AdminLogin = () => {
                               {loading ? (
                                 <>
                                   <span className="spinner-border spinner-border-sm me-2" role="status"></span>
-                                  Verifying & Signing In...
+                                  Verifying &amp; Signing In...
                                 </>
                               ) : (
                                 <>
-                                  <i className="ti ti-login me-2"></i>Verify & Sign In
+                                  <i className="ti ti-login me-2"></i>Verify &amp; Sign In
                                 </>
                               )}
                             </button>
@@ -361,7 +448,6 @@ const AdminLogin = () => {
                         </form>
                       )}
 
-                      {/* Switch between OTP & Password Login */}
                       <div className="text-center pt-2">
                         <button
                           type="button"
@@ -378,7 +464,7 @@ const AdminLogin = () => {
                   )}
 
                   {/* =================================================== */}
-                  {/* PASSWORD AUTHENTICATION FLOW (FALLBACK)             */}
+                  {/* PASSWORD AUTHENTICATION FLOW                        */}
                   {/* =================================================== */}
                   {authMethod === 'password' && (
                     <form onSubmit={handlePasswordSubmit}>
@@ -391,11 +477,11 @@ const AdminLogin = () => {
                             <i className="ti ti-mail text-muted"></i>
                           </span>
                           <input
-                            type="text"
+                            type="email"
                             name="email"
                             id="email"
                             className="form-control border-start-0 ps-0"
-                            placeholder="Enter email address"
+                            placeholder="Enter registered email address"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             required
@@ -443,16 +529,18 @@ const AdminLogin = () => {
                           </label>
                         </div>
                         <div className="text-end">
-                          <a
-                            href="#forgot"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              toast.info('Please contact Super Admin for password reset.');
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAuthMethod('forgot');
+                              setForgotStep(1);
+                              setForgotOtp('');
+                              setResetToken('');
                             }}
-                            className="link-danger text-decoration-none fs-13"
+                            className="btn btn-link p-0 link-danger text-decoration-none fs-13 fw-semibold"
                           >
                             Forgot Password?
-                          </a>
+                          </button>
                         </div>
                       </div>
 
@@ -475,7 +563,6 @@ const AdminLogin = () => {
                         </button>
                       </div>
 
-                      {/* Switch to OTP Login */}
                       <div className="text-center pt-2">
                         <button
                           type="button"
@@ -485,10 +572,219 @@ const AdminLogin = () => {
                             setStep(1);
                           }}
                         >
-                          <i className="ti ti-key me-1"></i>Sign in with 6-Digit OTP instead
+                          <i className="ti ti-key me-1"></i>Sign in with 6-Digit Email OTP instead
                         </button>
                       </div>
                     </form>
+                  )}
+
+                  {/* =================================================== */}
+                  {/* FORGOT PASSWORD FLOW (3-STEP EMAIL OTP RESET)       */}
+                  {/* =================================================== */}
+                  {authMethod === 'forgot' && (
+                    <>
+                      {forgotStep === 1 && (
+                        <form onSubmit={handleRequestForgotOtp}>
+                          <div className="mb-4">
+                            <label className="form-label fs-13 fw-semibold text-dark">
+                              Registered Email Address <span className="text-danger">*</span>
+                            </label>
+                            <div className="input-group">
+                              <span className="input-group-text bg-light border-end-0">
+                                <i className="ti ti-mail text-muted"></i>
+                              </span>
+                              <input
+                                type="email"
+                                className="form-control border-start-0 ps-0"
+                                placeholder="Enter registered email address"
+                                value={email}
+                                onChange={(e) => setEmail(e.target.value)}
+                                required
+                                autoFocus
+                              />
+                            </div>
+                          </div>
+
+                          <div className="d-grid mb-3">
+                            <button
+                              type="submit"
+                              disabled={forgotLoading}
+                              className="btn btn-primary btn-lg rounded-3 fw-bold fs-15 shadow-sm"
+                            >
+                              {forgotLoading ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                                  Sending Reset OTP...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="ti ti-mail-forward me-2"></i>Send Reset OTP
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      {forgotStep === 2 && (
+                        <form onSubmit={handleVerifyForgotOtp}>
+                          <div className="mb-4">
+                            <label className="form-label fs-13 fw-semibold text-dark text-center d-block">
+                              Enter 6-Digit Reset OTP <span className="text-danger">*</span>
+                            </label>
+                            <input
+                              type="text"
+                              inputMode="numeric"
+                              pattern="[0-9]*"
+                              maxLength="6"
+                              className="form-control form-control-lg text-center fw-bold fs-22 py-2"
+                              style={{ letterSpacing: '8px', fontFamily: 'monospace' }}
+                              placeholder="••••••"
+                              value={forgotOtp}
+                              onChange={(e) => setForgotOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                              autoFocus
+                              required
+                            />
+                            <div className="d-flex justify-content-between align-items-center mt-2 px-1">
+                              <button
+                                type="button"
+                                className="btn btn-link p-0 text-decoration-none text-muted fs-12"
+                                onClick={() => {
+                                  setForgotStep(1);
+                                  setForgotOtp('');
+                                }}
+                              >
+                                <i className="ti ti-pencil me-1"></i>Change Email
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-link p-0 text-decoration-none fs-12 fw-semibold"
+                                disabled={resendCooldown > 0 || forgotLoading}
+                                onClick={handleRequestForgotOtp}
+                              >
+                                {resendCooldown > 0 ? (
+                                  <span className="text-muted">Resend in {resendCooldown}s</span>
+                                ) : (
+                                  'Resend OTP'
+                                )}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="d-grid mb-3">
+                            <button
+                              type="submit"
+                              disabled={forgotLoading || forgotOtp.length !== 6}
+                              className="btn btn-primary btn-lg rounded-3 fw-bold fs-15 shadow-sm"
+                            >
+                              {forgotLoading ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                                  Verifying OTP...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="ti ti-shield-check me-2"></i>Verify OTP
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      {forgotStep === 3 && (
+                        <form onSubmit={handleResetPasswordSubmit}>
+                          <div className="mb-3">
+                            <label className="form-label fs-13 fw-semibold text-dark">
+                              New Password <span className="text-danger">*</span>
+                            </label>
+                            <div className="input-group">
+                              <span className="input-group-text bg-light border-end-0">
+                                <i className="ti ti-lock text-muted"></i>
+                              </span>
+                              <input
+                                type={showNewPassword ? 'text' : 'password'}
+                                className="form-control border-start-0 border-end-0 ps-0"
+                                placeholder="Minimum 6 characters"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                minLength={6}
+                                required
+                                autoFocus
+                              />
+                              <button
+                                type="button"
+                                className="input-group-text bg-light border-start-0 text-muted"
+                                onClick={() => setShowNewPassword(!showNewPassword)}
+                              >
+                                <i className={showNewPassword ? 'ti ti-eye-off' : 'ti ti-eye'}></i>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="mb-4">
+                            <label className="form-label fs-13 fw-semibold text-dark">
+                              Confirm New Password <span className="text-danger">*</span>
+                            </label>
+                            <div className="input-group">
+                              <span className="input-group-text bg-light border-end-0">
+                                <i className="ti ti-lock-check text-muted"></i>
+                              </span>
+                              <input
+                                type={showConfirmPassword ? 'text' : 'password'}
+                                className="form-control border-start-0 border-end-0 ps-0"
+                                placeholder="Re-enter new password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                minLength={6}
+                                required
+                              />
+                              <button
+                                type="button"
+                                className="input-group-text bg-light border-start-0 text-muted"
+                                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                              >
+                                <i className={showConfirmPassword ? 'ti ti-eye-off' : 'ti ti-eye'}></i>
+                              </button>
+                            </div>
+                          </div>
+
+                          <div className="d-grid mb-3">
+                            <button
+                              type="submit"
+                              disabled={forgotLoading}
+                              className="btn btn-primary btn-lg rounded-3 fw-bold fs-15 shadow-sm"
+                            >
+                              {forgotLoading ? (
+                                <>
+                                  <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                                  Updating Password...
+                                </>
+                              ) : (
+                                <>
+                                  <i className="ti ti-check me-2"></i>Update Password
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </form>
+                      )}
+
+                      <div className="text-center pt-2">
+                        <button
+                          type="button"
+                          className="btn btn-link text-decoration-none text-muted fs-13"
+                          onClick={() => {
+                            setAuthMethod('password');
+                            setForgotStep(1);
+                            setForgotOtp('');
+                            setResetToken('');
+                          }}
+                        >
+                          <i className="ti ti-arrow-left me-1"></i>Back to Sign In
+                        </button>
+                      </div>
+                    </>
                   )}
 
                   <div className="text-center pt-3 border-top mt-3">

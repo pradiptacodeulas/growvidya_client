@@ -15,8 +15,32 @@ export const verifyTeacherPasscodeApi = async (identifier, passcode) => {
   return response.data;
 };
 
+export const requestTeacherForgotPasswordOtpApi = async (identifier) => {
+  const response = await apiClient.post('/teacher/auth/forgot-password/request-otp', { identifier });
+  return response.data;
+};
+
+export const verifyTeacherForgotPasswordOtpApi = async (identifier, otp) => {
+  const response = await apiClient.post('/teacher/auth/forgot-password/verify-otp', { identifier, otp });
+  return response.data;
+};
+
+export const resetTeacherPasswordApi = async ({ resetToken, newPassword, confirmPassword }) => {
+  const response = await apiClient.post('/teacher/auth/forgot-password/reset', {
+    resetToken,
+    newPassword,
+    confirmPassword,
+  });
+  return response.data;
+};
+
 export const getTeacherProfileApi = async () => {
   const response = await apiClient.get('/teacher/auth/profile');
+  return response.data;
+};
+
+export const requestTeacherProfileOtpApi = async (data = {}) => {
+  const response = await apiClient.post('/teacher/auth/profile/request-otp', data);
   return response.data;
 };
 

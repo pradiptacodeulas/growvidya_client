@@ -2,27 +2,34 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
-import { getAdminFullProfileApi, updateAdminProfileApi } from '../../../api/adminAuth.api';
+import {
+  getAdminFullProfileApi,
+  requestAdminProfileOtpApi,
+  updateAdminProfileApi,
+} from '../../../api/adminAuth.api';
 import {
   fetchStaffOptionsApi,
   fetchStaffStatesApi,
   fetchStaffCitiesApi,
+  fetchStaffRoomsApi,
+  checkStaffEmailApi,
+  checkStaffPhoneApi,
 } from '../../../api/adminStaff.api';
 import apiClient from '../../../api/axios.config';
 import { updateUserState } from '../../../store/slices/authSlice';
-import { getServerBaseUrl, resolveImageUrl } from '../../../utils/url.util';
+import { resolveImageUrl } from '../../../utils/url.util';
 import Avatar from '../../../components/common/Avatar';
-
-const SERVER_BASE_URL = getServerBaseUrl();
 
 const EditAdminProfile = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const fileInputRef = useRef(null);
+  const docFileInputRef = useRef(null);
 
   const [activeTab, setActiveTab] = useState('personal');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [requestingOtp, setRequestingOtp] = useState(false);
   const [errors, setErrors] = useState({});
 
   // Master Options
@@ -33,8 +40,16 @@ const EditAdminProfile = () => {
   const [loadingCities, setLoadingCities] = useState(false);
   const [bloodGroups, setBloodGroups] = useState([]);
   const [genders, setGenders] = useState([]);
+  const [routes, setRoutes] = useState([]);
+  const [vehicles, setVehicles] = useState([]);
+  const [hostels, setHostels] = useState([]);
+  const [rooms, setRooms] = useState([]);
+  const [loadingRooms, setLoadingRooms] = useState(false);
+  const [documentTypes, setDocumentTypes] = useState([]);
+
   const stateRequestRef = useRef(0);
   const cityRequestRef = useRef(0);
+  const roomRequestRef = useRef(0);
 
   // Picture upload state
   const [pictureFile, setPictureFile] = useState(null);
@@ -67,11 +82,51 @@ const EditAdminProfile = () => {
     branch_name: '',
   });
 
+  const [transportInfo, setTransportInfo] = useState({
+    route: '',
+    vehicle_number: '',
+    pickup_point: '',
+    drop_point: '',
+  });
+
+  const [hostelInfo, setHostelInfo] = useState({
+    hostel_name: '',
+    room_no: '',
+  });
+
+  // Documents state
+  const [documents, setDocuments] = useState([]);
+  const [deletedDocuments, setDeletedDocuments] = useState([]);
+  const [selectedDocType, setSelectedDocType] = useState('');
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+
+  // Password state
   const [passwordData, setPasswordData] = useState({
     current_password: '',
     new_password: '',
     confirm_password: '',
   });
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  });
+
+  // OTP Verification Modal state
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [otpMaskedEmail, setOtpMaskedEmail] = useState('');
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [otpError, setOtpError] = useState('');
+  const otpInputRefs = useRef([]);
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return undefined;
+    const timer = setInterval(() => {
+      setOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldown]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -82,25 +137,22 @@ const EditAdminProfile = () => {
           getAdminFullProfileApi(),
         ]);
 
-        const countryList = Array.isArray(optRes?.data?.countries)
-          ? optRes.data.countries
-          : Array.isArray(optRes?.countries)
-          ? optRes.countries
-          : [];
-        const bloodGroupList = Array.isArray(optRes?.data?.bloodGroups)
-          ? optRes.data.bloodGroups
-          : Array.isArray(optRes?.bloodGroups)
-          ? optRes.bloodGroups
-          : [];
-        const genderList = Array.isArray(optRes?.data?.genders)
-          ? optRes.data.genders
-          : Array.isArray(optRes?.genders)
-          ? optRes.genders
-          : [];
+        const optSource = optRes?.data || optRes?.options || optRes || {};
+        const countryList = Array.isArray(optSource.countries) ? optSource.countries : [];
+        const bloodGroupList = Array.isArray(optSource.bloodGroups) ? optSource.bloodGroups : [];
+        const genderList = Array.isArray(optSource.genders) ? optSource.genders : [];
+        const routeList = Array.isArray(optSource.routes) ? optSource.routes : [];
+        const vehicleList = Array.isArray(optSource.vehicles) ? optSource.vehicles : [];
+        const hostelList = Array.isArray(optSource.hostels) ? optSource.hostels : [];
+        const docTypeList = Array.isArray(optSource.documentTypes) ? optSource.documentTypes : [];
 
         setCountries(countryList);
         setBloodGroups(bloodGroupList);
         setGenders(genderList);
+        setRoutes(routeList);
+        setVehicles(vehicleList);
+        setHostels(hostelList);
+        setDocumentTypes(docTypeList);
 
         const u = profRes?.data?.profile || profRes?.profile || profRes?.data || null;
         if (!u) {
@@ -179,9 +231,9 @@ const EditAdminProfile = () => {
           country_id: initialCountryId,
           state_id: initialStateId,
           city: initialCityId,
-          role_name: u.role_name || (Number(u.admin_type) === 1 ? 'Super Admin' : ''),
+          role_name: u.role_name || (Number(u.admin_type) === 1 ? 'Super Admin' : 'Administrator'),
           admin_type: u.admin_type,
-          branch_name: u.branch_name || '',
+          branch_name: u.branch_name || 'Main Campus',
           school_name: u.school_name || '',
           picture: u.picture || '',
         });
@@ -199,6 +251,57 @@ const EditAdminProfile = () => {
             ifsc_code: b.ifsc_code || '',
             branch_name: b.branch_name || '',
           });
+        }
+
+        if (u.transport_details) {
+          const t = u.transport_details;
+          setTransportInfo({
+            route: t.route ? String(t.route) : '',
+            vehicle_number: t.vehicle_number ? String(t.vehicle_number) : '',
+            pickup_point: t.pickup_point || '',
+            drop_point: t.drop_point || '',
+          });
+        }
+
+        if (u.hostel_details) {
+          const h = u.hostel_details;
+          const initialHostelId = h.hostel_name ? String(h.hostel_name) : '';
+          const initialRoomId = h.room_number ? String(h.room_number) : (h.room_no ? String(h.room_no) : '');
+          setHostelInfo({
+            hostel_name: initialHostelId,
+            room_no: initialRoomId,
+          });
+
+          if (initialHostelId) {
+            try {
+              const rRes = await fetchStaffRoomsApi(initialHostelId);
+              const rawRooms = Array.isArray(rRes?.data?.rooms)
+                ? rRes.data.rooms
+                : Array.isArray(rRes?.rooms)
+                ? rRes.rooms
+                : Array.isArray(rRes?.data)
+                ? rRes.data
+                : [];
+              setRooms(rawRooms);
+            } catch {
+              setRooms([]);
+            }
+          }
+        }
+
+        if (Array.isArray(u.documents)) {
+          setDocuments(
+            u.documents.map((doc) => ({
+              id: doc.id,
+              document_type: doc.document_type ? String(doc.document_type) : '',
+              document_type_name: doc.document_type_name || 'Document',
+              attachments: doc.attachments || doc.file_url || doc.file_name || '',
+              file_name:
+                String(doc.attachments || doc.file_name || '')
+                  .split('/')
+                  .pop() || 'Attached Document',
+            }))
+          );
         }
       } catch (err) {
         console.error('Error loading admin profile for edit:', err);
@@ -219,12 +322,45 @@ const EditAdminProfile = () => {
     }
   };
 
+  const handleEmailBlur = async () => {
+    const emailVal = String(personalInfo.email || '').trim();
+    if (!emailVal || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) return;
+    try {
+      const res = await checkStaffEmailApi(emailVal, personalInfo.id || null);
+      const exists = Boolean(res?.data?.exists ?? res?.exists);
+      if (exists) {
+        setErrors((prev) => ({
+          ...prev,
+          email: 'A staff member with this email address already exists.',
+        }));
+      }
+    } catch {
+      // Ignore network check error on blur
+    }
+  };
+
+  const handlePhoneBlur = async () => {
+    const phoneVal = String(personalInfo.phone || '').trim();
+    if (!phoneVal) return;
+    try {
+      const res = await checkStaffPhoneApi(phoneVal, personalInfo.id || null);
+      const exists = Boolean(res?.data?.exists ?? res?.exists);
+      if (exists) {
+        setErrors((prev) => ({
+          ...prev,
+          phone: 'A staff member with this mobile number already exists.',
+        }));
+      }
+    } catch {
+      // Ignore network check error on blur
+    }
+  };
+
   const handleCountryChange = async (e) => {
     const countryId = e.target.value;
     const reqId = ++stateRequestRef.current;
     cityRequestRef.current++;
 
-    // Reset selected State and City when Country changes
     setPersonalInfo((prev) => ({ ...prev, country_id: countryId, state_id: '', city: '' }));
     setStates([]);
     setCities([]);
@@ -259,7 +395,6 @@ const EditAdminProfile = () => {
     const stateId = e.target.value;
     const reqId = ++cityRequestRef.current;
 
-    // Reset selected City when State changes
     setPersonalInfo((prev) => ({ ...prev, state_id: stateId, city: '' }));
     setCities([]);
 
@@ -291,6 +426,107 @@ const EditAdminProfile = () => {
   const handleBankChange = (e) => {
     const { name, value } = e.target;
     setBankInfo((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleTransportChange = (e) => {
+    const { name, value } = e.target;
+    setTransportInfo((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleHostelChange = async (e) => {
+    const hostelId = e.target.value;
+    const reqId = ++roomRequestRef.current;
+    setHostelInfo({ hostel_name: hostelId, room_no: '' });
+    setRooms([]);
+
+    if (hostelId) {
+      try {
+        setLoadingRooms(true);
+        const res = await fetchStaffRoomsApi(hostelId);
+        if (roomRequestRef.current !== reqId) return;
+        const rawRooms = Array.isArray(res?.data?.rooms)
+          ? res.data.rooms
+          : Array.isArray(res?.rooms)
+          ? res.rooms
+          : Array.isArray(res?.data)
+          ? res.data
+          : [];
+        setRooms(rawRooms);
+      } catch {
+        if (roomRequestRef.current === reqId) {
+          setRooms([]);
+        }
+      } finally {
+        if (roomRequestRef.current === reqId) {
+          setLoadingRooms(false);
+        }
+      }
+    } else {
+      setLoadingRooms(false);
+    }
+  };
+
+  const handleRoomChange = (e) => {
+    setHostelInfo((prev) => ({ ...prev, room_no: e.target.value }));
+  };
+
+  const handleDocUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!selectedDocType) {
+      toast.warning('Please select a document type before uploading a file.');
+      if (docFileInputRef.current) docFileInputRef.current.value = '';
+      return;
+    }
+
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error('Document size must be less than 4MB.');
+      if (docFileInputRef.current) docFileInputRef.current.value = '';
+      return;
+    }
+
+    try {
+      setUploadingDoc(true);
+      const formData = new FormData();
+      formData.append('folder', 'staff');
+      formData.append('file', file);
+      const res = await apiClient.post('/upload/single?folder=staff', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const uploadedPath = res.data?.data?.file_path;
+      if (!uploadedPath) {
+        throw new Error('File path was not returned by server.');
+      }
+
+      const matchedType = documentTypes.find((dt) => String(dt.id) === String(selectedDocType));
+      setDocuments((prev) => [
+        ...prev,
+        {
+          id: null,
+          document_type: String(selectedDocType),
+          document_type_name: matchedType?.document_type_name || 'Document',
+          attachments: uploadedPath,
+          file_name: file.name,
+        },
+      ]);
+      setSelectedDocType('');
+      toast.success('Document attached. Click Save Changes to finalize.');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to upload document.');
+    } finally {
+      setUploadingDoc(false);
+      if (docFileInputRef.current) docFileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemoveDocument = (index) => {
+    const targetDoc = documents[index];
+    if (targetDoc?.id) {
+      setDeletedDocuments((prev) => [...prev, targetDoc.id]);
+    }
+    setDocuments((prev) => prev.filter((_, idx) => idx !== index));
   };
 
   const handlePasswordInput = (e) => {
@@ -334,6 +570,12 @@ const EditAdminProfile = () => {
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(personalInfo.email).trim())) {
       newErrors.email = 'Please enter a valid email address.';
     }
+    if (errors.email) {
+      newErrors.email = errors.email;
+    }
+    if (errors.phone) {
+      newErrors.phone = errors.phone;
+    }
 
     if (passwordData.new_password || passwordData.confirm_password || passwordData.current_password) {
       if (!passwordData.current_password) {
@@ -350,22 +592,16 @@ const EditAdminProfile = () => {
     }
 
     setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
+    return {
+      isValid: Object.keys(newErrors).length === 0,
+      newErrors,
+    };
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) {
-      if (errors.current_password || errors.new_password || errors.confirm_password) {
-        setActiveTab('security');
-      } else {
-        setActiveTab('personal');
-      }
-      return;
-    }
-
+  const saveProfilePayload = async (otpValue = undefined) => {
     try {
       setSubmitting(true);
+      setOtpError('');
 
       let uploadedPicPath = personalInfo.picture;
       if (pictureFile) {
@@ -377,6 +613,14 @@ const EditAdminProfile = () => {
         });
         uploadedPicPath = imgRes.data?.data?.file_path || personalInfo.picture;
       }
+
+      const newDocumentsToInsert = documents
+        .filter((d) => !d.id)
+        .map((d) => ({
+          document_type: Number(d.document_type) || null,
+          attachments: d.attachments,
+          file_name: d.file_name,
+        }));
 
       const payload = {
         first_name: String(personalInfo.first_name || '').trim(),
@@ -394,11 +638,20 @@ const EditAdminProfile = () => {
         bank_name: String(bankInfo.bank_name || '').trim(),
         ifsc_code: String(bankInfo.ifsc_code || '').trim(),
         branch_name: String(bankInfo.branch_name || '').trim(),
+        route: transportInfo.route ? Number(transportInfo.route) : null,
+        vehicle_number: transportInfo.vehicle_number ? Number(transportInfo.vehicle_number) : null,
+        pickup_point: String(transportInfo.pickup_point || '').trim(),
+        drop_point: String(transportInfo.drop_point || '').trim(),
+        hostel_name: hostelInfo.hostel_name ? Number(hostelInfo.hostel_name) : null,
+        room_no: hostelInfo.room_no ? Number(hostelInfo.room_no) : null,
+        documents: newDocumentsToInsert,
+        deleted_documents: deletedDocuments,
       };
 
       if (passwordData.new_password) {
         payload.current_password = passwordData.current_password;
         payload.new_password = passwordData.new_password;
+        payload.otp = otpValue;
       }
 
       const res = await updateAdminProfileApi(payload);
@@ -407,14 +660,104 @@ const EditAdminProfile = () => {
         dispatch(updateUserState(updatedUser));
       }
 
+      setOtpModalOpen(false);
       toast.success('Profile updated successfully!');
       navigate('/admin/profile');
     } catch (err) {
-      console.error('Failed to update admin profile:', err);
-      toast.error(err.response?.data?.message || 'Failed to update profile.');
+      const msg = err.response?.data?.message || 'Failed to update profile.';
+      if (otpValue) {
+        setOtpError(msg);
+      }
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const triggerOtpRequest = async () => {
+    try {
+      setRequestingOtp(true);
+      setOtpError('');
+      const res = await requestAdminProfileOtpApi({
+        action: 'change_password',
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password,
+      });
+
+      const masked = res?.data?.maskedEmail || res?.maskedEmail || personalInfo.email;
+      setOtpMaskedEmail(masked);
+      setOtpDigits(['', '', '', '', '', '']);
+      setOtpCooldown(30);
+      setOtpModalOpen(true);
+      toast.info(res?.message || `Verification code sent to ${masked}`);
+      setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
+    } catch (err) {
+      const msg = err.response?.data?.message || 'Failed to send verification OTP.';
+      toast.error(msg);
+    } finally {
+      setRequestingOtp(false);
+    }
+  };
+
+  const handleFormSubmit = async (e) => {
+    e.preventDefault();
+    const { isValid, newErrors } = validateForm();
+    if (!isValid) {
+      if (newErrors.current_password || newErrors.new_password || newErrors.confirm_password) {
+        setActiveTab('security');
+      } else {
+        setActiveTab('personal');
+      }
+      return;
+    }
+
+    const isPasswordChange = Boolean(passwordData.new_password && passwordData.new_password.trim());
+    if (isPasswordChange) {
+      await triggerOtpRequest();
+    } else {
+      await saveProfilePayload();
+    }
+  };
+
+  const handleOtpDigitChange = (index, value) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const updated = [...otpDigits];
+    updated[index] = digit;
+    setOtpDigits(updated);
+    if (otpError) setOtpError('');
+    if (digit && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    const updated = ['', '', '', '', '', ''];
+    for (let i = 0; i < pasted.length; i += 1) {
+      updated[i] = pasted[i];
+    }
+    setOtpDigits(updated);
+    if (otpError) setOtpError('');
+    const nextIdx = Math.min(pasted.length, 5);
+    otpInputRefs.current[nextIdx]?.focus();
+  };
+
+  const handleConfirmUpdateWithOtp = async (e) => {
+    if (e) e.preventDefault();
+    const otpValue = otpDigits.join('');
+    if (otpValue.length !== 6) {
+      setOtpError('Please enter the complete 6-digit verification code.');
+      return;
+    }
+    await saveProfilePayload(otpValue);
   };
 
   if (loading) {
@@ -459,7 +802,7 @@ const EditAdminProfile = () => {
       </div>
       {/* /Page Header */}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleFormSubmit}>
         <div className="row">
           {/* Left Column: Profile Photo & Summary */}
           <div className="col-xxl-3 col-xl-4 mb-4">
@@ -529,7 +872,7 @@ const EditAdminProfile = () => {
 
           {/* Right Column: Tabs & Form Inputs */}
           <div className="col-xxl-9 col-xl-8 mb-4">
-            <ul className="nav nav-tabs nav-tabs-bottom mb-3" role="tablist">
+            <ul className="nav nav-tabs nav-tabs-bottom mb-3 flex-wrap" role="tablist">
               <li className="nav-item">
                 <button
                   type="button"
@@ -546,6 +889,33 @@ const EditAdminProfile = () => {
                   onClick={() => setActiveTab('bank')}
                 >
                   <i className="ti ti-building-bank me-1.5"></i>Bank Account
+                </button>
+              </li>
+              <li className="nav-item">
+                <button
+                  type="button"
+                  className={`nav-link fw-semibold ${activeTab === 'transport' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('transport')}
+                >
+                  <i className="ti ti-bus me-1.5"></i>Transport Information
+                </button>
+              </li>
+              <li className="nav-item">
+                <button
+                  type="button"
+                  className={`nav-link fw-semibold ${activeTab === 'hostel' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('hostel')}
+                >
+                  <i className="ti ti-building-community me-1.5"></i>Hostel Information
+                </button>
+              </li>
+              <li className="nav-item">
+                <button
+                  type="button"
+                  className={`nav-link fw-semibold ${activeTab === 'documents' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('documents')}
+                >
+                  <i className="ti ti-files me-1.5"></i>Documents ({documents.length})
                 </button>
               </li>
               <li className="nav-item">
@@ -612,6 +982,7 @@ const EditAdminProfile = () => {
                         name="email"
                         value={personalInfo.email}
                         onChange={handlePersonalChange}
+                        onBlur={handleEmailBlur}
                         className={`form-control ${errors.email ? 'is-invalid' : ''}`}
                         placeholder="Enter email address"
                       />
@@ -625,9 +996,11 @@ const EditAdminProfile = () => {
                         name="phone"
                         value={personalInfo.phone}
                         onChange={handlePersonalChange}
-                        className="form-control"
+                        onBlur={handlePhoneBlur}
+                        className={`form-control ${errors.phone ? 'is-invalid' : ''}`}
                         placeholder="Enter mobile number"
                       />
+                      {errors.phone && <div className="invalid-feedback">{errors.phone}</div>}
                     </div>
 
                     <div className="col-md-6">
@@ -815,7 +1188,242 @@ const EditAdminProfile = () => {
               </div>
             )}
 
-            {/* Tab 3: Security / Change Password */}
+            {/* Tab 3: Transport Information */}
+            {activeTab === 'transport' && (
+              <div className="card border-white shadow-sm mb-4">
+                <div className="card-header bg-white border-bottom py-3">
+                  <h5 className="card-title mb-0 fw-bold fs-16 text-dark">
+                    <i className="ti ti-bus text-primary me-2"></i>Transport Information
+                  </h5>
+                </div>
+                <div className="card-body">
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label fw-medium">Route</label>
+                      <select
+                        name="route"
+                        value={transportInfo.route}
+                        onChange={handleTransportChange}
+                        className="form-select"
+                      >
+                        <option value="">Select Route</option>
+                        {routes.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.transport_route || r.route_name || r.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label fw-medium">Vehicle Number</label>
+                      <select
+                        name="vehicle_number"
+                        value={transportInfo.vehicle_number}
+                        onChange={handleTransportChange}
+                        className="form-select"
+                      >
+                        <option value="">Select Vehicle</option>
+                        {vehicles.map((v) => (
+                          <option key={v.id} value={v.id}>
+                            {v.vehicle_number || v.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label fw-medium">Pickup Point</label>
+                      <input
+                        type="text"
+                        name="pickup_point"
+                        value={transportInfo.pickup_point}
+                        onChange={handleTransportChange}
+                        className="form-control"
+                        placeholder="Enter pickup point"
+                      />
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label fw-medium">Drop Point</label>
+                      <input
+                        type="text"
+                        name="drop_point"
+                        value={transportInfo.drop_point}
+                        onChange={handleTransportChange}
+                        className="form-control"
+                        placeholder="Enter drop point"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 4: Hostel Information */}
+            {activeTab === 'hostel' && (
+              <div className="card border-white shadow-sm mb-4">
+                <div className="card-header bg-white border-bottom py-3">
+                  <h5 className="card-title mb-0 fw-bold fs-16 text-dark">
+                    <i className="ti ti-building-community text-primary me-2"></i>Hostel Information
+                  </h5>
+                </div>
+                <div className="card-body">
+                  <div className="row g-3">
+                    <div className="col-md-6">
+                      <label className="form-label fw-medium">Hostel Name</label>
+                      <select
+                        name="hostel_name"
+                        value={hostelInfo.hostel_name}
+                        onChange={handleHostelChange}
+                        className="form-select"
+                      >
+                        <option value="">Select Hostel</option>
+                        {hostels.map((h) => (
+                          <option key={h.id} value={h.id}>
+                            {h.hostel_name || h.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-md-6">
+                      <label className="form-label fw-medium">Room Number</label>
+                      <select
+                        name="room_no"
+                        value={hostelInfo.room_no}
+                        onChange={handleRoomChange}
+                        className="form-select"
+                        disabled={!hostelInfo.hostel_name || loadingRooms}
+                      >
+                        <option value="">
+                          {loadingRooms ? 'Loading Rooms...' : 'Select Room Number'}
+                        </option>
+                        {rooms.map((rm) => (
+                          <option key={rm.id} value={rm.id}>
+                            {rm.room_number || rm.room_no || rm.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Tab 5: Documents */}
+            {activeTab === 'documents' && (
+              <div className="card border-white shadow-sm mb-4">
+                <div className="card-header bg-white border-bottom py-3">
+                  <h5 className="card-title mb-0 fw-bold fs-16 text-dark">
+                    <i className="ti ti-files text-primary me-2"></i>Documents
+                  </h5>
+                </div>
+                <div className="card-body">
+                  <div className="row g-3 align-items-end mb-4">
+                    <div className="col-md-5">
+                      <label className="form-label fw-medium">Document Type</label>
+                      <select
+                        value={selectedDocType}
+                        onChange={(e) => setSelectedDocType(e.target.value)}
+                        className="form-select"
+                      >
+                        <option value="">Select Document Type</option>
+                        {documentTypes.map((dt) => (
+                          <option key={dt.id} value={dt.id}>
+                            {dt.document_type_name || dt.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="col-md-7">
+                      <label className="form-label fw-medium">
+                        Upload Document (PDF / Image, Max 4MB)
+                      </label>
+                      <div className="d-flex gap-2">
+                        <input
+                          type="file"
+                          ref={docFileInputRef}
+                          onChange={handleDocUpload}
+                          accept=".pdf,image/jpeg,image/png,image/webp"
+                          className="form-control"
+                          disabled={uploadingDoc}
+                        />
+                        {uploadingDoc && (
+                          <span className="btn btn-light border disabled d-flex align-items-center">
+                            <span className="spinner-border spinner-border-sm me-1"></span>
+                            Uploading...
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {documents.length > 0 ? (
+                    <div className="table-responsive">
+                      <table className="table table-bordered align-middle mb-0">
+                        <thead className="table-light">
+                          <tr>
+                            <th>Document Type</th>
+                            <th>File</th>
+                            <th className="text-end" style={{ width: '140px' }}>
+                              Actions
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {documents.map((doc, idx) => {
+                            const fileUrl = resolveImageUrl(doc.attachments, '#');
+                            return (
+                              <tr key={doc.id || `new-${idx}`}>
+                                <td className="fw-semibold text-dark">
+                                  {doc.document_type_name || 'Document'}
+                                  {!doc.id && (
+                                    <span className="badge badge-soft-info ms-2">New</span>
+                                  )}
+                                </td>
+                                <td className="text-muted fs-13">{doc.file_name}</td>
+                                <td className="text-end">
+                                  <div className="d-inline-flex gap-1">
+                                    {fileUrl !== '#' && (
+                                      <a
+                                        href={fileUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="btn btn-sm btn-light border"
+                                        title="View Document"
+                                      >
+                                        <i className="ti ti-eye"></i>
+                                      </a>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveDocument(idx)}
+                                      className="btn btn-sm btn-outline-danger"
+                                      title="Remove Document"
+                                    >
+                                      <i className="ti ti-trash"></i>
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="text-center py-4 bg-light-300 rounded border">
+                      <i className="ti ti-files fs-28 text-muted d-block mb-1"></i>
+                      <p className="text-muted mb-0 fs-13">No documents attached yet.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Tab 6: Security / Change Password */}
             {activeTab === 'security' && (
               <div className="card border-white shadow-sm mb-4">
                 <div className="card-header bg-white border-bottom py-3">
@@ -824,51 +1432,81 @@ const EditAdminProfile = () => {
                   </h5>
                 </div>
                 <div className="card-body">
-                  <p className="text-muted fs-13 mb-3">
-                    Leave these fields blank if you do not wish to change your password.
-                  </p>
                   <div className="row g-3">
                     <div className="col-md-4">
                       <label className="form-label fw-medium">Current Password</label>
-                      <input
-                        type="password"
-                        name="current_password"
-                        value={passwordData.current_password}
-                        onChange={handlePasswordInput}
-                        className={`form-control ${errors.current_password ? 'is-invalid' : ''}`}
-                        placeholder="Enter current password"
-                      />
-                      {errors.current_password && (
-                        <div className="invalid-feedback">{errors.current_password}</div>
-                      )}
+                      <div className="input-group">
+                        <input
+                          type={showPasswords.current ? 'text' : 'password'}
+                          name="current_password"
+                          value={passwordData.current_password}
+                          onChange={handlePasswordInput}
+                          className={`form-control ${errors.current_password ? 'is-invalid' : ''}`}
+                          placeholder="Enter current password"
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-outline-light border text-muted"
+                          onClick={() =>
+                            setShowPasswords((p) => ({ ...p, current: !p.current }))
+                          }
+                        >
+                          <i className={`ti ${showPasswords.current ? 'ti-eye' : 'ti-eye-off'}`}></i>
+                        </button>
+                        {errors.current_password && (
+                          <div className="invalid-feedback d-block">{errors.current_password}</div>
+                        )}
+                      </div>
                     </div>
+
                     <div className="col-md-4">
                       <label className="form-label fw-medium">New Password</label>
-                      <input
-                        type="password"
-                        name="new_password"
-                        value={passwordData.new_password}
-                        onChange={handlePasswordInput}
-                        className={`form-control ${errors.new_password ? 'is-invalid' : ''}`}
-                        placeholder="Enter new password"
-                      />
-                      {errors.new_password && (
-                        <div className="invalid-feedback">{errors.new_password}</div>
-                      )}
+                      <div className="input-group">
+                        <input
+                          type={showPasswords.new ? 'text' : 'password'}
+                          name="new_password"
+                          value={passwordData.new_password}
+                          onChange={handlePasswordInput}
+                          className={`form-control ${errors.new_password ? 'is-invalid' : ''}`}
+                          placeholder="Min. 6 characters"
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-outline-light border text-muted"
+                          onClick={() => setShowPasswords((p) => ({ ...p, new: !p.new }))}
+                        >
+                          <i className={`ti ${showPasswords.new ? 'ti-eye' : 'ti-eye-off'}`}></i>
+                        </button>
+                        {errors.new_password && (
+                          <div className="invalid-feedback d-block">{errors.new_password}</div>
+                        )}
+                      </div>
                     </div>
+
                     <div className="col-md-4">
                       <label className="form-label fw-medium">Confirm New Password</label>
-                      <input
-                        type="password"
-                        name="confirm_password"
-                        value={passwordData.confirm_password}
-                        onChange={handlePasswordInput}
-                        className={`form-control ${errors.confirm_password ? 'is-invalid' : ''}`}
-                        placeholder="Confirm new password"
-                      />
-                      {errors.confirm_password && (
-                        <div className="invalid-feedback">{errors.confirm_password}</div>
-                      )}
+                      <div className="input-group">
+                        <input
+                          type={showPasswords.confirm ? 'text' : 'password'}
+                          name="confirm_password"
+                          value={passwordData.confirm_password}
+                          onChange={handlePasswordInput}
+                          className={`form-control ${errors.confirm_password ? 'is-invalid' : ''}`}
+                          placeholder="Confirm new password"
+                        />
+                        <button
+                          type="button"
+                          className="btn btn-outline-light border text-muted"
+                          onClick={() =>
+                            setShowPasswords((p) => ({ ...p, confirm: !p.confirm }))
+                          }
+                        >
+                          <i className={`ti ${showPasswords.confirm ? 'ti-eye' : 'ti-eye-off'}`}></i>
+                        </button>
+                        {errors.confirm_password && (
+                          <div className="invalid-feedback d-block">{errors.confirm_password}</div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -882,17 +1520,23 @@ const EditAdminProfile = () => {
               </Link>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={requestingOtp || submitting}
                 className="btn btn-primary d-flex align-items-center"
               >
-                {submitting ? (
+                {requestingOtp ? (
+                  <>
+                    <span className="spinner-border spinner-border-sm me-2" role="status"></span>
+                    Sending OTP...
+                  </>
+                ) : submitting && !otpModalOpen ? (
                   <>
                     <span className="spinner-border spinner-border-sm me-2" role="status"></span>
                     Saving Changes...
                   </>
                 ) : (
                   <>
-                    <i className="ti ti-device-floppy me-1"></i>Save Changes
+                    <i className="ti ti-device-floppy me-1"></i>
+                    Save Changes
                   </>
                 )}
               </button>
@@ -900,6 +1544,108 @@ const EditAdminProfile = () => {
           </div>
         </div>
       </form>
+
+      {/* 6-Digit Email OTP Confirmation Modal (for Password Change) */}
+      {otpModalOpen && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header border-bottom py-3">
+                <h5 className="modal-title fw-bold d-flex align-items-center">
+                  <i className="ti ti-shield-lock text-primary fs-20 me-2"></i>
+                  Confirm Password Change
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  disabled={submitting}
+                  onClick={() => setOtpModalOpen(false)}
+                ></button>
+              </div>
+              <form onSubmit={handleConfirmUpdateWithOtp}>
+                <div className="modal-body p-4">
+                  <p className="text-muted fs-13 mb-3">
+                    Enter the 6-digit verification code sent to{' '}
+                    <strong className="text-dark">{otpMaskedEmail}</strong> to confirm your changes.
+                  </p>
+
+                  {otpError && (
+                    <div className="alert alert-danger py-2 px-3 fs-13 mb-3">
+                      <i className="ti ti-alert-circle me-1"></i>
+                      {otpError}
+                    </div>
+                  )}
+
+                  <div
+                    className="d-flex justify-content-between gap-2 mb-3"
+                    onPaste={handleOtpPaste}
+                  >
+                    {otpDigits.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => {
+                          otpInputRefs.current[idx] = el;
+                        }}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        className="form-control text-center fw-bold fs-18"
+                        style={{ height: '48px' }}
+                        disabled={submitting}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="d-flex align-items-center justify-content-between fs-13">
+                    <span className="text-muted">Didn&apos;t receive the code?</span>
+                    <button
+                      type="button"
+                      className="btn btn-link p-0 text-primary fw-semibold text-decoration-none"
+                      disabled={otpCooldown > 0 || requestingOtp || submitting}
+                      onClick={triggerOtpRequest}
+                    >
+                      {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Resend OTP'}
+                    </button>
+                  </div>
+                </div>
+                <div className="modal-footer border-top py-2.5 px-4">
+                  <button
+                    type="button"
+                    className="btn btn-light border"
+                    disabled={submitting}
+                    onClick={() => setOtpModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary d-flex align-items-center"
+                    disabled={submitting || otpDigits.join('').length !== 6}
+                  >
+                    {submitting ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Verifying & Saving...
+                      </>
+                    ) : (
+                      <>
+                        <i className="ti ti-check me-1"></i>Confirm & Save
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

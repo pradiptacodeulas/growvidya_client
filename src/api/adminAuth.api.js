@@ -15,6 +15,25 @@ export const verifyAdminOtpApi = async (identifier, otp) => {
   return response.data;
 };
 
+export const requestAdminForgotPasswordOtpApi = async (email) => {
+  const response = await apiClient.post('/admin/auth/forgot-password/request-otp', { email, identifier: email });
+  return response.data;
+};
+
+export const verifyAdminForgotPasswordOtpApi = async (email, otp) => {
+  const response = await apiClient.post('/admin/auth/forgot-password/verify-otp', { email, identifier: email, otp });
+  return response.data;
+};
+
+export const resetAdminPasswordApi = async ({ resetToken, newPassword, confirmPassword }) => {
+  const response = await apiClient.post('/admin/auth/forgot-password/reset', {
+    resetToken,
+    newPassword,
+    confirmPassword,
+  });
+  return response.data;
+};
+
 export const getAdminProfileApi = async () => {
   const response = await apiClient.get('/admin/auth/me');
   return response.data;
@@ -22,6 +41,11 @@ export const getAdminProfileApi = async () => {
 
 export const getAdminFullProfileApi = async () => {
   const response = await apiClient.get('/admin/auth/profile');
+  return response.data;
+};
+
+export const requestAdminProfileOtpApi = async (data = {}) => {
+  const response = await apiClient.post('/admin/auth/profile/request-otp', data);
   return response.data;
 };
 

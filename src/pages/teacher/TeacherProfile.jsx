@@ -1,9 +1,13 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useSelector, useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
 import { Link } from 'react-router-dom';
 import apiClient from '../../api/axios.config';
-import { getTeacherProfileApi, updateTeacherProfileApi } from '../../api/teacherAuth.api';
+import {
+  getTeacherProfileApi,
+  requestTeacherProfileOtpApi,
+  updateTeacherProfileApi,
+} from '../../api/teacherAuth.api';
 import { uploadFileApi } from '../../api/upload.api';
 import { updateTeacherState } from '../../store/slices/teacherAuthSlice';
 import { resolveImageUrl, maleUserDefault } from '../../utils/url.util';
@@ -14,8 +18,27 @@ const TeacherProfile = () => {
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [requestingOtp, setRequestingOtp] = useState(false);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [activeTab, setActiveTab] = useState('profile'); // 'profile' | 'password'
+  const [emailMissingWarning, setEmailMissingWarning] = useState('');
+
+  // OTP Modal state
+  const [otpModalOpen, setOtpModalOpen] = useState(false);
+  const [otpAction, setOtpAction] = useState('profile'); // 'profile' | 'password'
+  const [otpDigits, setOtpDigits] = useState(['', '', '', '', '', '']);
+  const [otpMaskedEmail, setOtpMaskedEmail] = useState('');
+  const [otpCooldown, setOtpCooldown] = useState(0);
+  const [otpError, setOtpError] = useState('');
+  const otpInputRefs = useRef([]);
+
+  useEffect(() => {
+    if (otpCooldown <= 0) return undefined;
+    const timer = setInterval(() => {
+      setOtpCooldown((prev) => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [otpCooldown]);
 
   // Dynamic Lookup Lists from DB
   const [countries, setCountries] = useState([]);
@@ -55,6 +78,7 @@ const TeacherProfile = () => {
   });
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Read-only meta info
   const [metaInfo, setMetaInfo] = useState({
@@ -391,7 +415,6 @@ const TeacherProfile = () => {
 
       if (uploadedPath) {
         setFormData((prev) => ({ ...prev, picture: uploadedPath }));
-        // Save immediately to profile
         const updateRes = await updateTeacherProfileApi({ picture: uploadedPath });
         if (updateRes?.data?.teacher) {
           dispatch(updateTeacherState(updateRes.data.teacher));
@@ -406,7 +429,7 @@ const TeacherProfile = () => {
     }
   };
 
-  // Save Profile Details Handler
+  // Save Profile Details Handler (Direct save, no OTP)
   const handleSaveProfile = async (e) => {
     e.preventDefault();
 
@@ -439,7 +462,39 @@ const TeacherProfile = () => {
     }
   };
 
-  // Change Password Handler
+  const triggerTeacherOtpRequest = async () => {
+    try {
+      setRequestingOtp(true);
+      setOtpError('');
+      setEmailMissingWarning('');
+
+      const res = await requestTeacherProfileOtpApi({
+        action: 'change_password',
+        email_address: formData.email_address,
+        current_password: passwordData.current_password,
+        new_password: passwordData.new_password,
+      });
+
+      const masked = res?.data?.maskedEmail || res?.maskedEmail || formData.email_address;
+      setOtpMaskedEmail(masked);
+      setOtpDigits(['', '', '', '', '', '']);
+      setOtpCooldown(30);
+      setOtpModalOpen(true);
+      toast.info(res?.message || `A 6-digit verification code has been sent to ${masked}`);
+      setTimeout(() => otpInputRefs.current[0]?.focus(), 100);
+    } catch (err) {
+      const errData = err.response?.data;
+      const msg = errData?.message || 'Failed to send verification OTP.';
+      if (errData?.errors?.emailMissing || errData?.data?.emailMissing) {
+        setEmailMissingWarning(msg);
+      }
+      toast.error(msg);
+    } finally {
+      setRequestingOtp(false);
+    }
+  };
+
+  // Change Password Handler (Step 1: Request OTP)
   const handleSavePassword = async (e) => {
     e.preventDefault();
 
@@ -451,8 +506,8 @@ const TeacherProfile = () => {
       toast.warning('Please enter a new password.');
       return;
     }
-    if (passwordData.new_password.length < 4) {
-      toast.warning('New password must be at least 4 characters long.');
+    if (passwordData.new_password.length < 6) {
+      toast.warning('New password must be at least 6 characters long.');
       return;
     }
     if (passwordData.new_password !== passwordData.confirm_password) {
@@ -460,11 +515,55 @@ const TeacherProfile = () => {
       return;
     }
 
+    await triggerTeacherOtpRequest();
+  };
+
+  const handleOtpDigitChange = (index, value) => {
+    const digit = value.replace(/\D/g, '').slice(-1);
+    const updated = [...otpDigits];
+    updated[index] = digit;
+    setOtpDigits(updated);
+    if (otpError) setOtpError('');
+    if (digit && index < 5) {
+      otpInputRefs.current[index + 1]?.focus();
+    }
+  };
+
+  const handleOtpKeyDown = (index, e) => {
+    if (e.key === 'Backspace' && !otpDigits[index] && index > 0) {
+      otpInputRefs.current[index - 1]?.focus();
+    }
+  };
+
+  const handleOtpPaste = (e) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (!pasted) return;
+    const updated = ['', '', '', '', '', ''];
+    for (let i = 0; i < pasted.length; i += 1) {
+      updated[i] = pasted[i];
+    }
+    setOtpDigits(updated);
+    if (otpError) setOtpError('');
+    otpInputRefs.current[Math.min(pasted.length, 5)]?.focus();
+  };
+
+  const handleConfirmTeacherOtp = async (e) => {
+    if (e) e.preventDefault();
+    const otpValue = otpDigits.join('');
+    if (otpValue.length !== 6) {
+      setOtpError('Please enter the complete 6-digit verification code.');
+      return;
+    }
+
     try {
       setSaving(true);
+      setOtpError('');
+
       await updateTeacherProfileApi({
         current_password: passwordData.current_password,
         new_password: passwordData.new_password,
+        otp: otpValue,
       });
       toast.success('Password changed successfully!');
       setPasswordData({
@@ -472,9 +571,11 @@ const TeacherProfile = () => {
         new_password: '',
         confirm_password: '',
       });
+      setOtpModalOpen(false);
     } catch (err) {
-      console.error('Password change failed:', err);
-      toast.error(err.response?.data?.message || 'Failed to change password.');
+      const msg = err.response?.data?.message || 'Failed to verify OTP and change password.';
+      setOtpError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }
@@ -654,6 +755,13 @@ const TeacherProfile = () => {
               </div>
 
               <div className="card-body p-4">
+                {emailMissingWarning && (
+                  <div className="alert alert-warning d-flex align-items-center mb-3" role="alert">
+                    <i className="ti ti-alert-triangle fs-20 me-2"></i>
+                    <div>{emailMissingWarning}</div>
+                  </div>
+                )}
+
                 {activeTab === 'profile' ? (
                   <form onSubmit={handleSaveProfile}>
                     <h6 className="fw-bold text-dark mb-3">
@@ -962,7 +1070,7 @@ const TeacherProfile = () => {
                             className="btn btn-outline-secondary"
                             onClick={() => setShowCurrentPassword(!showCurrentPassword)}
                           >
-                            <i className={showCurrentPassword ? 'ti ti-eye-off' : 'ti ti-eye'}></i>
+                            <i className={showCurrentPassword ? 'ti ti-eye' : 'ti ti-eye-off'}></i>
                           </button>
                         </div>
                       </div>
@@ -979,14 +1087,14 @@ const TeacherProfile = () => {
                             value={passwordData.new_password}
                             onChange={handlePasswordChange}
                             required
-                            placeholder="Enter new password"
+                            placeholder="Min. 6 characters"
                           />
                           <button
                             type="button"
                             className="btn btn-outline-secondary"
                             onClick={() => setShowNewPassword(!showNewPassword)}
                           >
-                            <i className={showNewPassword ? 'ti ti-eye-off' : 'ti ti-eye'}></i>
+                            <i className={showNewPassword ? 'ti ti-eye' : 'ti ti-eye-off'}></i>
                           </button>
                         </div>
                       </div>
@@ -995,15 +1103,24 @@ const TeacherProfile = () => {
                         <label className="form-label">
                           Confirm New Password <strong className="text-danger">*</strong>
                         </label>
-                        <input
-                          type="password"
-                          className="form-control"
-                          name="confirm_password"
-                          value={passwordData.confirm_password}
-                          onChange={handlePasswordChange}
-                          required
-                          placeholder="Re-enter new password"
-                        />
+                        <div className="input-group">
+                          <input
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            className="form-control"
+                            name="confirm_password"
+                            value={passwordData.confirm_password}
+                            onChange={handlePasswordChange}
+                            required
+                            placeholder="Re-enter new password"
+                          />
+                          <button
+                            type="button"
+                            className="btn btn-outline-secondary"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                          >
+                            <i className={showConfirmPassword ? 'ti ti-eye' : 'ti ti-eye-off'}></i>
+                          </button>
+                        </div>
                       </div>
                     </div>
 
@@ -1011,12 +1128,12 @@ const TeacherProfile = () => {
                       <button
                         type="submit"
                         className="btn btn-primary px-4"
-                        disabled={saving}
+                        disabled={requestingOtp || saving}
                       >
-                        {saving ? (
+                        {requestingOtp ? (
                           <>
                             <span className="spinner-border spinner-border-sm me-2"></span>
-                            Updating Password...
+                            Sending OTP...
                           </>
                         ) : (
                           'Update Password'
@@ -1026,6 +1143,108 @@ const TeacherProfile = () => {
                   </form>
                 )}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 6-Digit Email OTP Confirmation Modal (Password Change) */}
+      {otpModalOpen && (
+        <div
+          className="modal fade show d-block"
+          tabIndex="-1"
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.55)' }}
+        >
+          <div className="modal-dialog modal-dialog-centered">
+            <div className="modal-content border-0 shadow-lg">
+              <div className="modal-header border-bottom py-3">
+                <h5 className="modal-title fw-bold d-flex align-items-center">
+                  <i className="ti ti-shield-lock text-primary fs-20 me-2"></i>
+                  Confirm Password Change
+                </h5>
+                <button
+                  type="button"
+                  className="btn-close"
+                  disabled={saving}
+                  onClick={() => setOtpModalOpen(false)}
+                ></button>
+              </div>
+              <form onSubmit={handleConfirmTeacherOtp}>
+                <div className="modal-body p-4">
+                  <p className="text-muted fs-13 mb-3">
+                    Enter the 6-digit verification code sent to{' '}
+                    <strong className="text-dark">{otpMaskedEmail}</strong> to confirm changing your password.
+                  </p>
+
+                  {otpError && (
+                    <div className="alert alert-danger py-2 px-3 fs-13 mb-3">
+                      <i className="ti ti-alert-circle me-1"></i>
+                      {otpError}
+                    </div>
+                  )}
+
+                  <div
+                    className="d-flex justify-content-between gap-2 mb-3"
+                    onPaste={handleOtpPaste}
+                  >
+                    {otpDigits.map((digit, idx) => (
+                      <input
+                        key={idx}
+                        ref={(el) => {
+                          otpInputRefs.current[idx] = el;
+                        }}
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={1}
+                        value={digit}
+                        onChange={(e) => handleOtpDigitChange(idx, e.target.value)}
+                        onKeyDown={(e) => handleOtpKeyDown(idx, e)}
+                        className="form-control text-center fw-bold fs-18"
+                        style={{ height: '48px' }}
+                        disabled={saving}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="d-flex align-items-center justify-content-between fs-13">
+                    <span className="text-muted">Didn&apos;t receive the code?</span>
+                    <button
+                      type="button"
+                      className="btn btn-link p-0 text-primary fw-semibold text-decoration-none"
+                      disabled={otpCooldown > 0 || requestingOtp || saving}
+                      onClick={triggerTeacherOtpRequest}
+                    >
+                      {otpCooldown > 0 ? `Resend in ${otpCooldown}s` : 'Resend OTP'}
+                    </button>
+                  </div>
+                </div>
+                <div className="modal-footer border-top py-2.5 px-4">
+                  <button
+                    type="button"
+                    className="btn btn-light border"
+                    disabled={saving}
+                    onClick={() => setOtpModalOpen(false)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn btn-primary d-flex align-items-center"
+                    disabled={saving || otpDigits.join('').length !== 6}
+                  >
+                    {saving ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm me-2"></span>
+                        Verifying & Updating...
+                      </>
+                    ) : (
+                      <>
+                        <i className="ti ti-check me-1"></i>Confirm & Update
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

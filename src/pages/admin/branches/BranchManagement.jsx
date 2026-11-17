@@ -1629,16 +1629,10 @@ const BranchManagement = () => {
           {deleteStep === 'otp' && (
             <form onSubmit={handleConfirmDelete}>
               <div className="p-3 rounded-3 bg-light border mb-3">
-                <p className="fs-13 text-dark mb-1">
+                <p className="fs-13 text-dark mb-0">
                   A 6-digit confirmation OTP has been sent to{' '}
                   <strong>{deleteOtpMeta?.maskedEmail || 'your registered email'}</strong>.
                 </p>
-                {deleteOtpMeta?.testPasscode && (
-                  <div className="mt-2 p-2 rounded bg-warning bg-opacity-10 border border-warning text-dark fs-12">
-                    <strong>Test Mode OTP:</strong>{' '}
-                    <span className="font-monospace fw-bold fs-14">{deleteOtpMeta.testPasscode}</span>
-                  </div>
-                )}
               </div>
 
               <div className="mb-3">

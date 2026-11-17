@@ -810,7 +810,7 @@ const SuperAdminDashboard = () => {
                 </span>
                 <span className="text-muted">
                   {students.allowed > 0
-                    ? students.isBranchFiltered || selectedBranch !== 'all'
+                    ? Boolean(students.isBranchFiltered || stats?.filter?.isFiltered)
                       ? `Plan Seats: ${students.schoolTotal ?? students.total}/${students.allowed} (School)`
                       : `Plan Seats: ${students.total}/${students.allowed}`
                     : 'Capacity: Unlimited'}
