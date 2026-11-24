@@ -1,0 +1,30 @@
+/* Branch attendance location picker */
+.branch-loc-map {
+  height: 340px;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e9edf4;
+  background: #f8fafc;
+}
+
+/* Legacy Places Autocomplete dropdown must stay above Bootstrap modals */
+.pac-container {
+  z-index: 2000 !important;
+}
+
+.branch-loc-search gmp-place-autocomplete,
+.branch-loc-search gmp-placeautocomplete {
+  width: 100%;
+  color-scheme: light;
+}
+
+.branch-loc-day-chip {
+  min-width: 52px;
+  border-radius: 9999px !important;
+}
+
+.branch-loc-disabled {
+  pointer-events: none;
+  opacity: 0.6;
+}
