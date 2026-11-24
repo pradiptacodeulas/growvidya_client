@@ -220,9 +220,6 @@ const authSlice = createSlice({
         if (action.payload.schoolLogo !== undefined) {
           state.user.schoolLogo = action.payload.schoolLogo;
         }
-        if (action.payload.schoolFooter !== undefined) {
-          state.user.schoolFooter = action.payload.schoolFooter;
-        }
       }
     },
   },

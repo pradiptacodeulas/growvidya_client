@@ -42,6 +42,7 @@ const SubscriptionConfigurePublic = () => {
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [footerText, setFooterText] = useState('');
 
   const searchParams = new URLSearchParams(location.search);
   const planIdParam = searchParams.get('planId') || searchParams.get('plan_id');
@@ -102,14 +103,17 @@ const SubscriptionConfigurePublic = () => {
     const fetchInitialData = async () => {
       try {
         setLoading(true);
-        const [plansRes, catalogRes] = await Promise.all([
+        const [plansRes, catalogRes, footerRes] = await Promise.all([
           saasApi.getPlans(),
           saasApi.getConfigCatalog().catch(() => ({ data: {} })),
+          saasApi.getFooterSetting().catch(() => null),
         ]);
 
         const fetchedPlans = plansRes?.data || [];
         const fetchedCatalog = catalogRes?.data || {};
+        const footerData = footerRes?.data || footerRes;
         setPlans(fetchedPlans);
+        setFooterText(footerData?.footer_text ? String(footerData.footer_text).trim() : '');
 
         setCatalog({
           storage_plans: fetchedCatalog.storage_plans || [],
@@ -537,7 +541,6 @@ const SubscriptionConfigurePublic = () => {
         state: pendingCampus?.state || '',
         country: pendingCampus?.country || null,
         postal_code: pendingCampus?.postal_code || '',
-        footer: pendingCampus?.footer || '',
       },
       academic_year: pendingAcademicYear || {},
       academicYear: pendingAcademicYear || {},
@@ -1278,11 +1281,11 @@ const SubscriptionConfigurePublic = () => {
         </div>
       </main>
 
-      <footer className="bg-white border-top py-3 text-center text-muted fs-13 mt-auto w-100">
-        <div className="container">
-          Copyright &copy; {new Date().getFullYear()} Growvidya School Management. All rights reserved.
-        </div>
-      </footer>
+      {footerText && (
+        <footer className="bg-white border-top py-3 text-center text-muted fs-13 mt-auto w-100">
+          <div className="container">{footerText}</div>
+        </footer>
+      )}
     </div>
   );
 };

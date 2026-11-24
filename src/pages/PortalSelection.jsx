@@ -1,10 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import logoDark from '../assets/logo_dark.png';
+import { fetchFooterSettingApi } from '../api/schoolConfig.api';
 import '../styles/portalSelection.css';
 
 const PortalSelection = () => {
   const [activeCard, setActiveCard] = useState('admin');
+  const [footerText, setFooterText] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchFooterSettingApi().then((res) => {
+      const data = res?.data || res;
+      if (isMounted) {
+        setFooterText(data?.footer_text ? String(data.footer_text).trim() : '');
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const cards = [
     {
@@ -105,11 +120,13 @@ const PortalSelection = () => {
           </div>
 
           {/* Footer Section */}
-          <div className="col-12 text-center mt-4">
-            <p className="mb-0 text-muted" style={{ fontSize: '13px' }}>
-              Copyright &copy; 2026 - Growvidya
-            </p>
-          </div>
+          {footerText && (
+            <div className="col-12 text-center mt-4">
+              <p className="mb-0 text-muted" style={{ fontSize: '13px' }}>
+                {footerText}
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>

@@ -40,7 +40,6 @@ const GeneralSetting = () => {
     state: '',
     city: '',
     postal_code: '',
-    footer: '',
     established_year: '',
     website: '',
     affiliation_board: '',
@@ -103,7 +102,6 @@ const GeneralSetting = () => {
             state: school?.state ? String(school.state) : '',
             city: school?.city ? String(school.city) : '',
             postal_code: school?.postal_code || '',
-            footer: school?.footer || '',
             established_year: school?.established_year || '',
             website: school?.website || '',
             affiliation_board: school?.affiliation_board || '',
@@ -273,10 +271,6 @@ const GeneralSetting = () => {
       toast.error('Please enter postal code.');
       return;
     }
-    if (!formData.footer.trim()) {
-      toast.error('Please enter footer text.');
-      return;
-    }
     if (selectedWeekends.length === 0) {
       toast.error('Please select at least one weekend day.');
       return;
@@ -331,7 +325,6 @@ const GeneralSetting = () => {
           school_logo: uploadedLogoPath,
           schoolName: formData.school_title,
           school_name: formData.school_title,
-          schoolFooter: formData.footer || '',
         })
       );
 
@@ -635,27 +628,6 @@ const GeneralSetting = () => {
                           value={formData.postal_code}
                           onChange={(e) =>
                             setFormData({ ...formData, postal_code: e.target.value })
-                          }
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    {/* Footer */}
-                    <div className="col-md-3">
-                      <div className="mb-3">
-                        <label className="form-label text-dark fw-medium fs-13">
-                          Footer <span className="text-danger">*</span>
-                        </label>
-                        <input
-                          type="text"
-                          className="form-control form-control-sm"
-                          name="footer"
-                          id="footer"
-                          placeholder="Enter Footer"
-                          value={formData.footer}
-                          onChange={(e) =>
-                            setFormData({ ...formData, footer: e.target.value })
                           }
                           required
                         />

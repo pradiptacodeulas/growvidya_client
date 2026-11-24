@@ -10,22 +10,36 @@ const PricingPlans = () => {
   const [plans, setPlans] = useState([]);
   const [loading, setLoading] = useState(true);
   const [billingCycle, setBillingCycle] = useState('');
+  const [footerText, setFooterText] = useState('');
 
   useEffect(() => {
+    let isMounted = true;
     const fetchPlans = async () => {
       try {
         setLoading(true);
-        const res = await saasApi.getPlans();
+        const [res, footerRes] = await Promise.all([
+          saasApi.getPlans(),
+          saasApi.getFooterSetting().catch(() => null),
+        ]);
         const list = res?.data || [];
-        setPlans(list);
+        const footerData = footerRes?.data || footerRes;
+        if (isMounted) {
+          setPlans(list);
+          setFooterText(footerData?.footer_text ? String(footerData.footer_text).trim() : '');
+        }
       } catch (err) {
         console.error('Failed to load plans:', err);
         toast.error('Failed to load subscription plans.');
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
     fetchPlans();
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   // Derive active paid billing cycles dynamically from DB plans (zero hardcoded cycle lists)
@@ -574,11 +588,11 @@ const PricingPlans = () => {
         </div>
       </main>
 
-      <footer className="bg-white border-top py-3 text-center text-muted fs-13 mt-auto w-100">
-        <div className="container">
-          Copyright &copy; {new Date().getFullYear()} Growvidya School Management. All rights reserved.
-        </div>
-      </footer>
+      {footerText && (
+        <footer className="bg-white border-top py-3 text-center text-muted fs-13 mt-auto w-100">
+          <div className="container">{footerText}</div>
+        </footer>
+      )}
     </div>
   );
 };

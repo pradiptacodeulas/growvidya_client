@@ -2,6 +2,14 @@ import apiClient from './axios.config';
 
 export const saasApi = {
   /**
+   * Fetch global platform footer setting configured by SaaS Admin
+   */
+  getFooterSetting: async () => {
+    const res = await apiClient.get('/saas/footer');
+    return res.data;
+  },
+
+  /**
    * Fetch active subscription plans dynamically from DB
    */
   getPlans: async () => {

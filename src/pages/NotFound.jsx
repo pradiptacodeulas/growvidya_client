@@ -1,14 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import logoDark from '../assets/logo_dark.png';
 import error404Svg from '../assets/error-404.svg';
+import { fetchFooterSettingApi } from '../api/schoolConfig.api';
 
 const NotFound = () => {
   const { isAuthenticated: isAdmin, user: adminUser } = useSelector((state) => state.auth);
   const { isAuthenticated: isTeacher } = useSelector((state) => state.teacherAuth);
   const { isAuthenticated: isParent } = useSelector((state) => state.parentAuth);
   const { isAuthenticated: isStudent } = useSelector((state) => state.studentAuth);
+  const [footerText, setFooterText] = useState('');
+
+  useEffect(() => {
+    let isMounted = true;
+    fetchFooterSettingApi().then((res) => {
+      const data = res?.data || res;
+      if (isMounted) {
+        setFooterText(data?.footer_text ? String(data.footer_text).trim() : '');
+      }
+    });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   let homePath = '/account/login';
   let buttonText = 'Back to Home';
@@ -80,11 +95,13 @@ const NotFound = () => {
               </div>
 
               {/* Footer */}
-              <div className="text-center pt-3">
-                <p className="mb-0 text-muted" style={{ fontSize: '13px' }}>
-                  Copyright &copy; {new Date().getFullYear()} - Growvidya. All rights reserved.
-                </p>
-              </div>
+              {footerText && (
+                <div className="text-center pt-3">
+                  <p className="mb-0 text-muted" style={{ fontSize: '13px' }}>
+                    {footerText}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
