@@ -10,6 +10,14 @@ export const saasApi = {
   },
 
   /**
+   * Fetch global GST setting configured by SaaS Admin
+   */
+  getGstSetting: async () => {
+    const res = await apiClient.get('/saas/gst');
+    return res.data;
+  },
+
+  /**
    * Fetch active subscription plans dynamically from DB
    */
   getPlans: async () => {

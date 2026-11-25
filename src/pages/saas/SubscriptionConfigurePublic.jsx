@@ -39,6 +39,7 @@ const SubscriptionConfigurePublic = () => {
     attendance_machines: [],
     rfid_cards: [],
     notification_records: [],
+    gst_settings: null,
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -120,6 +121,7 @@ const SubscriptionConfigurePublic = () => {
           attendance_machines: fetchedCatalog.attendance_machines || [],
           rfid_cards: fetchedCatalog.rfid_cards || [],
           notification_records: fetchedCatalog.notification_records || [],
+          gst_settings: fetchedCatalog.gst_settings || null,
         });
 
         let matched = null;
@@ -290,21 +292,99 @@ const SubscriptionConfigurePublic = () => {
     [appliedCoupon, basePrice, storageTotal, subtotal]
   );
 
-  const grandTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+  const computePublicGst = (taxableVal) => {
+    const gstSettings = catalog?.gst_settings;
+    const isEnabled =
+      gstSettings &&
+      Number(gstSettings.is_gst_enabled) === 1 &&
+      Number(gstSettings.gst_percentage) > 0;
+    if (!isEnabled || taxableVal <= 0) {
+      return {
+        enabled: false,
+        taxType: 'none',
+        gstPercentage: 0,
+        cgstPercentage: 0,
+        sgstPercentage: 0,
+        igstPercentage: 0,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        igstAmount: 0,
+        taxAmount: 0,
+      };
+    }
+
+    const gstPct = Number(gstSettings.gst_percentage) || 0;
+    const cgstPct = Number(gstSettings.cgst_percentage ?? (gstPct / 2).toFixed(2));
+    const sgstPct = Number(gstSettings.sgst_percentage ?? (gstPct - cgstPct).toFixed(2));
+    const igstPct = Number(gstSettings.igst_percentage ?? gstPct);
+
+    const schoolStateId = pendingCampus?.state ? Number(pendingCampus.state) : null;
+    const homeStateId = gstSettings.home_state_id ? Number(gstSettings.home_state_id) : null;
+    const schoolStateName = String(pendingCampus?.state_name || '').trim().toLowerCase().replace(/\s+/g, '');
+    const homeStateName = String(gstSettings.home_state_name || '').trim().toLowerCase().replace(/\s+/g, '');
+
+    let isIntraState = false;
+    const hasSchoolState = Boolean(schoolStateId || schoolStateName);
+    if (schoolStateId && homeStateId) {
+      isIntraState = schoolStateId === homeStateId;
+    } else if (schoolStateName && homeStateName) {
+      isIntraState = schoolStateName === homeStateName;
+    }
+
+    if (hasSchoolState && isIntraState) {
+      const cgstAmount = Math.round(((taxableVal * cgstPct) / 100) * 100) / 100;
+      const sgstAmount = Math.round(((taxableVal * sgstPct) / 100) * 100) / 100;
+      const taxAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
+      return {
+        enabled: true,
+        taxType: 'intra_state',
+        gstPercentage: gstPct,
+        cgstPercentage: cgstPct,
+        sgstPercentage: sgstPct,
+        igstPercentage: 0,
+        cgstAmount,
+        sgstAmount,
+        igstAmount: 0,
+        taxAmount,
+      };
+    }
+
+    const igstAmount = Math.round(((taxableVal * igstPct) / 100) * 100) / 100;
+    return {
+      enabled: true,
+      taxType: hasSchoolState ? 'inter_state' : 'gst_unspecified_state',
+      gstPercentage: gstPct,
+      cgstPercentage: 0,
+      sgstPercentage: 0,
+      igstPercentage: igstPct,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount,
+      taxAmount: igstAmount,
+    };
+  };
+
+  const taxableAmount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+  const gstBreakdown = computePublicGst(taxableAmount);
+  const grandTotal = Math.max(0, Math.round((taxableAmount + gstBreakdown.taxAmount) * 100) / 100);
 
   // Parallel totals for dual Free Trial vs Paid Plan CTA when hasRegistrationData && hasTrialOption
   const trialDiscountAmount = useMemo(
     () => computeScopedDiscount(appliedCoupon, 0, storageTotal, addonsTotal),
     [appliedCoupon, storageTotal, addonsTotal]
   );
-  const trialGrandTotal = Math.max(0, Math.round((addonsTotal - trialDiscountAmount) * 100) / 100);
+  const trialTaxableAmount = Math.max(0, Math.round((addonsTotal - trialDiscountAmount) * 100) / 100);
+  const trialGst = computePublicGst(trialTaxableAmount);
+  const trialGrandTotal = Math.max(0, Math.round((trialTaxableAmount + trialGst.taxAmount) * 100) / 100);
 
   const paidSubtotal = Math.round((paidPlanPrice + addonsTotal) * 100) / 100;
   const paidDiscountAmount = useMemo(
     () => computeScopedDiscount(appliedCoupon, paidPlanPrice, storageTotal, paidSubtotal),
     [appliedCoupon, paidPlanPrice, storageTotal, paidSubtotal]
   );
-  const paidGrandTotal = Math.max(0, Math.round((paidSubtotal - paidDiscountAmount) * 100) / 100);
+  const paidTaxableAmount = Math.max(0, Math.round((paidSubtotal - paidDiscountAmount) * 100) / 100);
+  const paidGst = computePublicGst(paidTaxableAmount);
+  const paidGrandTotal = Math.max(0, Math.round((paidTaxableAmount + paidGst.taxAmount) * 100) / 100);
 
   const handleRemoveCoupon = () => {
     if (appliedCoupon?.code) {
@@ -1197,8 +1277,42 @@ const SubscriptionConfigurePublic = () => {
                           </span>
                         </div>
                       )}
+                      {gstBreakdown.enabled && gstBreakdown.taxAmount > 0 && (
+                        <>
+                          {gstBreakdown.taxType === 'intra_state' ? (
+                            <>
+                              <div className="d-flex justify-content-between fs-13 mb-1">
+                                <span className="text-muted">CGST ({gstBreakdown.cgstPercentage}%)</span>
+                                <span className="fw-semibold text-dark">
+                                  +₹{gstBreakdown.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                              <div className="d-flex justify-content-between fs-13 mb-1">
+                                <span className="text-muted">SGST ({gstBreakdown.sgstPercentage}%)</span>
+                                <span className="fw-semibold text-dark">
+                                  +₹{gstBreakdown.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </>
+                          ) : gstBreakdown.taxType === 'inter_state' ? (
+                            <div className="d-flex justify-content-between fs-13 mb-1">
+                              <span className="text-muted">IGST ({gstBreakdown.igstPercentage}%)</span>
+                              <span className="fw-semibold text-dark">
+                                +₹{gstBreakdown.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="d-flex justify-content-between fs-13 mb-1">
+                              <span className="text-muted">GST ({gstBreakdown.gstPercentage}%)</span>
+                              <span className="fw-semibold text-dark">
+                                +₹{gstBreakdown.taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
                       <div className="d-flex justify-content-between align-items-center pt-2 border-top mt-2 mb-3">
-                        <span className="fw-bold text-dark fs-15">Total Net Due</span>
+                        <span className="fw-bold text-dark fs-15">Total Due</span>
                         <span className="fw-bold text-primary fs-22">
                           ₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </span>

@@ -12,6 +12,7 @@ import {
   recordSubscriptionPaymentFailure,
   validateSubscriptionCoupon,
   getSubscriptionOrders,
+  openSubscriptionInvoicePdfInNewTab,
 } from '../../../api/subscription.api';
 
 const NO_IMAGE_PLACEHOLDER = '/assets_admin/no_iamge.webp';
@@ -344,9 +345,101 @@ const SubscriptionBilling = () => {
     }
   }, [addonAppliedCoupon, addonDiscountAmount]);
 
-  const addonGrandTotal = Math.max(
+  const addonTaxableAmount = Math.max(
     0,
     Math.round((addonSubtotal - addonDiscountAmount) * 100) / 100
+  );
+
+  const addonGstBreakdown = useMemo(() => {
+    const gstSettings = catalog?.gst_settings;
+    const isEnabled =
+      gstSettings &&
+      Number(gstSettings.is_gst_enabled) === 1 &&
+      Number(gstSettings.gst_percentage) > 0;
+    if (!isEnabled || addonTaxableAmount <= 0) {
+      return {
+        enabled: false,
+        taxType: 'none',
+        gstPercentage: 0,
+        cgstPercentage: 0,
+        sgstPercentage: 0,
+        igstPercentage: 0,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        igstAmount: 0,
+        taxAmount: 0,
+      };
+    }
+
+    const gstPct = Number(gstSettings.gst_percentage) || 0;
+    const cgstPct = Number(gstSettings.cgst_percentage ?? (gstPct / 2).toFixed(2));
+    const sgstPct = Number(gstSettings.sgst_percentage ?? (gstPct - cgstPct).toFixed(2));
+    const igstPct = Number(gstSettings.igst_percentage ?? gstPct);
+
+    const schoolStateId = Number(
+      subscription?.school_state_id || user?.state_id || user?.state || 0
+    ) || null;
+    const homeStateId = gstSettings.home_state_id ? Number(gstSettings.home_state_id) : null;
+    const schoolStateName = String(subscription?.school_state_name || user?.state_name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '');
+    const homeStateName = String(gstSettings.home_state_name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '');
+
+    let isIntraState = false;
+    if (schoolStateId && homeStateId) {
+      isIntraState = schoolStateId === homeStateId;
+    } else if (schoolStateName && homeStateName) {
+      isIntraState = schoolStateName === homeStateName;
+    }
+
+    if (isIntraState) {
+      const cgstAmount = Math.round(((addonTaxableAmount * cgstPct) / 100) * 100) / 100;
+      const sgstAmount = Math.round(((addonTaxableAmount * sgstPct) / 100) * 100) / 100;
+      const taxAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
+      return {
+        enabled: true,
+        taxType: 'intra_state',
+        gstPercentage: gstPct,
+        cgstPercentage: cgstPct,
+        sgstPercentage: sgstPct,
+        igstPercentage: 0,
+        cgstAmount,
+        sgstAmount,
+        igstAmount: 0,
+        taxAmount,
+      };
+    }
+
+    const igstAmount = Math.round(((addonTaxableAmount * igstPct) / 100) * 100) / 100;
+    return {
+      enabled: true,
+      taxType: 'inter_state',
+      gstPercentage: gstPct,
+      cgstPercentage: 0,
+      sgstPercentage: 0,
+      igstPercentage: igstPct,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount,
+      taxAmount: igstAmount,
+    };
+  }, [
+    catalog?.gst_settings,
+    addonTaxableAmount,
+    subscription?.school_state_id,
+    subscription?.school_state_name,
+    user?.state_id,
+    user?.state,
+    user?.state_name,
+  ]);
+
+  const addonGrandTotal = Math.max(
+    0,
+    Math.round((addonTaxableAmount + addonGstBreakdown.taxAmount) * 100) / 100
   );
 
   const eligibleBankAccounts = useMemo(() => {
@@ -2166,7 +2259,7 @@ const SubscriptionBilling = () => {
                         )}
                       </div>
 
-                      {/* Net Totals (Zero GST) */}
+                      {/* Totals & Post-Coupon GST */}
                       <div className="border-top pt-3 mt-3">
                         <div className="d-flex justify-content-between fs-13 mb-1">
                           <span className="text-muted">Subtotal</span>
@@ -2182,8 +2275,35 @@ const SubscriptionBilling = () => {
                             </span>
                           </div>
                         )}
+                        {addonGstBreakdown.enabled && addonGstBreakdown.taxAmount > 0 && (
+                          <>
+                            {addonGstBreakdown.taxType === 'intra_state' ? (
+                              <>
+                                <div className="d-flex justify-content-between fs-13 mb-1">
+                                  <span className="text-muted">CGST ({addonGstBreakdown.cgstPercentage}%)</span>
+                                  <span className="fw-semibold text-dark">
+                                    +₹{addonGstBreakdown.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                                <div className="d-flex justify-content-between fs-13 mb-1">
+                                  <span className="text-muted">SGST ({addonGstBreakdown.sgstPercentage}%)</span>
+                                  <span className="fw-semibold text-dark">
+                                    +₹{addonGstBreakdown.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                  </span>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="d-flex justify-content-between fs-13 mb-1">
+                                <span className="text-muted">IGST ({addonGstBreakdown.igstPercentage}%)</span>
+                                <span className="fw-semibold text-dark">
+                                  +₹{addonGstBreakdown.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            )}
+                          </>
+                        )}
                         <div className="d-flex justify-content-between align-items-center pt-2 border-top mt-2 mb-3">
-                          <span className="fw-bold text-dark fs-14">Total Net Due</span>
+                          <span className="fw-bold text-dark fs-14">Total Due</span>
                           <span className="fw-bold text-primary fs-20">
                             ₹{addonGrandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
@@ -2484,14 +2604,20 @@ const SubscriptionBilling = () => {
                             {isPaymentOrder && ord.order_no && !isFail ? (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  navigate(
-                                    `/admin/subscription/payment-success?order_no=${encodeURIComponent(ord.order_no)}`
-                                  )
-                                }
+                                onClick={async () => {
+                                  try {
+                                    await openSubscriptionInvoicePdfInNewTab(ord.order_no);
+                                  } catch (err) {
+                                    toast.error(
+                                      err?.response?.data?.message ||
+                                        err?.message ||
+                                        'Unable to open invoice PDF.'
+                                    );
+                                  }
+                                }}
                                 className="btn btn-sm btn-outline-primary py-1 px-3 fs-12 fw-semibold"
                               >
-                                <i className="ti ti-printer me-1"></i> Invoice
+                                <i className="ti ti-printer me-1"></i> Print Invoice
                               </button>
                             ) : !isPaymentOrder && isPaid ? (
                               <button

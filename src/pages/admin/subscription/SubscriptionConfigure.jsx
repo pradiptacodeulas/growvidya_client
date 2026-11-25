@@ -127,6 +127,7 @@ const SubscriptionConfigure = () => {
     rfid_cards: [],
     bank_accounts: [],
     notification_records: [],
+    gst_settings: null,
   });
   const [catalogLoading, setCatalogLoading] = useState(true);
 
@@ -147,6 +148,7 @@ const SubscriptionConfigure = () => {
             rfid_cards: data.rfid_cards || [],
             bank_accounts: eligibleAccounts,
             notification_records: data.notification_records || [],
+            gst_settings: data.gst_settings || null,
           });
         }
       } catch (err) {
@@ -537,8 +539,97 @@ const SubscriptionConfigure = () => {
     }
   }, [appliedCoupon, discountAmount]);
 
-  // Flat Net Grand Total (Zero GST)
-  const grandTotal = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+  // Post-Coupon Standard Exclusive GST & Grand Total
+  const taxableAmount = Math.max(0, Math.round((subtotal - discountAmount) * 100) / 100);
+
+  const gstBreakdown = useMemo(() => {
+    const gstSettings = catalog?.gst_settings;
+    const isEnabled =
+      gstSettings &&
+      Number(gstSettings.is_gst_enabled) === 1 &&
+      Number(gstSettings.gst_percentage) > 0;
+    if (!isEnabled || taxableAmount <= 0) {
+      return {
+        enabled: false,
+        taxType: 'none',
+        gstPercentage: 0,
+        cgstPercentage: 0,
+        sgstPercentage: 0,
+        igstPercentage: 0,
+        cgstAmount: 0,
+        sgstAmount: 0,
+        igstAmount: 0,
+        taxAmount: 0,
+      };
+    }
+
+    const gstPct = Number(gstSettings.gst_percentage) || 0;
+    const cgstPct = Number(gstSettings.cgst_percentage ?? (gstPct / 2).toFixed(2));
+    const sgstPct = Number(gstSettings.sgst_percentage ?? (gstPct - cgstPct).toFixed(2));
+    const igstPct = Number(gstSettings.igst_percentage ?? gstPct);
+
+    const schoolStateId = Number(
+      subscription?.school_state_id || user?.state_id || user?.state || 0
+    ) || null;
+    const homeStateId = gstSettings.home_state_id ? Number(gstSettings.home_state_id) : null;
+    const schoolStateName = String(subscription?.school_state_name || user?.state_name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '');
+    const homeStateName = String(gstSettings.home_state_name || '')
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '');
+
+    let isIntraState = false;
+    if (schoolStateId && homeStateId) {
+      isIntraState = schoolStateId === homeStateId;
+    } else if (schoolStateName && homeStateName) {
+      isIntraState = schoolStateName === homeStateName;
+    }
+
+    if (isIntraState) {
+      const cgstAmount = Math.round(((taxableAmount * cgstPct) / 100) * 100) / 100;
+      const sgstAmount = Math.round(((taxableAmount * sgstPct) / 100) * 100) / 100;
+      const taxAmount = Math.round((cgstAmount + sgstAmount) * 100) / 100;
+      return {
+        enabled: true,
+        taxType: 'intra_state',
+        gstPercentage: gstPct,
+        cgstPercentage: cgstPct,
+        sgstPercentage: sgstPct,
+        igstPercentage: 0,
+        cgstAmount,
+        sgstAmount,
+        igstAmount: 0,
+        taxAmount,
+      };
+    }
+
+    const igstAmount = Math.round(((taxableAmount * igstPct) / 100) * 100) / 100;
+    return {
+      enabled: true,
+      taxType: 'inter_state',
+      gstPercentage: gstPct,
+      cgstPercentage: 0,
+      sgstPercentage: 0,
+      igstPercentage: igstPct,
+      cgstAmount: 0,
+      sgstAmount: 0,
+      igstAmount,
+      taxAmount: igstAmount,
+    };
+  }, [
+    catalog?.gst_settings,
+    taxableAmount,
+    subscription?.school_state_id,
+    subscription?.school_state_name,
+    user?.state_id,
+    user?.state,
+    user?.state_name,
+  ]);
+
+  const grandTotal = Math.max(0, Math.round((taxableAmount + gstBreakdown.taxAmount) * 100) / 100);
 
   const isCurrentPlan = Boolean(
     selectedPlan &&
@@ -2167,7 +2258,7 @@ const SubscriptionConfigure = () => {
                 )}
               </div>
 
-              {/* Net Subtotal & Discount (Zero GST — no GST row) */}
+              {/* Subtotal, Discount & Post-Coupon GST */}
               <div className="border-top pt-3 mt-3">
                 <div className="d-flex align-items-center justify-content-between mb-1 fs-13 text-muted">
                   <span>Subtotal</span>
@@ -2182,6 +2273,33 @@ const SubscriptionConfigure = () => {
                       -₹{discountAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
+                )}
+                {gstBreakdown.enabled && gstBreakdown.taxAmount > 0 && (
+                  <>
+                    {gstBreakdown.taxType === 'intra_state' ? (
+                      <>
+                        <div className="d-flex align-items-center justify-content-between mb-1 fs-13 text-muted">
+                          <span>CGST ({gstBreakdown.cgstPercentage}%)</span>
+                          <span className="fw-semibold text-dark">
+                            +₹{gstBreakdown.cgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        <div className="d-flex align-items-center justify-content-between mb-1 fs-13 text-muted">
+                          <span>SGST ({gstBreakdown.sgstPercentage}%)</span>
+                          <span className="fw-semibold text-dark">
+                            +₹{gstBreakdown.sgstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="d-flex align-items-center justify-content-between mb-1 fs-13 text-muted">
+                        <span>IGST ({gstBreakdown.igstPercentage}%)</span>
+                        <span className="fw-semibold text-dark">
+                          +₹{gstBreakdown.igstAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

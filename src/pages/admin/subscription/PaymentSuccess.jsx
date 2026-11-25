@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useSelector } from 'react-redux';
-import { getSubscriptionOrderInvoice } from '../../../api/subscription.api';
+import { toast } from 'react-toastify';
+import {
+  getSubscriptionOrderInvoice,
+  openSubscriptionInvoicePdfInNewTab,
+} from '../../../api/subscription.api';
 import { useSubscription } from '../../../context/SubscriptionContext';
 import logoDark from '../../../assets/logo_dark.png';
 
@@ -90,8 +94,23 @@ const PaymentSuccess = () => {
     };
   }, [orderNoParam]);
 
-  const handlePrintInvoice = () => {
-    window.print();
+  const [printingPdf, setPrintingPdf] = useState(false);
+
+  const handlePrintInvoice = async () => {
+    const targetOrderNo = order?.order_no || orderNoParam;
+    if (!targetOrderNo) return;
+    try {
+      setPrintingPdf(true);
+      await openSubscriptionInvoicePdfInNewTab(targetOrderNo);
+    } catch (err) {
+      toast.error(
+        err?.response?.data?.message ||
+          err?.message ||
+          'Unable to open invoice PDF.'
+      );
+    } finally {
+      setPrintingPdf(false);
+    }
   };
 
   if (loading && !order) {
@@ -229,10 +248,11 @@ const PaymentSuccess = () => {
                   <button
                     type="button"
                     onClick={handlePrintInvoice}
+                    disabled={printingPdf}
                     className="btn btn-light fw-bold px-3 py-2 shadow-sm d-inline-flex align-items-center"
                   >
                     <i className="ti ti-printer me-2 fs-16 text-dark"></i>
-                    <span>Print / Download Invoice</span>
+                    <span>{printingPdf ? 'Opening Invoice...' : 'Print Invoice'}</span>
                   </button>
                 )}
                 {!isPendingOffline && (
@@ -499,9 +519,47 @@ const PaymentSuccess = () => {
                       </span>
                     </div>
                   )}
+                  {order.tax_type === 'intra_state' && Number(order.tax_amount) > 0 ? (
+                    <>
+                      <div className="d-flex justify-content-between fs-13 mb-2">
+                        <span className="text-muted">
+                          CGST ({Number(order.cgst_percentage || 0)}%)
+                        </span>
+                        <span className="fw-semibold text-dark">
+                          +₹{Number(order.cgst_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="d-flex justify-content-between fs-13 mb-2">
+                        <span className="text-muted">
+                          SGST ({Number(order.sgst_percentage || 0)}%)
+                        </span>
+                        <span className="fw-semibold text-dark">
+                          +₹{Number(order.sgst_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </>
+                  ) : order.tax_type === 'inter_state' && Number(order.tax_amount) > 0 ? (
+                    <div className="d-flex justify-content-between fs-13 mb-2">
+                      <span className="text-muted">
+                        IGST ({Number(order.igst_percentage || order.tax_percentage || 0)}%)
+                      </span>
+                      <span className="fw-semibold text-dark">
+                        +₹{Number(order.igst_amount || order.tax_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ) : Number(order.tax_amount) > 0 ? (
+                    <div className="d-flex justify-content-between fs-13 mb-2">
+                      <span className="text-muted">
+                        GST ({Number(order.tax_percentage || 0)}%)
+                      </span>
+                      <span className="fw-semibold text-dark">
+                        +₹{Number(order.tax_amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  ) : null}
                   <div className="border-top pt-2 mt-2 d-flex justify-content-between align-items-center">
                     <span className="fw-bold text-dark fs-15">
-                      {isPendingOffline ? 'Total Amount Declared' : 'Total Net Paid'}
+                      {isPendingOffline ? 'Total Amount Declared' : 'Total Paid'}
                     </span>
                     <span className="fw-bold text-primary fs-20">
                       ₹{grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}

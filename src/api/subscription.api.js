@@ -87,6 +87,25 @@ export const getSubscriptionOrderInvoice = async (orderNo) => {
   return response.data?.data || response.data;
 };
 
+/**
+ * Open Backend-Generated Tax Invoice PDF in a Separate Browser Tab
+ */
+export const openSubscriptionInvoicePdfInNewTab = async (orderNo) => {
+  if (!orderNo) {
+    throw new Error('Order reference is required to open invoice PDF.');
+  }
+  const response = await apiClient.get(
+    `/admin/subscription/orders/${encodeURIComponent(orderNo)}/invoice-pdf`,
+    {
+      responseType: 'blob',
+    }
+  );
+  const pdfBlob = new Blob([response.data], { type: 'application/pdf' });
+  const blobUrl = URL.createObjectURL(pdfBlob);
+  window.open(blobUrl, '_blank', 'noopener,noreferrer');
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+};
+
 export const getNotificationWallet = async () => {
   const response = await apiClient.get('/admin/subscription/notification-wallet');
   return response.data?.data || response.data;
